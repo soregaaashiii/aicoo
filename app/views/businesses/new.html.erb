@@ -1,0 +1,14 @@
+<% content_for :title, "事業を追加" %>
+
+<% header_actions = capture do %>
+  <%= link_to "事業一覧に戻る", businesses_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "事業を追加",
+             description: "行動候補を分類するための事業フォルダを作成します。",
+             active_main: :revenue,
+             actions: header_actions %>
+  <%= render "form", business: @business %>
+</div>

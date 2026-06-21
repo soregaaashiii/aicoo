@@ -1,0 +1,31 @@
+<% content_for :title, "代理指標" %>
+
+<% header_actions = capture do %>
+    <%= link_to "編集", edit_business_metric_daily_path(@business_metric_daily), class: "button secondary" %>
+    <%= link_to "一覧へ戻る", business_metric_dailies_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "代理指標",
+             description: "#{@business_metric_daily.business.name} の日次代理指標です。",
+             active_main: :datahub,
+             actions: header_actions %>
+
+<dl class="detail-list">
+  <dt>記録日</dt>
+  <dd><%= l(@business_metric_daily.recorded_on) %></dd>
+  <dt>事業</dt>
+  <dd><%= link_to @business_metric_daily.business.name, @business_metric_daily.business %></dd>
+  <% BusinessMetricDaily::SCORE_WEIGHTS.each_key do |metric| %>
+    <dt><%= metric %></dt>
+    <dd><%= @business_metric_daily.public_send(metric) %></dd>
+  <% end %>
+  <dt>proxy_score</dt>
+  <dd><%= number_with_precision(@business_metric_daily.proxy_score, precision: 2) %></dd>
+</dl>
+
+<div class="actions">
+  <%= button_to "削除", @business_metric_daily, method: :delete, class: "danger" %>
+</div>
+</div>

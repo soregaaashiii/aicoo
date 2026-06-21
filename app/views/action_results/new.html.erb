@@ -1,0 +1,15 @@
+<% content_for :title, "実行結果を記録" %>
+
+<% header_actions = capture do %>
+  <%= link_to "行動結果一覧に戻る", action_results_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "実行結果を記録",
+             description: "ActionCandidateの予測値を保存し、実行後の結果と比較します。",
+             active_main: :judge,
+             actions: header_actions %>
+  <%= render "shared/aicoo_execution_tabs", active: :scored %>
+  <%= render "form", action_result: @action_result %>
+</div>

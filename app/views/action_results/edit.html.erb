@@ -1,0 +1,16 @@
+<% content_for :title, "実行結果を編集" %>
+
+<% header_actions = capture do %>
+  <%= link_to "詳細を見る", @action_result, class: "button secondary" %>
+  <%= link_to "行動結果一覧に戻る", action_results_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "実行結果を編集",
+             description: "手入力した実績やメモを更新します。",
+             active_main: :judge,
+             actions: header_actions %>
+  <%= render "shared/aicoo_execution_tabs", active: :scored %>
+  <%= render "form", action_result: @action_result %>
+</div>

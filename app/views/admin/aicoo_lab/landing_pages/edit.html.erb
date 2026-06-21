@@ -1,0 +1,14 @@
+<% content_for :title, "LP編集" %>
+
+<% header_actions = capture do %>
+  <%= link_to "検証詳細に戻る", admin_aicoo_lab_experiment_path(@experiment), class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "LP編集",
+             description: "#{@experiment.title} の承認前プレビューを編集します。",
+             active_main: :lab,
+             actions: header_actions %>
+  <%= render "form", experiment: @experiment, landing_page: @landing_page %>
+</div>

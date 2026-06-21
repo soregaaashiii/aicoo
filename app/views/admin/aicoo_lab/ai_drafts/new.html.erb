@@ -1,0 +1,41 @@
+<% content_for :title, "AI提案を保存" %>
+
+<div class="page-title">
+  <div>
+    <h1>AI提案を保存</h1>
+    <p>生成依頼プロンプトとAI出力JSONを保存し、レビュー待ちに積みます。</p>
+  </div>
+  <div class="actions compact-actions">
+    <%= link_to "AI提案", admin_aicoo_lab_ai_drafts_path, class: "button secondary" %>
+    <%= link_to "事業アイデア", admin_aicoo_lab_candidates_path, class: "button secondary" %>
+  </div>
+</div>
+
+<%= form_with url: admin_aicoo_lab_ai_drafts_path, scope: :ai_draft, method: :post do |form| %>
+  <section class="form-section">
+    <div class="field">
+      <%= form.label :title %>
+      <%= form.text_field :title, value: @title %>
+    </div>
+  </section>
+
+  <section class="form-section">
+    <h2>生成依頼プロンプト</h2>
+    <div class="field">
+      <%= form.label :prompt %>
+      <%= form.text_area :prompt, value: @prompt, rows: 22 %>
+    </div>
+  </section>
+
+  <section class="form-section">
+    <h2>AI出力JSON</h2>
+    <div class="field">
+      <%= form.label :raw_response, "AI出力JSON" %>
+      <%= form.text_area :raw_response, value: @raw_response, rows: 22 %>
+    </div>
+  </section>
+
+  <div class="actions">
+    <%= form.submit "AI下書きを保存", class: "button" %>
+  </div>
+<% end %>

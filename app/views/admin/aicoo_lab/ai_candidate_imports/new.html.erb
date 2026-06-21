@@ -1,0 +1,34 @@
+<% content_for :title, "AI提案の取り込み" %>
+
+<div class="page-title">
+  <div>
+    <h1>AI提案の取り込み</h1>
+    <p>AIに渡すプロンプトを作成し、返ってきたJSONを貼り付けて事業アイデアに変換します。</p>
+  </div>
+  <div class="actions compact-actions">
+    <%= link_to "事業アイデア", admin_aicoo_lab_candidates_path, class: "button secondary" %>
+    <%= link_to "アイデア生成履歴", admin_aicoo_lab_generation_runs_path, class: "button secondary" %>
+  </div>
+</div>
+
+<%= form_with url: admin_aicoo_lab_ai_candidate_imports_path, scope: :ai_candidate_import, method: :post do |form| %>
+  <section class="form-section">
+    <h2>AIに渡すプロンプト</h2>
+    <div class="field">
+      <%= form.label :prompt, "AIへの依頼文" %>
+      <%= form.text_area :prompt, value: @prompt, rows: 24 %>
+    </div>
+  </section>
+
+  <section class="form-section">
+    <h2>JSON貼り付け</h2>
+    <div class="field">
+      <%= form.label :response, "AI出力JSON" %>
+      <%= form.text_area :response, value: @response, rows: 24 %>
+    </div>
+  </section>
+
+  <div class="actions">
+    <%= form.submit "JSONから事業アイデアを作成", class: "button" %>
+  </div>
+<% end %>

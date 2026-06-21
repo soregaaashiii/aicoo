@@ -1,0 +1,130 @@
+<% content_for :title, "事業アイデア" %>
+
+<div class="page-title">
+  <div>
+    <h1>事業アイデア</h1>
+    <p>事業アイデアを確認し、良さそうなものをLP化して市場の反応を検証します。</p>
+  </div>
+  <div class="actions compact-actions">
+    <%= link_to "新規事業", admin_aicoo_lab_experiments_path, class: "button secondary" %>
+    <%= link_to "アイデア生成履歴", admin_aicoo_lab_generation_runs_path, class: "button secondary" %>
+    <%= link_to "AI提案", admin_aicoo_lab_ai_drafts_path, class: "button secondary" %>
+    <%= link_to "AI JSON貼り付け", new_admin_aicoo_lab_ai_candidate_import_path, class: "button secondary" %>
+    <%= button_to "候補を自動生成", generate_admin_aicoo_lab_candidates_path, method: :post, class: "button" %>
+    <%= link_to "候補を作成", new_admin_aicoo_lab_candidate_path, class: "button" %>
+  </div>
+</div>
+
+<section class="dashboard-section">
+  <div class="aicoo-lab-help">
+    <strong>この画面でやること</strong>
+    <p>ここではAIやルールで作られた事業アイデアを確認します。良さそうなアイデアを選んで一括LP化すると、検証案とLPプレビューが作成されます。</p>
+  </div>
+</section>
+
+<%= form_with url: bulk_convert_with_landing_pages_admin_aicoo_lab_candidates_path,
+              method: :post,
+              id: "bulk-convert-form",
+              class: "actions" do %>
+  <%= submit_tag "選択したアイデアを一括LP化", class: "button" %>
+<% end %>
+
+<section class="dashboard-section">
+  <div class="metric-grid">
+    <div class="metric-card">
+      <span>実験候補数</span>
+      <strong><%= @summary.total_count %></strong>
+    </div>
+    <div class="metric-card">
+      <span>承認待ち候補数</span>
+      <strong><%= @summary.approval_pending_count %></strong>
+    </div>
+    <div class="metric-card">
+      <span>変換済み候補数</span>
+      <strong><%= @summary.converted_count %></strong>
+    </div>
+  </div>
+</section>
+
+<%= form_with url: admin_aicoo_lab_candidates_path, method: :get, class: "filters" do |form| %>
+  <div class="field compact-field">
+    <%= form.label :status, "状態" %>
+    <%= form.select :status, options_for_select(AicooLabExperimentCandidate::STATUSES.map { |status| [aicoo_lab_status_label(status), status] }, params[:status]), include_blank: "すべて" %>
+  </div>
+  <div class="field compact-field">
+    <%= form.label :experiment_type, "種類" %>
+    <%= form.select :experiment_type, options_for_select(AicooLabExperiment::EXPERIMENT_TYPES, params[:experiment_type]), include_blank: "すべて" %>
+  </div>
+  <div class="field compact-field">
+    <%= form.label :market_category, "市場" %>
+    <%= form.text_field :market_category, value: params[:market_category] %>
+  </div>
+  <div class="field compact-field">
+    <%= form.label :acquisition_channel, "流入経路" %>
+    <%= form.select :acquisition_channel, options_for_select(AicooLabExperiment::ACQUISITION_CHANNELS, params[:acquisition_channel]), include_blank: "すべて" %>
+  </div>
+  <%= form.submit "絞り込む", class: "button" %>
+  <%= link_to "クリア", admin_aicoo_lab_candidates_path, class: "button secondary" %>
+<% end %>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>選択</th>
+        <th>アイデア</th>
+        <th>種類</th>
+        <th>市場</th>
+        <th>対象顧客</th>
+        <th>仮説</th>
+        <th>流入経路</th>
+        <th>生成元</th>
+        <th>状態</th>
+        <th>90日期待利益</th>
+        <th>成功確率</th>
+        <th>予算</th>
+        <th>工数</th>
+        <th>期待値</th>
+        <th>採点速度</th>
+        <th>新規事業優先度</th>
+        <th>操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @candidates.each do |candidate| %>
+        <tr>
+          <td>
+            <% if %w[proposed approved].include?(candidate.status) %>
+              <%= check_box_tag "candidate_ids[]", candidate.id, false, form: "bulk-convert-form" %>
+            <% else %>
+              -
+            <% end %>
+          </td>
+          <td><%= link_to candidate.title, admin_aicoo_lab_candidate_path(candidate) %></td>
+          <td><%= candidate.experiment_type %></td>
+          <td><%= candidate.market_category.presence || "-" %></td>
+          <td class="wide-text"><%= truncate(candidate.target_user, length: 80) %></td>
+          <td class="wide-text"><%= truncate(candidate.hypothesis, length: 100) %></td>
+          <td><%= candidate.acquisition_channel %></td>
+          <td><%= candidate.generation_source %></td>
+          <td><span class="pill"><%= aicoo_lab_status_label(candidate.status) %></span></td>
+          <td class="number"><%= number_to_currency(candidate.expected_90d_profit_yen, unit: "¥", precision: 0) %></td>
+          <td class="number"><%= number_to_percentage(candidate.success_probability.to_d * 100, precision: 1) %></td>
+          <td class="number"><%= number_to_currency(candidate.budget_yen, unit: "¥", precision: 0) %></td>
+          <td class="number"><%= candidate.estimated_work_minutes %></td>
+          <td class="number"><%= number_with_precision(candidate.expected_value_score, precision: 3) || "-" %></td>
+          <td class="number"><%= number_with_precision(candidate.scoring_speed_score, precision: 4) || "-" %></td>
+          <td class="number"><%= number_with_precision(candidate.lab_priority_score, precision: 4) || "-" %></td>
+          <td>
+            <div class="actions compact-actions">
+              <%= button_to "承認", approve_admin_aicoo_lab_candidate_path(candidate), method: :patch, class: "button secondary" unless candidate.status == "converted" %>
+              <%= button_to "却下", reject_admin_aicoo_lab_candidate_path(candidate), method: :patch, class: "danger" unless candidate.status == "converted" %>
+              <%= button_to "検証化", convert_to_experiment_admin_aicoo_lab_candidate_path(candidate), method: :post, class: "button" unless candidate.status == "converted" %>
+              <%= button_to "LP化", convert_to_experiment_with_landing_page_admin_aicoo_lab_candidate_path(candidate), method: :post, class: "button" if %w[proposed approved].include?(candidate.status) %>
+            </div>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>

@@ -1,0 +1,140 @@
+require "test_helper"
+
+class AicooDailyRunnerTest < ActiveSupport::TestCase
+  test "successful run marks daily run as succeeded and stores counts" do
+    order = []
+    target_date = Date.new(2026, 6, 21)
+    adjuster = fake_adjuster(order)
+    generator_result = MetricActionCandidateGenerator::Result.new(created: [ Object.new, Object.new ], skipped: [])
+
+    stub_daily_steps(order:, adjuster:, generator_results: [ generator_result ], evaluated_results: [ Object.new ]) do
+      run = AicooDailyRunner.run!(target_date:)
+
+      assert_equal "succeeded", run.status
+      assert_equal target_date, run.target_date
+      assert_equal 2, run.business_metrics_imported_count
+      assert_equal 1, run.proxy_weights_adjusted_count
+      assert_equal 2, run.action_candidates_generated_count
+      assert_equal 1, run.action_results_evaluated_count
+      assert_equal 3, run.score_snapshots_created_count
+      assert_equal 1, run.score_snapshot_rank_up_count
+      assert_equal 1, run.score_snapshot_rank_down_count
+      assert_equal 1, run.score_snapshot_no_adjustment_count
+      assert_equal 5, run.data_preparation_candidates_count
+      assert_equal 3, run.data_preparation_auto_queued_count
+      assert_match "Daily Run finished", run.run_log
+      assert_match "ActionCandidate score snapshots created count=3", run.run_log
+      assert_match "Data preparation candidates: 5", run.run_log
+      assert_match "Auto queued: 3", run.run_log
+      assert_match "Skipped: 2", run.run_log
+      assert_match "Reason: already queued=2", run.run_log
+      assert_equal %i[import adjust_all generate evaluate snapshot queue], order
+    end
+  end
+
+  test "failed run stores error message" do
+    error = RuntimeError.new("boom")
+
+    with_singleton_stub(BusinessMetricDailyImporter, :import_all!, ->(date:) { raise error }) do
+      assert_raises(RuntimeError) do
+        AicooDailyRunner.run!(target_date: Date.new(2026, 6, 21))
+      end
+    end
+
+    run = AicooDailyRun.last
+    assert_equal "failed", run.status
+    assert_match "RuntimeError: boom", run.error_message
+    assert_match "Daily Run failed", run.run_log
+  end
+
+  test "does not start duplicate running daily run for same target date" do
+    target_date = Date.new(2026, 6, 21)
+    existing = AicooDailyRun.create!(target_date:, status: "running", started_at: Time.current)
+
+    with_singleton_stub(BusinessMetricDailyImporter, :import_all!, ->(date:) { raise "should not be called" }) do
+      assert_equal existing, AicooDailyRunner.run!(target_date:)
+    end
+  end
+
+  private
+
+  def fake_adjuster(order)
+    Object.new.tap do |adjuster|
+      adjuster.define_singleton_method(:adjust_all_businesses!) do |start_date:, end_date:|
+        order << :adjust_all
+        [ Object.new ]
+      end
+      adjuster.define_singleton_method(:adjust_global!) do |start_date:, end_date:|
+        order << :adjust_global
+        Object.new
+      end
+    end
+  end
+
+  def stub_daily_steps(order:, adjuster:, generator_results:, evaluated_results:)
+    with_singleton_stub(BusinessMetricDailyImporter, :import_all!, ->(date:) {
+      order << :import
+      [ Object.new, Object.new ]
+    }) do
+      with_singleton_stub(ProxyScoreWeightAdjuster, :new, -> { adjuster }) do
+        with_singleton_stub(MetricActionCandidateGenerator, :generate_all!, -> {
+          order << :generate
+          generator_results
+        }) do
+          with_singleton_stub(ActionResultEvaluator, :evaluate_pending!, -> {
+            order << :evaluate
+            evaluated_results
+          }) do
+            with_method_stub(ActionCandidateScoreSnapshotter, :snapshot_top_candidates!, ->(date:) {
+              order << :snapshot
+              ActionCandidateScoreSnapshotter::Result.new(
+                snapshots: [ Object.new, Object.new, Object.new ],
+                created_count: 3,
+                rank_up_count: 1,
+                rank_down_count: 1,
+                no_adjustment_count: 1
+              )
+            }) do
+              with_singleton_stub(DataPreparationExecutorQueuer, :new, -> { fake_queuer(order) }) do
+                yield
+              end
+            end
+          end
+        end
+      end
+    end
+  end
+
+  def fake_queuer(order)
+    Object.new.tap do |queuer|
+      queuer.define_singleton_method(:call) do
+        order << :queue
+        DataPreparationExecutorQueuer::Result.new(
+          candidate_count: 5,
+          queued_count: 3,
+          skipped_count: 2,
+          skipped_reasons: { "already queued" => 2 },
+          disabled: false
+        )
+      end
+    end
+  end
+
+  def with_method_stub(klass, method_name, replacement)
+    original = klass.instance_method(method_name)
+    klass.define_method(method_name) { |*args, **kwargs| replacement.call(*args, **kwargs) }
+    yield
+  ensure
+    klass.define_method(method_name, original)
+  end
+
+  def with_singleton_stub(klass, method_name, replacement)
+    original = klass.method(method_name)
+    klass.define_singleton_method(method_name) { |*args, **kwargs| replacement.call(*args, **kwargs) }
+    yield
+  ensure
+    klass.define_singleton_method(method_name) do |*args, **kwargs, &block|
+      original.call(*args, **kwargs, &block)
+    end
+  end
+end

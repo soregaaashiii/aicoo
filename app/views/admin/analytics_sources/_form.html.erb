@@ -1,0 +1,82 @@
+<section class="dashboard-section">
+  <%= form_with(model: setting, url: setting.persisted? ? admin_analytics_source_path(setting) : admin_analytics_sources_path, class: "form") do |form| %>
+    <% if setting.errors.any? %>
+      <div class="errors">
+        <h2><%= pluralize(setting.errors.count, "error") %></h2>
+        <ul>
+          <% setting.errors.each do |error| %>
+            <li><%= error.full_message %></li>
+          <% end %>
+        </ul>
+      </div>
+    <% end %>
+
+    <div class="field">
+      <%= form.label :source_type, "データ種別" %>
+      <%= form.select :source_type, options_for_select([ [ "GA4", "ga4" ], [ "GSC", "gsc" ] ], setting.source_type) %>
+    </div>
+    <div class="field">
+      <%= form.label :name, "名前" %>
+      <%= form.text_field :name, required: true %>
+    </div>
+    <% if setting.source_type == "ga4" %>
+      <div class="field">
+        <%= form.label :property_id, "Property ID（GA4用）" %>
+        <%= form.text_field :property_id, value: setting.property_id, placeholder: "123456789" %>
+      </div>
+    <% elsif setting.source_type == "gsc" %>
+      <div class="field">
+        <%= form.label :site_url, "Site URL（GSC用）" %>
+        <%= form.text_field :site_url, value: setting.site_url, placeholder: "sc-domain:suelog.jp" %>
+      </div>
+    <% else %>
+      <div class="field">
+        <%= form.label :property_id, "Property ID（GA4用）" %>
+        <%= form.text_field :property_id, value: setting.property_id, placeholder: "123456789" %>
+      </div>
+      <div class="field">
+        <%= form.label :site_url, "Site URL（GSC用）" %>
+        <%= form.text_field :site_url, value: setting.site_url, placeholder: "sc-domain:suelog.jp" %>
+      </div>
+    <% end %>
+    <div class="field">
+      <%= form.label :fetch_days, "取得日数" %>
+      <%= form.number_field :fetch_days, min: 1 %>
+    </div>
+    <label class="checkbox-label">
+      <%= form.check_box :enabled %>
+      有効
+    </label>
+    <div class="field">
+      <%= form.label :client_id, "Client ID（任意）" %>
+      <% if setting.client_id.present? %>
+        <p class="aicoo-lab-help">設定済み。変更する場合だけ新しい値を入力してください。</p>
+      <% end %>
+      <%= form.text_field :client_id, value: nil %>
+    </div>
+    <div class="field">
+      <%= form.label :client_secret, "Client Secret（任意）" %>
+      <% if setting.client_secret.present? %>
+        <p class="aicoo-lab-help">設定済み。変更する場合だけ新しい値を入力してください。</p>
+      <% end %>
+      <%= form.password_field :client_secret, value: nil, autocomplete: "new-password" %>
+    </div>
+    <div class="field">
+      <%= form.label :credentials_json, "認証JSON（任意）" %>
+      <% if setting.credentials_json.present? %>
+        <p class="aicoo-lab-help">認証情報設定済み。変更する場合だけ新しい値を入力してください。</p>
+      <% end %>
+      <%= form.textarea :credentials_json, rows: 8, value: nil, placeholder: '{"client_id":"...","client_secret":"..."}' %>
+    </div>
+    <div class="field">
+      <%= form.label :refresh_token, "Refresh Token（任意）" %>
+      <% if setting.refresh_token.present? %>
+        <p class="aicoo-lab-help">認証情報設定済み。変更する場合だけ新しい値を入力してください。</p>
+      <% end %>
+      <%= form.text_field :refresh_token, value: nil %>
+    </div>
+    <div class="actions">
+      <%= form.submit "保存", class: "button" %>
+    </div>
+  <% end %>
+</section>

@@ -1,0 +1,43 @@
+nagazakicho_article:
+  business: suelog
+  title: 吸えログで中崎町の記事を書く
+  description: Search-intent focused article.
+  action_type: seo_article
+  expected_profit_yen: 30000
+  expected_hours: 2.0
+  expected_hourly_value_yen: 15000
+  cost_yen: 0
+  roi:
+  success_probability: 0.6
+  immediate_value_yen: 50000
+  strategic_value_score: 40
+  risk_reduction_score: 20
+  final_score: 16500
+  confidence_score: 70
+  generation_source: manual
+  priority_score: 50
+  status: pending
+  execution_prompt: Draft the article outline and write the first version.
+  evaluation_reason: High commercial intent keyword.
+
+ui_improvement:
+  business: cards
+  title: 名刺共有アプリのUIを改善する
+  description: Improve activation flow.
+  action_type: ui_improvement
+  expected_profit_yen: 12000
+  expected_hours: 4.0
+  expected_hourly_value_yen: 3000
+  cost_yen: 0
+  roi:
+  success_probability: 0.4
+  immediate_value_yen: 30000
+  strategic_value_score: 80
+  risk_reduction_score: 70
+  final_score: 25100
+  confidence_score: 55
+  generation_source: manual
+  priority_score: 65
+  status: idea
+  execution_prompt: Review the main flow and reduce one step.
+  evaluation_reason: Lower short-term value, strong SaaS learning value.

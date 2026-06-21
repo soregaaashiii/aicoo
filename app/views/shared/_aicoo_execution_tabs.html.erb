@@ -1,0 +1,15 @@
+<% active_tab = local_assigns.fetch(:active, nil).to_s %>
+<% execution_tabs = [
+  { key: "today", label: "今日やるべきこと", path: admin_aicoo_revenue_path },
+  { key: "planned", label: "実行予定", path: admin_aicoo_revenue_executions_path(status: "planned") },
+  { key: "done", label: "実行済み", path: admin_aicoo_revenue_executions_path(status: "done") },
+  { key: "scored", label: "採点済み", path: admin_aicoo_revenue_executions_path(status: "scored") },
+  { key: "dashboard", label: "操作盤", path: dashboard_path }
+] %>
+
+<nav class="aicoo-sub-tabs" aria-label="AICOO execution navigation">
+  <% execution_tabs.each do |tab| %>
+    <% active = active_tab == tab[:key] %>
+    <%= link_to tab[:label], tab[:path], class: "aicoo-sub-tab#{' active' if active}", aria: (active ? { current: "page" } : nil) %>
+  <% end %>
+</nav>

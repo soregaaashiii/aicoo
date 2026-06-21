@@ -1,0 +1,90 @@
+<% content_for :title, @candidate.title %>
+
+<% header_actions = capture do %>
+    <%= link_to "編集", edit_admin_aicoo_lab_candidate_path(@candidate), class: "button secondary" %>
+    <%= link_to "一覧へ戻る", admin_aicoo_lab_candidates_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: @candidate.title,
+             description: "検証化する前の事業アイデアです。",
+             active_main: :lab,
+             actions: header_actions %>
+
+<section class="dashboard-section">
+  <div class="actions compact-actions">
+    <%= button_to "承認", approve_admin_aicoo_lab_candidate_path(@candidate), method: :patch, class: "button secondary" unless @candidate.status == "converted" %>
+    <%= button_to "却下", reject_admin_aicoo_lab_candidate_path(@candidate), method: :patch, class: "danger" unless @candidate.status == "converted" %>
+    <%= button_to "検証化", convert_to_experiment_admin_aicoo_lab_candidate_path(@candidate), method: :post, class: "button" unless @candidate.status == "converted" %>
+    <%= button_to "検証化してLPも作成", convert_to_experiment_with_landing_page_admin_aicoo_lab_candidate_path(@candidate), method: :post, class: "button" if %w[proposed approved].include?(@candidate.status) %>
+  </div>
+</section>
+
+<dl class="detail-list">
+  <dt>状態</dt>
+  <dd><span class="pill"><%= aicoo_lab_status_label(@candidate.status) %></span></dd>
+  <dt>生成元</dt>
+  <dd><%= @candidate.generation_source %></dd>
+  <dt>検証タイプ</dt>
+  <dd><%= @candidate.experiment_type %></dd>
+  <dt>市場カテゴリ</dt>
+  <dd><%= @candidate.market_category.presence || "-" %></dd>
+  <dt>集客チャネル</dt>
+  <dd><%= @candidate.acquisition_channel %></dd>
+  <dt>説明</dt>
+  <dd><%= simple_format(@candidate.description) %></dd>
+  <dt>対象ユーザー</dt>
+  <dd><%= @candidate.target_user.presence || "-" %></dd>
+  <dt>課題</dt>
+  <dd><%= simple_format(@candidate.problem_statement.presence || "-") %></dd>
+  <dt>仮説</dt>
+  <dd><%= simple_format(@candidate.hypothesis.presence || "-") %></dd>
+  <dt>検証方法</dt>
+  <dd><%= simple_format(@candidate.validation_method.presence || "-") %></dd>
+  <dt>期待する学び</dt>
+  <dd><%= simple_format(@candidate.expected_learning.presence || "-") %></dd>
+  <dt>却下条件</dt>
+  <dd><%= simple_format(@candidate.rejection_condition.presence || "-") %></dd>
+  <dt>90日期待利益</dt>
+  <dd><%= number_to_currency(@candidate.expected_90d_profit_yen, unit: "¥", precision: 0) %></dd>
+  <dt>成功確率</dt>
+  <dd><%= number_to_percentage(@candidate.success_probability.to_d * 100, precision: 1) %></dd>
+  <dt>予算</dt>
+  <dd><%= number_to_currency(@candidate.budget_yen, unit: "¥", precision: 0) %></dd>
+  <dt>作業時間</dt>
+  <dd><%= @candidate.estimated_work_minutes %></dd>
+  <dt>放置損失</dt>
+  <dd><%= number_to_currency(@candidate.neglect_loss_90d_yen, unit: "¥", precision: 0) %></dd>
+  <dt>放置損失の理由</dt>
+  <dd><%= simple_format(@candidate.neglect_loss_reason.presence || "-") %></dd>
+  <dt>期待値スコア</dt>
+  <dd><%= number_with_precision(@candidate.expected_value_score, precision: 4) || "-" %></dd>
+  <dt>採点速度スコア</dt>
+  <dd><%= number_with_precision(@candidate.scoring_speed_score, precision: 4) || "-" %></dd>
+  <dt>新規事業優先度</dt>
+  <dd><%= number_with_precision(@candidate.lab_priority_score, precision: 4) || "-" %></dd>
+  <dt>特徴量</dt>
+  <dd>
+    price: <%= @candidate.assumed_price_yen || "-" %>,
+    LP words: <%= @candidate.lp_word_count || "-" %>,
+    CTA: <%= @candidate.cta_count || "-" %>,
+    development minutes: <%= @candidate.development_minutes || "-" %>,
+    features: <%= @candidate.feature_count || "-" %>
+  </dd>
+  <dt>根拠</dt>
+  <dd><%= simple_format(@candidate.rationale) %></dd>
+  <dt>作成済み検証</dt>
+  <dd>
+    <% if @candidate.converted_experiment %>
+      <%= link_to @candidate.converted_experiment.title, admin_aicoo_lab_experiment_path(@candidate.converted_experiment) %>
+    <% else %>
+      -
+    <% end %>
+  </dd>
+</dl>
+
+<div class="actions">
+  <%= button_to "削除", admin_aicoo_lab_candidate_path(@candidate), method: :delete, class: "danger" %>
+</div>
+</div>

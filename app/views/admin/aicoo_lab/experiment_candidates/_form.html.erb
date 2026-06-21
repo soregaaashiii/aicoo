@@ -1,0 +1,150 @@
+<% form_url = candidate.persisted? ? admin_aicoo_lab_candidate_path(candidate) : admin_aicoo_lab_candidates_path %>
+
+<%= form_with(model: candidate, url: form_url, class: "form") do |form| %>
+  <% if candidate.errors.any? %>
+    <div class="errors">
+      <h2><%= pluralize(candidate.errors.count, "error") %> prohibited this candidate from being saved:</h2>
+      <ul>
+        <% candidate.errors.each do |error| %>
+          <li><%= error.full_message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <section>
+    <h2>候補概要</h2>
+    <div class="field">
+      <%= form.label :title %>
+      <%= form.text_field :title %>
+    </div>
+    <div class="field">
+      <%= form.label :description %>
+      <%= form.textarea :description, rows: 4 %>
+    </div>
+    <div class="grid">
+      <div class="field">
+        <%= form.label :experiment_type %>
+        <%= form.select :experiment_type, AicooLabExperiment::EXPERIMENT_TYPES %>
+      </div>
+      <div class="field">
+        <%= form.label :market_category %>
+        <%= form.text_field :market_category %>
+      </div>
+      <div class="field">
+        <%= form.label :acquisition_channel %>
+        <%= form.select :acquisition_channel, AicooLabExperiment::ACQUISITION_CHANNELS %>
+      </div>
+      <div class="field">
+        <%= form.label :status %>
+        <%= form.select :status, AicooLabExperimentCandidate::STATUSES %>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>仮説・検証設計</h2>
+    <div class="field">
+      <%= form.label :target_user %>
+      <%= form.text_field :target_user %>
+    </div>
+    <div class="field">
+      <%= form.label :problem_statement %>
+      <%= form.textarea :problem_statement, rows: 3 %>
+    </div>
+    <div class="field">
+      <%= form.label :hypothesis %>
+      <%= form.textarea :hypothesis, rows: 3 %>
+    </div>
+    <div class="field">
+      <%= form.label :validation_method %>
+      <%= form.textarea :validation_method, rows: 3 %>
+    </div>
+    <div class="field">
+      <%= form.label :expected_learning %>
+      <%= form.textarea :expected_learning, rows: 3 %>
+    </div>
+    <div class="field">
+      <%= form.label :rejection_condition %>
+      <%= form.textarea :rejection_condition, rows: 3 %>
+    </div>
+  </section>
+
+  <section>
+    <h2>予測・コスト</h2>
+    <div class="grid">
+      <div class="field">
+        <%= form.label :expected_90d_profit_yen %>
+        <%= form.number_field :expected_90d_profit_yen, min: 0 %>
+      </div>
+      <div class="field">
+        <%= form.label :success_probability %>
+        <%= form.number_field :success_probability, step: 0.01, min: 0, max: 1 %>
+      </div>
+      <div class="field">
+        <%= form.label :budget_yen %>
+        <%= form.number_field :budget_yen, min: 0 %>
+      </div>
+      <div class="field">
+        <%= form.label :estimated_work_minutes %>
+        <%= form.number_field :estimated_work_minutes, min: 0 %>
+      </div>
+      <div class="field">
+        <%= form.label :neglect_loss_90d_yen, "neglect_loss_90d_yen" %>
+        <%= form.number_field :neglect_loss_90d_yen, min: 0 %>
+      </div>
+    </div>
+    <div class="field">
+      <%= form.label :neglect_loss_reason, "neglect_loss_reason" %>
+      <%= form.textarea :neglect_loss_reason, rows: 3 %>
+    </div>
+  </section>
+
+  <section>
+    <h2>特徴量</h2>
+    <div class="grid">
+      <div class="field">
+        <%= form.label :assumed_price_yen %>
+        <%= form.number_field :assumed_price_yen, min: 0 %>
+      </div>
+      <div class="field">
+        <%= form.label :lp_word_count %>
+        <%= form.number_field :lp_word_count, min: 0 %>
+      </div>
+      <div class="field">
+        <%= form.label :cta_count %>
+        <%= form.number_field :cta_count, min: 0 %>
+      </div>
+      <div class="field">
+        <%= form.label :development_minutes %>
+        <%= form.number_field :development_minutes, min: 0 %>
+      </div>
+      <div class="field">
+        <%= form.label :feature_count %>
+        <%= form.number_field :feature_count, min: 0 %>
+      </div>
+    </div>
+    <div class="field">
+      <%= form.label :rationale %>
+      <%= form.textarea :rationale, rows: 4 %>
+    </div>
+  </section>
+
+  <% if candidate.persisted? %>
+    <section class="computed">
+      <h2>自動計算</h2>
+      <dl>
+        <dt>expected_value_score</dt>
+        <dd><%= number_with_precision(candidate.expected_value_score, precision: 4) || "-" %></dd>
+        <dt>scoring_speed_score</dt>
+        <dd><%= number_with_precision(candidate.scoring_speed_score, precision: 4) || "-" %></dd>
+        <dt>lab_priority_score</dt>
+        <dd><%= number_with_precision(candidate.lab_priority_score, precision: 4) || "-" %></dd>
+      </dl>
+    </section>
+  <% end %>
+
+  <div class="actions">
+    <%= form.submit class: "button" %>
+  </div>
+<% end %>

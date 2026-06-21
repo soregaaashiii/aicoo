@@ -1,0 +1,47 @@
+<%= form_with(model: action_result, class: "form") do |form| %>
+  <% if action_result.errors.any? %>
+    <div class="error-messages">
+      <h2><%= pluralize(action_result.errors.count, "error") %> prohibited this result from being saved:</h2>
+      <ul>
+        <% action_result.errors.each do |error| %>
+          <li><%= error.full_message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <%= form.hidden_field :action_candidate_id %>
+  <%= form.hidden_field :business_id %>
+
+  <div class="grid">
+    <div class="field">
+      <%= form.label :executed_on, "実行日" %>
+      <%= form.date_field :executed_on %>
+    </div>
+    <div class="field">
+      <%= form.label :evaluated_on, "評価日" %>
+      <%= form.date_field :evaluated_on %>
+    </div>
+    <div class="field">
+      <%= form.label :actual_revenue_yen, "実績売上" %>
+      <%= form.number_field :actual_revenue_yen, step: 1 %>
+    </div>
+    <div class="field">
+      <%= form.label :actual_profit_yen, "実績利益" %>
+      <%= form.number_field :actual_profit_yen, step: 1 %>
+    </div>
+    <div class="field">
+      <%= form.label :evaluation_status, "評価状態" %>
+      <%= form.select :evaluation_status, ActionResult::EVALUATION_STATUSES %>
+    </div>
+  </div>
+
+  <div class="field">
+    <%= form.label :note, "メモ" %>
+    <%= form.textarea :note, rows: 5 %>
+  </div>
+
+  <div class="actions">
+    <%= form.submit "保存", class: "button" %>
+  </div>
+<% end %>

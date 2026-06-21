@@ -1,0 +1,85 @@
+<% content_for :title, "GA4/GSCデータ取込" %>
+
+<% header_actions = capture do %>
+    <%= link_to "実績データ", admin_aicoo_datahub_path, class: "button secondary" %>
+    <%= link_to "サイト別分析設定", admin_analytics_sites_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "GA4/GSCデータ取込",
+             description: "外部API連携を使わず、GA4/GSCのCSVまたは貼り付けテキストをAICOOの実績データ材料として保存します。",
+             active_main: :datahub,
+             actions: header_actions %>
+
+<section class="dashboard-section">
+  <div class="aicoo-lab-help">
+    <strong>この画面でやること</strong>
+    <p>GA4またはGSCからCSVをコピーし、ここに貼り付けて保存してください。保存後、実績データ画面の「取込データ収集」でSnapshot化できます。</p>
+  </div>
+</section>
+</div>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>GA4/GSCデータ貼り付け</h2>
+    <p>CSV形式のまま貼り付けてください。JSON貼り付けも既存DataHub側で読み取れます。</p>
+    <p>GA4データ貼り付け / GSCデータ貼り付け のどちらにも対応しています。</p>
+  </div>
+
+  <%= form_with url: admin_analytics_imports_path, scope: :analytics_import, class: "form" do |form| %>
+    <div class="field">
+      <%= form.label :source_type, "データ種別" %>
+      <%= form.select :source_type, options_for_select([ [ "GA4", "ga4" ], [ "GSC", "gsc" ] ], @source_type) %>
+    </div>
+    <div class="field">
+      <%= form.label :filename, "ファイル名" %>
+      <%= form.text_field :filename, placeholder: "ga4-export.csv" %>
+    </div>
+    <div class="field">
+      <%= form.label :raw_text, "貼り付けデータ" %>
+      <%= form.textarea :raw_text, rows: 12, required: true, placeholder: "page_views,users,sessions\n120,40,55" %>
+    </div>
+    <label class="checkbox-label">
+      <%= form.check_box :run_after_import, checked: true %>
+      保存後にDataHub収集とRevenue推定を更新する
+    </label>
+    <div class="actions">
+      <%= form.submit "取り込む", class: "button" %>
+    </div>
+  <% end %>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>直近の取込データ</h2>
+    <p>最新50件のDataImportです。</p>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>種別</th>
+          <th>ファイル名</th>
+          <th>行数</th>
+          <th>取込日時</th>
+          <th>作成日時</th>
+          <th>再処理</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @data_imports.each do |data_import| %>
+          <tr>
+            <td><span class="pill"><%= data_import.data_source.source_type.upcase %></span></td>
+            <td><%= data_import.filename %></td>
+            <td class="number"><%= data_import.row_count %></td>
+            <td><%= l(data_import.imported_at, format: :short) %></td>
+            <td><%= l(data_import.created_at, format: :short) %></td>
+            <td><%= button_to "再処理", reprocess_admin_analytics_import_path(data_import), method: :post, class: "button secondary" %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</section>

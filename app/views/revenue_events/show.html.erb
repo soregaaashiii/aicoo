@@ -1,0 +1,29 @@
+<% content_for :title, "収益記録" %>
+
+<% header_actions = capture do %>
+    <%= link_to "編集", edit_revenue_event_path(@revenue_event), class: "button secondary" %>
+    <%= link_to "一覧へ戻る", revenue_events_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "収益記録",
+             description: "#{@revenue_event.business.name} の収益イベントです。",
+             active_main: :revenue,
+             actions: header_actions %>
+
+<dl class="detail-list">
+  <dt>日付</dt>
+  <dd><%= l(@revenue_event.occurred_on) %></dd>
+  <dt>事業</dt>
+  <dd><%= link_to @revenue_event.business.name, @revenue_event.business %></dd>
+  <dt>区分</dt>
+  <dd><%= @revenue_event.revenue? ? "売上" : "費用" %></dd>
+  <dt>金額</dt>
+  <dd><%= number_to_currency(@revenue_event.amount, unit: "¥", precision: 0) %></dd>
+</dl>
+
+<div class="actions">
+  <%= button_to "削除", @revenue_event, method: :delete, class: "danger" %>
+</div>
+</div>

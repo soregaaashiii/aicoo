@@ -1,0 +1,14 @@
+<% content_for :title, "収益記録を追加" %>
+
+<% header_actions = capture do %>
+  <%= link_to "一覧へ戻る", revenue_events_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "収益記録を追加",
+             description: "売上は revenue、費用は expense として、金額は正の数で保存します。",
+             active_main: :revenue,
+             actions: header_actions %>
+  <%= render "form", revenue_event: @revenue_event %>
+</div>

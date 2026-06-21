@@ -1,0 +1,37 @@
+<%= form_with(model: business, class: "form") do |form| %>
+  <% if business.errors.any? %>
+    <div class="errors">
+      <h2><%= pluralize(business.errors.count, "error") %> prohibited this business from being saved:</h2>
+
+      <ul>
+        <% business.errors.each do |error| %>
+          <li><%= error.full_message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div class="field">
+    <%= form.label :name %>
+    <%= form.text_field :name %>
+  </div>
+
+  <div class="field">
+    <%= form.label :description %>
+    <%= form.textarea :description %>
+  </div>
+
+  <div class="field">
+    <%= form.label :status %>
+    <%= form.select :status, Business::STATUSES.map { |status| [status.humanize, status] } %>
+  </div>
+
+  <div class="field">
+    <%= form.label :gsc_site_url, "GSC site_url" %>
+    <%= form.text_field :gsc_site_url, placeholder: "例: sc-domain:suelog.jp" %>
+  </div>
+
+  <div class="actions">
+    <%= form.submit %>
+  </div>
+<% end %>

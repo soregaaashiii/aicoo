@@ -1,0 +1,23 @@
+# Read about fixtures at https://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
+
+one:
+  analytics_source_setting: one
+  source_type: MyString
+  status: MyString
+  started_at: 2026-06-19 23:10:35
+  finished_at: 2026-06-19 23:10:35
+  data_import_id: 1
+  snapshot_count: 1
+  updated_neglect_loss_count: 1
+  error_message: MyText
+
+two:
+  analytics_source_setting: two
+  source_type: MyString
+  status: MyString
+  started_at: 2026-06-19 23:10:35
+  finished_at: 2026-06-19 23:10:35
+  data_import_id: 1
+  snapshot_count: 1
+  updated_neglect_loss_count: 1
+  error_message: MyText

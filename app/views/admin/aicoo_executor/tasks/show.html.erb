@@ -1,0 +1,49 @@
+<% content_for :title, @task.title %>
+
+<div class="page-title">
+  <div>
+    <h1><%= @task.title %></h1>
+    <p>Codex実行指示を確認し、承認・却下・完了を記録します。自動実行は行いません。</p>
+  </div>
+  <div class="actions compact-actions">
+    <%= link_to "実行指示一覧", admin_aicoo_executor_path, class: "button secondary" %>
+    <%= link_to "操作盤", dashboard_path, class: "button secondary" %>
+  </div>
+</div>
+
+<section class="dashboard-section">
+  <div class="metric-grid">
+    <div class="metric-card"><span>状態</span><strong><%= aicoo_executor_status_label(@task.status) %></strong></div>
+    <div class="metric-card"><span>実行タイプ</span><strong><%= @task.execution_type %></strong></div>
+    <div class="metric-card"><span>見積時間</span><strong><%= @task.estimated_minutes || "-" %>分</strong></div>
+    <div class="metric-card"><span>元データ</span><strong><%= @task.source_type %>#<%= @task.source_id %></strong></div>
+  </div>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>Codex実行指示</h2>
+    <p>この内容をCodexに貼って実行してください。実行指示は自動実行せず、作業指示を整理するための画面です。</p>
+  </div>
+
+  <% unless @task.status.in?(%w[approved done]) %>
+    <div class="aicoo-lab-help">
+      先に承認してください。承認前のタスクは、まだ人間が実行してよいと判断していない状態です。
+    </div>
+  <% end %>
+
+  <label for="executor_prompt"><strong>コピー</strong></label>
+  <textarea id="executor_prompt" rows="16" readonly><%= @task.execution_prompt %></textarea>
+</section>
+
+<section class="dashboard-section">
+  <div class="actions compact-actions">
+    <% if @task.status.in?(%w[draft approval_pending]) %>
+      <%= button_to "承認", approve_admin_aicoo_executor_task_path(@task), method: :patch, class: "button" %>
+      <%= button_to "却下", reject_admin_aicoo_executor_task_path(@task), method: :patch, class: "danger" %>
+    <% end %>
+    <% if @task.status == "approved" %>
+      <%= button_to "完了", done_admin_aicoo_executor_task_path(@task), method: :patch, class: "button" %>
+    <% end %>
+  </div>
+</section>

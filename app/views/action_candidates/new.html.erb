@@ -1,0 +1,15 @@
+<% content_for :title, "行動候補を追加" %>
+
+<% header_actions = capture do %>
+  <%= link_to "行動候補一覧に戻る", action_candidates_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "行動候補を追加",
+             description: "事業をまたいで比較する行動単位の候補を作成します。",
+             active_main: :revenue,
+             actions: header_actions %>
+  <%= render "shared/aicoo_execution_tabs", active: :today %>
+  <%= render "form", action_candidate: @action_candidate %>
+</div>

@@ -1,0 +1,71 @@
+<% content_for :title, "採点待ち" %>
+
+<div class="page-title">
+  <div>
+    <h1>採点待ち</h1>
+    <p>検証中の7日・30日・90日採点を作成し、誤差計算まで進めます。</p>
+  </div>
+  <div class="actions compact-actions">
+    <%= link_to "新規事業", admin_aicoo_lab_experiments_path, class: "button secondary" %>
+    <%= link_to "承認済み未開始", admin_aicoo_lab_approved_experiments_path, class: "button secondary" %>
+  </div>
+</div>
+
+<section class="dashboard-section">
+  <div class="aicoo-lab-help">
+    <strong>この画面でやること</strong>
+    <p>ここでは7日/30日/90日の結果を記録します。採点済み検証数と予測精度に反映されます。</p>
+  </div>
+</section>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>検証名</th>
+        <th>種類</th>
+        <th>対象日数</th>
+        <th>90日期待利益</th>
+        <th>現在PV / 必要PV</th>
+        <th>PV</th>
+        <th>CTAクリック</th>
+        <th>Signup</th>
+        <th>CTA率</th>
+        <th>Signup率</th>
+        <th>開始日</th>
+        <th>採点予定日</th>
+        <th>正式採点可能</th>
+        <th>操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @entries.each do |entry| %>
+        <% experiment = entry.experiment %>
+        <tr>
+          <td><%= link_to experiment.title, admin_aicoo_lab_experiment_path(experiment) %></td>
+          <td><%= experiment.experiment_type %></td>
+          <td class="number"><%= entry.target_days %></td>
+          <td class="number"><%= number_to_currency(experiment.expected_90d_profit_yen, unit: "¥", precision: 0) %></td>
+          <td class="number"><%= experiment.current_pv %> / <%= experiment.sample_pv_threshold %></td>
+          <td class="number"><%= entry.pv %></td>
+          <td class="number"><%= entry.cta_clicks %></td>
+          <td class="number"><%= entry.signups %></td>
+          <td class="number"><%= entry.cta_rate ? number_to_percentage(entry.cta_rate * 100, precision: 1) : "-" %></td>
+          <td class="number"><%= entry.signup_rate ? number_to_percentage(entry.signup_rate * 100, precision: 1) : "-" %></td>
+          <td><%= experiment.published_at ? l(experiment.published_at, format: :short) : "-" %></td>
+          <td><%= entry.due_at ? l(entry.due_at, format: :short) : "-" %></td>
+          <td><span class="pill"><%= entry.formal_score_possible? ? "可能" : "未達" %></span></td>
+          <td>
+            <div class="actions compact-actions">
+              <%= button_to "計測結果から採点作成", admin_aicoo_lab_scoring_queue_score_path(experiment, entry.target_days), method: :post, class: "button" %>
+              <%= link_to "実績データを確認して採点", admin_aicoo_lab_scoring_queue_snapshot_path(experiment, entry.target_days), class: "button secondary" %>
+              <%= button_to "保留", admin_aicoo_lab_scoring_queue_hold_path(experiment, entry.target_days), method: :post, class: "button secondary" %>
+              <%= button_to "失敗扱いで採点", admin_aicoo_lab_scoring_queue_fail_path(experiment, entry.target_days), method: :post, class: "danger" %>
+              <%= button_to "再評価へ送る", admin_aicoo_lab_scoring_queue_reevaluate_path(experiment, entry.target_days), method: :post, class: "button secondary" %>
+            </div>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>

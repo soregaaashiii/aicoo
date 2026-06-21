@@ -1,0 +1,2 @@
+module ActionCandidatesHelper
+end

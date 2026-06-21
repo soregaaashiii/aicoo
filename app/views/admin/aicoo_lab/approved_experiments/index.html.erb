@@ -1,0 +1,78 @@
+<% content_for :title, "承認済み未開始" %>
+
+<div class="page-title">
+  <div>
+    <h1>承認済み未開始</h1>
+    <p>承認済みの検証を開始し、開始日と採点予定日を自動設定します。</p>
+  </div>
+  <div class="actions compact-actions">
+    <%= link_to "新規事業", admin_aicoo_lab_experiments_path, class: "button secondary" %>
+    <%= link_to "レビュー待ち", admin_aicoo_lab_review_queue_path, class: "button secondary" %>
+  </div>
+</div>
+
+<section class="dashboard-section">
+  <div class="aicoo-lab-help">
+    <strong>この画面でやること</strong>
+    <p>ここでは承認済みの検証を「検証中」にして、採点タイマーを開始します。検証中にしても自動で集客されるわけではありません。</p>
+  </div>
+</section>
+
+<%= form_with url: admin_aicoo_lab_approved_experiments_bulk_running_path,
+              method: :post,
+              id: "approved-bulk-form",
+              class: "actions" do %>
+  <%= submit_tag "選択した検証を開始する", class: "button" %>
+<% end %>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>選択</th>
+        <th>検証名</th>
+        <th>種類</th>
+        <th>市場</th>
+        <th>状態</th>
+        <th>承認</th>
+        <th>次にやる操作</th>
+        <th>90日期待利益</th>
+        <th>成功確率</th>
+        <th>期待値</th>
+        <th>新規事業優先度</th>
+        <th>LP確認</th>
+        <th>予算</th>
+        <th>工数</th>
+        <th>操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @experiments.each do |experiment| %>
+        <% landing_page = experiment.aicoo_lab_landing_page %>
+        <tr>
+          <td><%= check_box_tag "experiment_ids[]", experiment.id, false, form: "approved-bulk-form" %></td>
+          <td><%= link_to experiment.title, admin_aicoo_lab_experiment_path(experiment) %></td>
+          <td><%= experiment.experiment_type %></td>
+          <td><%= experiment.market_category.presence || "-" %></td>
+          <td><span class="pill"><%= aicoo_lab_status_label(experiment.status) %></span></td>
+          <td><span class="pill"><%= aicoo_lab_approval_status_label(experiment.approval_status) %></span></td>
+          <td><strong><%= aicoo_lab_next_operation(experiment) %></strong></td>
+          <td class="number"><%= number_to_currency(experiment.expected_90d_profit_yen, unit: "¥", precision: 0) %></td>
+          <td class="number"><%= number_to_percentage(experiment.success_probability.to_d * 100, precision: 1) %></td>
+          <td class="number"><%= number_with_precision(experiment.expected_value_score, precision: 3) || "-" %></td>
+          <td class="number"><%= number_with_precision(experiment.lab_priority_score, precision: 4) || "-" %></td>
+          <td>
+            <% if landing_page %>
+              <%= link_to "LPを見る", aicoo_lab_preview_path(landing_page.preview_slug), target: "_blank", rel: "noopener" %>
+            <% else %>
+              -
+            <% end %>
+          </td>
+          <td class="number"><%= number_to_currency(experiment.budget_yen, unit: "¥", precision: 0) %></td>
+          <td class="number"><%= experiment.estimated_work_minutes %></td>
+          <td><%= button_to "検証開始", admin_aicoo_lab_approved_experiment_running_path(experiment), method: :patch, class: "button" %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>

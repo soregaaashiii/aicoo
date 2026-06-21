@@ -1,0 +1,36 @@
+<%= form_with(model: revenue_event, class: "form") do |form| %>
+  <% if revenue_event.errors.any? %>
+    <div class="errors">
+      <h2><%= pluralize(revenue_event.errors.count, "error") %> prohibited this revenue event from being saved:</h2>
+      <ul>
+        <% revenue_event.errors.each do |error| %>
+          <li><%= error.full_message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div class="field">
+    <%= form.label :business_id, "事業" %>
+    <%= form.collection_select :business_id, Business.order(:name), :id, :name, prompt: "事業を選択" %>
+  </div>
+
+  <div class="field">
+    <%= form.label :occurred_on, "日付" %>
+    <%= form.date_field :occurred_on %>
+  </div>
+
+  <div class="field">
+    <%= form.label :event_type, "区分" %>
+    <%= form.select :event_type, [["売上", "revenue"], ["費用", "expense"]] %>
+  </div>
+
+  <div class="field">
+    <%= form.label :amount, "金額" %>
+    <%= form.number_field :amount, min: 1, step: 1 %>
+  </div>
+
+  <div class="actions">
+    <%= form.submit "保存", class: "button" %>
+  </div>
+<% end %>

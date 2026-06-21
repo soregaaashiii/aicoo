@@ -1,0 +1,55 @@
+<% content_for :title, "AICOO Daily Run詳細" %>
+
+<% header_actions = capture do %>
+  <%= link_to "Daily Run一覧", aicoo_daily_runs_path, class: "button secondary" %>
+  <%= link_to "操作盤に戻る", dashboard_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "AICOO Daily Run詳細",
+             description: "#{@daily_run.target_date} の日次処理結果です。",
+             active_main: :revenue,
+             actions: header_actions %>
+  <%= render "shared/aicoo_execution_tabs", active: :dashboard %>
+
+  <section class="dashboard-section">
+    <div class="metric-grid">
+      <div class="metric-card"><span>状態</span><strong><%= @daily_run.status %></strong></div>
+      <div class="metric-card"><span>代理指標取り込み</span><strong><%= @daily_run.business_metrics_imported_count %></strong></div>
+      <div class="metric-card"><span>重み補正</span><strong><%= @daily_run.proxy_weights_adjusted_count %></strong></div>
+      <div class="metric-card"><span>候補生成</span><strong><%= @daily_run.action_candidates_generated_count %></strong></div>
+      <div class="metric-card"><span>結果評価</span><strong><%= @daily_run.action_results_evaluated_count %></strong></div>
+      <div class="metric-card"><span>補正ログ作成</span><strong><%= @daily_run.score_snapshots_created_count %></strong></div>
+      <div class="metric-card"><span>順位上昇</span><strong><%= @daily_run.score_snapshot_rank_up_count %></strong></div>
+      <div class="metric-card"><span>順位低下</span><strong><%= @daily_run.score_snapshot_rank_down_count %></strong></div>
+      <div class="metric-card"><span>補正なし</span><strong><%= @daily_run.score_snapshot_no_adjustment_count %></strong></div>
+      <div class="metric-card"><span>データ整備候補</span><strong><%= @daily_run.data_preparation_candidates_count %></strong></div>
+      <div class="metric-card"><span>自動投入</span><strong><%= @daily_run.data_preparation_auto_queued_count %></strong></div>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <dl class="detail-list">
+      <dt>対象日</dt>
+      <dd><%= @daily_run.target_date %></dd>
+      <dt>開始</dt>
+      <dd><%= @daily_run.started_at ? l(@daily_run.started_at, format: :long) : "-" %></dd>
+      <dt>終了</dt>
+      <dd><%= @daily_run.finished_at ? l(@daily_run.finished_at, format: :long) : "-" %></dd>
+      <dt>エラー</dt>
+      <dd><%= simple_format(@daily_run.error_message.presence || "-") %></dd>
+    </dl>
+  </section>
+
+  <%= render "shared/correction_readiness",
+             readiness: @correction_readiness,
+             show_action_button: true %>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Run Log</h2>
+    </div>
+    <pre><%= @daily_run.run_log.presence || "-" %></pre>
+  </section>
+</div>

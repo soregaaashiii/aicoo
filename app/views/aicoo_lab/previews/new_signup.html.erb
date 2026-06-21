@@ -1,0 +1,36 @@
+<% content_for :title, "#{@landing_page.headline} - Signup" %>
+
+<main class="lp-preview">
+  <section class="lp-hero">
+    <p class="lp-eyebrow"><%= @lp_mode_label || "確認用" %></p>
+    <h1><%= @landing_page.cta_text %></h1>
+    <p class="lp-subheadline"><%= @landing_page.headline %></p>
+  </section>
+
+  <section class="lp-content">
+    <%= form_with(model: @signup, url: @signup_path || aicoo_lab_preview_signup_path(@landing_page.preview_slug), class: "form") do |form| %>
+      <% if @signup.errors.any? %>
+        <div class="errors">
+          <h2><%= pluralize(@signup.errors.count, "error") %> prohibited this signup from being saved:</h2>
+          <ul>
+            <% @signup.errors.each do |error| %>
+              <li><%= error.full_message %></li>
+            <% end %>
+          </ul>
+        </div>
+      <% end %>
+
+      <div class="field">
+        <%= form.label :email %>
+        <%= form.email_field :email, required: true %>
+      </div>
+      <div class="field">
+        <%= form.label :note %>
+        <%= form.textarea :note, rows: 4 %>
+      </div>
+      <div class="actions">
+        <%= form.submit "登録する", class: "button" %>
+      </div>
+    <% end %>
+  </section>
+</main>

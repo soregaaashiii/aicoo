@@ -1,0 +1,51 @@
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>補正できない理由</h2>
+    <p>Judge補正・順位補正が効かない原因です。必要数に届いていないデータを増やすと、補正の信頼度が上がります。</p>
+  </div>
+
+  <div class="metric-grid">
+    <% readiness.items.each do |item| %>
+      <div class="metric-card">
+        <span><%= item.label %></span>
+        <strong><%= item.current_count %>/<%= item.required_count %></strong>
+        <small><%= item.ready ? "OK" : "不足 #{item.shortage_count}" %></small>
+      </div>
+    <% end %>
+  </div>
+
+  <% if local_assigns[:show_action_button] %>
+    <div class="actions compact-actions">
+      <%= button_to "不足データを増やす行動候補を生成",
+                    generate_correction_readiness_actions_dashboard_path,
+                    method: :post,
+                    class: "button secondary" %>
+    </div>
+  <% end %>
+
+  <h3>Business別の不足</h3>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Business</th>
+          <th>不足内容</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% readiness.business_items.each do |business_item| %>
+          <tr>
+            <td><%= link_to business_item.business.name, business_item.business %></td>
+            <td>
+              <% if business_item.ready? %>
+                OK
+              <% else %>
+                <%= simple_format(business_item.messages.join("\n")) %>
+              <% end %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</section>

@@ -1,0 +1,104 @@
+<% content_for :title, "成績表" %>
+
+<% header_actions = capture do %>
+    <%= link_to "行動候補の予測精度", admin_aicoo_judge_action_predictions_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "成績表",
+             description: "今日やること・新規事業・人間判断の予測精度を見える化します。成績表はまだ意思決定しません。",
+             active_main: :judge,
+             actions: header_actions %>
+
+<section class="dashboard-section">
+  <div class="aicoo-lab-help">
+    <strong>この画面でやること</strong>
+    <p>今日やることを採点する / 新規事業を採点する / 人間判断を採点する。まだ意思決定はしない、評価者としての画面です。</p>
+  </div>
+</section>
+</div>
+
+<section class="dashboard-section">
+  <div class="metric-grid">
+    <div class="metric-card"><span>採点済み予測数</span><strong><%= @analysis.prediction_count %></strong></div>
+    <div class="metric-card"><span>平均誤差率</span><strong><%= @analysis.average_error_rate ? number_to_percentage(@analysis.average_error_rate * 100, precision: 1) : "-" %></strong></div>
+    <div class="metric-card"><span>平均予測精度</span><strong><%= @analysis.average_calibration_score ? number_with_precision(@analysis.average_calibration_score, precision: 1) : "-" %></strong></div>
+  </div>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>現在最も当たる予測者</h2>
+  </div>
+
+  <% if @analysis.winner %>
+    <div class="aicoo-lab-card aicoo-lab-next-action">
+      <h3><%= aicoo_source_label(@analysis.winner.prediction_source) %></h3>
+      <p>予測精度 <%= number_with_precision(@analysis.winner.average_calibration_score, precision: 1) %></p>
+    </div>
+  <% else %>
+    <div class="aicoo-lab-help">
+      <p>まだ採点済み予測がありません。</p>
+    </div>
+  <% end %>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>予測者別集計</h2>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>予測者</th>
+          <th>件数</th>
+          <th>平均誤差率</th>
+          <th>平均予測精度</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @analysis.source_summaries.each do |summary| %>
+          <tr>
+            <td><%= aicoo_source_label(summary.prediction_source) %></td>
+            <td class="number"><%= summary.prediction_count %>件</td>
+            <td class="number"><%= summary.average_error_rate ? number_to_percentage(summary.average_error_rate * 100, precision: 1) : "-" %></td>
+            <td class="number"><%= summary.average_calibration_score ? number_with_precision(summary.average_calibration_score, precision: 1) : "-" %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>予測者ランキング</h2>
+  </div>
+
+  <ol class="revenue-action-list">
+    <% @analysis.ranking.each_with_index do |summary, index| %>
+      <li>
+        <strong><%= index + 1 %>位 <%= aicoo_source_label(summary.prediction_source) %></strong>
+        <small>予測精度 <%= number_with_precision(summary.average_calibration_score, precision: 1) %></small>
+      </li>
+    <% end %>
+  </ol>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>予測精度推移JSON</h2>
+    <p>まだグラフ描画はしません。日付・予測者・平均予測精度のJSONだけ準備します。</p>
+  </div>
+
+  <pre><%= JSON.pretty_generate(@trend_points.map { |point|
+    {
+      date: point.date.iso8601,
+      prediction_source: point.prediction_source,
+      average_calibration_score: point.average_calibration_score&.to_f
+    }
+  }) %></pre>
+</section>

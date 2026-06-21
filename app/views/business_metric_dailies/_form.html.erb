@@ -1,0 +1,35 @@
+<%= form_with(model: business_metric_daily, class: "form") do |form| %>
+  <% if business_metric_daily.errors.any? %>
+    <div class="errors">
+      <h2><%= pluralize(business_metric_daily.errors.count, "error") %> prohibited this metric from being saved:</h2>
+      <ul>
+        <% business_metric_daily.errors.each do |error| %>
+          <li><%= error.full_message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div class="field">
+    <%= form.label :business_id, "事業" %>
+    <%= form.collection_select :business_id, Business.order(:name), :id, :name, prompt: "事業を選択" %>
+  </div>
+
+  <div class="field">
+    <%= form.label :recorded_on, "記録日" %>
+    <%= form.date_field :recorded_on %>
+  </div>
+
+  <div class="grid">
+    <% BusinessMetricDaily::SCORE_WEIGHTS.each_key do |metric| %>
+      <div class="field">
+        <%= form.label metric, metric.to_s %>
+        <%= form.number_field metric, min: 0, step: 1 %>
+      </div>
+    <% end %>
+  </div>
+
+  <div class="actions">
+    <%= form.submit "保存", class: "button" %>
+  </div>
+<% end %>

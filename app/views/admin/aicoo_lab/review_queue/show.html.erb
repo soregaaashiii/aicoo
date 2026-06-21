@@ -1,0 +1,86 @@
+<% content_for :title, "Review #{@experiment.title}" %>
+
+<% header_actions = capture do %>
+    <%= link_to "レビュー待ち", admin_aicoo_lab_review_queue_path, class: "button secondary" %>
+    <%= link_to "検証詳細", admin_aicoo_lab_experiment_path(@experiment), class: "button secondary" %>
+    <% if @next_experiment %>
+      <%= link_to "次の候補へ", admin_aicoo_lab_review_queue_experiment_path(@next_experiment), class: "button" %>
+    <% end %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: @experiment.title,
+             description: "1件ずつ確認し、承認・却下・停止をすばやく判断します。",
+             active_main: :lab,
+             actions: header_actions %>
+
+<section class="dashboard-section">
+  <div class="metric-grid">
+    <div class="metric-card">
+      <span>90d profit</span>
+      <strong><%= number_to_currency(@experiment.expected_90d_profit_yen, unit: "¥", precision: 0) %></strong>
+    </div>
+    <div class="metric-card">
+      <span>success</span>
+      <strong><%= number_to_percentage(@experiment.success_probability.to_d * 100, precision: 1) %></strong>
+    </div>
+    <div class="metric-card">
+      <span>lab priority</span>
+      <strong><%= number_with_precision(@experiment.lab_priority_score, precision: 4) || "-" %></strong>
+    </div>
+    <div class="metric-card">
+      <span>budget / minutes</span>
+      <strong><%= number_to_currency(@experiment.budget_yen, unit: "¥", precision: 0) %> / <%= @experiment.estimated_work_minutes %></strong>
+    </div>
+  </div>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>LP Preview</h2>
+    <% if @landing_page %>
+      <p><%= @landing_page.headline %></p>
+    <% else %>
+      <p>LPはまだ作成されていません。</p>
+    <% end %>
+  </div>
+
+  <% if @landing_page %>
+    <dl class="detail-list">
+      <dt>headline</dt>
+      <dd><%= @landing_page.headline %></dd>
+      <dt>cta</dt>
+      <dd><%= @landing_page.cta_text %></dd>
+      <dt>generation_source</dt>
+      <dd><%= @landing_page.generation_source %></dd>
+      <dt>preview_url</dt>
+      <dd><%= link_to aicoo_lab_preview_url(@landing_page.preview_slug), aicoo_lab_preview_path(@landing_page.preview_slug), target: "_blank", rel: "noopener" %></dd>
+    </dl>
+  <% end %>
+</section>
+
+<section class="dashboard-section">
+  <div class="actions compact-actions">
+    <%= button_to "承認待ちにする", admin_aicoo_lab_review_queue_approval_pending_path(@experiment), method: :patch, class: "button secondary" %>
+    <%= button_to "承認", admin_aicoo_lab_review_queue_approve_path(@experiment), method: :patch, class: "button" %>
+    <%= button_to "却下", admin_aicoo_lab_review_queue_reject_path(@experiment), method: :patch, class: "danger" %>
+    <%= button_to "一時停止", admin_aicoo_lab_review_queue_paused_path(@experiment), method: :patch, class: "button secondary" %>
+  </div>
+</section>
+
+<dl class="detail-list">
+  <dt>status</dt>
+  <dd><span class="pill"><%= @experiment.status %></span></dd>
+  <dt>approval_status</dt>
+  <dd><span class="pill"><%= @experiment.approval_status %></span></dd>
+  <dt>experiment_type</dt>
+  <dd><%= @experiment.experiment_type %></dd>
+  <dt>market_category</dt>
+  <dd><%= @experiment.market_category.presence || "-" %></dd>
+  <dt>description</dt>
+  <dd><%= simple_format(@experiment.description) %></dd>
+  <dt>notes</dt>
+  <dd><%= simple_format(@experiment.notes) %></dd>
+</dl>
+</div>

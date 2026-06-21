@@ -1,0 +1,16 @@
+<% content_for :title, "行動候補を編集" %>
+
+<% header_actions = capture do %>
+  <%= link_to "詳細を見る", @action_candidate, class: "button secondary" %>
+  <%= link_to "行動候補一覧に戻る", action_candidates_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "行動候補を編集",
+             description: "行動候補の見積もり・状態・実行指示を更新します。",
+             active_main: :revenue,
+             actions: header_actions %>
+  <%= render "shared/aicoo_execution_tabs", active: :today %>
+  <%= render "form", action_candidate: @action_candidate %>
+</div>

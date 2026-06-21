@@ -1,0 +1,56 @@
+<% form_url = admin_aicoo_lab_experiment_landing_page_path(experiment) %>
+
+<%= form_with(model: landing_page, url: form_url, class: "form") do |form| %>
+  <% if landing_page.errors.any? %>
+    <div class="errors">
+      <h2><%= pluralize(landing_page.errors.count, "error") %> prohibited this landing page from being saved:</h2>
+      <ul>
+        <% landing_page.errors.each do |error| %>
+          <li><%= error.full_message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <section>
+    <h2>LP本文</h2>
+    <div class="field">
+      <%= form.label :headline %>
+      <%= form.text_field :headline %>
+    </div>
+    <div class="field">
+      <%= form.label :subheadline %>
+      <%= form.text_field :subheadline %>
+    </div>
+    <div class="field">
+      <%= form.label :body %>
+      <%= form.textarea :body, rows: 10 %>
+    </div>
+    <div class="grid">
+      <div class="field">
+        <%= form.label :cta_text %>
+        <%= form.text_field :cta_text %>
+      </div>
+      <div class="field">
+        <%= form.label :assumed_price_yen %>
+        <%= form.number_field :assumed_price_yen, min: 0 %>
+      </div>
+      <div class="field">
+        <%= form.label :status %>
+        <%= form.select :status, AicooLabLandingPage::STATUSES %>
+      </div>
+      <div class="field">
+        <%= form.label :preview_slug %>
+        <%= form.text_field :preview_slug %>
+      </div>
+    </div>
+    <div class="field">
+      <%= form.label :notes %>
+      <%= form.textarea :notes, rows: 4 %>
+    </div>
+  </section>
+
+  <div class="actions">
+    <%= form.submit class: "button" %>
+  </div>
+<% end %>

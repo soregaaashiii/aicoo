@@ -1,0 +1,150 @@
+<%= form_with(model: action_candidate, class: "form") do |form| %>
+  <% if action_candidate.errors.any? %>
+    <div class="errors">
+      <h2><%= pluralize(action_candidate.errors.count, "error") %> prohibited this action candidate from being saved:</h2>
+
+      <ul>
+        <% action_candidate.errors.each do |error| %>
+          <li><%= error.full_message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <section>
+    <h2>行動の基本情報</h2>
+
+    <div class="field">
+      <%= form.label :business_id, "事業フォルダ" %>
+      <%= form.collection_select :business_id, Business.order(:name), :id, :name, prompt: "選択してください" %>
+    </div>
+
+    <div class="field">
+      <%= form.label :title, "行動タイトル" %>
+      <%= form.text_field :title, placeholder: "例: 吸えログで中崎町の記事を書く" %>
+    </div>
+
+    <div class="field">
+      <%= form.label :description, "説明" %>
+      <%= form.textarea :description, rows: 4 %>
+    </div>
+
+    <div class="grid">
+      <div class="field">
+        <%= form.label :action_type, "行動タイプ" %>
+        <%= form.select :action_type, ActionCandidate::ACTION_TYPES.map { |type| [type.humanize, type] } %>
+      </div>
+
+      <div class="field">
+        <%= form.label :status, "状態" %>
+        <%= form.select :status, ActionCandidate::STATUSES.map { |status| [status.humanize, status] } %>
+      </div>
+
+      <div class="field">
+        <%= form.label :generation_source, "生成元" %>
+        <%= form.select :generation_source, ActionCandidate::GENERATION_SOURCES.map { |source| [source.humanize, source] } %>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>期待値の入力</h2>
+
+    <div class="grid">
+      <div class="field">
+        <%= form.label :immediate_value_yen, "短期利益見込み" %>
+        <%= form.number_field :immediate_value_yen, step: 1 %>
+      </div>
+
+      <div class="field">
+        <%= form.label :success_probability, "成功確率 0.0-1.0" %>
+        <%= form.number_field :success_probability, step: 0.01, min: 0, max: 1 %>
+      </div>
+
+      <div class="field">
+        <%= form.label :expected_hours, "想定時間" %>
+        <%= form.number_field :expected_hours, step: 0.25, min: 0 %>
+      </div>
+
+      <div class="field">
+        <%= form.label :cost_yen, "費用" %>
+        <%= form.number_field :cost_yen, step: 1, min: 0 %>
+      </div>
+
+      <div class="field">
+        <%= form.label :neglect_loss_90d_yen, "放置損失90日" %>
+        <%= form.number_field :neglect_loss_90d_yen, step: 1, min: 0 %>
+      </div>
+    </div>
+
+    <div class="field">
+      <%= form.label :neglect_loss_reason, "放置損失理由" %>
+      <%= form.textarea :neglect_loss_reason, rows: 3, placeholder: "例: SEO放置による順位低下リスク" %>
+    </div>
+  </section>
+
+  <section>
+    <h2>戦略・分散・信頼度</h2>
+
+    <div class="grid">
+      <div class="field">
+        <%= form.label :strategic_value_score, "戦略価値 0-100" %>
+        <%= form.number_field :strategic_value_score, min: 0, max: 100 %>
+      </div>
+
+      <div class="field">
+        <%= form.label :risk_reduction_score, "リスク低減 0-100" %>
+        <%= form.number_field :risk_reduction_score, min: 0, max: 100 %>
+      </div>
+
+      <div class="field">
+        <%= form.label :confidence_score, "見積もり信頼度 0-100" %>
+        <%= form.number_field :confidence_score, min: 0, max: 100 %>
+      </div>
+
+      <div class="field">
+        <%= form.label :data_confidence_score, "データ信頼度 0-100" %>
+        <%= form.number_field :data_confidence_score, min: 0, max: 100 %>
+      </div>
+
+      <div class="field">
+        <%= form.label :priority_score, "手動優先度 0-100" %>
+        <%= form.number_field :priority_score, min: 0, max: 100 %>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>判断メモ</h2>
+
+    <div class="field">
+      <%= form.label :evaluation_reason, "評価理由" %>
+      <%= form.textarea :evaluation_reason, rows: 4 %>
+    </div>
+
+    <div class="field">
+      <%= form.label :execution_prompt, "実行プロンプト" %>
+      <%= form.textarea :execution_prompt, rows: 5 %>
+    </div>
+  </section>
+
+  <% if action_candidate.persisted? %>
+    <section class="computed">
+      <h2>自動計算</h2>
+      <dl>
+        <dt>期待利益</dt>
+        <dd><%= number_to_currency(action_candidate.expected_profit_yen, unit: "¥", precision: 0) %></dd>
+        <dt>期待時給</dt>
+        <dd><%= action_candidate.expected_hourly_value_yen.present? ? number_to_currency(action_candidate.expected_hourly_value_yen, unit: "¥", precision: 0) : "-" %></dd>
+        <dt>ROI</dt>
+        <dd><%= action_candidate.roi.present? ? number_with_precision(action_candidate.roi, precision: 2) : "-" %></dd>
+        <dt>最終スコア</dt>
+        <dd><%= number_with_precision(action_candidate.final_score, precision: 1) %></dd>
+      </dl>
+    </section>
+  <% end %>
+
+  <div class="actions">
+    <%= form.submit class: "button" %>
+  </div>
+<% end %>

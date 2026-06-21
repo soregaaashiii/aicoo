@@ -1,0 +1,42 @@
+<% content_for :title, "行動結果" %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "行動結果",
+             description: "ActionCandidateの予測と実行後の実績を比較します。",
+             active_main: :judge %>
+  <%= render "shared/aicoo_execution_tabs", active: :scored %>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>行動</th>
+        <th>事業</th>
+        <th>実行日</th>
+        <th>評価日</th>
+        <th>状態</th>
+        <th>予測期待利益</th>
+        <th>実績利益</th>
+        <th>誤差</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @action_results.each do |result| %>
+        <tr>
+          <td><%= link_to result.action_candidate.title, result.action_candidate %></td>
+          <td><%= link_to result.business.name, result.business %></td>
+          <td><%= result.executed_on %></td>
+          <td><%= result.evaluated_on %></td>
+          <td><span class="pill"><%= result.evaluation_status %></span></td>
+          <td class="number"><%= number_to_currency(result.predicted_expected_profit_yen, unit: "¥", precision: 0) %></td>
+          <td class="number"><%= number_to_currency(result.actual_profit_yen, unit: "¥", precision: 0) %></td>
+          <td class="number"><%= number_to_currency(result.prediction_error_yen, unit: "¥", precision: 0) %></td>
+          <td><%= link_to "詳細", result %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>
+</div>

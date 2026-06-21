@@ -1,0 +1,45 @@
+<% content_for :title, "AI提案" %>
+
+<div class="page-title">
+  <div>
+    <h1>AI提案</h1>
+    <p>AI出力を保存し、レビューしてから実験候補に変換します。</p>
+  </div>
+  <div class="actions compact-actions">
+    <%= link_to "AI下書きを作成", new_admin_aicoo_lab_ai_draft_path, class: "button" %>
+    <%= link_to "事業アイデア", admin_aicoo_lab_candidates_path, class: "button secondary" %>
+    <%= link_to "アイデア生成履歴", admin_aicoo_lab_generation_runs_path, class: "button secondary" %>
+  </div>
+</div>
+
+<section class="dashboard-section">
+  <div class="aicoo-lab-help">
+    <strong>この画面でやること</strong>
+    <p>ここではAIが出したJSON候補を確認し、問題なければ候補として取り込みます。</p>
+  </div>
+</section>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>タイトル</th>
+        <th>状態</th>
+        <th>作成日時</th>
+        <th>候補数</th>
+        <th>生成履歴</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @ai_drafts.each do |draft| %>
+        <tr>
+          <td><%= link_to draft.title, admin_aicoo_lab_ai_draft_path(draft) %></td>
+          <td><span class="pill"><%= aicoo_lab_status_label(draft.status) %></span></td>
+          <td><%= l(draft.created_at, format: :short) %></td>
+          <td class="number"><%= draft.candidate_count %></td>
+          <td><%= link_to "生成履歴 ##{draft.generation_run_id}", admin_aicoo_lab_generation_run_path(draft.generation_run) %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>

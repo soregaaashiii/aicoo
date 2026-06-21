@@ -1,0 +1,70 @@
+<dl id="<%= dom_id action_candidate %>" class="detail-list">
+  <dt>事業</dt>
+  <dd><%= link_to action_candidate.business.name, action_candidate.business %></dd>
+
+  <dt>行動タイトル</dt>
+  <dd><%= action_candidate.title %></dd>
+
+  <dt>説明</dt>
+  <dd><%= simple_format(action_candidate.description) %></dd>
+
+  <dt>行動タイプ</dt>
+  <dd><%= action_candidate.action_type %></dd>
+
+  <dt>生成元</dt>
+  <dd><span class="pill"><%= action_candidate.generation_source %></span></dd>
+
+  <dt>短期利益見込み</dt>
+  <dd><%= number_to_currency(action_candidate.immediate_value_yen, unit: "¥", precision: 0) %></dd>
+
+  <dt>成功確率</dt>
+  <dd><%= number_to_percentage(action_candidate.success_probability.to_d * 100, precision: 1) %></dd>
+
+  <dt>期待利益</dt>
+  <dd><%= number_to_currency(action_candidate.expected_profit_yen, unit: "¥", precision: 0) %></dd>
+
+  <dt>想定時間</dt>
+  <dd><%= action_candidate.expected_hours || "-" %></dd>
+
+  <dt>期待時給</dt>
+  <dd><%= action_candidate.expected_hourly_value_yen.present? ? number_to_currency(action_candidate.expected_hourly_value_yen, unit: "¥", precision: 0) : "-" %></dd>
+
+  <dt>費用</dt>
+  <dd><%= number_to_currency(action_candidate.cost_yen, unit: "¥", precision: 0) %></dd>
+
+  <dt>放置損失90日</dt>
+  <dd><%= number_to_currency(action_candidate.neglect_loss_90d_yen, unit: "¥", precision: 0) %></dd>
+
+  <dt>放置損失理由</dt>
+  <dd><%= simple_format(action_candidate.neglect_loss_reason.presence || "-") %></dd>
+
+  <dt>ROI</dt>
+  <dd><%= action_candidate.roi.present? ? number_with_precision(action_candidate.roi, precision: 2) : "-" %></dd>
+
+  <dt>戦略価値</dt>
+  <dd><%= action_candidate.strategic_value_score %></dd>
+
+  <dt>リスク低減</dt>
+  <dd><%= action_candidate.risk_reduction_score %></dd>
+
+  <dt>最終スコア</dt>
+  <dd><%= number_with_precision(action_candidate.final_score, precision: 1) %></dd>
+
+  <dt>信頼度</dt>
+  <dd><%= action_candidate.confidence_score %></dd>
+
+  <dt>データ信頼度</dt>
+  <dd><%= action_candidate.data_confidence_score %></dd>
+
+  <dt>手動優先度</dt>
+  <dd><%= action_candidate.priority_score %></dd>
+
+  <dt>状態</dt>
+  <dd><span class="pill"><%= action_candidate.status %></span></dd>
+
+  <dt id="evaluation_reason">評価理由</dt>
+  <dd><%= simple_format(action_candidate.evaluation_reason) %></dd>
+
+  <dt id="execution_prompt">実行プロンプト</dt>
+  <dd><%= simple_format(action_candidate.execution_prompt) %></dd>
+</dl>

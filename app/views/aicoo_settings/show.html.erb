@@ -1,0 +1,54 @@
+<% content_for :title, "AICOO設定" %>
+
+<% header_actions = capture do %>
+  <%= link_to "操作盤に戻る", dashboard_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "AICOO設定",
+             description: "Daily Run後の自動処理など、AICOO全体の運用設定を管理します。",
+             active_main: :revenue,
+             actions: header_actions %>
+  <%= render "shared/aicoo_execution_tabs", active: :dashboard %>
+
+  <section class="dashboard-section">
+    <div class="aicoo-card">
+      <h2>データ整備タスク自動キュー投入</h2>
+      <p class="aicoo-lab-help">
+        ONにすると、Daily Run後に生成されたデータ整備タスクをExecutorの実行承認待ちへ自動で積みます。
+        自動実行は行わず、人間がExecutorで承認してから進めます。
+      </p>
+
+      <div class="metric-grid">
+        <div class="metric-card">
+          <span>現在の状態</span>
+          <strong><%= @aicoo_setting.auto_queue_data_preparation_tasks? ? "自動投入ON" : "自動投入OFF" %></strong>
+        </div>
+      </div>
+
+      <%= form_with model: @aicoo_setting, url: aicoo_setting_path, method: :patch, class: "aicoo-form" do |form| %>
+        <% if @aicoo_setting.errors.any? %>
+          <div class="aicoo-lab-help alert">
+            <strong>保存できませんでした</strong>
+            <ul>
+              <% @aicoo_setting.errors.full_messages.each do |message| %>
+                <li><%= message %></li>
+              <% end %>
+            </ul>
+          </div>
+        <% end %>
+
+        <div class="form-row">
+          <%= form.label :auto_queue_data_preparation_tasks, "Daily Run後にデータ整備タスクをExecutor承認待ちへ自動投入する" %>
+          <%= form.check_box :auto_queue_data_preparation_tasks %>
+        </div>
+
+        <div class="actions compact-actions">
+          <%= form.submit "AICOO設定を保存", class: "button" %>
+          <%= link_to "キャンセル", dashboard_path, class: "button secondary" %>
+        </div>
+      <% end %>
+    </div>
+  </section>
+</div>

@@ -1,0 +1,86 @@
+<% content_for :title, "行動候補の予測精度" %>
+
+<% header_actions = capture do %>
+    <%= link_to "成績表", admin_aicoo_judge_path, class: "button secondary" %>
+    <%= link_to "ActionResult一覧", action_results_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "行動候補の予測精度",
+             description: "ActionCandidateの予測とActionResultの実績を比較し、生成元・事業・ルールごとの当たり外れを確認します。",
+             active_main: :judge,
+             actions: header_actions %>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>フィルタ</h2>
+  </div>
+  <%= form_with url: admin_aicoo_judge_action_predictions_path, method: :get, class: "filters" do |form| %>
+    <div class="field compact-field">
+      <%= form.label :business_id, "Business" %>
+      <%= form.select :business_id, options_from_collection_for_select(@businesses, :id, :name, params[:business_id]), include_blank: "All" %>
+    </div>
+    <div class="field compact-field">
+      <%= form.label :generation_source, "generation_source" %>
+      <%= form.select :generation_source, options_for_select(ActionCandidate::GENERATION_SOURCES, params[:generation_source]), include_blank: "All" %>
+    </div>
+    <div class="field compact-field">
+      <%= form.label :action_type, "action_type" %>
+      <%= form.select :action_type, options_for_select(ActionCandidate::ACTION_TYPES, params[:action_type]), include_blank: "All" %>
+    </div>
+    <div class="field compact-field">
+      <%= form.label :start_date, "開始日" %>
+      <%= form.date_field :start_date, value: params[:start_date] %>
+    </div>
+    <div class="field compact-field">
+      <%= form.label :end_date, "終了日" %>
+      <%= form.date_field :end_date, value: params[:end_date] %>
+    </div>
+    <%= form.submit "絞り込み", class: "button" %>
+    <%= link_to "解除", admin_aicoo_judge_action_predictions_path, class: "button secondary" %>
+  <% end %>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>全体サマリー</h2>
+  </div>
+  <%= render "action_prediction_summary_table", label: "対象", summaries: [@judge_result.overall_summary] %>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading"><h2>generation_source別サマリー</h2></div>
+  <%= render "action_prediction_summary_table", label: "generation_source", summaries: @judge_result.generation_source_summaries %>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading"><h2>Business別サマリー</h2></div>
+  <%= render "action_prediction_summary_table", label: "Business", summaries: @judge_result.business_summaries %>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading"><h2>action_type別サマリー</h2></div>
+  <%= render "action_prediction_summary_table", label: "action_type", summaries: @judge_result.action_type_summaries %>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading"><h2>metric_rule別サマリー</h2></div>
+  <%= render "action_prediction_summary_table", label: "metric_rule", summaries: @judge_result.metric_rule_summaries %>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading"><h2>evaluation_status別サマリー</h2></div>
+  <%= render "action_prediction_summary_table", label: "evaluation_status", summaries: @judge_result.status_summaries %>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading"><h2>最近の大外しActionResult</h2></div>
+  <%= render "action_prediction_results_table", action_results: @judge_result.recent_big_misses %>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading"><h2>最近の的中ActionResult</h2></div>
+  <%= render "action_prediction_results_table", action_results: @judge_result.recent_hits %>
+</section>
+</div>
