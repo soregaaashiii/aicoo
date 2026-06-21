@@ -1,0 +1,138 @@
+<% content_for :title, @action_candidate.title %>
+
+<% header_actions = capture do %>
+    <%= button_to "AIで再評価", reevaluate_ai_action_candidate_path(@action_candidate), method: :post, class: "button" %>
+    <% if @action_candidate.data_preparation? %>
+      <% executor_task = @action_candidate.unfinished_executor_task %>
+      <% if executor_task %>
+        <%= link_to "Executor送信済み", admin_aicoo_executor_task_path(executor_task), class: "button secondary" %>
+      <% else %>
+        <%= button_to "Executorへ送る", send_to_executor_action_candidate_path(@action_candidate), method: :post, class: "button" %>
+      <% end %>
+    <% end %>
+    <% if @action_candidate.action_result %>
+      <%= link_to "実行結果を見る", @action_candidate.action_result, class: "button secondary" %>
+    <% else %>
+      <%= link_to "実行結果を記録", new_action_result_path(action_result: { action_candidate_id: @action_candidate.id }), class: "button secondary" %>
+    <% end %>
+    <%= link_to "Edit", edit_action_candidate_path(@action_candidate), class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: @action_candidate.title,
+             description: "行動単位の期待値・分散込みスコアを確認します。",
+             active_main: :revenue,
+             actions: header_actions %>
+  <%= render "shared/aicoo_execution_tabs", active: :today %>
+
+<%= render @action_candidate %>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>Judge補正</h2>
+    <p>同じ生成元・行動タイプの過去的中率を使って、最終スコアを軽く補正します。</p>
+  </div>
+  <div class="metric-grid">
+    <div class="metric-card"><span>generation_source過去的中率</span><strong><%= @action_candidate_judge_score.generation_source_accuracy ? number_to_percentage(@action_candidate_judge_score.generation_source_accuracy * 100, precision: 1) : "データ不足" %></strong></div>
+    <div class="metric-card"><span>action_type過去的中率</span><strong><%= @action_candidate_judge_score.action_type_accuracy ? number_to_percentage(@action_candidate_judge_score.action_type_accuracy * 100, precision: 1) : "データ不足" %></strong></div>
+    <div class="metric-card"><span>Business平均prediction_error_rate</span><strong><%= @action_candidate_judge_score.business_average_prediction_error_rate ? number_to_percentage(@action_candidate_judge_score.business_average_prediction_error_rate * 100, precision: 1) : "データ不足" %></strong></div>
+    <div class="metric-card"><span>judge_adjusted_score</span><strong><%= number_with_precision(@action_candidate_judge_score.judge_adjusted_score, precision: 1) %></strong></div>
+  </div>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>この候補に近い過去精度</h2>
+    <p>同じ生成元・行動タイプ・Businessで、過去のActionResultがどれくらい当たったかを表示します。</p>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>軸</th>
+          <th>評価済み件数</th>
+          <th>的中率</th>
+          <th>平均prediction_error</th>
+          <th>平均誤差率</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% {
+          "このgeneration_source" => @action_prediction_precision[:generation_source],
+          "このaction_type" => @action_prediction_precision[:action_type],
+          "このBusiness" => @action_prediction_precision[:business]
+        }.each do |label, summary| %>
+          <tr>
+            <td><%= label %></td>
+            <td class="number"><%= summary.evaluated_count %></td>
+            <td class="number"><%= summary.hit_rate ? number_to_percentage(summary.hit_rate * 100, precision: 1) : "データ不足" %></td>
+            <td class="number"><%= summary.average_prediction_error_yen ? number_to_currency(summary.average_prediction_error_yen, unit: "¥", precision: 0) : "データ不足" %></td>
+            <td class="number"><%= summary.average_prediction_error_rate ? number_to_percentage(summary.average_prediction_error_rate * 100, precision: 1) : "データ不足" %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<% if @action_candidate.action_result %>
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>実行結果サマリー</h2>
+      <p>予測した期待利益と実績のズレを確認します。</p>
+    </div>
+    <div class="metric-grid">
+      <div class="metric-card"><span>評価状態</span><strong><%= @action_candidate.action_result.evaluation_status %></strong></div>
+      <div class="metric-card"><span>予測期待利益</span><strong><%= number_to_currency(@action_candidate.action_result.predicted_expected_profit_yen, unit: "¥", precision: 0) %></strong></div>
+      <div class="metric-card"><span>実績利益</span><strong><%= number_to_currency(@action_candidate.action_result.actual_profit_yen, unit: "¥", precision: 0) %></strong></div>
+      <div class="metric-card"><span>予測誤差</span><strong><%= number_to_currency(@action_candidate.action_result.prediction_error_yen, unit: "¥", precision: 0) %></strong></div>
+    </div>
+  </section>
+<% end %>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>Judge補正スコア履歴</h2>
+    <p>この候補がJudge補正でどの順位に動いたかを日別に確認します。</p>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>recorded_on</th>
+          <th>raw_score</th>
+          <th>judge_adjusted_score</th>
+          <th>raw_rank</th>
+          <th>adjusted_rank</th>
+          <th>rank_delta</th>
+          <th>倍率</th>
+          <th>理由</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @score_snapshots.each do |snapshot| %>
+          <tr>
+            <td><%= snapshot.recorded_on %></td>
+            <td class="number"><%= number_with_precision(snapshot.raw_score, precision: 1) %></td>
+            <td class="number"><%= number_with_precision(snapshot.judge_adjusted_score, precision: 1) %></td>
+            <td class="number"><%= snapshot.raw_rank %></td>
+            <td class="number"><%= snapshot.adjusted_rank %></td>
+            <td class="number"><%= snapshot.rank_delta %></td>
+            <td class="number"><%= number_with_precision(snapshot.adjustment_multiplier, precision: 2) %></td>
+            <td><%= snapshot.reason %></td>
+          </tr>
+        <% end %>
+        <% if @score_snapshots.empty? %>
+          <tr><td colspan="8">まだScoreSnapshot履歴はありません。</td></tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<div class="actions">
+  <%= link_to "行動候補一覧に戻る", action_candidates_path, class: "button secondary" %>
+  <%= button_to "Destroy", @action_candidate, method: :delete, class: "danger" %>
+</div>
+</div>

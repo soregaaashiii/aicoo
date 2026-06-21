@@ -1,0 +1,2 @@
+json.extract! action_candidate, :id, :business_id, :title, :description, :action_type, :expected_profit_yen, :expected_hours, :expected_hourly_value_yen, :cost_yen, :roi, :success_probability, :immediate_value_yen, :strategic_value_score, :risk_reduction_score, :final_score, :confidence_score, :priority_score, :status, :execution_prompt, :evaluation_reason, :created_at, :updated_at
+json.url action_candidate_url(action_candidate, format: :json)

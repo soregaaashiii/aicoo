@@ -1,0 +1,74 @@
+<% content_for :title, "AICOO Daily Run" %>
+
+<% header_actions = capture do %>
+  <%= link_to "操作盤に戻る", dashboard_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "AICOO Daily Run",
+             description: "代理指標更新、重み補正、行動候補生成、実行結果評価を日次でまとめて実行します。",
+             active_main: :revenue,
+             actions: header_actions %>
+  <%= render "shared/aicoo_execution_tabs", active: :dashboard %>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>手動実行</h2>
+      <p>対象日を指定して、AICOOの日次処理をまとめて実行します。</p>
+    </div>
+    <%= form_with url: aicoo_daily_runs_path, scope: :aicoo_daily_run, class: "filters" do |form| %>
+      <div class="field compact-field">
+        <%= form.label :target_date, "対象日" %>
+        <%= form.date_field :target_date, value: Date.yesterday %>
+      </div>
+      <%= form.submit "AICOO Daily Runを実行", class: "button" %>
+    <% end %>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>実行履歴</h2>
+      <p>最新50件のDaily Run結果です。</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>実行日時</th>
+            <th>対象日</th>
+            <th>状態</th>
+            <th>代理指標</th>
+            <th>重み補正</th>
+            <th>候補生成</th>
+            <th>結果評価</th>
+            <th>補正ログ</th>
+            <th>データ整備候補</th>
+            <th>自動投入</th>
+            <th>詳細</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @daily_runs.each do |daily_run| %>
+            <tr>
+              <td><%= daily_run.started_at ? l(daily_run.started_at, format: :short) : "-" %></td>
+              <td><%= daily_run.target_date %></td>
+              <td><span class="pill"><%= daily_run.status %></span></td>
+              <td class="number"><%= daily_run.business_metrics_imported_count %></td>
+              <td class="number"><%= daily_run.proxy_weights_adjusted_count %></td>
+              <td class="number"><%= daily_run.action_candidates_generated_count %></td>
+              <td class="number"><%= daily_run.action_results_evaluated_count %></td>
+              <td class="number"><%= daily_run.score_snapshots_created_count %></td>
+              <td class="number"><%= daily_run.data_preparation_candidates_count %></td>
+              <td class="number"><%= daily_run.data_preparation_auto_queued_count %></td>
+              <td><%= link_to "詳細", daily_run, class: "button secondary" %></td>
+            </tr>
+          <% end %>
+          <% if @daily_runs.empty? %>
+            <tr><td colspan="11">まだDaily Runはありません。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>

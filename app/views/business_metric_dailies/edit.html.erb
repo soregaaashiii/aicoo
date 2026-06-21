@@ -1,0 +1,15 @@
+<% content_for :title, "代理指標を編集" %>
+
+<% header_actions = capture do %>
+  <%= link_to "詳細を見る", @business_metric_daily, class: "button secondary" %>
+  <%= link_to "一覧へ戻る", business_metric_dailies_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "代理指標を編集",
+             description: "日次代理指標を編集します。",
+             active_main: :datahub,
+             actions: header_actions %>
+  <%= render "form", business_metric_daily: @business_metric_daily %>
+</div>

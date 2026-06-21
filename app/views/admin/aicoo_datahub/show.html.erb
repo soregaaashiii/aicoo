@@ -1,0 +1,149 @@
+<% content_for :title, "実績データ" %>
+
+<% header_actions = capture do %>
+    <%= link_to "GA4/GSCデータ取込", admin_analytics_imports_path, class: "button" %>
+    <%= link_to "サイト別分析設定", admin_analytics_sites_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "実績データ",
+             description: "GA4・GSC・LP計測・収益実行記録の事実データを集約します。ここでは判断しません。",
+             active_main: :datahub,
+             actions: header_actions %>
+
+<section class="dashboard-section">
+  <div class="aicoo-lab-help">
+    <strong>この画面でやること</strong>
+    <p>PV・CV・収益などの実績データを集め、採点できそうな対象を確認します。ここでは収益判断や学習判断は行いません。</p>
+  </div>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>実績データ状況</h2>
+    <p>採点自動化の材料になる事実データの取得状況です。</p>
+  </div>
+
+  <div class="metric-grid">
+    <div class="metric-card"><span>総実績データ数</span><strong><%= @summary.total_count %></strong></div>
+    <div class="metric-card"><span>今日取得数</span><strong><%= @summary.today_count %></strong></div>
+    <div class="metric-card"><span>GA4</span><strong><%= @summary.ga4_count %></strong></div>
+    <div class="metric-card"><span>GSC</span><strong><%= @summary.gsc_count %></strong></div>
+    <div class="metric-card"><span>LP実績データ</span><strong><%= @summary.landing_page_count %></strong></div>
+    <div class="metric-card"><span>収益実績データ</span><strong><%= @summary.revenue_execution_count %></strong></div>
+  </div>
+</section>
+</div>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>手動データ収集</h2>
+    <p>既存のLP計測、収益実行記録、DataImportから事実データを作成します。外部APIの新規呼び出しは行いません。</p>
+  </div>
+
+  <div class="actions compact-actions">
+    <%= button_to "今すぐ自動収集実行", admin_aicoo_datahub_run_daily_collection_path, method: :post, class: "button" %>
+    <%= button_to "LP実績データ収集", admin_aicoo_datahub_collect_landing_pages_path, method: :post, class: "button" %>
+    <%= button_to "収益実績データ収集", admin_aicoo_datahub_collect_revenue_path, method: :post, class: "button" %>
+    <%= button_to "取込データ収集", admin_aicoo_datahub_collect_data_imports_path, method: :post, class: "button secondary" %>
+    <%= button_to "全データ収集", admin_aicoo_datahub_collect_all_path, method: :post, class: "button secondary" %>
+    <%= link_to "GA4/GSCデータ取込", admin_analytics_imports_path, class: "button secondary" %>
+    <%= link_to "サイト別分析設定", admin_analytics_sites_path, class: "button secondary" %>
+    <%= link_to "Analytics取込を再処理", admin_analytics_imports_path, class: "button secondary" %>
+  </div>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>データ収集履歴</h2>
+    <p>自動収集の実行履歴です。ここでは事実収集のみを行います。</p>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>開始</th>
+          <th>終了</th>
+          <th>状態</th>
+          <th>作成データ数</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @collection_runs.each do |run| %>
+          <tr>
+            <td><%= l(run.started_at, format: :short) %></td>
+            <td><%= run.finished_at ? l(run.finished_at, format: :short) : "-" %></td>
+            <td><span class="pill"><%= run.status %></span></td>
+            <td class="number"><%= run.snapshot_count %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</section>
+</div>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>採点候補</h2>
+    <p>実績データから、新規事業 / 今日やることで採点できそうな対象を提示します。ここでは結果や実績値は作成・更新しません。</p>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>対象</th>
+          <th>名称</th>
+          <th>理由</th>
+          <th>使える指標</th>
+          <th>採点画面</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @scoring_candidates.each do |candidate| %>
+          <tr>
+            <td><span class="pill"><%= aicoo_source_label(candidate.target_type) %></span></td>
+            <td><%= candidate.title %></td>
+            <td><%= candidate.reason %></td>
+            <td><code><%= candidate.available_metrics.to_json %></code></td>
+            <td><%= link_to "開く", candidate.suggested_action_url, class: "button secondary" %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>最近の実績データ</h2>
+    <p>最新20件の取得履歴です。ここでは収益判断・学習判断は行いません。</p>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>種類</th>
+          <th>ID</th>
+          <th>取得日時</th>
+          <th>内容</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @recent_snapshots.each do |snapshot| %>
+          <tr>
+            <td><span class="pill"><%= aicoo_source_label(snapshot.source_type) %></span></td>
+            <td class="number"><%= snapshot.source_id %></td>
+            <td><%= l(snapshot.captured_at, format: :short) %></td>
+            <td><code><%= truncate(snapshot.payload.to_json, length: 160) %></code></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</section>
+</div>

@@ -1,0 +1,184 @@
+<% content_for :title, "分析設定" %>
+
+<% header_actions = capture do %>
+    <%= link_to "Googleと接続", admin_analytics_oauth_connect_path, class: "button" %>
+    <%= link_to "分析設定を追加", "#analytics-connection-form", class: "button" %>
+    <%= link_to "GA4/GSCデータ取込", admin_analytics_imports_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "分析設定",
+             description: "事業ごとにGSCとGA4をまとめて設定します。普段はこの画面だけ見れば大丈夫です。",
+             active_main: :datahub,
+             actions: header_actions %>
+
+<section class="dashboard-section">
+  <div class="aicoo-lab-help">
+    <strong>この画面でやること</strong>
+    <p>「吸えログの分析設定」のように、事業名・GSC site_url・GA4 property_id をまとめて保存してください。</p>
+    <p>
+      Google認証:
+      <span class="pill"><%= @google_oauth_status[:connected] ? "接続済み" : "未接続" %></span>
+      refresh_token:
+      <span class="pill"><%= @google_oauth_status[:connected] ? "保存済み" : "未保存" %></span>
+      最終OAuth接続:
+      <%= @google_oauth_status[:latest_connected_at] ? l(@google_oauth_status[:latest_connected_at], format: :short) : "-" %>
+    </p>
+    <%= link_to "Googleと接続", admin_analytics_oauth_connect_path, class: "button" %>
+  </div>
+</section>
+</div>
+
+<section class="dashboard-section" id="analytics-connection-form">
+  <div class="section-heading">
+    <h2>分析設定を追加</h2>
+    <p>事業名、Google認証情報、GSC/GA4の識別子をまとめて保存します。secretやrefresh_tokenの中身は再表示しません。</p>
+  </div>
+
+  <%= form_with url: admin_analytics_connections_path, scope: :analytics_connection, class: "form" do |form| %>
+    <fieldset>
+      <legend>共通設定</legend>
+      <div class="field">
+        <%= form.label :business_name, "事業名" %>
+        <%= form.text_field :business_name, value: @business_name, placeholder: "吸えログ", required: true %>
+      </div>
+      <div class="field checkbox-field">
+        <%= form.check_box :enabled, checked: @enabled %>
+        <%= form.label :enabled, "有効" %>
+      </div>
+      <div class="field">
+        <%= form.label :fetch_days, "取得日数" %>
+        <%= form.number_field :fetch_days, value: @fetch_days, min: 1, step: 1 %>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Google認証情報</legend>
+      <div class="aicoo-lab-help">
+        <p>ENVが設定済みなら画面入力は任意です。画面から入力した値は、この事業のGSC/GA4設定に保存されます。</p>
+        <ul class="compact-list">
+          <% @google_auth_statuses.each do |key, status| %>
+            <li><%= key %>: <span class="pill"><%= status %></span></li>
+          <% end %>
+        </ul>
+      </div>
+      <div class="field">
+        <%= form.label :google_client_id, "google_client_id" %>
+        <%= form.text_field :google_client_id, value: nil, autocomplete: "off", placeholder: "Google OAuth Client ID" %>
+      </div>
+      <div class="field">
+        <%= form.label :google_client_secret, "google_client_secret" %>
+        <%= form.password_field :google_client_secret, value: nil, autocomplete: "new-password", placeholder: "設定済みなら空欄でOK" %>
+      </div>
+      <div class="field">
+        <%= form.label :google_refresh_token, "google_refresh_token" %>
+        <%= form.password_field :google_refresh_token, value: nil, autocomplete: "new-password", placeholder: "設定済みなら空欄でOK" %>
+      </div>
+      <div class="field">
+        <%= form.label :credentials_json, "credentials_json" %>
+        <%= form.text_area :credentials_json, value: nil, rows: 5, placeholder: '{"client_id":"...","client_secret":"..."}' %>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>GSC設定</legend>
+      <p class="aicoo-lab-help">GSCは site_url が必要です。例: sc-domain:suelog.jp</p>
+      <div class="field">
+        <%= form.label :gsc_site_url, "site_url" %>
+        <%= form.text_field :gsc_site_url, value: @gsc_site_url, placeholder: "sc-domain:suelog.jp" %>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>GA4設定</legend>
+      <p class="aicoo-lab-help">GA4はプロパティIDが必要です。例: 536889590</p>
+      <div class="field">
+        <%= form.label :ga4_property_id, "property_id" %>
+        <%= form.text_field :ga4_property_id, value: @ga4_property_id, placeholder: "536889590" %>
+      </div>
+    </fieldset>
+
+    <div class="field">
+      <%= form.submit "分析設定を保存", class: "button" %>
+    </div>
+  <% end %>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>事業別分析設定</h2>
+    <p>事業ごとに分析設定を確認し、必要なデータだけ手動取得できます。</p>
+  </div>
+
+  <div class="aicoo-lab-inbox-grid">
+    <% @connections.each do |connection| %>
+      <article class="aicoo-lab-card">
+        <div class="section-heading">
+          <h3><%= connection.business_name %></h3>
+          <p><%= connection.business_name %>の分析設定です。</p>
+        </div>
+        <dl class="detail-list">
+          <dt>GSC</dt>
+          <dd><%= connection.gsc_setting&.site_url.presence || "-" %></dd>
+          <dt>GSC状態</dt>
+          <dd><span class="pill"><%= connection.gsc_status %></span></dd>
+          <dt>GA4</dt>
+          <dd><%= connection.ga4_setting&.property_id.presence || "-" %></dd>
+          <dt>GA4状態</dt>
+          <dd><span class="pill"><%= connection.ga4_status %></span></dd>
+          <dt>認証状態</dt>
+          <dd><span class="pill"><%= connection.credentials_status %></span></dd>
+          <dt>client_id</dt>
+          <dd><span class="pill"><%= connection.client_id_status %></span></dd>
+          <dt>client_secret</dt>
+          <dd><span class="pill"><%= connection.client_secret_status %></span></dd>
+          <dt>refresh_token</dt>
+          <dd><span class="pill"><%= connection.refresh_token_status %></span></dd>
+          <dt>credentials_json</dt>
+          <dd><span class="pill"><%= connection.credentials_json_status %></span></dd>
+          <dt>最終OAuth接続</dt>
+          <dd><%= connection.oauth_connected_at ? l(connection.oauth_connected_at, format: :short) : "-" %></dd>
+          <dt>有効</dt>
+          <dd><span class="pill"><%= connection.enabled? ? "有効" : "無効" %></span></dd>
+          <dt>取得日数</dt>
+          <dd><%= connection.fetch_days %>日</dd>
+          <dt>最終取得</dt>
+          <dd>
+            <span class="pill"><%= connection.latest_fetch_status %></span>
+            <%= connection.last_fetched_at ? l(connection.last_fetched_at, format: :short) : "-" %>
+          </dd>
+        </dl>
+        <% if connection.warnings.present? %>
+          <div class="aicoo-lab-help">
+            <% connection.warnings.each do |warning| %>
+              <p><%= warning %></p>
+            <% end %>
+          </div>
+        <% end %>
+        <div class="actions compact-actions">
+          <%= link_to "編集", admin_analytics_connections_path(
+                business_name: connection.business_name,
+                gsc_site_url: connection.gsc_setting&.site_url,
+                ga4_property_id: connection.ga4_setting&.property_id,
+                enabled: connection.enabled?,
+                fetch_days: connection.fetch_days,
+                anchor: "analytics-connection-form"
+              ), class: "button secondary" %>
+          <%= link_to "Googleと接続", admin_analytics_oauth_connect_path(business_name: connection.business_name), class: "button secondary" %>
+          <%= button_to "GSC取得", fetch_gsc_admin_analytics_connections_path, method: :post, params: { business_name: connection.business_name }, class: "button secondary" %>
+          <%= button_to "GA4取得", fetch_ga4_admin_analytics_connections_path, method: :post, params: { business_name: connection.business_name }, class: "button secondary" %>
+          <%= button_to "両方取得", fetch_all_for_business_admin_analytics_connections_path, method: :post, params: { business_name: connection.business_name }, class: "button" %>
+        </div>
+      </article>
+    <% end %>
+  </div>
+</section>
+
+<section class="dashboard-section">
+  <div class="aicoo-lab-help">
+    <strong>上級者向け</strong>
+    <p>通常はこの画面だけ使ってください。個別の内部設定を確認する場合だけ開きます。</p>
+    <%= link_to "上級者向け設定を開く", admin_analytics_sources_path, class: "button secondary" %>
+  </div>
+</section>

@@ -1,0 +1,81 @@
+<% content_for :title, @execution.title %>
+
+<% active_execution_tab = @execution.actual_90d_profit_yen.present? ? :scored : (@execution.status == "done" ? :done : :planned) %>
+<% header_actions = capture do %>
+    <%= link_to "実行ログ一覧", admin_aicoo_revenue_executions_path, class: "button secondary" %>
+    <%= link_to "結果入力", edit_admin_aicoo_revenue_execution_path(@execution), class: "button secondary" %>
+    <%= button_to "実行計画を作成", admin_aicoo_executor_tasks_path, method: :post, params: { aicoo_executor_task: { aicoo_revenue_execution_id: @execution.id } }, class: "button" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: @execution.title,
+             description: "今日やるべきことの推薦、実行判断、実績、元データ状態を確認します。",
+             active_main: :revenue,
+             actions: header_actions %>
+  <%= render "shared/aicoo_execution_tabs", active: active_execution_tab %>
+
+<% if @execution.status == "done" && @execution.action_candidate_source? && @execution.source_status != "done" %>
+  <section class="dashboard-section">
+    <div class="aicoo-lab-card aicoo-lab-next-action">
+      <h2>行動候補との連動</h2>
+      <p>この実行記録を完了済みにしました。元の行動候補も完了にしますか？</p>
+      <%= button_to "元の行動候補も完了にする", sync_action_candidate_done_admin_aicoo_revenue_execution_path(@execution), method: :patch, class: "button" %>
+    </div>
+  </section>
+<% end %>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>元データ</h2>
+  </div>
+  <dl class="detail-list">
+    <dt>種類</dt>
+    <dd><%= aicoo_revenue_source_label(@execution.source_type) %></dd>
+    <dt>リンク</dt>
+    <dd><%= aicoo_revenue_source_link(@execution) %></dd>
+    <dt>状態</dt>
+    <dd><%= @execution.source_status.present? ? aicoo_lab_status_label(@execution.source_status) : "元データなし" %></dd>
+    <dt>予測者</dt>
+    <dd><span class="pill"><%= aicoo_source_label(@execution.prediction_source) %></span></dd>
+  </dl>
+</section>
+</div>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>収益予測</h2>
+  </div>
+  <div class="metric-grid">
+    <div class="metric-card"><span>攻め利益</span><strong><%= aicoo_revenue_yen(@execution.expected_90d_profit_yen) %></strong></div>
+    <div class="metric-card"><span>成功確率</span><strong><%= number_to_percentage(@execution.success_probability.to_d * 100, precision: 1) %></strong></div>
+    <div class="metric-card"><span>放置損失</span><strong><%= aicoo_revenue_yen(@execution.neglect_loss_90d_yen) %></strong></div>
+    <div class="metric-card"><span>合計期待価値</span><strong><%= aicoo_revenue_yen(@execution.revenue_total_value_yen) %></strong></div>
+    <div class="metric-card"><span>必要時間</span><strong><%= @execution.estimated_work_minutes %>分</strong></div>
+    <div class="metric-card"><span>必要予算</span><strong><%= aicoo_revenue_yen(@execution.budget_yen) %></strong></div>
+    <div class="metric-card"><span>収益優先度</span><strong><%= @execution.revenue_score ? aicoo_revenue_score(@execution.revenue_score) : "費用なし" %></strong></div>
+  </div>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>実績と誤差</h2>
+  </div>
+  <div class="metric-grid">
+    <div class="metric-card"><span>実績90日利益</span><strong><%= @execution.actual_90d_profit_yen.nil? ? "-" : aicoo_revenue_yen(@execution.actual_90d_profit_yen) %></strong></div>
+    <div class="metric-card"><span>誤差率</span><strong><%= @execution.error_rate.nil? ? "-" : number_to_percentage(@execution.error_rate * 100, precision: 1) %></strong></div>
+    <div class="metric-card"><span>予測精度</span><strong><%= @execution.calibration_score.nil? ? "-" : number_with_precision(@execution.calibration_score, precision: 1) %></strong></div>
+  </div>
+  <dl class="detail-list">
+    <dt>状態</dt>
+    <dd><%= aicoo_lab_status_label(@execution.status) %></dd>
+    <dt>予定日</dt>
+    <dd><%= l(@execution.planned_at, format: :short) if @execution.planned_at %></dd>
+    <dt>完了日</dt>
+    <dd><%= l(@execution.done_at, format: :short) if @execution.done_at %></dd>
+    <dt>測定日</dt>
+    <dd><%= l(@execution.measured_at, format: :short) if @execution.measured_at %></dd>
+    <dt>結果メモ</dt>
+    <dd><%= simple_format(@execution.result_note.presence || "-") %></dd>
+  </dl>
+</section>

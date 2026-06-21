@@ -1,0 +1,178 @@
+<% content_for :title, "上級者向け設定" %>
+
+<% header_actions = capture do %>
+    <%= link_to "分析設定", admin_analytics_connections_path, class: "button" %>
+    <%= link_to "GA4/GSCデータ取込", admin_analytics_imports_path, class: "button secondary" %>
+    <%= button_to "全有効設定を取得", fetch_all_admin_analytics_sources_path, method: :post, class: "button" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "上級者向け設定",
+             description: "AnalyticsSourceSettingを個別に管理するための画面です。通常は「分析設定」を使ってください。",
+             active_main: :datahub,
+             actions: header_actions %>
+
+<section class="dashboard-section">
+  <div class="aicoo-lab-help">
+    <strong>この画面でやること</strong>
+    <p>GA4/GSCの取得設定を保存し、必要なときに手動取得してください。外部API取得はこの画面の手動取得ボタンを押したときだけ実行されます。</p>
+  </div>
+</section>
+</div>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>定期実行コマンド</h2>
+    <p>Render Cronやローカルcronにこのコマンドを設定すると、GA4/GSCを定期取得できます。</p>
+  </div>
+  <div class="aicoo-lab-card">
+    <code>bin/rails aicoo:analytics:daily_fetch</code>
+  </div>
+</section>
+
+<section class="dashboard-section" id="schedule-readiness">
+  <div class="section-heading">
+    <h2>定期取得準備チェック</h2>
+    <p>Render Cronやローカルcronに登録する前に、安全に動く設定か確認します。</p>
+  </div>
+  <div class="aicoo-lab-card">
+    <p>
+      <strong>定期取得準備: <%= @readiness.ready ? "OK" : "要確認" %></strong>
+    </p>
+    <div class="actions compact-actions">
+      <%= button_to "チェックを再実行", check_readiness_admin_analytics_sources_path, method: :post, class: "button secondary" %>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>結果</th>
+            <th>項目</th>
+            <th>説明</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @readiness.checks.each do |check| %>
+            <tr>
+              <td><span class="pill"><%= { "ok" => "✅ OK", "warning" => "⚠️ 注意", "error" => "❌ 要修正" }.fetch(check.status) %></span></td>
+              <td><%= check.name %></td>
+              <td><%= check.message %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>GA4/GSC設定一覧</h2>
+    <p>取得後はDataImportへCSV形式で保存し、Analytics Importの後処理を実行します。</p>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>種別</th>
+          <th>名前</th>
+          <th>Property ID</th>
+          <th>Site URL</th>
+          <th>有効</th>
+          <th>重複</th>
+          <th>取得日数</th>
+          <th>最終取得</th>
+          <th>最終status</th>
+          <th>DataImport</th>
+          <th>Snapshot</th>
+          <th>放置損失推定</th>
+          <th>エラー</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @settings.each do |setting| %>
+          <% latest_run = setting.latest_fetch_run %>
+          <tr>
+            <td><span class="pill"><%= setting.source_type.upcase %></span></td>
+            <td><%= setting.name %></td>
+            <td><%= setting.property_id.presence || "-" %></td>
+            <td><%= setting.site_url.presence || "-" %></td>
+            <td><%= setting.enabled? ? "有効" : "無効" %></td>
+            <td>
+              <% if setting.enabled? && setting.duplicate_enabled? %>
+                <span class="pill">重複警告</span>
+              <% else %>
+                -
+              <% end %>
+            </td>
+            <td class="number"><%= setting.fetch_days %></td>
+            <td><%= setting.last_fetched_at ? l(setting.last_fetched_at, format: :short) : "-" %></td>
+            <td><span class="pill"><%= latest_run&.status || "-" %></span></td>
+            <td class="number"><%= latest_run&.data_import_id || "-" %></td>
+            <td class="number"><%= latest_run&.snapshot_count || 0 %></td>
+            <td class="number"><%= latest_run&.updated_neglect_loss_count || 0 %></td>
+            <td class="wide-text"><%= truncate(latest_run&.error_message, length: 80) || "-" %></td>
+            <td>
+              <div class="actions compact-actions">
+                <%= button_to "手動取得", fetch_now_admin_analytics_source_path(setting), method: :post, class: "button" %>
+                <%= link_to "分析設定で編集", admin_analytics_connections_path(
+                      business_name: setting.name.to_s.strip.sub(/\s*(GSC|GA4)\z/i, ""),
+                      gsc_site_url: setting.source_type == "gsc" ? setting.site_url : nil,
+                      ga4_property_id: setting.source_type == "ga4" ? setting.property_id : nil,
+                      enabled: setting.enabled?,
+                      fetch_days: setting.fetch_days,
+                      anchor: "analytics-connection-form"
+                    ), class: "button" %>
+                <%= link_to "編集", edit_admin_analytics_source_path(setting), class: "button secondary" %>
+                <%= button_to "削除", admin_analytics_source_path(setting), method: :delete, class: "danger" %>
+              </div>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>取得履歴</h2>
+    <p>手動取得とDailyFetchJobの実行履歴です。</p>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>設定</th>
+          <th>種別</th>
+          <th>状態</th>
+          <th>開始</th>
+          <th>終了</th>
+          <th>DataImport</th>
+          <th>Snapshot</th>
+          <th>放置損失推定</th>
+          <th>エラー</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @fetch_runs.each do |run| %>
+          <tr>
+            <td><%= run.analytics_source_setting.name %></td>
+            <td><span class="pill"><%= run.source_type.upcase %></span></td>
+            <td><span class="pill"><%= run.status %></span></td>
+            <td><%= run.started_at ? l(run.started_at, format: :short) : "-" %></td>
+            <td><%= run.finished_at ? l(run.finished_at, format: :short) : "-" %></td>
+            <td class="number"><%= run.data_import_id || "-" %></td>
+            <td class="number"><%= run.snapshot_count %></td>
+            <td class="number"><%= run.updated_neglect_loss_count %></td>
+            <td class="wide-text"><%= truncate(run.error_message, length: 120) || "-" %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</section>

@@ -1,0 +1,55 @@
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>やること</th>
+        <th>補足</th>
+        <th>状態</th>
+        <th>種類</th>
+        <th>分類</th>
+        <th>攻め利益</th>
+        <th>成功確率</th>
+        <th>手入力放置損失</th>
+        <th>自動推定放置損失</th>
+        <th>採用値</th>
+        <th>合計期待価値</th>
+        <th>必要時間</th>
+        <th>必要予算</th>
+        <th>時間コスト</th>
+        <th>収益優先度</th>
+        <th>期待時給</th>
+        <th>投資効率</th>
+        <th>次にやる操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% rows.each do |row| %>
+        <tr>
+          <td><%= link_to row.title, row.url %></td>
+          <td><small class="revenue-source"><%= aicoo_revenue_source_label(row.source) %></small></td>
+          <td><%= aicoo_lab_status_label(row.status) %></td>
+          <td><%= row.experiment_type %></td>
+          <td><%= row.market_category.presence || "-" %></td>
+          <td class="number"><%= aicoo_revenue_yen(row.expected_90d_profit_yen) %></td>
+          <td class="number"><%= number_to_percentage(row.success_probability.to_d * 100, precision: 1) %></td>
+          <td class="number"><%= aicoo_revenue_yen(row.manual_neglect_loss_90d_yen) %></td>
+          <td class="number">
+            <%= aicoo_revenue_yen(row.estimated_neglect_loss_90d_yen) %>
+            <% if row.neglect_loss_auto_generated %>
+              <br><small>auto_generated</small>
+            <% end %>
+          </td>
+          <td class="number"><%= aicoo_revenue_yen(row.neglect_loss_90d_yen) %></td>
+          <td class="number"><%= aicoo_revenue_yen(row.revenue_total_value_yen) %></td>
+          <td class="number"><%= row.estimated_work_minutes %></td>
+          <td class="number"><%= aicoo_revenue_yen(row.budget_yen) %></td>
+          <td class="number"><%= aicoo_revenue_yen(row.time_cost_yen) %></td>
+          <td class="number"><%= aicoo_revenue_score(row.revenue_score) %></td>
+          <td class="number"><%= aicoo_revenue_score(row.expected_hourly_profit) %></td>
+          <td class="number"><%= aicoo_revenue_score(row.roi_score) %></td>
+          <td><%= link_to score_column == :revenue_score ? "収益候補を見る" : "開く", row.url, class: "button secondary" %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>

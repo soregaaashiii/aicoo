@@ -1,0 +1,45 @@
+<% form_url = site.persisted? ? admin_analytics_site_path(site) : admin_analytics_sites_path %>
+<% form_method = site.persisted? ? :patch : :post %>
+
+<%= form_with model: site, url: form_url, method: form_method, class: "form" do |form| %>
+  <% if site.errors.any? %>
+    <div class="alert"><%= site.errors.full_messages.join(" / ") %></div>
+  <% end %>
+
+  <div class="field">
+    <%= form.label :name, "サイト名" %>
+    <%= form.text_field :name, required: true, placeholder: "吸えログ" %>
+  </div>
+  <div class="field">
+    <%= form.label :business_id, "紐づく事業" %>
+    <%= form.collection_select :business_id, Business.order(:name), :id, :name, include_blank: "未指定" %>
+  </div>
+  <div class="field">
+    <%= form.label :public_url, "公開URL" %>
+    <%= form.text_field :public_url, placeholder: "https://suelog.jp" %>
+  </div>
+  <div class="field">
+    <%= form.label :domain, "ドメイン" %>
+    <%= form.text_field :domain, placeholder: "suelog.jp" %>
+  </div>
+  <div class="field">
+    <%= form.label :gsc_site_url, "GSC site_url" %>
+    <%= form.text_field :gsc_site_url, placeholder: "sc-domain:suelog.jp" %>
+  </div>
+  <div class="field">
+    <%= form.label :ga4_property_id, "GA4 property_id" %>
+    <%= form.text_field :ga4_property_id, placeholder: "536889590" %>
+  </div>
+  <label class="checkbox-label">
+    <%= form.check_box :enabled %>
+    有効
+  </label>
+  <div class="field">
+    <%= form.label :notes, "メモ" %>
+    <%= form.text_area :notes, rows: 4 %>
+  </div>
+  <div class="actions">
+    <%= form.submit "保存", class: "button" %>
+    <%= link_to "一覧へ戻る", admin_analytics_sites_path, class: "button secondary" %>
+  </div>
+<% end %>

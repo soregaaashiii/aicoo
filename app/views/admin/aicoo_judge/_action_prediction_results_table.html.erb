@@ -1,0 +1,31 @@
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>行動</th>
+        <th>事業</th>
+        <th>生成元</th>
+        <th>action_type</th>
+        <th>予測期待利益</th>
+        <th>実績利益</th>
+        <th>誤差率</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% action_results.each do |result| %>
+        <tr>
+          <td><%= link_to result.action_candidate.title, result %></td>
+          <td><%= result.business.name %></td>
+          <td><%= result.action_candidate.generation_source %></td>
+          <td><%= result.action_candidate.action_type %></td>
+          <td class="number"><%= number_to_currency(result.predicted_expected_profit_yen, unit: "¥", precision: 0) %></td>
+          <td class="number"><%= number_to_currency(result.actual_profit_yen, unit: "¥", precision: 0) %></td>
+          <td class="number"><%= result.prediction_error_rate ? number_to_percentage(result.prediction_error_rate * 100, precision: 1) : "-" %></td>
+        </tr>
+      <% end %>
+      <% if action_results.empty? %>
+        <tr><td colspan="7">データ不足</td></tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>

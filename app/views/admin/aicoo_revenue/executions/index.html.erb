@@ -1,0 +1,99 @@
+<% content_for :title, "実行記録" %>
+
+<% active_execution_tab = case @status
+                          when "done" then :done
+                          when "scored" then :scored
+                          else :planned
+                          end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "実行記録",
+             description: "AICOOが提案した行動の実行状況と結果を管理します。",
+             active_main: :revenue %>
+  <%= render "shared/aicoo_execution_tabs", active: active_execution_tab %>
+
+<section class="dashboard-section">
+  <div class="metric-grid">
+    <div class="metric-card"><span>実行予定</span><strong><%= @summary_executions.count { |execution| execution.status == "planned" } %></strong></div>
+    <div class="metric-card"><span>実行済み</span><strong><%= @summary_executions.count { |execution| execution.status == "done" } %></strong></div>
+    <div class="metric-card"><span>見送り</span><strong><%= @summary_executions.count { |execution| execution.status == "skipped" } %></strong></div>
+    <div class="metric-card"><span>採点済み</span><strong><%= @summary_executions.count(&:actual_90d_profit_yen) %></strong></div>
+  </div>
+</section>
+</div>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2><%= @status.present? ? "#{aicoo_lab_status_label(@status)} 実行記録" : "実行記録一覧" %></h2>
+    <p>実行予定を実行済みまたは見送りへ更新すると、人間の実行判断ログとして残ります。結果入力から実績90日利益を保存すると、誤差率と予測精度を計算します。</p>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>行動</th>
+          <th>元データ</th>
+          <th>種類</th>
+          <th>予測者</th>
+          <th>状態</th>
+          <th>攻め利益</th>
+          <th>成功確率</th>
+          <th>放置損失</th>
+          <th>必要時間</th>
+          <th>必要予算</th>
+          <th>収益優先度</th>
+          <th>予測合計価値</th>
+          <th>実績90日利益</th>
+          <th>誤差率</th>
+          <th>予測精度</th>
+          <th>測定日</th>
+          <th>予定日</th>
+          <th>完了日</th>
+          <th>見送り日</th>
+          <th>メモ</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @executions.each do |execution| %>
+          <tr>
+            <td><%= link_to execution.title, admin_aicoo_revenue_execution_path(execution) %></td>
+            <td>
+              <%= aicoo_revenue_source_link(execution) %><br>
+              <span class="aicoo-lab-status-badge"><%= execution.source_status.presence || "missing" %></span>
+            </td>
+            <td><span class="pill"><%= aicoo_revenue_source_label(execution.source_type) %></span></td>
+            <td><span class="pill"><%= aicoo_source_label(execution.prediction_source) %></span></td>
+            <td><%= aicoo_lab_status_label(execution.status) %></td>
+            <td class="number"><%= aicoo_revenue_yen(execution.expected_90d_profit_yen) %></td>
+            <td class="number"><%= number_to_percentage(execution.success_probability.to_d * 100, precision: 1) %></td>
+            <td class="number"><%= aicoo_revenue_yen(execution.neglect_loss_90d_yen) %></td>
+            <td class="number"><%= execution.estimated_work_minutes %></td>
+            <td class="number"><%= aicoo_revenue_yen(execution.budget_yen) %></td>
+            <td class="number"><%= execution.revenue_score ? aicoo_revenue_score(execution.revenue_score) : "費用なし" %></td>
+            <td class="number"><%= aicoo_revenue_yen(execution.revenue_total_value_yen) %></td>
+            <td class="number"><%= execution.actual_90d_profit_yen.nil? ? "-" : aicoo_revenue_yen(execution.actual_90d_profit_yen) %></td>
+            <td class="number"><%= execution.error_rate.nil? ? "-" : number_to_percentage(execution.error_rate * 100, precision: 1) %></td>
+            <td class="number"><%= execution.calibration_score.nil? ? "-" : number_with_precision(execution.calibration_score, precision: 1) %></td>
+            <td><%= l(execution.measured_at, format: :short) if execution.measured_at %></td>
+            <td><%= l(execution.planned_at, format: :short) if execution.planned_at %></td>
+            <td><%= l(execution.done_at, format: :short) if execution.done_at %></td>
+            <td><%= l(execution.skipped_at, format: :short) if execution.skipped_at %></td>
+            <td><%= simple_format(execution.note.presence || "-") %></td>
+            <td class="aicoo-lab-table-action">
+              <% if execution.status == "planned" %>
+                <%= button_to "実行済みにする", done_admin_aicoo_revenue_execution_path(execution), method: :patch, class: "button" %>
+                <%= button_to "見送る", skipped_admin_aicoo_revenue_execution_path(execution), method: :patch, params: { aicoo_revenue_execution: { note: "実行記録一覧から見送り" } }, class: "button secondary" %>
+              <% end %>
+              <%= link_to "詳細", admin_aicoo_revenue_execution_path(execution), class: "button secondary" %>
+              <%= button_to "実行計画を作成", admin_aicoo_executor_tasks_path, method: :post, params: { aicoo_executor_task: { aicoo_revenue_execution_id: execution.id } }, class: "button secondary" %>
+              <%= link_to "結果入力", edit_admin_aicoo_revenue_execution_path(execution), class: "button secondary" %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</section>

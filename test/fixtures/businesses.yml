@@ -1,0 +1,9 @@
+suelog:
+  name: 吸えログ
+  description: SEO media for smoking-area discovery.
+  status: launched
+
+cards:
+  name: 名刺共有アプリ
+  description: Business card sharing SaaS candidate.
+  status: building

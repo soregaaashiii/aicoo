@@ -1,0 +1,60 @@
+<% content_for :title, "サイト別分析設定" %>
+
+<% header_actions = capture do %>
+    <%= link_to "サイトを追加", new_admin_analytics_site_path, class: "button" %>
+    <%= link_to "上級者向け設定", admin_analytics_sources_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "サイト別分析設定",
+             description: "AICOOでリリースしたサイトごとにGSC/GA4を設定し、取得データだけを実績データへ中央集約します。",
+             active_main: :datahub,
+             actions: header_actions %>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>登録サイト</h2>
+    <p>GSCまたはGA4の片方だけでも取得できます。両方取得では設定済みのものだけ実行します。</p>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>サイト名</th>
+          <th>ドメイン</th>
+          <th>GSC site_url</th>
+          <th>GA4 property_id</th>
+          <th>有効</th>
+          <th>GSC状態</th>
+          <th>GA4状態</th>
+          <th>最終取得</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @sites.each do |site| %>
+          <tr>
+            <td><%= site.name %></td>
+            <td><%= site.domain.presence || "-" %></td>
+            <td><%= site.gsc_site_url.presence || "-" %></td>
+            <td><%= site.ga4_property_id.presence || "-" %></td>
+            <td><%= site.enabled? ? "有効" : "無効" %></td>
+            <td><span class="pill"><%= site.gsc_status %></span></td>
+            <td><span class="pill"><%= site.ga4_status %></span></td>
+            <td><%= [ site.last_gsc_fetch_at, site.last_ga4_fetch_at ].compact.max.then { |time| time ? l(time, format: :short) : "-" } %></td>
+            <td>
+              <div class="actions compact-actions">
+                <%= link_to "編集", edit_admin_analytics_site_path(site), class: "button secondary" %>
+                <%= button_to "GSC取得", fetch_gsc_admin_analytics_site_path(site), method: :post, class: "button secondary" %>
+                <%= button_to "GA4取得", fetch_ga4_admin_analytics_site_path(site), method: :post, class: "button secondary" %>
+                <%= button_to "両方取得", fetch_all_admin_analytics_site_path(site), method: :post, class: "button" %>
+              </div>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</section>
+</div>

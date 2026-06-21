@@ -1,0 +1,54 @@
+<% content_for :title, "代理指標" %>
+
+<% header_actions = capture do %>
+    <%= link_to "代理指標を追加", new_business_metric_daily_path, class: "button" %>
+    <%= link_to "事業一覧", businesses_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "代理指標",
+             description: "収益がまだ出ていない事業でも、アクセス・クリック・送客で進捗を評価します。",
+             active_main: :datahub,
+             actions: header_actions %>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>記録日</th>
+        <th>事業名</th>
+        <th>impressions</th>
+        <th>clicks</th>
+        <th>sessions</th>
+        <th>pageviews</th>
+        <th>phone</th>
+        <th>map</th>
+        <th>affiliate</th>
+        <th>proxy_score</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @business_metric_dailies.each do |metric| %>
+        <tr>
+          <td><%= l(metric.recorded_on) %></td>
+          <td><%= link_to metric.business.name, metric.business %></td>
+          <td class="number"><%= metric.impressions %></td>
+          <td class="number"><%= metric.clicks %></td>
+          <td class="number"><%= metric.sessions %></td>
+          <td class="number"><%= metric.pageviews %></td>
+          <td class="number"><%= metric.phone_clicks %></td>
+          <td class="number"><%= metric.map_clicks %></td>
+          <td class="number"><%= metric.affiliate_clicks %></td>
+          <td class="number"><%= number_with_precision(metric.proxy_score, precision: 2) %></td>
+          <td>
+            <%= link_to "詳細", metric %>
+            <%= link_to "編集", edit_business_metric_daily_path(metric) %>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>
+</div>

@@ -1,0 +1,36 @@
+<% content_for :title, "AICOO Lab Approvals" %>
+
+<div class="page-title">
+  <div>
+    <h1>承認待ち実験</h1>
+    <p>外部公開・課金・不可逆操作の前に、人間が確認する実験です。</p>
+  </div>
+  <%= link_to "AICOO Lab", admin_aicoo_lab_experiments_path, class: "button secondary" %>
+</div>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>title</th>
+        <th>status</th>
+        <th>expected value</th>
+        <th>lab priority</th>
+        <th>preview</th>
+        <th>public</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @experiments.each do |experiment| %>
+        <tr>
+          <td><%= link_to experiment.title, admin_aicoo_lab_experiment_path(experiment) %></td>
+          <td><span class="pill"><%= experiment.status %></span></td>
+          <td class="number"><%= number_with_precision(experiment.expected_value_score, precision: 3) || "-" %></td>
+          <td class="number"><%= number_with_precision(experiment.lab_priority_score, precision: 4) || "-" %></td>
+          <td><%= experiment.preview_url.present? ? link_to("preview", experiment.preview_url, target: "_blank", rel: "noopener") : "-" %></td>
+          <td><%= experiment.public_url.present? ? link_to("public", experiment.public_url, target: "_blank", rel: "noopener") : "-" %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>

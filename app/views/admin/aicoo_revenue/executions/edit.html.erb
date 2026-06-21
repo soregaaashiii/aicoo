@@ -1,0 +1,69 @@
+<% content_for :title, "実行結果入力" %>
+
+<% header_actions = capture do %>
+    <%= link_to "実行ログ一覧", admin_aicoo_revenue_executions_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "実行結果入力",
+             description: "推薦時の合計期待価値と、実行後の実績90日利益を比較します。",
+             active_main: :revenue,
+             actions: header_actions %>
+  <%= render "shared/aicoo_execution_tabs", active: :scored %>
+
+<section class="dashboard-section">
+  <div class="metric-grid">
+    <div class="metric-card"><span>対象</span><strong><%= @execution.title %></strong></div>
+    <div class="metric-card"><span>予測合計価値</span><strong><%= aicoo_revenue_yen(@execution.revenue_total_value_yen) %></strong></div>
+    <div class="metric-card"><span>収益優先度</span><strong><%= @execution.revenue_score ? aicoo_revenue_score(@execution.revenue_score) : "費用なし" %></strong></div>
+  </div>
+</section>
+
+<% if @datahub_snapshot %>
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>実績データの候補値</h2>
+      <p>実績データから取得した候補値です。保存するには下のフォームで確認して「結果を保存」を押してください。</p>
+    </div>
+
+    <div class="metric-grid">
+      <div class="metric-card"><span>予測値</span><strong><%= aicoo_revenue_yen(@datahub_snapshot.payload["predicted_value"]) %></strong></div>
+      <div class="metric-card"><span>実績90日利益候補</span><strong><%= @datahub_snapshot.payload["actual_90d_profit_yen"].present? ? aicoo_revenue_yen(@datahub_snapshot.payload["actual_90d_profit_yen"]) : "-" %></strong></div>
+      <div class="metric-card"><span>予測精度候補</span><strong><%= @datahub_snapshot.payload["calibration_score"].present? ? number_with_precision(@datahub_snapshot.payload["calibration_score"], precision: 1) : "-" %></strong></div>
+      <div class="metric-card"><span>取得日時</span><strong><%= l(@datahub_snapshot.captured_at, format: :short) %></strong></div>
+    </div>
+  </section>
+<% end %>
+
+<section class="dashboard-section">
+  <%= form_with model: @execution, url: admin_aicoo_revenue_execution_path(@execution), method: :patch do |form| %>
+    <% if @execution.errors.any? %>
+      <div class="error-messages">
+        <h2><%= pluralize(@execution.errors.count, "error") %> prohibited this result from being saved:</h2>
+        <ul>
+          <% @execution.errors.full_messages.each do |message| %>
+            <li><%= message %></li>
+          <% end %>
+        </ul>
+      </div>
+    <% end %>
+
+    <div class="form-grid">
+      <div class="field">
+        <%= form.label :actual_90d_profit_yen, "実績90日利益" %>
+        <%= form.number_field :actual_90d_profit_yen, step: 1 %>
+      </div>
+    </div>
+
+    <div class="field">
+      <%= form.label :result_note, "結果メモ" %>
+      <%= form.textarea :result_note, rows: 4 %>
+    </div>
+
+    <div class="actions">
+      <%= form.submit "結果を保存", class: "button" %>
+    </div>
+  <% end %>
+</section>
+</div>

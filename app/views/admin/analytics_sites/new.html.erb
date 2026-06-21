@@ -1,0 +1,17 @@
+<% content_for :title, "サイト別分析設定を追加" %>
+
+<% header_actions = capture do %>
+  <%= link_to "サイト別分析設定に戻る", admin_analytics_sites_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "サイト別分析設定を追加",
+             description: "サイトごとにGSC/GA4の解析対象を設定します。",
+             active_main: :datahub,
+             actions: header_actions %>
+
+<section class="dashboard-section">
+  <%= render "form", site: @site %>
+</section>
+</div>

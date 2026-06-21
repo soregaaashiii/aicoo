@@ -1,0 +1,184 @@
+<% form_url = experiment.persisted? ? admin_aicoo_lab_experiment_path(experiment) : admin_aicoo_lab_experiments_path %>
+
+<%= form_with(model: experiment, url: form_url, class: "form") do |form| %>
+  <% if experiment.errors.any? %>
+    <div class="errors">
+      <h2><%= pluralize(experiment.errors.count, "error") %> prohibited this experiment from being saved:</h2>
+      <ul>
+        <% experiment.errors.each do |error| %>
+          <li><%= error.full_message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <section>
+    <h2>実験概要</h2>
+    <div class="field">
+      <%= form.label :title %>
+      <%= form.text_field :title %>
+    </div>
+    <div class="field">
+      <%= form.label :description %>
+      <%= form.textarea :description, rows: 4 %>
+    </div>
+    <div class="grid">
+      <div class="field">
+        <%= form.label :experiment_type %>
+        <%= form.select :experiment_type, AicooLabExperiment::EXPERIMENT_TYPES %>
+      </div>
+      <div class="field">
+        <%= form.label :market_category %>
+        <%= form.text_field :market_category %>
+      </div>
+      <div class="field">
+        <%= form.label :acquisition_channel %>
+        <%= form.select :acquisition_channel, AicooLabExperiment::ACQUISITION_CHANNELS %>
+      </div>
+      <div class="field">
+        <%= form.label :created_by %>
+        <%= form.text_field :created_by %>
+      </div>
+      <div class="field">
+        <%= form.label :status %>
+        <%= form.select :status, AicooLabExperiment::STATUSES %>
+      </div>
+      <div class="field">
+        <%= form.label :approval_status %>
+        <%= form.select :approval_status, AicooLabExperiment::APPROVAL_STATUSES %>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>予測・コスト</h2>
+    <div class="grid">
+      <div class="field">
+        <%= form.label :expected_90d_profit_yen, "90日期待利益" %>
+        <%= form.number_field :expected_90d_profit_yen, min: 0 %>
+      </div>
+      <div class="field">
+        <%= form.label :success_probability, "成功確率 0.0-1.0" %>
+        <%= form.number_field :success_probability, step: 0.01, min: 0, max: 1 %>
+      </div>
+      <div class="field">
+        <%= form.label :learning_value_score %>
+        <%= form.number_field :learning_value_score, step: 0.1, min: 0 %>
+      </div>
+      <div class="field">
+        <%= form.label :budget_yen %>
+        <%= form.number_field :budget_yen, min: 0 %>
+      </div>
+      <div class="field">
+        <%= form.label :actual_cost_yen %>
+        <%= form.number_field :actual_cost_yen, min: 0 %>
+      </div>
+      <div class="field">
+        <%= form.label :estimated_work_minutes %>
+        <%= form.number_field :estimated_work_minutes, min: 0 %>
+      </div>
+      <div class="field">
+        <%= form.label :neglect_loss_90d_yen, "neglect_loss_90d_yen" %>
+        <%= form.number_field :neglect_loss_90d_yen, min: 0 %>
+      </div>
+      <div class="field">
+        <%= form.label :actual_work_minutes %>
+        <%= form.number_field :actual_work_minutes, min: 0 %>
+      </div>
+      <div class="field">
+        <%= form.label :current_pv %>
+        <%= form.number_field :current_pv, min: 0 %>
+      </div>
+      <div class="field">
+        <%= form.label :sample_pv_threshold %>
+        <%= form.number_field :sample_pv_threshold, min: 0 %>
+      </div>
+    </div>
+    <div class="field">
+      <%= form.label :neglect_loss_reason, "neglect_loss_reason" %>
+      <%= form.textarea :neglect_loss_reason, rows: 3 %>
+    </div>
+  </section>
+
+  <section>
+    <h2>URL・採点予定</h2>
+    <div class="grid">
+      <div class="field">
+        <%= form.label :preview_url %>
+        <%= form.url_field :preview_url %>
+      </div>
+      <div class="field">
+        <%= form.label :public_url %>
+        <%= form.url_field :public_url %>
+      </div>
+      <div class="field">
+        <%= form.label :started_at %>
+        <%= form.datetime_field :started_at %>
+      </div>
+      <div class="field">
+        <%= form.label :published_at %>
+        <%= form.datetime_field :published_at %>
+      </div>
+      <div class="field">
+        <%= form.label :score_due_7d_at %>
+        <%= form.datetime_field :score_due_7d_at %>
+      </div>
+      <div class="field">
+        <%= form.label :score_due_30d_at %>
+        <%= form.datetime_field :score_due_30d_at %>
+      </div>
+      <div class="field">
+        <%= form.label :score_due_90d_at %>
+        <%= form.datetime_field :score_due_90d_at %>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>特徴量</h2>
+    <div class="grid">
+      <div class="field">
+        <%= form.label :lp_word_count %>
+        <%= form.number_field :lp_word_count, min: 0 %>
+      </div>
+      <div class="field">
+        <%= form.label :cta_count %>
+        <%= form.number_field :cta_count, min: 0 %>
+      </div>
+      <div class="field">
+        <%= form.label :assumed_price_yen %>
+        <%= form.number_field :assumed_price_yen, min: 0 %>
+      </div>
+      <div class="field">
+        <%= form.label :development_minutes %>
+        <%= form.number_field :development_minutes, min: 0 %>
+      </div>
+      <div class="field">
+        <%= form.label :feature_count %>
+        <%= form.number_field :feature_count, min: 0 %>
+      </div>
+    </div>
+    <div class="field">
+      <%= form.label :notes %>
+      <%= form.textarea :notes, rows: 4 %>
+    </div>
+  </section>
+
+  <% if experiment.persisted? %>
+    <section class="computed">
+      <h2>自動計算</h2>
+      <dl>
+        <dt>expected_value_score</dt>
+        <dd><%= number_with_precision(experiment.expected_value_score, precision: 4) || "-" %></dd>
+        <dt>scoring_speed_score</dt>
+        <dd><%= number_with_precision(experiment.scoring_speed_score, precision: 4) || "-" %></dd>
+        <dt>lab_priority_score</dt>
+        <dd><%= number_with_precision(experiment.lab_priority_score, precision: 4) || "-" %></dd>
+      </dl>
+    </section>
+  <% end %>
+
+  <div class="actions">
+    <%= form.submit class: "button" %>
+  </div>
+<% end %>

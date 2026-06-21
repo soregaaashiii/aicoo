@@ -1,0 +1,32 @@
+<% active_main = local_assigns.fetch(:active_main, nil).to_s %>
+<% main_tabs = [
+  { key: "revenue", label: "今日やること", description: "収益優先度の高い行動を見る", path: admin_aicoo_revenue_path },
+  { key: "lab", label: "新規事業", description: "新しい事業案を検証する", path: admin_aicoo_lab_experiments_path },
+  { key: "executor", label: "実行指示", description: "Codexへ渡す作業指示", path: admin_aicoo_executor_path },
+  { key: "datahub", label: "実績データ", description: "PV・CV・収益などの事実", path: admin_aicoo_datahub_path },
+  { key: "judge", label: "成績表", description: "予測精度を確認する", path: admin_aicoo_judge_path }
+] %>
+
+<header class="aicoo-header">
+  <div class="aicoo-header-main">
+    <div>
+      <h1><%= title %></h1>
+      <p><%= description %></p>
+    </div>
+    <% if local_assigns[:actions].present? %>
+      <div class="aicoo-page-actions">
+        <%= actions %>
+      </div>
+    <% end %>
+  </div>
+
+  <nav class="aicoo-tabs" aria-label="AICOO main navigation">
+    <% main_tabs.each do |tab| %>
+      <% active = active_main == tab[:key] %>
+      <%= link_to tab[:path], class: "aicoo-tab#{' active' if active}", aria: (active ? { current: "page" } : nil) do %>
+        <strong><%= tab[:label] %></strong>
+        <span><%= tab[:description] %></span>
+      <% end %>
+    <% end %>
+  </nav>
+</header>

@@ -1,0 +1,14 @@
+<% content_for :title, "検証を作成" %>
+
+<% header_actions = capture do %>
+  <%= link_to "新規事業へ戻る", admin_aicoo_lab_experiments_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "検証を作成",
+             description: "LP公開以上まで進められる実験だけを登録します。",
+             active_main: :lab,
+             actions: header_actions %>
+  <%= render "form", experiment: @experiment %>
+</div>

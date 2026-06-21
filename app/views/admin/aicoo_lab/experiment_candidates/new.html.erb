@@ -1,0 +1,26 @@
+<% content_for :title, "事業アイデアを作成" %>
+
+<% header_actions = capture do %>
+  <%= link_to "事業アイデア一覧に戻る", admin_aicoo_lab_candidates_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "事業アイデアを作成",
+             description: "テンプレートを選び、候補として承認待ちに積みます。",
+             active_main: :lab,
+             actions: header_actions %>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>テンプレート</h2>
+  </div>
+  <div class="actions compact-actions">
+    <% AicooLabExperimentCandidate::TEMPLATES.each do |key, template| %>
+      <%= link_to template.fetch(:name), new_admin_aicoo_lab_candidate_path(template: key), class: key == @template_key ? "button" : "button secondary" %>
+    <% end %>
+  </div>
+</section>
+
+<%= render "form", candidate: @candidate %>
+</div>

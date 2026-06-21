@@ -1,0 +1,14 @@
+<% content_for :title, "Edit #{@candidate.title}" %>
+
+<% header_actions = capture do %>
+  <%= link_to "事業アイデア詳細に戻る", admin_aicoo_lab_candidate_path(@candidate), class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "事業アイデアを編集",
+             description: @candidate.title,
+             active_main: :lab,
+             actions: header_actions %>
+  <%= render "form", candidate: @candidate %>
+</div>

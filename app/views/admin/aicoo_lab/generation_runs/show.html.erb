@@ -1,0 +1,33 @@
+<% content_for :title, "アイデア生成履歴 ##{@generation_run.id}" %>
+
+<div class="page-title">
+  <div>
+    <h1>アイデア生成履歴 #<%= @generation_run.id %></h1>
+    <p>生成時に使った入力、結果、エラーを確認します。</p>
+  </div>
+  <div class="actions compact-actions">
+    <%= link_to "一覧へ戻る", admin_aicoo_lab_generation_runs_path, class: "button secondary" %>
+    <%= link_to "事業アイデア", admin_aicoo_lab_candidates_path, class: "button secondary" %>
+  </div>
+</div>
+
+<dl class="detail-list">
+  <dt>生成種類</dt>
+  <dd><%= @generation_run.generation_type %></dd>
+  <dt>状態</dt>
+  <dd><span class="pill"><%= aicoo_lab_status_label(@generation_run.status) %></span></dd>
+  <dt>生成件数</dt>
+  <dd><%= @generation_run.generated_count %></dd>
+  <dt>開始日時</dt>
+  <dd><%= @generation_run.started_at ? l(@generation_run.started_at, format: :long) : "-" %></dd>
+  <dt>終了日時</dt>
+  <dd><%= @generation_run.finished_at ? l(@generation_run.finished_at, format: :long) : "-" %></dd>
+  <dt>エラー</dt>
+  <dd><%= simple_format(@generation_run.error_message.presence || "-") %></dd>
+  <dt>補足データ</dt>
+  <dd><pre><%= JSON.pretty_generate(@generation_run.metadata || {}) %></pre></dd>
+  <dt>依頼文</dt>
+  <dd><pre><%= @generation_run.prompt.presence || "-" %></pre></dd>
+  <dt>生成結果</dt>
+  <dd><pre><%= @generation_run.response.presence || "-" %></pre></dd>
+</dl>

@@ -1,0 +1,56 @@
+<% content_for :title, "新規事業設定" %>
+
+<% header_actions = capture do %>
+  <%= link_to "AICOO Lab", admin_aicoo_lab_experiments_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "新規事業設定",
+             description: "予算・サンプル閾値・時間単価を管理します。",
+             active_main: :lab,
+             actions: header_actions %>
+
+<%= form_with(model: @setting, url: admin_aicoo_lab_setting_path, class: "form") do |form| %>
+  <% if @setting.errors.any? %>
+    <div class="errors">
+      <h2><%= pluralize(@setting.errors.count, "error") %> prohibited this setting from being saved:</h2>
+      <ul>
+        <% @setting.errors.each do |error| %>
+          <li><%= error.full_message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <section>
+    <h2>Lab設定</h2>
+    <div class="grid">
+      <div class="field">
+        <%= form.label :monthly_budget_yen %>
+        <%= form.number_field :monthly_budget_yen, min: 0 %>
+      </div>
+      <div class="field">
+        <%= form.label :minimum_sample_pv %>
+        <%= form.number_field :minimum_sample_pv, min: 0 %>
+      </div>
+      <div class="field">
+        <%= form.label :hourly_cost_yen %>
+        <%= form.number_field :hourly_cost_yen, min: 0 %>
+      </div>
+      <div class="field checkbox-field">
+        <%= form.check_box :auto_generate_enabled %>
+        <%= form.label :auto_generate_enabled %>
+      </div>
+      <div class="field checkbox-field">
+        <%= form.check_box :free_experiments_continue_after_budget %>
+        <%= form.label :free_experiments_continue_after_budget %>
+      </div>
+    </div>
+  </section>
+
+  <div class="actions">
+    <%= form.submit "Update Setting", class: "button" %>
+  </div>
+<% end %>
+</div>

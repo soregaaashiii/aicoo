@@ -1,0 +1,94 @@
+<% content_for :title, "行動候補" %>
+
+<% header_actions = capture do %>
+  <%= link_to "行動候補を追加", new_action_candidate_path, class: "button" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "行動候補",
+             description: "事業フォルダをまたいで比較する、行動単位の候補一覧です。",
+             active_main: :revenue,
+             actions: header_actions %>
+  <%= render "shared/aicoo_execution_tabs", active: :today %>
+
+<%= form_with url: action_candidates_path, method: :get, class: "filters" do |form| %>
+  <div class="field compact-field">
+    <%= form.label :business_id, "Business" %>
+    <%= form.select :business_id, options_from_collection_for_select(@businesses, :id, :name, params[:business_id]), include_blank: "All" %>
+  </div>
+  <div class="field compact-field">
+    <%= form.label :action_type, "Action type" %>
+    <%= form.select :action_type, options_for_select(ActionCandidate::ACTION_TYPES, params[:action_type]), include_blank: "All" %>
+  </div>
+  <div class="field compact-field">
+    <%= form.label :status, "Status" %>
+    <%= form.select :status, options_for_select(ActionCandidate::STATUSES, params[:status]), include_blank: "All" %>
+  </div>
+  <div class="field compact-field">
+    <%= form.label :data_confidence_score, "Data confidence min" %>
+    <%= form.number_field :data_confidence_score, min: 0, max: 100, value: params[:data_confidence_score] %>
+  </div>
+  <%= form.submit "Filter", class: "button" %>
+  <%= link_to "Clear", action_candidates_path, class: "button secondary" %>
+<% end %>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>事業</th>
+        <th>行動タイトル</th>
+        <th>種別</th>
+        <th>期待利益</th>
+        <th>期待時給</th>
+        <th>ROI</th>
+        <th>最終スコア</th>
+        <th>Judge補正後</th>
+        <th>生成元的中率</th>
+        <th>行動タイプ的中率</th>
+        <th>信頼度</th>
+        <th>データ信頼度</th>
+        <th>生成元</th>
+        <th>状態</th>
+        <th>Executor</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @action_candidates.each do |action_candidate| %>
+        <% judge_score = @action_candidate_judge_scores.fetch(action_candidate) %>
+        <% executor_task = action_candidate.unfinished_executor_task %>
+        <tr>
+          <td><%= action_candidate.business.name %></td>
+          <td><%= link_to action_candidate.title, action_candidate %></td>
+          <td><%= action_candidate.action_type %></td>
+          <td class="number"><%= number_to_currency(action_candidate.expected_profit_yen, unit: "¥", precision: 0) %></td>
+          <td class="number"><%= action_candidate.expected_hourly_value_yen.present? ? number_to_currency(action_candidate.expected_hourly_value_yen, unit: "¥", precision: 0) : "-" %></td>
+          <td class="number"><%= action_candidate.roi.present? ? number_with_precision(action_candidate.roi, precision: 2) : "-" %></td>
+          <td class="number"><%= number_with_precision(action_candidate.final_score, precision: 1) %></td>
+          <td class="number"><%= number_with_precision(judge_score.judge_adjusted_score, precision: 1) %></td>
+          <td class="number"><%= judge_score.generation_source_accuracy ? number_to_percentage(judge_score.generation_source_accuracy * 100, precision: 1) : "データ不足" %></td>
+          <td class="number"><%= judge_score.action_type_accuracy ? number_to_percentage(judge_score.action_type_accuracy * 100, precision: 1) : "データ不足" %></td>
+          <td class="number"><%= action_candidate.confidence_score %></td>
+          <td class="number"><%= action_candidate.data_confidence_score %></td>
+          <td><span class="pill"><%= action_candidate.generation_source %></span></td>
+          <td><span class="pill"><%= action_candidate.status %></span></td>
+          <td>
+            <% if action_candidate.data_preparation? %>
+              <% if executor_task %>
+                <%= link_to "Executor送信済み", admin_aicoo_executor_task_path(executor_task), class: "button secondary" %>
+              <% else %>
+                <%= button_to "Executorへ送る", send_to_executor_action_candidate_path(action_candidate), method: :post, class: "button" %>
+              <% end %>
+            <% else %>
+              -
+            <% end %>
+          </td>
+          <td><%= link_to "Edit", edit_action_candidate_path(action_candidate) %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>
+</div>

@@ -1,0 +1,41 @@
+<% content_for :title, "アイデア生成履歴" %>
+
+<div class="page-title">
+  <div>
+    <h1>アイデア生成履歴</h1>
+    <p>候補生成、LP生成、採点補助のプロンプトと結果ログです。</p>
+  </div>
+  <div class="actions compact-actions">
+    <%= link_to "新規事業", admin_aicoo_lab_root_path, class: "button secondary" %>
+    <%= link_to "事業アイデア", admin_aicoo_lab_candidates_path, class: "button secondary" %>
+  </div>
+</div>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>作成日時</th>
+        <th>種類</th>
+        <th>状態</th>
+        <th>生成件数</th>
+        <th>開始</th>
+        <th>終了</th>
+        <th>エラー</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @generation_runs.each do |run| %>
+        <tr>
+          <td><%= link_to l(run.created_at, format: :short), admin_aicoo_lab_generation_run_path(run) %></td>
+          <td><%= run.generation_type %></td>
+          <td><span class="pill"><%= run.status %></span></td>
+          <td class="number"><%= run.generated_count %></td>
+          <td><%= run.started_at ? l(run.started_at, format: :short) : "-" %></td>
+          <td><%= run.finished_at ? l(run.finished_at, format: :short) : "-" %></td>
+          <td><%= truncate(run.error_message, length: 80).presence || "-" %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>

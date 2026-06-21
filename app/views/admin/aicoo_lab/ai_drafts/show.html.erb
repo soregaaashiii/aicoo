@@ -1,0 +1,45 @@
+<% content_for :title, @ai_draft.title %>
+
+<% header_actions = capture do %>
+    <%= link_to "AI提案", admin_aicoo_lab_ai_drafts_path, class: "button secondary" %>
+    <%= link_to "事業アイデア", admin_aicoo_lab_candidates_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: @ai_draft.title,
+             description: "AI提案をレビューし、承認後に事業アイデアとして取り込みます。",
+             active_main: :lab,
+             actions: header_actions %>
+
+<section class="dashboard-section">
+  <div class="actions compact-actions">
+    <%= button_to "承認", approve_admin_aicoo_lab_ai_draft_path(@ai_draft), method: :patch, class: "button secondary" if @ai_draft.status == "draft" %>
+    <%= button_to "却下", reject_admin_aicoo_lab_ai_draft_path(@ai_draft), method: :patch, class: "danger" if %w[draft approved].include?(@ai_draft.status) %>
+    <%= button_to "事業アイデアとして取り込む", import_candidates_admin_aicoo_lab_ai_draft_path(@ai_draft), method: :post, class: "button" if @ai_draft.importable? %>
+  </div>
+</section>
+
+<dl class="detail-list">
+  <dt>状態</dt>
+  <dd><span class="pill"><%= aicoo_lab_status_label(@ai_draft.status) %></span></dd>
+  <dt>候補数</dt>
+  <dd><%= @ai_draft.candidate_count %></dd>
+  <dt>アイデア生成履歴</dt>
+  <dd><%= link_to "アイデア生成履歴 ##{@ai_draft.generation_run_id}", admin_aicoo_lab_generation_run_path(@ai_draft.generation_run) %></dd>
+  <dt>承認日時</dt>
+  <dd><%= @ai_draft.approved_at ? l(@ai_draft.approved_at, format: :long) : "-" %></dd>
+  <dt>取込日時</dt>
+  <dd><%= @ai_draft.imported_at ? l(@ai_draft.imported_at, format: :long) : "-" %></dd>
+  <dt>依頼文</dt>
+  <dd><pre><%= @ai_draft.generation_run.prompt.presence || "-" %></pre></dd>
+  <dt>生成履歴の結果</dt>
+  <dd><pre><%= @ai_draft.generation_run.response.presence || "-" %></pre></dd>
+  <dt>生成履歴の件数</dt>
+  <dd><%= @ai_draft.generation_run.generated_count %></dd>
+  <dt>AI出力</dt>
+  <dd><pre><%= @ai_draft.raw_response.presence || "-" %></pre></dd>
+  <dt>解析済みJSON</dt>
+  <dd><pre><%= JSON.pretty_generate(@ai_draft.parsed_json || {}) %></pre></dd>
+</dl>
+</div>

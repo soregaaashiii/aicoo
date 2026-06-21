@@ -1,0 +1,416 @@
+<% content_for :title, @experiment.title %>
+
+<% header_actions = capture do %>
+    <%= link_to "編集", edit_admin_aicoo_lab_experiment_path(@experiment), class: "button secondary" %>
+    <%= link_to "新規事業へ戻る", admin_aicoo_lab_experiments_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: @experiment.title,
+             description: "AICOO本体の予測精度を上げるための採点可能な実験データです。",
+             active_main: :lab,
+             actions: header_actions %>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>次に押すべきボタン</h2>
+    <p>現在の状態: <strong><%= aicoo_lab_next_operation(@experiment) %></strong></p>
+  </div>
+  <div class="actions compact-actions">
+    <% if @experiment.status == "preview_ready" %>
+      <%= button_to "承認待ちに進める", approval_pending_admin_aicoo_lab_experiment_path(@experiment), method: :patch, class: "button" %>
+    <% elsif @experiment.status == "approval_pending" && @experiment.approval_status != "approved" %>
+      <%= button_to "承認する", approve_admin_aicoo_lab_experiment_path(@experiment), method: :patch, class: "button" %>
+      <%= button_to "却下する", reject_admin_aicoo_lab_experiment_path(@experiment), method: :patch, class: "danger" %>
+    <% elsif @experiment.approval_status == "approved" && !%w[running success failed].include?(@experiment.status) %>
+      <%= button_to "検証開始", running_admin_aicoo_lab_experiment_path(@experiment), method: :patch, class: "button" %>
+    <% elsif aicoo_lab_scoring_due?(@experiment) %>
+      <%= link_to "採点待ちで採点作成", admin_aicoo_lab_scoring_queue_path, class: "button" %>
+    <% elsif @experiment.status == "running" %>
+      <%= link_to "計測結果を確認", "#lp-metrics", class: "button" %>
+    <% else %>
+      <%= link_to "候補一覧へ戻る", admin_aicoo_lab_candidates_path, class: "button secondary" %>
+    <% end %>
+  </div>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>操作</h2>
+    <p>プレビュー作成までは自動実行対象、外部公開や課金は承認制です。</p>
+  </div>
+  <div class="actions compact-actions">
+    <%= button_to "LP作成済みにする", preview_ready_admin_aicoo_lab_experiment_path(@experiment), method: :patch, class: "button secondary" %>
+    <%= button_to "承認待ちにする", approval_pending_admin_aicoo_lab_experiment_path(@experiment), method: :patch, class: "button secondary" %>
+    <%= button_to "承認する", approve_admin_aicoo_lab_experiment_path(@experiment), method: :patch, class: "button" %>
+    <%= button_to "却下する", reject_admin_aicoo_lab_experiment_path(@experiment), method: :patch, class: "danger" %>
+    <%= button_to "検証開始", running_admin_aicoo_lab_experiment_path(@experiment), method: :patch, class: "button" %>
+    <%= button_to "一時停止", paused_admin_aicoo_lab_experiment_path(@experiment), method: :patch, class: "button secondary" %>
+    <%= button_to "成功", success_admin_aicoo_lab_experiment_path(@experiment), method: :patch, class: "button secondary" %>
+    <%= button_to "失敗", failed_admin_aicoo_lab_experiment_path(@experiment), method: :patch, class: "danger" %>
+    <%= button_to "再評価", reevaluate_admin_aicoo_lab_experiment_path(@experiment), method: :patch, class: "button secondary" %>
+    <%= button_to "誤差を再計算", recalculate_errors_admin_aicoo_lab_experiment_path(@experiment), method: :post, class: "button" %>
+  </div>
+</section>
+
+<% if @landing_page %>
+  <section class="dashboard-section" id="lp-publication">
+    <div class="section-heading">
+      <h2>LP公開状況</h2>
+      <p>Previewは確認用、Publishedは外部流入に使う無料公開URLです。</p>
+    </div>
+    <div class="aicoo-lab-card">
+      <dl class="detail-list">
+        <dt>公開状態</dt>
+        <dd><span class="pill"><%= aicoo_lab_status_label(@landing_page.status) %></span></dd>
+        <dt>確認用Preview</dt>
+        <dd>
+          <%= link_to aicoo_lab_preview_url(@landing_page.preview_slug), aicoo_lab_preview_path(@landing_page.preview_slug), target: "_blank", rel: "noopener" %>
+          <p class="aicoo-lab-help">確認用。外部流入には使わない</p>
+        </dd>
+        <dt>無料公開URL</dt>
+        <dd>
+          <% if @landing_page.published_slug.present? %>
+            <% public_url = aicoo_public_lp_url_for(@landing_page) %>
+            <%= link_to public_url, public_url, target: "_blank", rel: "noopener" %>
+          <% else %>
+            -
+          <% end %>
+          <p class="aicoo-lab-help">公開中。このURLをSNSや外部に貼って検証できます</p>
+        </dd>
+      </dl>
+      <div class="metric-grid">
+        <div class="metric-card"><span>PV</span><strong><%= @landing_page.view_count %></strong></div>
+        <div class="metric-card"><span>CTAクリック</span><strong><%= @landing_page.cta_click_count %></strong></div>
+        <div class="metric-card"><span>Signup</span><strong><%= @landing_page.signup_count %></strong></div>
+        <div class="metric-card"><span>Signup率</span><strong><%= @landing_page.signup_rate ? number_to_percentage(@landing_page.signup_rate * 100, precision: 1) : "-" %></strong></div>
+      </div>
+      <div class="actions compact-actions">
+        <% if @landing_page.publishable? %>
+          <%= button_to "無料公開する", publish_admin_aicoo_lab_experiment_landing_page_path(@experiment), method: :patch, class: "button" %>
+        <% end %>
+        <% if @landing_page.status == "published" %>
+          <%= button_to "非公開にする", unpublish_admin_aicoo_lab_experiment_landing_page_path(@experiment), method: :patch, class: "button secondary" %>
+        <% end %>
+      </div>
+    </div>
+  </section>
+<% end %>
+
+<% if @experiment.status == "running" && @landing_page %>
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>このLP URLに流入させてください</h2>
+      <p>検証中は実験開始状態です。外部に自動公開・自動集客されるわけではありません。このURLに人を送ると計測されます。</p>
+    </div>
+    <div class="aicoo-lab-card aicoo-lab-running-panel">
+      <p class="aicoo-lab-url">
+        <% if @landing_page.status == "published" && @landing_page.published_slug.present? %>
+          <% public_url = aicoo_public_lp_url_for(@landing_page) %>
+          <%= link_to public_url, public_url, target: "_blank", rel: "noopener" %>
+        <% else %>
+          <%= link_to aicoo_lab_preview_url(@landing_page.preview_slug), aicoo_lab_preview_path(@landing_page.preview_slug), target: "_blank", rel: "noopener" %>
+        <% end %>
+      </p>
+      <div class="metric-grid">
+        <div class="metric-card"><span>PV</span><strong><%= @landing_page.view_count %></strong></div>
+        <div class="metric-card"><span>CTAクリック</span><strong><%= @landing_page.cta_click_count %></strong></div>
+        <div class="metric-card"><span>Signup</span><strong><%= @landing_page.signup_count %></strong></div>
+        <div class="metric-card"><span>CTA率</span><strong><%= @landing_page.cta_rate ? number_to_percentage(@landing_page.cta_rate * 100, precision: 1) : "-" %></strong></div>
+        <div class="metric-card"><span>Signup率</span><strong><%= @landing_page.signup_rate ? number_to_percentage(@landing_page.signup_rate * 100, precision: 1) : "-" %></strong></div>
+        <div class="metric-card"><span>1000PV到達状況</span><strong><%= @landing_page.sample_threshold_reached? ? "達成" : "#{@experiment.current_pv} / #{@experiment.sample_pv_threshold}" %></strong></div>
+      </div>
+    </div>
+  </section>
+<% end %>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>LPプレビュー</h2>
+    <p>本番公開前に、承認用のLP案を確認します。</p>
+  </div>
+
+  <% if @landing_page %>
+    <dl class="detail-list">
+      <dt>見出し</dt>
+      <dd><%= @landing_page.headline %></dd>
+      <dt>補足見出し</dt>
+      <dd><%= @landing_page.subheadline %></dd>
+      <dt>本文</dt>
+      <dd><%= simple_format(@landing_page.body) %></dd>
+      <dt>CTA文言</dt>
+      <dd><%= @landing_page.cta_text %></dd>
+      <dt>想定価格</dt>
+      <dd><%= @landing_page.assumed_price_yen.present? ? number_to_currency(@landing_page.assumed_price_yen, unit: "¥", precision: 0) : "-" %></dd>
+      <dt>プレビューURL</dt>
+      <dd><%= link_to aicoo_lab_preview_url(@landing_page.preview_slug), aicoo_lab_preview_path(@landing_page.preview_slug), target: "_blank", rel: "noopener" %></dd>
+      <dt>無料公開URL</dt>
+      <dd>
+        <% if @landing_page.published_slug.present? %>
+          <% public_url = aicoo_public_lp_url_for(@landing_page) %>
+          <%= link_to public_url, public_url, target: "_blank", rel: "noopener" %>
+        <% else %>
+          -
+        <% end %>
+      </dd>
+      <dt>状態</dt>
+      <dd><span class="pill"><%= aicoo_lab_status_label(@landing_page.status) %></span></dd>
+    </dl>
+    <div class="actions">
+      <%= link_to "LP編集", edit_admin_aicoo_lab_experiment_landing_page_path(@experiment), class: "button secondary" %>
+      <%= button_to "LP作成済みにする", preview_ready_admin_aicoo_lab_experiment_landing_page_path(@experiment), method: :patch, class: "button" %>
+      <%= button_to "承認待ちにする", approval_pending_admin_aicoo_lab_experiment_path(@experiment), method: :patch, class: "button secondary" if @landing_page.status == "preview_ready" %>
+      <%= button_to "無料公開する", publish_admin_aicoo_lab_experiment_landing_page_path(@experiment), method: :patch, class: "button" if @landing_page.publishable? %>
+      <%= button_to "非公開にする", unpublish_admin_aicoo_lab_experiment_landing_page_path(@experiment), method: :patch, class: "button secondary" if @landing_page.status == "published" %>
+    </div>
+
+    <section class="dashboard-section" id="lp-metrics">
+      <div class="section-heading">
+        <h2>LP計測結果</h2>
+        <p>プレビューURL上での反応です。</p>
+      </div>
+      <div class="metric-grid">
+        <div class="metric-card">
+          <span>PV</span>
+          <strong><%= @landing_page.view_count %></strong>
+        </div>
+        <div class="metric-card">
+          <span>CTAクリック数</span>
+          <strong><%= @landing_page.cta_click_count %></strong>
+        </div>
+        <div class="metric-card">
+          <span>Signup数</span>
+          <strong><%= @landing_page.signup_count %></strong>
+        </div>
+        <div class="metric-card">
+          <span>CTA率</span>
+          <strong><%= @landing_page.cta_rate ? number_to_percentage(@landing_page.cta_rate * 100, precision: 1) : "-" %></strong>
+        </div>
+        <div class="metric-card">
+          <span>Signup率</span>
+          <strong><%= @landing_page.signup_rate ? number_to_percentage(@landing_page.signup_rate * 100, precision: 1) : "-" %></strong>
+        </div>
+        <div class="metric-card">
+          <span>1000PV到達状況</span>
+          <strong><%= @landing_page.sample_threshold_reached? ? "達成" : "#{@experiment.current_pv} / #{@experiment.sample_pv_threshold}" %></strong>
+        </div>
+      </div>
+      <div class="actions">
+        <%= button_to "計測結果から30日結果を作成", create_30d_results_from_metrics_admin_aicoo_lab_experiment_path(@experiment), method: :post, class: "button secondary" %>
+        <%= button_to "計測結果から90日結果を作成", create_90d_results_from_metrics_admin_aicoo_lab_experiment_path(@experiment), method: :post, class: "button secondary" %>
+      </div>
+    </section>
+  <% else %>
+    <div class="empty-state">
+      <p>この実験にはまだLPがありません。</p>
+      <%= link_to "LP作成", new_admin_aicoo_lab_experiment_landing_page_path(@experiment), class: "button" %>
+    </div>
+  <% end %>
+</section>
+
+<dl class="detail-list">
+  <dt>状態</dt>
+  <dd><span class="pill"><%= aicoo_lab_status_label(@experiment.status) %></span></dd>
+  <dt>承認状態</dt>
+  <dd><span class="pill"><%= aicoo_lab_approval_status_label(@experiment.approval_status) %></span></dd>
+  <dt>種類</dt>
+  <dd><%= @experiment.experiment_type %></dd>
+  <dt>市場</dt>
+  <dd><%= @experiment.market_category.presence || "-" %></dd>
+  <dt>流入経路</dt>
+  <dd><%= @experiment.acquisition_channel %></dd>
+  <dt>説明</dt>
+  <dd><%= simple_format(@experiment.description) %></dd>
+  <dt>プレビューURL</dt>
+  <dd><%= @experiment.preview_url.present? ? link_to(@experiment.preview_url, @experiment.preview_url, target: "_blank", rel: "noopener") : "-" %></dd>
+  <dt>公開URL</dt>
+  <dd><%= @experiment.public_url.present? ? link_to(@experiment.public_url, @experiment.public_url, target: "_blank", rel: "noopener") : "-" %></dd>
+  <dt>90日期待利益</dt>
+  <dd><%= number_to_currency(@experiment.expected_90d_profit_yen, unit: "¥", precision: 0) %></dd>
+  <dt>成功確率</dt>
+  <dd><%= number_to_percentage(@experiment.success_probability.to_d * 100, precision: 1) %></dd>
+  <dt>放置損失</dt>
+  <dd><%= number_to_currency(@experiment.neglect_loss_90d_yen, unit: "¥", precision: 0) %></dd>
+  <dt>放置損失理由</dt>
+  <dd><%= simple_format(@experiment.neglect_loss_reason.presence || "-") %></dd>
+  <dt>期待値</dt>
+  <dd><%= number_with_precision(@experiment.expected_value_score, precision: 4) || "-" %></dd>
+  <dt>学習価値</dt>
+  <dd><%= number_with_precision(@experiment.learning_value_score, precision: 2) %></dd>
+  <dt>採点速度</dt>
+  <dd><%= number_with_precision(@experiment.scoring_speed_score, precision: 4) || "-" %></dd>
+  <dt>新規事業優先度</dt>
+  <dd><%= number_with_precision(@experiment.lab_priority_score, precision: 4) || "-" %></dd>
+  <dt>予測精度</dt>
+  <dd><%= @experiment.calibration_score ? number_with_precision(@experiment.calibration_score, precision: 2) : "-" %></dd>
+  <dt>現在PV / 必要PV</dt>
+  <dd><%= @experiment.current_pv %> / <%= @experiment.sample_pv_threshold %></dd>
+  <dt>開始日時</dt>
+  <dd><%= @experiment.started_at ? l(@experiment.started_at, format: :short) : "-" %></dd>
+  <dt>公開日時</dt>
+  <dd><%= @experiment.published_at ? l(@experiment.published_at, format: :short) : "-" %></dd>
+  <dt>採点予定日</dt>
+  <dd>
+    7d: <%= @experiment.score_due_7d_at ? l(@experiment.score_due_7d_at, format: :short) : "-" %><br>
+    30d: <%= @experiment.score_due_30d_at ? l(@experiment.score_due_30d_at, format: :short) : "-" %><br>
+    90d: <%= @experiment.score_due_90d_at ? l(@experiment.score_due_90d_at, format: :short) : "-" %>
+  </dd>
+  <dt>特徴量</dt>
+  <dd>
+    LP words: <%= @experiment.lp_word_count || "-" %>,
+    CTA: <%= @experiment.cta_count || "-" %>,
+    price: <%= @experiment.assumed_price_yen || "-" %>,
+    development minutes: <%= @experiment.development_minutes || "-" %>,
+    features: <%= @experiment.feature_count || "-" %>
+  </dd>
+  <dt>notes</dt>
+  <dd><%= simple_format(@experiment.notes) %></dd>
+</dl>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>予測一覧</h2>
+    <p>AIまたは人間が事前に置いた予測ログです。</p>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>種類</th>
+          <th>対象日数</th>
+          <th>予測値</th>
+          <th>単位</th>
+          <th>予測者</th>
+          <th>信頼度</th>
+          <th>予測日時</th>
+          <th>理由</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @experiment.aicoo_lab_predictions.order(predicted_at: :desc).each do |prediction| %>
+          <tr>
+            <td><%= prediction.prediction_type %></td>
+            <td class="number"><%= prediction.target_days %></td>
+            <td class="number"><%= number_with_precision(prediction.predicted_value, precision: 2) %></td>
+            <td><%= prediction.predicted_value_unit %></td>
+            <td><span class="pill"><%= aicoo_source_label(prediction.prediction_source) %></span></td>
+            <td class="number"><%= prediction.confidence.present? ? number_to_percentage(prediction.confidence.to_d * 100, precision: 1) : "-" %></td>
+            <td><%= l(prediction.predicted_at, format: :short) %></td>
+            <td class="wide-text"><%= truncate(prediction.rationale, length: 120) %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>結果一覧</h2>
+    <p>7日・30日・90日の実測値です。90日結果はPV未達でも正式採点として保存できます。</p>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>type</th>
+          <th>days</th>
+          <th>actual</th>
+          <th>unit</th>
+          <th>sample</th>
+          <th>formal</th>
+          <th>measured_at</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @experiment.aicoo_lab_results.order(measured_at: :desc).each do |result| %>
+          <tr>
+            <td><%= result.result_type %></td>
+            <td class="number"><%= result.target_days %></td>
+            <td class="number"><%= number_with_precision(result.actual_value, precision: 2) %></td>
+            <td><%= result.actual_value_unit %></td>
+            <td class="number"><%= result.sample_size || "-" %></td>
+            <td><span class="pill"><%= result.is_formal_score ? "formal" : "informal" %></span></td>
+            <td><%= l(result.measured_at, format: :short) %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>誤差一覧</h2>
+    <p>予測と結果のズレを教師データとして保存します。</p>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>type</th>
+          <th>days</th>
+          <th>absolute_error</th>
+          <th>error_rate</th>
+          <th>calibration_score</th>
+          <th>calculated_at</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @experiment.aicoo_lab_error_metrics.includes(:aicoo_lab_prediction).order(calculated_at: :desc).each do |metric| %>
+          <tr>
+            <td><%= metric.aicoo_lab_prediction.prediction_type %></td>
+            <td class="number"><%= metric.aicoo_lab_prediction.target_days %></td>
+            <td class="number"><%= number_with_precision(metric.absolute_error, precision: 2) %></td>
+            <td class="number"><%= metric.error_rate ? number_to_percentage(metric.error_rate * 100, precision: 1) : "-" %></td>
+            <td class="number"><%= metric.calibration_score ? number_with_precision(metric.calibration_score, precision: 2) : "-" %></td>
+            <td><%= l(metric.calculated_at, format: :short) %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="dashboard-section two-column">
+  <div>
+    <div class="section-heading">
+      <h2>予測を追加</h2>
+    </div>
+    <%= form_with(model: @prediction, url: admin_aicoo_lab_experiment_predictions_path(@experiment), class: "form compact-form") do |form| %>
+      <div class="grid">
+        <div class="field"><%= form.label :prediction_type %><%= form.select :prediction_type, AicooLabPrediction::TYPES %></div>
+        <div class="field"><%= form.label :target_days %><%= form.select :target_days, AicooLabPrediction::TARGET_DAYS %></div>
+        <div class="field"><%= form.label :predicted_value %><%= form.number_field :predicted_value, step: 0.01 %></div>
+        <div class="field"><%= form.label :predicted_value_unit %><%= form.select :predicted_value_unit, AicooLabPrediction::UNITS %></div>
+        <div class="field"><%= form.label :confidence %><%= form.number_field :confidence, step: 0.01, min: 0, max: 1 %></div>
+        <div class="field"><%= form.label :predicted_at %><%= form.datetime_field :predicted_at %></div>
+      </div>
+      <div class="field"><%= form.label :rationale %><%= form.textarea :rationale, rows: 3 %></div>
+      <div class="actions"><%= form.submit "予測を追加", class: "button" %></div>
+    <% end %>
+  </div>
+
+  <div>
+    <div class="section-heading">
+      <h2>結果を追加</h2>
+    </div>
+    <%= form_with(model: @result, url: admin_aicoo_lab_experiment_results_path(@experiment), class: "form compact-form") do |form| %>
+      <div class="grid">
+        <div class="field"><%= form.label :result_type %><%= form.select :result_type, AicooLabResult::TYPES %></div>
+        <div class="field"><%= form.label :target_days %><%= form.select :target_days, AicooLabResult::TARGET_DAYS %></div>
+        <div class="field"><%= form.label :actual_value %><%= form.number_field :actual_value, step: 0.01 %></div>
+        <div class="field"><%= form.label :actual_value_unit %><%= form.select :actual_value_unit, AicooLabResult::UNITS %></div>
+        <div class="field"><%= form.label :sample_size %><%= form.number_field :sample_size, min: 0 %></div>
+        <div class="field"><%= form.label :measured_at %><%= form.datetime_field :measured_at %></div>
+      </div>
+      <div class="actions"><%= form.submit "結果を追加", class: "button" %></div>
+    <% end %>
+  </div>
+</section>
+
+<div class="actions">
+  <%= button_to "Destroy", admin_aicoo_lab_experiment_path(@experiment), method: :delete, class: "danger" %>
+</div>
+</div>

@@ -1,0 +1,35 @@
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th><%= label %></th>
+        <th>評価済み件数</th>
+        <th>平均予測期待利益</th>
+        <th>平均実績利益</th>
+        <th>平均予測誤差</th>
+        <th>平均誤差率</th>
+        <th>的中率</th>
+        <th>大外し件数</th>
+        <th>skipped件数</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% summaries.each do |summary| %>
+        <tr>
+          <td><%= summary.label %></td>
+          <td class="number"><%= summary.evaluated_count %></td>
+          <td class="number"><%= summary.average_predicted_expected_profit_yen ? number_to_currency(summary.average_predicted_expected_profit_yen, unit: "¥", precision: 0) : "データ不足" %></td>
+          <td class="number"><%= summary.average_actual_profit_yen ? number_to_currency(summary.average_actual_profit_yen, unit: "¥", precision: 0) : "データ不足" %></td>
+          <td class="number"><%= summary.average_prediction_error_yen ? number_to_currency(summary.average_prediction_error_yen, unit: "¥", precision: 0) : "データ不足" %></td>
+          <td class="number"><%= summary.average_prediction_error_rate ? number_to_percentage(summary.average_prediction_error_rate * 100, precision: 1) : "データ不足" %></td>
+          <td class="number"><%= summary.hit_rate ? number_to_percentage(summary.hit_rate * 100, precision: 1) : "データ不足" %></td>
+          <td class="number"><%= summary.big_miss_count %></td>
+          <td class="number"><%= summary.skipped_count %></td>
+        </tr>
+      <% end %>
+      <% if summaries.empty? %>
+        <tr><td colspan="9">データ不足</td></tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>

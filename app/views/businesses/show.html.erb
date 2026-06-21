@@ -1,0 +1,346 @@
+<% content_for :title, @business.name %>
+
+<% header_actions = capture do %>
+    <%= link_to "Edit", edit_business_path(@business), class: "button secondary" %>
+    <%= link_to "収益記録を追加", new_revenue_event_path(revenue_event: { business_id: @business.id }), class: "button secondary" %>
+    <%= link_to "代理指標を追加", new_business_metric_daily_path(business_metric_daily: { business_id: @business.id }), class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: @business.name,
+             description: "この Business はフォルダです。判断の主役は下の行動候補です。",
+             active_main: :revenue,
+             actions: header_actions %>
+
+<%= render @business %>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>収益サマリー</h2>
+    <p>売上と費用から、事業評価用の利益を確認します。</p>
+  </div>
+
+  <div class="metric-grid">
+    <div class="metric-card"><span>今月売上</span><strong><%= number_to_currency(@business.current_month_revenue, unit: "¥", precision: 0) %></strong></div>
+    <div class="metric-card"><span>今月費用</span><strong><%= number_to_currency(@business.current_month_expense, unit: "¥", precision: 0) %></strong></div>
+    <div class="metric-card"><span>今月利益</span><strong><%= number_to_currency(@business.current_month_profit, unit: "¥", precision: 0) %></strong></div>
+    <div class="metric-card"><span>累計売上</span><strong><%= number_to_currency(@business.cumulative_revenue, unit: "¥", precision: 0) %></strong></div>
+    <div class="metric-card"><span>累計費用</span><strong><%= number_to_currency(@business.cumulative_expense, unit: "¥", precision: 0) %></strong></div>
+    <div class="metric-card"><span>累計利益</span><strong><%= number_to_currency(@business.cumulative_profit, unit: "¥", precision: 0) %></strong></div>
+  </div>
+
+  <div class="actions compact-actions">
+    <%= link_to "収益記録一覧", revenue_events_path, class: "button secondary" %>
+  </div>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>代理指標サマリー</h2>
+    <p>収益0円の段階でも、アクセス・クリック・送客などで事業の前進を評価します。</p>
+  </div>
+
+  <div class="metric-grid">
+    <div class="metric-card"><span>直近7日 proxy_score</span><strong><%= number_with_precision(@business.recent_7d_proxy_score, precision: 2) %></strong></div>
+    <div class="metric-card"><span>直近30日 proxy_score</span><strong><%= number_with_precision(@business.recent_30d_proxy_score, precision: 2) %></strong></div>
+    <div class="metric-card"><span>今月 proxy_score</span><strong><%= number_with_precision(@business.current_month_proxy_score, precision: 2) %></strong></div>
+    <div class="metric-card"><span>累計 proxy_score</span><strong><%= number_with_precision(@business.cumulative_proxy_score, precision: 2) %></strong></div>
+    <div class="metric-card"><span>評価軸</span><strong><%= @business.evaluation_focus == "profit" ? "profit重視" : "proxy_score重視" %></strong></div>
+  </div>
+
+  <div class="actions compact-actions">
+    <%= link_to "代理指標一覧", business_metric_dailies_path, class: "button secondary" %>
+  </div>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>proxy_score重み</h2>
+    <p>この事業の代理指標計算に使っている重みです。事業別重みがなければ全体共通、さらに無ければ固定デフォルトを使います。</p>
+  </div>
+
+  <% proxy_weight = @business.current_proxy_score_weight %>
+  <div class="metric-grid">
+    <div class="metric-card"><span>confidence_score</span><strong><%= proxy_weight.confidence_score %></strong></div>
+    <div class="metric-card"><span>source</span><strong><%= proxy_weight.persisted? ? proxy_weight.source_type : "code_default" %></strong></div>
+    <% ProxyScoreWeight::DEFAULT_WEIGHTS.each_key do |column| %>
+      <div class="metric-card"><span><%= column %></span><strong><%= number_with_precision(proxy_weight.public_send(column), precision: 4) %></strong></div>
+    <% end %>
+  </div>
+
+  <h3>直近の補正ログ</h3>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>日時</th>
+          <th>期間</th>
+          <th>confidence</th>
+          <th>補正率</th>
+          <th>理由</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @business.proxy_score_weight_adjustment_logs.order(adjusted_at: :desc).limit(5).each do |log| %>
+          <tr>
+            <td><%= l(log.adjusted_at, format: :short) %></td>
+            <td><%= log.start_date %>〜<%= log.end_date %></td>
+            <td class="number"><%= log.confidence_score %></td>
+            <td class="number"><%= number_to_percentage(log.adjustment_rate.to_d * 100, precision: 3) %></td>
+            <td><%= log.reason %></td>
+          </tr>
+        <% end %>
+        <% if @business.proxy_score_weight_adjustment_logs.empty? %>
+          <tr><td colspan="5">まだ補正ログはありません。</td></tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>GSC自動取得</h2>
+    <p>環境変数のGoogle認証情報を使い、直近28日分の検索クエリをDataImportへ保存します。</p>
+  </div>
+
+  <div class="inline-form">
+    <div class="field compact-field">
+      <label>site_url</label>
+      <input type="text" value="<%= @business.gsc_site_url %>" readonly>
+    </div>
+    <%= button_to "GSC取得", import_gsc_business_path(@business), method: :post, class: "button", disabled: @business.gsc_site_url.blank? %>
+    <%= link_to "GSC設定を編集", edit_business_path(@business), class: "button secondary" %>
+  </div>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>SERP競合分析</h2>
+    <p>検索結果を手入力またはCSV/TXTで保存し、競合強度をsuccess_probabilityの判断材料にします。</p>
+  </div>
+
+  <%= form_with url: business_serp_analyses_path(@business), scope: :serp_analysis, multipart: true, class: "form" do |form| %>
+    <div class="grid">
+      <div class="field">
+        <%= form.label :keyword, "キーワード" %>
+        <%= form.text_field :keyword, placeholder: "例: 中崎町 喫煙所" %>
+      </div>
+      <div class="field">
+        <%= form.label :location, "地域" %>
+        <%= form.text_field :location, placeholder: "例: Japan / Osaka" %>
+      </div>
+      <div class="field">
+        <%= form.label :device, "デバイス" %>
+        <%= form.select :device, SerpAnalysis::DEVICES.map { |device| [device.humanize, device] } %>
+      </div>
+      <div class="field">
+        <%= form.label :file, "CSV/TXTファイル" %>
+        <%= form.file_field :file, accept: ".csv,.txt,text/csv,text/plain" %>
+      </div>
+    </div>
+    <div class="field">
+      <%= form.label :raw_text, "検索結果テキスト" %>
+      <%= form.textarea :raw_text, rows: 6, placeholder: "1行に1検索結果。CSVの場合は position,title,url,snippet のヘッダー推奨。" %>
+    </div>
+    <div class="actions">
+      <%= form.submit "SERP分析を保存", class: "button" %>
+    </div>
+  <% end %>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>SERP分析履歴</h2>
+    <p>競合強度スコアが高いほど、上位獲得難度が高い想定です。</p>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>日時</th>
+          <th>キーワード</th>
+          <th>地域</th>
+          <th>デバイス</th>
+          <th>結果数</th>
+          <th>競合強度</th>
+          <th>概要</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @recent_serp_analyses.each do |analysis| %>
+          <tr>
+            <td><%= l(analysis.analyzed_at, format: :short) %></td>
+            <td><%= analysis.keyword %></td>
+            <td><%= analysis.location.presence || "-" %></td>
+            <td><%= analysis.device.presence || "-" %></td>
+            <td class="number"><%= analysis.result_count %></td>
+            <td class="number"><%= analysis.competition_score %></td>
+            <td class="wide-text"><%= analysis.summary %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>AIで候補生成</h2>
+    <p>Business情報と最新DataImportを材料に、行動候補を生成します。</p>
+  </div>
+
+  <%= form_with url: generate_ai_candidates_business_path(@business), method: :post, class: "inline-form" do |form| %>
+    <div class="field compact-field">
+      <%= form.label :action_count, "生成件数" %>
+      <%= form.select :action_count, [[3, 3], [5, 5], [10, 10]], selected: 5 %>
+    </div>
+    <%= form.submit "AIで候補生成", class: "button" %>
+  <% end %>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>データアップロード</h2>
+    <p>CSV/TXTを判断材料として保存し、次回のAI候補生成に渡します。</p>
+  </div>
+
+  <%= form_with url: business_data_imports_path(@business), scope: :data_import, multipart: true, class: "form" do |form| %>
+    <div class="grid">
+      <div class="field">
+        <%= form.label :source_type, "データ種別" %>
+        <%= form.select :source_type, DataSource::SOURCE_TYPES.map { |type| [type.humanize, type] } %>
+      </div>
+      <div class="field">
+        <%= form.label :name, "データソース名" %>
+        <%= form.text_field :name, placeholder: "例: GSC 2026-06" %>
+      </div>
+      <div class="field">
+        <%= form.label :status, "状態" %>
+        <%= form.select :status, DataSource::STATUSES.map { |status| [status.humanize, status] } %>
+      </div>
+      <div class="field">
+        <%= form.label :file, "CSV/TXTファイル" %>
+        <%= form.file_field :file, accept: ".csv,.txt,text/csv,text/plain" %>
+      </div>
+    </div>
+    <div class="field">
+      <%= form.label :notes, "メモ" %>
+      <%= form.textarea :notes, rows: 3 %>
+    </div>
+    <div class="actions">
+      <%= form.submit "データアップロード", class: "button" %>
+    </div>
+  <% end %>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>判断材料</h2>
+    <p>このBusinessに紐づくDataSourceと最新アップロードです。</p>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>DataSource</th>
+          <th>種別</th>
+          <th>状態</th>
+          <th>Import数</th>
+          <th>最終更新</th>
+          <th>最新ファイル</th>
+          <th>行数</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @data_sources.each do |data_source| %>
+          <% latest_import = data_source.data_imports.max_by(&:imported_at) %>
+          <tr>
+            <td><%= data_source.name %></td>
+            <td><%= data_source.source_type %></td>
+            <td><span class="pill"><%= data_source.status %></span></td>
+            <td class="number"><%= data_source.data_imports.size %></td>
+            <td><%= latest_import&.imported_at ? l(latest_import.imported_at, format: :short) : "-" %></td>
+            <td><%= latest_import&.filename || "-" %></td>
+            <td class="number"><%= latest_import&.row_count || "-" %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>DataImport一覧</h2>
+    <p>手動アップロードとGSC自動取得の履歴です。</p>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>日時</th>
+          <th>DataSource</th>
+          <th>種別</th>
+          <th>ファイル名</th>
+          <th>行数</th>
+          <th>プレビュー</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @recent_data_imports.each do |data_import| %>
+          <tr>
+            <td><%= l(data_import.imported_at, format: :short) %></td>
+            <td><%= data_import.data_source.name %></td>
+            <td><%= data_import.data_source.source_type %></td>
+            <td><%= data_import.filename %></td>
+            <td class="number"><%= data_import.row_count %></td>
+            <td class="wide-text"><%= truncate(data_import.processed_text.presence || data_import.raw_text, length: 140) %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>行動候補</h2>
+    <p>この事業フォルダに属する ActionCandidate です。</p>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>行動タイトル</th>
+          <th>期待利益</th>
+          <th>期待時給</th>
+          <th>最終スコア</th>
+          <th>状態</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @action_candidates.each do |action_candidate| %>
+          <tr>
+            <td><%= link_to action_candidate.title, action_candidate %></td>
+            <td class="number"><%= number_to_currency(action_candidate.expected_profit_yen, unit: "¥", precision: 0) %></td>
+            <td class="number"><%= action_candidate.expected_hourly_value_yen.present? ? number_to_currency(action_candidate.expected_hourly_value_yen, unit: "¥", precision: 0) : "-" %></td>
+            <td class="number"><%= number_with_precision(action_candidate.final_score, precision: 1) %></td>
+            <td><span class="pill"><%= action_candidate.status %></span></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<div class="actions">
+  <%= link_to "事業一覧に戻る", businesses_path, class: "button secondary" %>
+  <%= button_to "Destroy", @business, method: :delete, class: "danger" %>
+</div>
+</div>

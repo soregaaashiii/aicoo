@@ -1,0 +1,54 @@
+<% content_for :title, "実行結果" %>
+
+<% header_actions = capture do %>
+    <%= button_to "指標差分を評価", evaluate_action_result_path(@action_result), method: :post, class: "button" %>
+    <%= link_to "編集", edit_action_result_path(@action_result), class: "button secondary" %>
+    <%= link_to "一覧", action_results_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "実行結果",
+             description: "ActionCandidateの予測と実行後の実績を比較します。",
+             active_main: :judge,
+             actions: header_actions %>
+  <%= render "shared/aicoo_execution_tabs", active: :scored %>
+
+<section class="dashboard-section">
+  <div class="aicoo-lab-help">
+    <strong>対象行動</strong>
+    <p><%= link_to @action_result.action_candidate.title, @action_result.action_candidate %></p>
+  </div>
+</section>
+
+<div class="metric-grid">
+  <div class="metric-card"><span>評価状態</span><strong><%= @action_result.evaluation_status %></strong></div>
+  <div class="metric-card"><span>予測期待利益</span><strong><%= number_to_currency(@action_result.predicted_expected_profit_yen, unit: "¥", precision: 0) %></strong></div>
+  <div class="metric-card"><span>実績利益</span><strong><%= number_to_currency(@action_result.actual_profit_yen, unit: "¥", precision: 0) %></strong></div>
+  <div class="metric-card"><span>予測誤差</span><strong><%= number_to_currency(@action_result.prediction_error_yen, unit: "¥", precision: 0) %></strong></div>
+  <div class="metric-card"><span>誤差率</span><strong><%= @action_result.prediction_error_rate.present? ? number_to_percentage(@action_result.prediction_error_rate.to_d * 100, precision: 1) : "-" %></strong></div>
+</div>
+
+<dl class="detail-list">
+  <dt>事業</dt>
+  <dd><%= link_to @action_result.business.name, @action_result.business %></dd>
+  <dt>実行日</dt>
+  <dd><%= @action_result.executed_on %></dd>
+  <dt>評価日</dt>
+  <dd><%= @action_result.evaluated_on %></dd>
+  <dt>予測価値</dt>
+  <dd><%= number_to_currency(@action_result.predicted_value_yen, unit: "¥", precision: 0) %></dd>
+  <dt>予測成功確率</dt>
+  <dd><%= number_to_percentage(@action_result.predicted_success_probability.to_d * 100, precision: 1) %></dd>
+  <dt>実績売上</dt>
+  <dd><%= number_to_currency(@action_result.actual_revenue_yen, unit: "¥", precision: 0) %></dd>
+  <dt>proxy_score差分</dt>
+  <dd><%= number_with_precision(@action_result.actual_proxy_score_delta, precision: 2) %></dd>
+  <% ActionResult::DELTA_METRICS.each do |metric| %>
+    <dt><%= metric %>差分</dt>
+    <dd><%= @action_result.public_send(:"actual_#{metric}_delta") %></dd>
+  <% end %>
+  <dt>メモ</dt>
+  <dd><%= simple_format(@action_result.note.presence || "-") %></dd>
+</dl>
+</div>

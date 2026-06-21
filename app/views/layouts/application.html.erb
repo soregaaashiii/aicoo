@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title><%= content_for(:title) || "AI COO / AI経営企画室" %></title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="application-name" content="AI COO / AI経営企画室">
+    <meta name="mobile-web-app-capable" content="yes">
+    <%= csrf_meta_tags %>
+    <%= csp_meta_tag %>
+
+    <%= yield :head %>
+
+    <%# Enable PWA manifest for installable apps (make sure to enable in config/routes.rb too!) %>
+    <%#= tag.link rel: "manifest", href: pwa_manifest_path(format: :json) %>
+
+    <link rel="icon" href="/icon.png" type="image/png">
+    <link rel="icon" href="/icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/icon.png">
+
+    <%# Includes all stylesheet files in app/assets/stylesheets %>
+    <%= stylesheet_link_tag :app, "data-turbo-track": "reload" %>
+  </head>
+
+  <body>
+    <header class="app-header">
+      <div>
+        <%= link_to "AI COO / AI経営企画室", dashboard_path, class: "brand" %>
+        <p>今日やる行動を決め、実行し、結果から予測精度を上げる意思決定画面</p>
+      </div>
+      <nav>
+        <%= link_to admin_aicoo_revenue_path, title: "収益優先度の高い行動を見る" do %>
+          今日やること<br><small>収益優先度の高い行動を見る</small>
+        <% end %>
+        <%= link_to admin_aicoo_lab_experiments_path, title: "新しい事業案を検証する" do %>
+          新規事業<br><small>新しい事業案を検証する</small>
+        <% end %>
+        <%= link_to admin_aicoo_executor_path, title: "Codexへ渡す作業指示" do %>
+          実行指示<br><small>Codexへ渡す作業指示</small>
+        <% end %>
+        <%= link_to admin_aicoo_datahub_path, title: "PV・CV・収益などの事実" do %>
+          実績データ<br><small>PV・CV・収益などの事実</small>
+        <% end %>
+        <%= link_to admin_aicoo_judge_path, title: "予測精度を確認する" do %>
+          成績表<br><small>予測精度を確認する</small>
+        <% end %>
+      </nav>
+    </header>
+
+    <main class="app-main">
+      <% if notice.present? %>
+        <p class="notice"><%= notice %></p>
+      <% end %>
+      <% if alert.present? %>
+        <p class="alert"><%= alert %></p>
+      <% end %>
+
+      <%= yield %>
+    </main>
+  </body>
+</html>

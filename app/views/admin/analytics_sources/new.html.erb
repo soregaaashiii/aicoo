@@ -1,0 +1,14 @@
+<% content_for :title, "上級者向け設定作成" %>
+
+<% header_actions = capture do %>
+    <%= link_to "一覧へ戻る", admin_analytics_sources_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "上級者向け設定作成",
+             description: "GA4またはGSCの手動API取得に使う設定を保存します。",
+             active_main: :datahub,
+             actions: header_actions %>
+  <%= render "form", setting: @setting %>
+</div>

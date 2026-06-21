@@ -1,0 +1,13 @@
+<dl id="<%= dom_id business %>" class="detail-list">
+  <dt>事業名</dt>
+  <dd><%= business.name %></dd>
+
+  <dt>説明</dt>
+  <dd><%= simple_format(business.description) %></dd>
+
+  <dt>状態</dt>
+  <dd><span class="pill"><%= business.status %></span></dd>
+
+  <dt>GSC site_url</dt>
+  <dd><%= business.gsc_site_url.presence || "-" %></dd>
+</dl>

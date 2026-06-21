@@ -1,0 +1,45 @@
+<% content_for :title, "実績データ採点確認" %>
+
+<div class="page-title">
+  <div>
+    <h1>実績データを確認して採点</h1>
+    <p>実績データの値を確認し、問題なければこの値で採点結果を作成します。表示だけでは保存されません。</p>
+  </div>
+  <div class="actions compact-actions">
+    <%= link_to "採点待ち", admin_aicoo_lab_scoring_queue_path, class: "button secondary" %>
+    <%= link_to "検証詳細", admin_aicoo_lab_experiment_path(@experiment), class: "button secondary" %>
+  </div>
+</div>
+
+<section class="dashboard-section">
+  <div class="metric-grid">
+    <div class="metric-card"><span>対象</span><strong><%= @experiment.title %></strong></div>
+    <div class="metric-card"><span>採点期間</span><strong><%= @target_days %>日</strong></div>
+    <div class="metric-card"><span>取得日時</span><strong><%= @snapshot ? l(@snapshot.captured_at, format: :short) : "-" %></strong></div>
+  </div>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>実績データ候補値</h2>
+    <p>この値はまだ保存されていません。保存するには「この値で採点作成」を押してください。</p>
+  </div>
+
+  <div class="metric-grid">
+    <div class="metric-card"><span>PV</span><strong><%= @snapshot_metrics[:pv] %></strong></div>
+    <div class="metric-card"><span>CTAクリック</span><strong><%= @snapshot_metrics[:cta_click] %></strong></div>
+    <div class="metric-card"><span>Signup</span><strong><%= @snapshot_metrics[:signup] %></strong></div>
+    <div class="metric-card"><span>CTA率</span><strong><%= @snapshot_metrics[:cta_rate] ? number_to_percentage(@snapshot_metrics[:cta_rate].to_d * 100, precision: 1) : "-" %></strong></div>
+    <div class="metric-card"><span>Signup率</span><strong><%= @snapshot_metrics[:signup_rate] ? number_to_percentage(@snapshot_metrics[:signup_rate].to_d * 100, precision: 1) : "-" %></strong></div>
+    <div class="metric-card"><span>サンプル数</span><strong><%= @snapshot_metrics[:sample_size] %></strong></div>
+    <div class="metric-card"><span>最低サンプル到達</span><strong><%= @snapshot_metrics[:sample_threshold_reached] ? "はい" : "いいえ" %></strong></div>
+  </div>
+
+  <div class="actions">
+    <% if @snapshot %>
+      <%= button_to "この値で採点作成", admin_aicoo_lab_scoring_queue_score_snapshot_path(@experiment, @target_days), method: :post, class: "button" %>
+    <% else %>
+      <p class="aicoo-lab-help">この検証に紐づくLP実績データがありません。</p>
+    <% end %>
+  </div>
+</section>
