@@ -43,29 +43,52 @@ module Admin
         assert_equal "env-client", setting.client_id
         assert_equal "env-secret", setting.client_secret
         assert_equal "new-refresh-token", setting.refresh_token
+        assert_nil setting.credentials_json
         assert setting.oauth_connected_at.present?
       end
     end
 
-    test "callback uses saved client credentials before env credentials" do
+    test "callback uses the client credentials remembered at connect time" do
       gsc = create_gsc_setting(name: "吸えログ GSC", site_url: "sc-domain:suelog.jp")
       ga4 = create_ga4_setting(name: "吸えログ GA4", property_id: "536889590")
-      gsc.update!(client_id: "saved-client", client_secret: "saved-secret")
+      gsc.update!(
+        client_id: "old-saved-client",
+        client_secret: "old-saved-secret",
+        credentials_json: '{"client_id":"old-json-client"}'
+      )
 
       with_google_env(
         "GOOGLE_CLIENT_ID" => "env-client",
         "GOOGLE_CLIENT_SECRET" => "env-secret"
       ) do
+        get admin_analytics_oauth_connect_url, params: { business_name: "吸えログ" }
+
         with_oauth_exchange(refresh_token: "new-refresh-token") do |captured|
           get admin_analytics_oauth_callback_url, params: { code: "auth-code", state: "吸えログ" }
 
-          assert_equal "saved-client", captured[:client_id]
-          assert_equal "saved-secret", captured[:client_secret]
+          assert_equal "env-client", captured[:client_id]
+          assert_equal "env-secret", captured[:client_secret]
         end
       end
 
-      assert_equal "saved-client", gsc.reload.client_id
-      assert_equal "saved-client", ga4.reload.client_id
+      [ gsc.reload, ga4.reload ].each do |setting|
+        assert_equal "env-client", setting.client_id
+        assert_equal "env-secret", setting.client_secret
+        assert_equal "new-refresh-token", setting.refresh_token
+        assert_nil setting.credentials_json
+        assert setting.oauth_connected_at.present?
+      end
+    end
+
+    test "analytics connections page shows latest oauth connected time" do
+      setting = create_gsc_setting(name: "吸えログ GSC", site_url: "sc-domain:suelog.jp")
+      setting.update!(oauth_connected_at: Time.zone.local(2026, 6, 22, 12, 0, 0), refresh_token: "saved-refresh")
+
+      get admin_analytics_connections_url
+
+      assert_response :success
+      assert_includes response.body, "最終OAuth接続"
+      assert_includes response.body, I18n.l(setting.oauth_connected_at, format: :short)
     end
 
     test "connect shows clear error when client credentials are missing" do

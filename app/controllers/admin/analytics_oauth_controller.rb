@@ -8,6 +8,7 @@ module Admin
         return
       end
 
+      remember_oauth_credentials!(credentials, params[:business_name].presence)
       redirect_to AicooAnalytics::GoogleOauthAuthorization.authorization_uri(
         client_id: credentials[:client_id],
         redirect_uri: admin_analytics_oauth_callback_url,
@@ -62,10 +63,12 @@ module Admin
     end
 
     def oauth_credentials(settings)
+      return session_oauth_credentials if session_oauth_credentials.present?
+
       source = settings.find { |setting| setting.client_id.present? && setting.client_secret.present? }
       {
-        client_id: source&.client_id.presence || ENV["GOOGLE_CLIENT_ID"],
-        client_secret: source&.client_secret.presence || ENV["GOOGLE_CLIENT_SECRET"]
+        client_id: ENV["GOOGLE_CLIENT_ID"].presence || source&.client_id,
+        client_secret: ENV["GOOGLE_CLIENT_SECRET"].presence || source&.client_secret
       }
     end
 
@@ -76,9 +79,32 @@ module Admin
           client_id: credentials[:client_id],
           client_secret: credentials[:client_secret],
           refresh_token:,
+          credentials_json: nil,
           oauth_connected_at: now
         )
       end
+      clear_remembered_oauth_credentials!
+    end
+
+    def remember_oauth_credentials!(credentials, business_name)
+      session[:analytics_oauth_client_id] = credentials[:client_id]
+      session[:analytics_oauth_client_secret] = credentials[:client_secret]
+      session[:analytics_oauth_business_name] = business_name
+    end
+
+    def session_oauth_credentials
+      return nil if session[:analytics_oauth_client_id].blank? || session[:analytics_oauth_client_secret].blank?
+
+      {
+        client_id: session[:analytics_oauth_client_id],
+        client_secret: session[:analytics_oauth_client_secret]
+      }
+    end
+
+    def clear_remembered_oauth_credentials!
+      session.delete(:analytics_oauth_client_id)
+      session.delete(:analytics_oauth_client_secret)
+      session.delete(:analytics_oauth_business_name)
     end
 
     def business_name_for(name)

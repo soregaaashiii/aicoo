@@ -13,7 +13,8 @@ module AicooAnalytics
         "client_id_source=#{credential_source(:client_id)}",
         "client_secret_source=#{credential_source(:client_secret)}",
         "refresh_token_source=#{credential_source(:refresh_token)}",
-        "credentials_json_source=#{credentials_json_source}"
+        "credentials_json_source=#{credentials_json_source}",
+        "oauth_connected_at=#{oauth_connected_at_status}"
       ].join(" ")
     end
 
@@ -64,6 +65,10 @@ module AicooAnalytics
 
     def credentials_json_source
       setting.credentials_json.present? ? "setting" : "missing"
+    end
+
+    def oauth_connected_at_status
+      setting.oauth_connected_at.present? ? "present" : "missing"
     end
 
     def parsed_credentials

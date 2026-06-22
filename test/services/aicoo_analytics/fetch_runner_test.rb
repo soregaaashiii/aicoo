@@ -71,6 +71,7 @@ module AicooAnalytics
         assert_includes run.error_message, "client_secret_source=setting"
         assert_includes run.error_message, "refresh_token_source=setting"
         assert_includes run.error_message, "credentials_json_source=missing"
+        assert_includes run.error_message, "oauth_connected_at=missing"
         refute_includes run.error_message, "saved-secret"
         refute_includes run.error_message, "saved-refresh-token"
       end

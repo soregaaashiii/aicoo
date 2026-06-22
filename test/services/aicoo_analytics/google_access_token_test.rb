@@ -21,7 +21,7 @@ module AicooAnalytics
       assert_equal "saved-secret", fake_client.kwargs[:client_secret]
       assert_equal "saved-refresh-token", fake_client.kwargs[:refresh_token]
       assert_equal(
-        "client_id_source=setting client_secret_source=setting refresh_token_source=setting credentials_json_source=missing",
+        "client_id_source=setting client_secret_source=setting refresh_token_source=setting credentials_json_source=missing oauth_connected_at=missing",
         fake_client.kwargs[:credential_source_summary]
       )
     end
@@ -43,7 +43,7 @@ module AicooAnalytics
       assert_equal "json-secret", fake_client.kwargs[:client_secret]
       assert_equal "json-refresh-token", fake_client.kwargs[:refresh_token]
       assert_equal(
-        "client_id_source=credentials_json client_secret_source=credentials_json refresh_token_source=credentials_json credentials_json_source=setting",
+        "client_id_source=credentials_json client_secret_source=credentials_json refresh_token_source=credentials_json credentials_json_source=setting oauth_connected_at=missing",
         fake_client.kwargs[:credential_source_summary]
       )
     end
@@ -94,9 +94,28 @@ module AicooAnalytics
       assert_equal "env-secret", fake_client.kwargs[:client_secret]
       assert_equal "env-refresh-token", fake_client.kwargs[:refresh_token]
       assert_equal(
-        "client_id_source=env client_secret_source=env refresh_token_source=env credentials_json_source=setting",
+        "client_id_source=env client_secret_source=env refresh_token_source=env credentials_json_source=setting oauth_connected_at=missing",
         fake_client.kwargs[:credential_source_summary]
       )
+    end
+
+    test "credential source summary includes oauth connected status" do
+      setting = AnalyticsSourceSetting.create!(
+        source_type: "gsc",
+        name: "Suelog connected GSC",
+        site_url: "sc-domain:suelog.jp",
+        client_id: "saved-client",
+        client_secret: "saved-secret",
+        refresh_token: "saved-refresh-token",
+        oauth_connected_at: Time.current
+      )
+      fake_client = FakeOauthClient.new
+
+      with_oauth_client(fake_client) do
+        assert_equal "access-token", GoogleAccessToken.new(setting).call
+      end
+
+      assert_includes fake_client.kwargs[:credential_source_summary], "oauth_connected_at=present"
     end
 
     test "uses saved credentials when credentials json is nil" do
