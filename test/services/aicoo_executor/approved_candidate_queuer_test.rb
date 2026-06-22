@@ -31,7 +31,7 @@ module AicooExecutor
         assert_equal 1, result.target_count
         assert_equal 0, result.created_count
         assert_equal 1, result.skipped_count
-        assert_equal 1, result.skipped_reasons.fetch("既にExecutor登録済み")
+        assert_equal 1, result.skipped_reasons.fetch("既に実行指示へ送信済み")
       end
 
       assert_equal "executor_queued", action_candidate.reload.status

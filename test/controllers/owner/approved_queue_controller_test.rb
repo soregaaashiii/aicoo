@@ -8,9 +8,9 @@ module Owner
       get owner_approved_queue_url
 
       assert_response :success
-      assert_includes response.body, "承認済みキュー"
+      assert_includes response.body, "承認済み"
       assert_includes response.body, candidate.title
-      assert_includes response.body, "Executorへ送る"
+      assert_includes response.body, "実行指示へ送る"
     end
 
     test "queues selected candidates into executor" do
@@ -40,7 +40,7 @@ module Owner
       assert_redirected_to owner_approved_queue_url
       assert_equal "executor_queued", candidate.reload.status
       assert_includes flash[:notice], "スキップ 1件"
-      assert_includes flash[:notice], "既にExecutor登録済み"
+      assert_includes flash[:notice], "既に実行指示へ送信済み"
     end
 
     private

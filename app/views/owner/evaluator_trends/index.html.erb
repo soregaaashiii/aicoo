@@ -1,4 +1,4 @@
-<% content_for :title, "評価比重の推移" %>
+<% content_for :title, "判断材料の推移" %>
 
 <% header_actions = capture do %>
   <%= link_to "オーナーモード", owner_dashboard_path, class: "button secondary" %>
@@ -6,15 +6,15 @@
 
 <div class="aicoo-page">
   <%= render "shared/aicoo_header",
-             title: "評価比重の推移",
-             description: "Daily Runごとに、AICOOがGSC / GA4 / Judge / Revenue / Learningをどれくらい信じたかを確認します。",
+             title: "判断材料の推移",
+             description: "日次処理ごとに、検索流入・サイト行動・予測精度・売上記録・学習準備のどれをどれくらい信じたかを確認します。",
              active_main: :revenue,
              actions: header_actions %>
 
   <section class="dashboard-section">
     <div class="section-heading">
       <h2>表示期間</h2>
-      <p>直近7日または30日の評価比重ログを表示します。</p>
+      <p>直近7日または30日の判断材料ログを表示します。</p>
     </div>
     <div class="actions compact-actions">
       <%= link_to "直近7日", owner_evaluator_trends_path(range: 7), class: "button secondary" %>
@@ -24,19 +24,19 @@
 
   <section class="dashboard-section">
     <div class="section-heading">
-      <h2>日別の評価比重</h2>
-      <p>信頼度とweighted contributionをEvaluator別に表示します。</p>
+      <h2>日別の判断材料</h2>
+      <p>信頼度と判断への影響を判断材料別に表示します。</p>
     </div>
     <div class="table-wrap">
       <table>
         <thead>
           <tr>
             <th>日付</th>
-            <th>Evaluator</th>
+            <th>判断材料</th>
             <th>平均期待値</th>
             <th>平均信頼度</th>
             <th>候補数</th>
-            <th>貢献度</th>
+            <th>判断への影響</th>
             <th>メモ</th>
           </tr>
         </thead>
@@ -45,7 +45,7 @@
             <% snapshots.each do |snapshot| %>
               <tr>
                 <td><%= recorded_on %></td>
-                <td><%= snapshot.evaluator_type.upcase %></td>
+                <td><%= owner_evaluator_label(snapshot.evaluator_type) %></td>
                 <td class="number"><%= number_to_currency(snapshot.average_expected_value_yen, unit: "¥", precision: 0) %></td>
                 <td class="number"><%= number_with_precision(snapshot.average_confidence_score, precision: 1) %></td>
                 <td class="number"><%= snapshot.candidate_count %></td>
@@ -55,7 +55,7 @@
             <% end %>
           <% end %>
           <% if @snapshots_by_date.empty? %>
-            <tr><td colspan="7">まだMetaEvaluator評価比重ログはありません。</td></tr>
+            <tr><td colspan="7">まだ判断材料の推移ログはありません。</td></tr>
           <% end %>
         </tbody>
       </table>

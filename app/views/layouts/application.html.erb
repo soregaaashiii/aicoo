@@ -23,26 +23,33 @@
   </head>
 
   <body>
+    <% ceo_mode = request.path.start_with?("/owner") %>
     <header class="app-header">
       <div>
-        <%= link_to "AI COO / AI経営企画室", dashboard_path, class: "brand" %>
-        <p>今日やる行動を決め、実行し、結果から予測精度を上げる意思決定画面</p>
+        <%= link_to "AI COO / AI経営企画室", ceo_mode ? owner_dashboard_path : dashboard_path, class: "brand" %>
+        <p><%= ceo_mode ? "CEO MODE: 経営判断に集中する画面" : "SYSTEM MODE: 分析・運用・設定の画面" %></p>
       </div>
       <nav>
-        <%= link_to admin_aicoo_revenue_path, title: "収益優先度の高い行動を見る" do %>
-          今日やること<br><small>収益優先度の高い行動を見る</small>
-        <% end %>
-        <%= link_to admin_aicoo_lab_experiments_path, title: "新しい事業案を検証する" do %>
-          新規事業<br><small>新しい事業案を検証する</small>
-        <% end %>
-        <%= link_to admin_aicoo_executor_path, title: "Codexへ渡す作業指示" do %>
-          実行指示<br><small>Codexへ渡す作業指示</small>
-        <% end %>
-        <%= link_to admin_aicoo_datahub_path, title: "PV・CV・収益などの事実" do %>
-          実績データ<br><small>PV・CV・収益などの事実</small>
-        <% end %>
-        <%= link_to admin_aicoo_judge_path, title: "予測精度を確認する" do %>
-          成績表<br><small>予測精度を確認する</small>
+        <% if ceo_mode %>
+          <%= link_to dashboard_path, title: "分析・運用・設定を見る" do %>
+            SYSTEM MODE<br><small>詳細分析を見る</small>
+          <% end %>
+        <% else %>
+          <%= link_to owner_dashboard_path, title: "今日やることへ戻る" do %>
+            CEO MODE<br><small>今日やることへ戻る</small>
+          <% end %>
+          <%= link_to admin_aicoo_lab_experiments_path, title: "新しい事業案を検証する" do %>
+            新規事業<br><small>新しい事業案を検証する</small>
+          <% end %>
+          <%= link_to admin_aicoo_executor_path, title: "Codexへ渡す作業指示" do %>
+            実行指示<br><small>Codexへ渡す作業指示</small>
+          <% end %>
+          <%= link_to admin_aicoo_datahub_path, title: "PV・CV・収益などの事実" do %>
+            実績データ<br><small>PV・CV・収益などの事実</small>
+          <% end %>
+          <%= link_to admin_aicoo_judge_path, title: "予測精度を確認する" do %>
+            成績表<br><small>予測精度を確認する</small>
+          <% end %>
         <% end %>
       </nav>
     </header>

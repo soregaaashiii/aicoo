@@ -9,6 +9,10 @@ module Owner
       get owner_dashboard_url(mode: "balanced")
 
       assert_response :success
+      assert_includes response.body, "AICOO CEO MODE"
+      assert_includes response.body, "現在"
+      assert_includes response.body, "CEO MODE"
+      assert_includes response.body, "SYSTEM MODEへ"
       assert_order high_total.title, low_total.title
       assert_includes response.body, "今日やること TOP10"
       assert_includes response.body, "期待値"
@@ -27,10 +31,10 @@ module Owner
     test "learning mode orders by learning value" do
       revenue_action = create_action(title: "収益だけ高い施策", immediate_value_yen: 30_000, action_type: "other", data_confidence_score: 100)
       learning_action = create_action(
-        title: "Judge学習価値が高い施策",
+        title: "予測精度の学習価値が高い施策",
         immediate_value_yen: 1_000,
         action_type: "market_research",
-        evaluation_reason: "ActionResultを増やしてJudgeの予測精度を改善する"
+        evaluation_reason: "実行結果を増やして予測精度を改善する"
       )
 
       get owner_dashboard_url(mode: "learning")
@@ -42,7 +46,7 @@ module Owner
     test "shows owner alerts approval queue and business rankings" do
       action = create_action(title: "承認待ち施策", immediate_value_yen: 5_000, action_type: "build_lp")
       AicooExecutorTask.create!(
-        title: "承認待ちExecutor",
+        title: "承認待ち実行指示",
         source_type: "action_candidate",
         source_id: action.id,
         execution_type: "custom",
@@ -54,18 +58,20 @@ module Owner
       assert_response :success
       assert_includes response.body, "危険アラート"
       assert_includes response.body, "承認待ち"
-      assert_includes response.body, "承認済みキュー"
+      assert_includes response.body, "承認済み"
       assert_includes response.body, "今日承認"
-      assert_includes response.body, "今日Executor送信"
-      assert_includes response.body, "ExecutorTask approval_pending"
+      assert_includes response.body, "今日実行指示へ送信"
+      assert_includes response.body, "実行承認待ち"
       assert_includes response.body, "事業ランキング"
       assert_includes response.body, "学習状況"
       assert_includes response.body, "AICOO成熟度"
-      assert_includes response.body, "BusinessMetric"
-      assert_includes response.body, "現在の評価比重"
-      assert_includes response.body, "GSC"
+      assert_includes response.body, "日次指標"
+      assert_includes response.body, "現在の判断材料"
+      assert_includes response.body, "検索流入"
       assert_includes response.body, "前回比"
       assert_includes response.body, businesses(:suelog).name
+      assert_not_includes response.body, "実績データ"
+      assert_not_includes response.body, "成績表"
     end
 
     test "shows at least three owner tasks when candidates are empty" do

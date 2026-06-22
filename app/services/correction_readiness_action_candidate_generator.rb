@@ -17,12 +17,13 @@ class CorrectionReadinessActionCandidateGenerator
     return if business_item.ready?
 
     business = business_item.business
-    title = "#{business.name}のJudge補正に必要な不足データを増やす"
+    title = "#{business.name}の予測精度に必要な学習データを増やす"
     return if recent_duplicate?(business, title)
 
+    owner_messages = owner_messages_for(business_item)
     business.action_candidates.create!(
       title:,
-      description: business_item.messages.join("\n"),
+      description: owner_messages.join("\n"),
       action_type: "data_preparation",
       immediate_value_yen: 0,
       success_probability: 0.6,
@@ -34,7 +35,7 @@ class CorrectionReadinessActionCandidateGenerator
       cost_yen: 0,
       generation_source: "ai_business",
       metadata: metadata_for(business_item),
-      evaluation_reason: "Judge補正に必要なデータが不足しています。\n#{business_item.messages.join("\n")}",
+      evaluation_reason: "予測精度を上げるための学習データが不足しています。\n#{owner_messages.join("\n")}",
       execution_prompt: execution_prompt_for(business_item)
     )
   end
@@ -74,18 +75,40 @@ class CorrectionReadinessActionCandidateGenerator
     metric_shortage = [ AicooCorrectionReadinessService::BUSINESS_METRIC_DAILY_REQUIRED - business.business_metric_dailies.count, 0 ].max
 
     <<~PROMPT
-      #{business.name}のJudge補正に必要な不足データを増やしてください。
+      #{business.name}の予測精度に必要な学習データを増やしてください。
 
       不足:
-      #{business_item.messages.map { |message| "- #{message}" }.join("\n")}
+      #{owner_messages_for(business_item).map { |message| "- #{message}" }.join("\n")}
 
       作業:
-      - 実行済みActionCandidateを最大#{action_result_shortage}件選び、実行結果をActionResultに記録する
-      - BusinessMetricDailyが不足している場合は不足日数#{metric_shortage}日分を取り込む
-      - 売上/費用が発生している場合はRevenueEventを記録する
+      - 実行済みの行動候補を最大#{action_result_shortage}件選び、実行結果を記録する
+      - 日次指標が不足している場合は不足日数#{metric_shortage}日分を取り込む
+      - 売上/費用が発生している場合は売上記録として入力する
       - 記録対象がない場合は、どのデータが未発生なのかをnoteに残す
-      - 記録後にDaily Runを実行してJudge補正が効くか確認する
+      - 記録後に日次処理を実行して予測精度が改善できるか確認する
     PROMPT
+  end
+
+  def owner_messages_for(business_item)
+    business = business_item.business
+    business_item.missing_keys.map do |key|
+      current = current_counts_for(business_item).fetch(key.to_s)
+      required = required_counts_for(business_item).fetch(key.to_s)
+      label =
+        case key
+        when :action_results
+          "実行結果"
+        when :evaluated
+          "評価済み実行結果"
+        when :revenue
+          "売上記録"
+        when :business_metric_daily
+          "日次指標"
+        else
+          key.to_s
+        end
+      "#{business.name}: #{label} #{current}/#{required}件"
+    end
   end
 
   def recent_duplicate?(business, title)

@@ -17,6 +17,10 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
     get dashboard_url
 
     assert_response :success
+    assert_includes response.body, "AICOO SYSTEM MODE"
+    assert_includes response.body, "SYSTEM MODE"
+    assert_includes response.body, "CEO MODEへ"
+    assert_includes response.body, "CEOダッシュボードへ戻る"
     assert_includes response.body, "AICOO TODAY"
     assert_includes response.body, "今日やるべきこと TOP10"
     assert_includes response.body, "Judge補正後スコア"

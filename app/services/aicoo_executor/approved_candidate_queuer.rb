@@ -21,7 +21,7 @@ module AicooExecutor
 
       scope.find_each do |action_candidate|
         if AicooExecutorTask.unfinished_for_action_candidate(action_candidate)
-          skipped_reasons["既にExecutor登録済み"] += 1
+          skipped_reasons["既に実行指示へ送信済み"] += 1
           action_candidate.mark_executor_queued! if action_candidate.executor_queued_at.blank?
           next
         end

@@ -16,8 +16,8 @@ module Owner
       get owner_evaluator_trends_url
 
       assert_response :success
-      assert_includes response.body, "評価比重の推移"
-      assert_includes response.body, "GSC"
+      assert_includes response.body, "判断材料の推移"
+      assert_includes response.body, "検索流入"
       assert_includes response.body, "gsc snapshot"
     end
   end

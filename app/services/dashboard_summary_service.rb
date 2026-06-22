@@ -19,7 +19,11 @@ class DashboardSummaryService
     :learning_progress,
     :aicoo_maturity_score,
     :aicoo_maturity_label,
-    :evaluator_confidence_summary
+    :evaluator_confidence_summary,
+    :current_mode,
+    :mode_description,
+    :show_system_navigation,
+    :show_ceo_navigation
   )
   Today = Data.define(
     :daily_run,
@@ -64,8 +68,9 @@ class DashboardSummaryService
     :revenue_event_required
   )
 
-  def initialize(owner_mode: "balanced")
+  def initialize(owner_mode: "balanced", current_mode: "system")
     @owner_mode = owner_mode.presence_in(%w[balanced revenue learning]) || "balanced"
+    @current_mode = current_mode.presence_in(%w[ceo system]) || "system"
   end
 
   def call
@@ -94,13 +99,17 @@ class DashboardSummaryService
       learning_progress: learning_progress,
       aicoo_maturity_score: maturity_score,
       aicoo_maturity_label: aicoo_maturity_label(maturity_score),
-      evaluator_confidence_summary: evaluator_confidence_summary
+      evaluator_confidence_summary: evaluator_confidence_summary,
+      current_mode:,
+      mode_description: mode_description,
+      show_system_navigation: current_mode == "ceo",
+      show_ceo_navigation: current_mode == "system"
     )
   end
 
   private
 
-  attr_reader :owner_mode
+  attr_reader :owner_mode, :current_mode
 
   def today_summary
     daily_run = latest_daily_run
@@ -219,9 +228,9 @@ class DashboardSummaryService
   def owner_alerts
     correction_readiness = AicooCorrectionReadinessService.new.call
     alerts = correction_readiness.items.reject(&:ready).map do |item|
-      "#{item.label}: #{item.current_count}/#{item.required_count}"
+      "#{owner_readiness_label(item.key)}: #{item.current_count}/#{item.required_count}"
     end
-    alerts << "学習停止リスク: 評価済みActionResultが不足しています" if ActionResult.evaluated.count < AicooCorrectionReadinessService::EVALUATED_REQUIRED
+    alerts << "学習停止リスク: 評価済みの実行結果が不足しています" if ActionResult.evaluated.count < AicooCorrectionReadinessService::EVALUATED_REQUIRED
     alerts
   end
 
@@ -340,7 +349,7 @@ class DashboardSummaryService
     when 25...50
       "学習中"
     when 50...80
-      "Judge運用中"
+      "予測精度運用中"
     else
       "自走運用中"
     end
@@ -385,6 +394,10 @@ class DashboardSummaryService
     summaries
       .select { |summary| summary.evaluated_count.positive? && summary.hit_rate.present? }
       .max_by { |summary| [ summary.hit_rate.to_d, summary.evaluated_count ] }
+  end
+
+  def mode_description
+    current_mode == "ceo" ? "意思決定専用画面" : "分析・運用・設定"
   end
 
   def ensure_owner_minimum_candidates!
@@ -434,36 +447,46 @@ class DashboardSummaryService
   def owner_readiness_templates
     [
       {
-        title: "ActionResultを3件記録する",
-        description: "Judge補正を始めるため、実行済みActionCandidateの結果を最低3件記録します。",
+        title: "実行結果を3件記録する",
+        description: "予測精度を上げるため、実行済みの行動候補の結果を最低3件記録します。",
         missing_type: "action_results",
         required_count: 3,
         current_count: ActionResult.count,
         strategic_value_score: 70,
         risk_reduction_score: 80,
-        execution_prompt: "実行済みActionCandidateを3件選び、ActionResultに実績利益・proxy_score差分・メモを記録してください。"
+        execution_prompt: "実行済みの行動候補を3件選び、実行結果に実績利益・成長スコア差分・メモを記録してください。"
       },
       {
-        title: "BusinessMetricDailyを30日分蓄積する",
-        description: "proxy_scoreの時系列評価と重み補正を始めるため、BusinessMetricDailyを30日分取り込みます。",
+        title: "日次指標を30日分蓄積する",
+        description: "成長スコアの時系列評価と重み補正を始めるため、日次指標を30日分取り込みます。",
         missing_type: "business_metric_daily",
         required_count: 30,
         current_count: BusinessMetricDaily.select(:recorded_on).distinct.count,
         strategic_value_score: 65,
         risk_reduction_score: 75,
-        execution_prompt: "GSC/GA4/LPイベントまたは手入力から、直近30日分のBusinessMetricDailyを取り込んでください。"
+        execution_prompt: "検索流入・サイト行動・LPイベントまたは手入力から、直近30日分の日次指標を取り込んでください。"
       },
       {
-        title: "RevenueEventを10件記録する",
-        description: "収益判断を始めるため、売上または費用をRevenueEventとして記録します。",
+        title: "売上記録を10件入力する",
+        description: "収益判断を始めるため、売上または費用を売上記録として入力します。",
         missing_type: "revenue_events",
         required_count: 10,
         current_count: RevenueEvent.revenue.count,
         strategic_value_score: 60,
         risk_reduction_score: 60,
-        execution_prompt: "各Businessの売上・費用を確認し、RevenueEventに売上または費用として記録してください。"
+        execution_prompt: "各事業の売上・費用を確認し、売上記録に売上または費用として記録してください。"
       }
     ]
+  end
+
+  def owner_readiness_label(key)
+    {
+      judge_data: "予測精度データ不足",
+      action_results: "実行結果不足",
+      evaluated: "評価済み実行結果不足",
+      revenue: "売上記録不足",
+      business_metric_daily: "日次指標不足"
+    }.fetch(key, key.to_s)
   end
 
   def recent_owner_readiness_duplicate?(business, title)

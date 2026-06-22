@@ -13,14 +13,14 @@ class CorrectionReadinessActionCandidateGeneratorTest < ActiveSupport::TestCase
     assert_equal candidate.business_id, candidate.metadata.fetch("business_id")
     assert candidate.metadata.fetch("required_count").fetch("action_results").positive?
     assert candidate.metadata.fetch("current_count").key?("action_results")
-    assert_includes candidate.evaluation_reason, "Judge補正に必要なデータ"
-    assert_includes candidate.execution_prompt, "実行済みActionCandidateを"
+    assert_includes candidate.evaluation_reason, "予測精度を上げるための学習データ"
+    assert_includes candidate.execution_prompt, "実行済みの行動候補を"
   end
 
   test "does not generate duplicate candidate within seven days" do
     business = businesses(:suelog)
     business.action_candidates.create!(
-      title: "#{business.name}のJudge補正に必要な不足データを増やす",
+      title: "#{business.name}の予測精度に必要な学習データを増やす",
       action_type: "data_preparation",
       generation_source: "ai_business",
       created_at: Time.current

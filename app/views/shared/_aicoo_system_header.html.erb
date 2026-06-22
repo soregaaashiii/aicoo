@@ -1,0 +1,37 @@
+<% active_main = local_assigns.fetch(:active_main, nil).to_s %>
+<% main_tabs = [
+  { key: "lab", label: "新規事業", description: "新しい事業案を検証する", path: admin_aicoo_lab_experiments_path },
+  { key: "executor", label: "実行指示", description: "Codexへ渡す作業指示", path: admin_aicoo_executor_path },
+  { key: "datahub", label: "実績データ", description: "PV・CV・収益などの事実", path: admin_aicoo_datahub_path },
+  { key: "judge", label: "成績表", description: "予測精度を確認する", path: admin_aicoo_judge_path },
+  { key: "dashboard", label: "操作盤", description: "全体の運用状態を見る", path: dashboard_path }
+] %>
+
+<header class="aicoo-header aicoo-system-header">
+  <div class="aicoo-header-main">
+    <div>
+      <p class="aicoo-mode-eyebrow">AICOO SYSTEM MODE</p>
+      <h1><%= title %></h1>
+      <p>分析・運用・設定</p>
+      <p class="aicoo-header-description"><%= description %></p>
+    </div>
+    <div class="aicoo-page-actions">
+      <%= link_to "CEOダッシュボードへ戻る", owner_dashboard_path, class: "button" %>
+      <% if local_assigns[:actions].present? %>
+        <%= actions %>
+      <% end %>
+    </div>
+  </div>
+
+  <%= render "shared/aicoo_mode_switcher", current_mode: :system %>
+
+  <nav class="aicoo-tabs" aria-label="AICOO system navigation">
+    <% main_tabs.each do |tab| %>
+      <% active = active_main == tab[:key] %>
+      <%= link_to tab[:path], class: "aicoo-tab#{' active' if active}", aria: (active ? { current: "page" } : nil) do %>
+        <strong><%= tab[:label] %></strong>
+        <span><%= tab[:description] %></span>
+      <% end %>
+    <% end %>
+  </nav>
+</header>

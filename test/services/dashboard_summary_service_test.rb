@@ -76,6 +76,19 @@ class DashboardSummaryServiceTest < ActiveSupport::TestCase
     assert_includes [ "初期学習段階", "学習中", "Judge運用中", "自走運用中" ], result.aicoo_maturity_label
   end
 
+  test "summarizes current mode metadata" do
+    ceo_result = DashboardSummaryService.new(current_mode: "ceo").call
+    system_result = DashboardSummaryService.new(current_mode: "system").call
+
+    assert_equal "ceo", ceo_result.current_mode
+    assert_equal "意思決定専用画面", ceo_result.mode_description
+    assert ceo_result.show_system_navigation
+    assert_not ceo_result.show_ceo_navigation
+    assert_equal "system", system_result.current_mode
+    assert_equal "分析・運用・設定", system_result.mode_description
+    assert system_result.show_ceo_navigation
+  end
+
   private
 
   def create_result(business:, generation_source:, action_type:, actual:)

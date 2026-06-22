@@ -1,15 +1,25 @@
 <% content_for :title, "オーナーモード" %>
 
-<% header_actions = capture do %>
-  <%= link_to "管理者モード", dashboard_path, class: "button secondary" %>
-<% end %>
-
 <div class="aicoo-page">
   <%= render "shared/aicoo_header",
              title: "オーナーモード",
              description: "今日やること、期待値、収益価値、学習価値だけを見る意思決定画面です。",
-             active_main: :revenue,
-             actions: header_actions %>
+             active_main: :revenue %>
+
+  <section class="dashboard-section aicoo-ceo-intro" data-ceo-intro>
+    <div class="aicoo-card">
+      <div class="section-heading">
+        <h2>CEO MODEでは意思決定だけに集中します</h2>
+        <p>今日やること、承認、事業判断だけを表示します。詳細分析・設定・運用はSYSTEM MODEから確認できます。</p>
+      </div>
+      <button type="button" class="button secondary" onclick="localStorage.setItem('aicoo_ceo_intro_closed', '1'); this.closest('[data-ceo-intro]').hidden = true;">次回から表示しない</button>
+    </div>
+    <script>
+      if (localStorage.getItem("aicoo_ceo_intro_closed") === "1") {
+        document.querySelector("[data-ceo-intro]").hidden = true;
+      }
+    </script>
+  </section>
 
   <section class="dashboard-section">
     <div class="section-heading">
@@ -17,10 +27,10 @@
       <p>モードに応じて、収益と学習のどちらを重視するかを切り替えます。</p>
     </div>
 
-    <nav class="aicoo-sub-tabs" aria-label="Owner mode">
-      <%= link_to "Balanced", owner_dashboard_path(mode: "balanced"), class: "aicoo-sub-tab#{' active' if @mode == 'balanced'}" %>
-      <%= link_to "Revenue", owner_dashboard_path(mode: "revenue"), class: "aicoo-sub-tab#{' active' if @mode == 'revenue'}" %>
-      <%= link_to "Learning", owner_dashboard_path(mode: "learning"), class: "aicoo-sub-tab#{' active' if @mode == 'learning'}" %>
+    <nav class="aicoo-sub-tabs" aria-label="オーナーモード">
+      <%= link_to "バランス", owner_dashboard_path(mode: "balanced"), class: "aicoo-sub-tab#{' active' if @mode == 'balanced'}" %>
+      <%= link_to "収益重視", owner_dashboard_path(mode: "revenue"), class: "aicoo-sub-tab#{' active' if @mode == 'revenue'}" %>
+      <%= link_to "学習重視", owner_dashboard_path(mode: "learning"), class: "aicoo-sub-tab#{' active' if @mode == 'learning'}" %>
     </nav>
 
     <div class="table-wrap">
@@ -29,7 +39,7 @@
           <tr>
             <th>順位</th>
             <th>タイトル</th>
-            <th>Business</th>
+            <th>事業</th>
             <th>期待値</th>
             <th>収益</th>
             <th>学習</th>
@@ -48,7 +58,7 @@
                 <br>
                 <small>
                   <% action_candidate.metadata.to_h.fetch("evaluator_breakdown", []).each do |entry| %>
-                    <%= entry["evaluator_type"].to_s.upcase %>: <%= entry["confidence_score"].to_i %>
+                    <%= owner_evaluator_label(entry["evaluator_type"]) %>: <%= entry["confidence_score"].to_i %>
                   <% end %>
                 </small>
               </td>
@@ -82,7 +92,7 @@
     <% if @dashboard_summary.owner_fallback_tasks.any? %>
       <div class="aicoo-card">
         <h3>AICOO推奨タスク</h3>
-        <p>収益候補が少ないため、Judge補正やproxy_score補正を動かすための学習準備タスクを補完しています。</p>
+        <p>収益候補が少ないため、予測精度や成長スコアを改善するための学習準備タスクを補完しています。</p>
         <ol>
           <% @dashboard_summary.owner_fallback_tasks.first(3).each do |task| %>
             <li>
@@ -99,50 +109,50 @@
   <section class="dashboard-section">
     <div class="section-heading">
       <h2>承認待ち</h2>
-      <p>Ownerが止めずに流すべき判断待ちです。</p>
+      <p>経営者が止めずに流すべき判断待ちです。</p>
     </div>
     <% approval = @dashboard_summary.approval_queue %>
     <div class="metric-grid">
-      <div class="metric-card"><span>ActionCandidate</span><strong><%= approval.action_candidate_count %>件</strong></div>
+      <div class="metric-card"><span>行動候補</span><strong><%= approval.action_candidate_count %>件</strong></div>
       <%= link_to owner_approved_queue_path, class: "metric-card" do %>
-        <span>承認済みキュー</span><strong><%= approval.approved_remaining_count %>件</strong>
+        <span>承認済み</span><strong><%= approval.approved_remaining_count %>件</strong>
       <% end %>
       <div class="metric-card"><span>今日承認</span><strong><%= approval.today_approved_count %>件</strong></div>
-      <div class="metric-card"><span>今日Executor送信</span><strong><%= approval.today_executor_queued_count %>件</strong></div>
-      <div class="metric-card"><span>ExecutorTask approval_pending</span><strong><%= approval.executor_task_count %>件</strong></div>
-      <div class="metric-card"><span>Data Preparation</span><strong><%= approval.data_preparation_count %>件</strong></div>
+      <div class="metric-card"><span>今日実行指示へ送信</span><strong><%= approval.today_executor_queued_count %>件</strong></div>
+      <div class="metric-card"><span>実行承認待ち</span><strong><%= approval.executor_task_count %>件</strong></div>
+      <div class="metric-card"><span>学習準備</span><strong><%= approval.data_preparation_count %>件</strong></div>
     </div>
   </section>
 
   <section class="dashboard-section">
     <div class="section-heading">
       <h2>学習状況</h2>
-      <p>Judge補正とproxy_score補正を動かすための準備状況です。</p>
+      <p>予測精度と成長スコアを改善するための準備状況です。</p>
     </div>
     <% progress = @dashboard_summary.learning_progress %>
     <div class="metric-grid">
       <div class="metric-card"><span>AICOO成熟度</span><strong><%= @dashboard_summary.aicoo_maturity_score %>/100</strong><small><%= @dashboard_summary.aicoo_maturity_label %></small></div>
-      <div class="metric-card"><span>ActionResult</span><strong><%= progress.action_result_current %>/<%= progress.action_result_required %>件</strong></div>
-      <div class="metric-card"><span>Judge補正</span><strong><%= progress.judge_status %></strong><small><%= progress.evaluated_current %>/<%= progress.evaluated_required %>件 evaluated</small></div>
-      <div class="metric-card"><span>BusinessMetric</span><strong><%= progress.business_metric_current %>/<%= progress.business_metric_required %>日</strong></div>
-      <div class="metric-card"><span>RevenueEvent</span><strong><%= progress.revenue_event_current %>/<%= progress.revenue_event_required %>件</strong></div>
+      <div class="metric-card"><span>実行結果</span><strong><%= progress.action_result_current %>/<%= progress.action_result_required %>件</strong></div>
+      <div class="metric-card"><span>予測補正</span><strong><%= progress.judge_status %></strong><small><%= progress.evaluated_current %>/<%= progress.evaluated_required %>件 評価済み</small></div>
+      <div class="metric-card"><span>日次指標</span><strong><%= progress.business_metric_current %>/<%= progress.business_metric_required %>日</strong></div>
+      <div class="metric-card"><span>売上記録</span><strong><%= progress.revenue_event_current %>/<%= progress.revenue_event_required %>件</strong></div>
     </div>
   </section>
 
   <section class="dashboard-section">
     <div class="section-heading">
-      <h2>現在の評価比重</h2>
-      <p>固定フェーズではなく、各評価器の信頼度から自然に重み付けしています。</p>
+      <h2>現在の判断材料</h2>
+      <p>検索流入・サイト行動・予測精度・売上記録・学習準備のうち、今どれを信じているかを表示します。</p>
     </div>
     <div class="actions compact-actions">
-      <%= link_to "評価比重の推移を見る", owner_evaluator_trends_path, class: "button secondary" %>
+      <%= link_to "判断材料の推移を見る", owner_evaluator_trends_path, class: "button secondary" %>
     </div>
     <div class="metric-grid">
       <% @dashboard_summary.evaluator_confidence_summary.each do |entry| %>
         <div class="metric-card">
-          <span><%= entry.evaluator_type.upcase %></span>
+          <span><%= owner_evaluator_label(entry.evaluator_type) %></span>
           <strong>信頼度 <%= entry.confidence_score %></strong>
-          <small>貢献 <%= number_with_precision(entry.weighted_contribution_score, precision: 1) %></small>
+          <small>判断への影響 <%= number_with_precision(entry.weighted_contribution_score, precision: 1) %></small>
           <small>前回比 <%= entry.confidence_delta.nil? ? "-" : "%+d" % entry.confidence_delta %></small>
         </div>
       <% end %>
@@ -176,24 +186,24 @@
     <div class="metric-grid">
       <div class="metric-card"><span>売上</span><strong><%= number_to_currency(metrics.revenue_yen, unit: "¥", precision: 0) %></strong></div>
       <div class="metric-card"><span>利益</span><strong><%= number_to_currency(metrics.profit_yen, unit: "¥", precision: 0) %></strong></div>
-      <div class="metric-card"><span>proxy_score</span><strong><%= number_with_precision(metrics.proxy_score, precision: 1) %></strong></div>
+      <div class="metric-card"><span>成長スコア</span><strong><%= number_with_precision(metrics.proxy_score, precision: 1) %></strong></div>
       <div class="metric-card"><span>新規候補数</span><strong><%= metrics.new_candidate_count %>件</strong></div>
       <div class="metric-card"><span>評価完了数</span><strong><%= metrics.evaluated_count %>件</strong></div>
       <div class="metric-card"><span>LP公開数</span><strong><%= metrics.published_lp_count %>件</strong></div>
-      <div class="metric-card"><span>DailyRun結果</span><strong><%= metrics.daily_run_status %></strong></div>
+      <div class="metric-card"><span>日次処理</span><strong><%= metrics.daily_run_status %></strong></div>
     </div>
   </section>
 
   <section class="dashboard-section">
     <div class="section-heading">
       <h2>事業ランキング</h2>
-      <p>Business別に、収益価値と学習価値を合算して見ます。</p>
+      <p>事業別に、収益価値と学習価値を合算して見ます。</p>
     </div>
     <div class="table-wrap">
       <table>
         <thead>
           <tr>
-            <th>Business</th>
+            <th>事業</th>
             <th>総期待値</th>
             <th>収益価値</th>
             <th>学習価値</th>

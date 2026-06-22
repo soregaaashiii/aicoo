@@ -1,0 +1,24 @@
+<header class="aicoo-header aicoo-ceo-header">
+  <div class="aicoo-header-main">
+    <div>
+      <p class="aicoo-mode-eyebrow">AICOO CEO MODE</p>
+      <h1><%= title %></h1>
+      <p>意思決定専用画面</p>
+      <p class="aicoo-header-description"><%= description %></p>
+    </div>
+    <div class="aicoo-page-actions">
+      <%= link_to "詳細分析を見る", dashboard_path, class: "button secondary" %>
+      <% if local_assigns[:actions].present? %>
+        <%= actions %>
+      <% end %>
+    </div>
+  </div>
+
+  <%= render "shared/aicoo_mode_switcher", current_mode: :ceo %>
+
+  <nav class="aicoo-sub-tabs ceo-focus-tabs" aria-label="CEO mode navigation">
+    <%= link_to "今日やること", owner_dashboard_path, class: "aicoo-sub-tab#{' active' if request.path == owner_dashboard_path || request.path == '/owner/dashboard'}" %>
+    <%= link_to "承認済み", owner_approved_queue_path, class: "aicoo-sub-tab#{' active' if request.path.start_with?('/owner/approved_queue')}" %>
+    <%= link_to "判断材料の推移", owner_evaluator_trends_path, class: "aicoo-sub-tab#{' active' if request.path.start_with?('/owner/evaluator_trends')}" %>
+  </nav>
+</header>
