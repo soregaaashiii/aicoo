@@ -25,9 +25,9 @@ module AicooAnalytics
       AnalyticsSourceSetting.create!(
         source_type: "gsc",
         name: "Warning GSC",
-        site_url: "sc-domain:suelog.jp",
-        refresh_token: "refresh-token"
+        site_url: "sc-domain:suelog.jp"
       )
+      create_google_credential
 
       result = ScheduleReadinessChecker.new.call
 
@@ -39,7 +39,7 @@ module AicooAnalytics
         source_type: "gsc",
         name: "Ready GSC",
         site_url: "sc-domain:suelog.jp",
-        refresh_token: "refresh-token"
+        google_credential: create_google_credential
       )
       data_import = create_data_import
       setting.analytics_fetch_runs.create!(
@@ -70,6 +70,16 @@ module AicooAnalytics
         row_count: 1,
         raw_text: "query,clicks\nsample,1\n",
         imported_at: Time.current
+      )
+    end
+
+    def create_google_credential
+      AicooGoogleCredential.create!(
+        name: "Readiness Google",
+        client_id: "client",
+        client_secret: "secret",
+        refresh_token: "refresh",
+        connected_at: Time.current
       )
     end
   end

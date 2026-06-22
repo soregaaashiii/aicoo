@@ -491,10 +491,16 @@
       <div class="metric-card"><span>GSC接続済みサイト数</span><strong><%= @aicoo_datahub_summary.gsc_connected_site_count %></strong></div>
       <div class="metric-card"><span>GA4接続済みサイト数</span><strong><%= @aicoo_datahub_summary.ga4_connected_site_count %></strong></div>
       <div class="metric-card"><span>最終取得成功サイト数</span><strong><%= @aicoo_datahub_summary.successfully_fetched_site_count %></strong></div>
+      <div class="metric-card"><span>Google認証</span><strong><%= @aicoo_datahub_summary.google_credential_status %></strong></div>
+      <div class="metric-card"><span>Google認証利用サイト数</span><strong><%= @aicoo_datahub_summary.google_credential_site_count %></strong></div>
+      <div class="metric-card"><span>GSC未設定数</span><strong><%= @aicoo_datahub_summary.analytics_gsc_missing_count %></strong></div>
+      <div class="metric-card"><span>GA4未設定数</span><strong><%= @aicoo_datahub_summary.analytics_ga4_missing_count %></strong></div>
+      <div class="metric-card"><span>自動作成済みサイト数</span><strong><%= @aicoo_datahub_summary.auto_created_analytics_site_count %></strong></div>
     </div>
     <div class="actions compact-actions">
       <%= link_to "実績データを見る", admin_aicoo_datahub_path, class: "button secondary" %>
       <%= link_to "サイト別分析設定", admin_analytics_sites_path, class: "button secondary" %>
+      <%= link_to "Google認証", admin_google_credentials_path, class: "button secondary" %>
     </div>
     <p class="aicoo-lab-help">定期取得コマンド: <code>bin/rails aicoo:analytics:daily_fetch</code></p>
   </div>

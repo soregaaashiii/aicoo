@@ -58,7 +58,8 @@ module AicooAnalytics
         site_url: "sc-domain:suelog.jp",
         client_id: "saved-client",
         client_secret: "saved-secret",
-        refresh_token: "saved-refresh-token"
+        refresh_token: "saved-refresh-token",
+        authentication_mode: "individual"
       )
       fake_fetcher = FakeFailureFetcher.new(GoogleOauthClient::Error.new("Google OAuth error: 401 unauthorized_client"))
 

@@ -9,7 +9,8 @@ module AicooAnalytics
         site_url: "sc-domain:suelog.jp",
         client_id: "saved-client",
         client_secret: "saved-secret",
-        refresh_token: "saved-refresh-token"
+        refresh_token: "saved-refresh-token",
+        authentication_mode: "individual"
       )
       fake_client = FakeOauthClient.new
 
@@ -26,12 +27,19 @@ module AicooAnalytics
       )
     end
 
-    test "falls back to credentials json values" do
+    test "falls back to common google credential values" do
+      credential = AicooGoogleCredential.create!(
+        name: "Common Google",
+        client_id: "common-client",
+        client_secret: "common-secret",
+        refresh_token: "common-refresh-token",
+        connected_at: Time.current
+      )
       setting = AnalyticsSourceSetting.create!(
         source_type: "ga4",
         name: "Suelog GA4",
         property_id: "536889590",
-        credentials_json: '{"client_id":"json-client","client_secret":"json-secret","refresh_token":"json-refresh-token"}'
+        google_credential: credential
       )
       fake_client = FakeOauthClient.new
 
@@ -39,13 +47,38 @@ module AicooAnalytics
         assert_equal "access-token", GoogleAccessToken.new(setting).call
       end
 
-      assert_equal "json-client", fake_client.kwargs[:client_id]
-      assert_equal "json-secret", fake_client.kwargs[:client_secret]
-      assert_equal "json-refresh-token", fake_client.kwargs[:refresh_token]
+      assert_equal "common-client", fake_client.kwargs[:client_id]
+      assert_equal "common-secret", fake_client.kwargs[:client_secret]
+      assert_equal "common-refresh-token", fake_client.kwargs[:refresh_token]
       assert_equal(
-        "client_id_source=credentials_json client_secret_source=credentials_json refresh_token_source=credentials_json credentials_json_source=setting oauth_connected_at=missing",
+        "client_id_source=google_credential client_secret_source=google_credential refresh_token_source=google_credential credentials_json_source=missing oauth_connected_at=missing",
         fake_client.kwargs[:credential_source_summary]
       )
+    end
+
+    test "uses active common google credential when setting has no credential reference" do
+      AicooGoogleCredential.create!(
+        name: "Default Common Google",
+        client_id: "default-client",
+        client_secret: "default-secret",
+        refresh_token: "default-refresh-token",
+        connected_at: Time.current
+      )
+      setting = AnalyticsSourceSetting.create!(
+        source_type: "gsc",
+        name: "Suelog GSC",
+        site_url: "sc-domain:suelog.jp"
+      )
+      fake_client = FakeOauthClient.new
+
+      with_oauth_client(fake_client) do
+        assert_equal "access-token", GoogleAccessToken.new(setting).call
+      end
+
+      assert_equal "default-client", fake_client.kwargs[:client_id]
+      assert_equal "default-secret", fake_client.kwargs[:client_secret]
+      assert_equal "default-refresh-token", fake_client.kwargs[:refresh_token]
+      assert_includes fake_client.kwargs[:credential_source_summary], "client_id_source=google_credential"
     end
 
     test "falls back to env credentials when setting credentials are blank" do
@@ -71,12 +104,19 @@ module AicooAnalytics
       assert_equal "env-refresh-token", fake_client.kwargs[:refresh_token]
     end
 
-    test "uses env credentials before credentials json" do
+    test "uses common google credential before env credentials" do
+      credential = AicooGoogleCredential.create!(
+        name: "Common Google",
+        client_id: "common-client",
+        client_secret: "common-secret",
+        refresh_token: "common-refresh-token",
+        connected_at: Time.current
+      )
       setting = AnalyticsSourceSetting.create!(
         source_type: "ga4",
         name: "Suelog GA4",
         property_id: "536889590",
-        credentials_json: '{"client_id":"json-client","client_secret":"json-secret","refresh_token":"json-refresh-token"}'
+        google_credential: credential
       )
       fake_client = FakeOauthClient.new
 
@@ -90,11 +130,11 @@ module AicooAnalytics
         end
       end
 
-      assert_equal "env-client", fake_client.kwargs[:client_id]
-      assert_equal "env-secret", fake_client.kwargs[:client_secret]
-      assert_equal "env-refresh-token", fake_client.kwargs[:refresh_token]
+      assert_equal "common-client", fake_client.kwargs[:client_id]
+      assert_equal "common-secret", fake_client.kwargs[:client_secret]
+      assert_equal "common-refresh-token", fake_client.kwargs[:refresh_token]
       assert_equal(
-        "client_id_source=env client_secret_source=env refresh_token_source=env credentials_json_source=setting oauth_connected_at=missing",
+        "client_id_source=google_credential client_secret_source=google_credential refresh_token_source=google_credential credentials_json_source=missing oauth_connected_at=missing",
         fake_client.kwargs[:credential_source_summary]
       )
     end
@@ -126,7 +166,8 @@ module AicooAnalytics
         client_id: "saved-client",
         client_secret: "saved-secret",
         refresh_token: "saved-refresh-token",
-        credentials_json: nil
+        credentials_json: nil,
+        authentication_mode: "individual"
       )
       fake_client = FakeOauthClient.new
 
@@ -137,6 +178,32 @@ module AicooAnalytics
       assert_equal "saved-client", fake_client.kwargs[:client_id]
       assert_equal "saved-secret", fake_client.kwargs[:client_secret]
       assert_equal "saved-refresh-token", fake_client.kwargs[:refresh_token]
+    end
+
+    test "individual mode does not fall back to common google credential" do
+      AicooGoogleCredential.create!(
+        name: "Common Google",
+        client_id: "common-client",
+        client_secret: "common-secret",
+        refresh_token: "common-refresh-token",
+        connected_at: Time.current
+      )
+      setting = AnalyticsSourceSetting.create!(
+        source_type: "gsc",
+        name: "Individual missing GSC",
+        site_url: "sc-domain:suelog.jp",
+        authentication_mode: "individual"
+      )
+      fake_client = FakeOauthClient.new
+
+      with_oauth_client(fake_client) do
+        assert_equal "access-token", GoogleAccessToken.new(setting).call
+      end
+
+      assert_nil fake_client.kwargs[:client_id]
+      assert_nil fake_client.kwargs[:client_secret]
+      assert_nil fake_client.kwargs[:refresh_token]
+      assert_includes fake_client.kwargs[:credential_source_summary], "client_id_source=missing"
     end
 
     private

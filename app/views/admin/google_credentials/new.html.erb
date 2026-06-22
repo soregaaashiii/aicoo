@@ -1,0 +1,9 @@
+<% content_for :title, "Google認証を追加" %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "Google認証を追加",
+             description: "AICOO全体で使うGoogle OAuth認証を追加します。",
+             active_main: :datahub %>
+  <%= render "form", credential: @credential %>
+</div>

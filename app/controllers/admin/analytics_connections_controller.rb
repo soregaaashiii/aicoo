@@ -370,10 +370,10 @@ module Admin
     end
 
     def google_oauth_status
-      settings = AnalyticsSourceSetting.where(source_type: %w[gsc ga4])
+      credential = AicooGoogleCredential.default
       {
-        connected: settings.any? { |setting| setting.refresh_token.present? },
-        latest_connected_at: settings.maximum(:oauth_connected_at)
+        connected: credential&.connected? || false,
+        latest_connected_at: credential&.connected_at
       }
     end
 
@@ -383,7 +383,9 @@ module Admin
 
     AnalyticsConnection = Data.define(:business_name, :gsc_setting, :ga4_setting) do
       def credentials_status
-        return "設定済み" if env_credentials_present? || [ gsc_setting, ga4_setting ].compact.any? { |setting| saved_credentials_present?(setting) }
+        return "設定済み" if env_credentials_present? ||
+                        AicooGoogleCredential.default.present? ||
+                        [ gsc_setting, ga4_setting ].compact.any? { |setting| saved_credentials_present?(setting) }
 
         "未設定"
       end
@@ -404,12 +406,24 @@ module Admin
         [ gsc_setting, ga4_setting ].compact.any? { |setting| setting.credentials_json.present? } ? "設定済み" : "未設定"
       end
 
+      def google_credential_label
+        credential = [ gsc_setting, ga4_setting ].compact.map(&:effective_google_credential).compact.first ||
+                     AicooGoogleCredential.default
+        credential ? "共通Google認証" : "未設定"
+      end
+
       def last_fetched_at
         [ gsc_setting&.last_fetched_at, ga4_setting&.last_fetched_at, latest_fetch_run&.finished_at ].compact.max
       end
 
       def oauth_connected_at
-        [ gsc_setting&.oauth_connected_at, ga4_setting&.oauth_connected_at ].compact.max
+        [
+          gsc_setting&.oauth_connected_at,
+          ga4_setting&.oauth_connected_at,
+          gsc_setting&.effective_google_credential&.connected_at,
+          ga4_setting&.effective_google_credential&.connected_at,
+          AicooGoogleCredential.default&.connected_at
+        ].compact.max
       end
 
       def latest_fetch_status
@@ -474,9 +488,12 @@ module Admin
 
       def credential_status_for(column_name, env_key, json_key)
         return "設定済み" if ENV[env_key].present?
+        return "設定済み" if AicooGoogleCredential.default&.public_send(column_name).present?
 
         [ gsc_setting, ga4_setting ].compact.any? do |setting|
-          setting.public_send(column_name).present? || parsed_credentials(setting)[json_key].present?
+          setting.public_send(column_name).present? ||
+            setting.effective_google_credential&.public_send(column_name).present? ||
+            parsed_credentials(setting)[json_key].present?
         end ? "設定済み" : "未設定"
       end
 

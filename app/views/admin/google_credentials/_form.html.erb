@@ -1,0 +1,51 @@
+<% form_url = credential.persisted? ? admin_google_credential_path(credential) : admin_google_credentials_path %>
+
+<%= form_with model: credential, url: form_url, class: "form" do |form| %>
+  <% if credential.errors.any? %>
+    <div class="form-errors">
+      <ul>
+        <% credential.errors.full_messages.each do |message| %>
+          <li><%= message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div class="field">
+    <%= form.label :name, "名前" %>
+    <%= form.text_field :name, required: true %>
+  </div>
+  <div class="field checkbox-field">
+    <%= form.check_box :enabled %>
+    <%= form.label :enabled, "有効" %>
+  </div>
+  <div class="field">
+    <%= form.label :client_id, "Client ID" %>
+    <% if credential.client_id.present? %>
+      <p class="aicoo-lab-help">設定済み</p>
+    <% end %>
+    <%= form.text_field :client_id, value: nil, autocomplete: "off", placeholder: "設定済みなら空欄でOK" %>
+  </div>
+  <div class="field">
+    <%= form.label :client_secret, "Client Secret" %>
+    <% if credential.client_secret.present? %>
+      <p class="aicoo-lab-help">設定済み</p>
+    <% end %>
+    <%= form.password_field :client_secret, value: nil, autocomplete: "new-password", placeholder: "設定済みなら空欄でOK" %>
+  </div>
+  <div class="field">
+    <%= form.label :refresh_token, "Refresh Token" %>
+    <% if credential.refresh_token.present? %>
+      <p class="aicoo-lab-help">設定済み</p>
+    <% end %>
+    <%= form.password_field :refresh_token, value: nil, autocomplete: "new-password", placeholder: "通常はGoogle接続で保存します" %>
+  </div>
+  <div class="field">
+    <%= form.label :notes, "メモ" %>
+    <%= form.text_area :notes, rows: 4 %>
+  </div>
+  <div class="actions compact-actions">
+    <%= form.submit "保存", class: "button" %>
+    <%= link_to "一覧へ戻る", admin_google_credentials_path, class: "button secondary" %>
+  </div>
+<% end %>

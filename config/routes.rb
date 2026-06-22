@@ -57,7 +57,11 @@ Rails.application.routes.draw do
   end
 
   namespace :admin do
+    resources :google_credentials, except: %i[show destroy] do
+      get :connect, on: :member
+    end
     resources :analytics_sites, except: %i[show destroy] do
+      post :autolink, on: :collection
       member do
         post :fetch_gsc
         post :fetch_ga4

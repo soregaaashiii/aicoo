@@ -54,7 +54,9 @@ module Admin
         )
         landing_page = experiment.create_aicoo_lab_landing_page!(landing_page_params.merge(status: "preview_ready"))
 
-        patch publish_admin_aicoo_lab_experiment_landing_page_url(experiment)
+        assert_difference("AicooAnalyticsSite.count", 1) do
+          patch publish_admin_aicoo_lab_experiment_landing_page_url(experiment)
+        end
 
         assert_redirected_to admin_aicoo_lab_experiment_url(experiment)
         landing_page.reload
@@ -62,6 +64,7 @@ module Admin
         assert landing_page.published_slug.present?
         assert landing_page.published_at.present?
         assert_equal "running", experiment.reload.status
+        assert AicooAnalyticsSite.find_by(autolink_source_type: "AicooLabLandingPage", autolink_source_id: landing_page.id)
       end
 
       test "published landing page is public and records view event" do

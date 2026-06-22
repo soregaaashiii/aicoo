@@ -30,6 +30,13 @@ module Admin
       end
     end
 
+    def autolink
+      result = AicooAnalytics::SiteAutolinker.new(base_url: request.base_url).call
+      message = "分析設定を自動作成しました。作成 #{result.created_count}件、更新 #{result.updated_count}件、スキップ #{result.skipped_count}件。"
+      message += " #{result.warnings.first(3).join(' / ')}" if result.warnings.present?
+      redirect_to admin_analytics_sites_path, notice: message
+    end
+
     def fetch_gsc
       fetch_one(@site.gsc_setting, "GSC")
     end
@@ -68,6 +75,7 @@ module Admin
           :domain,
           :gsc_site_url,
           :ga4_property_id,
+          :authentication_mode,
           :enabled,
           :notes
         ]

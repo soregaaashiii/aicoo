@@ -643,6 +643,33 @@ class DashboardController < ApplicationController
                         .count
     end
 
+    def google_credential_status
+      AicooGoogleCredential.default&.connected? ? "接続済み" : "未接続"
+    end
+
+    def google_credential_site_count
+      credential = AicooGoogleCredential.default
+      return 0 unless credential
+
+      AicooAnalyticsSite
+        .joins(:analytics_source_settings)
+        .where(analytics_source_settings: { google_credential_id: credential.id })
+        .distinct
+        .count
+    end
+
+    def analytics_gsc_missing_count
+      AicooAnalyticsSite.where(gsc_site_url: [ nil, "" ]).count
+    end
+
+    def analytics_ga4_missing_count
+      AicooAnalyticsSite.where(ga4_property_id: [ nil, "" ]).count
+    end
+
+    def auto_created_analytics_site_count
+      AicooAnalyticsSite.where(auto_created: true).count
+    end
+
     private
 
     def analytics_schedule_readiness

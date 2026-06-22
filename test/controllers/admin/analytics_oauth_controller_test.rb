@@ -39,10 +39,16 @@ module Admin
       end
 
       assert_redirected_to admin_analytics_connections_url
+      credential = AicooGoogleCredential.default
+      assert_equal "env-client", credential.client_id
+      assert_equal "env-secret", credential.client_secret
+      assert_equal "new-refresh-token", credential.refresh_token
+      assert credential.connected_at.present?
       [ gsc.reload, ga4.reload ].each do |setting|
-        assert_equal "env-client", setting.client_id
-        assert_equal "env-secret", setting.client_secret
-        assert_equal "new-refresh-token", setting.refresh_token
+        assert_equal credential, setting.google_credential
+        assert_nil setting.client_id
+        assert_nil setting.client_secret
+        assert_nil setting.refresh_token
         assert_nil setting.credentials_json
         assert setting.oauth_connected_at.present?
       end
@@ -72,9 +78,10 @@ module Admin
       end
 
       [ gsc.reload, ga4.reload ].each do |setting|
-        assert_equal "env-client", setting.client_id
-        assert_equal "env-secret", setting.client_secret
-        assert_equal "new-refresh-token", setting.refresh_token
+        assert_equal AicooGoogleCredential.default, setting.google_credential
+        assert_nil setting.client_id
+        assert_nil setting.client_secret
+        assert_nil setting.refresh_token
         assert_nil setting.credentials_json
         assert setting.oauth_connected_at.present?
       end

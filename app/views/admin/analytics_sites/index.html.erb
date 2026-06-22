@@ -2,6 +2,7 @@
 
 <% header_actions = capture do %>
     <%= link_to "サイトを追加", new_admin_analytics_site_path, class: "button" %>
+    <%= button_to "AICOO内の事業・LPから分析設定を自動作成", autolink_admin_analytics_sites_path, method: :post, class: "button" %>
     <%= link_to "上級者向け設定", admin_analytics_sources_path, class: "button secondary" %>
 <% end %>
 
@@ -26,6 +27,9 @@
           <th>GSC site_url</th>
           <th>GA4 property_id</th>
           <th>有効</th>
+          <th>自動作成</th>
+          <th>認証方式</th>
+          <th>使用認証</th>
           <th>GSC状態</th>
           <th>GA4状態</th>
           <th>最終取得</th>
@@ -40,6 +44,9 @@
             <td><%= site.gsc_site_url.presence || "-" %></td>
             <td><%= site.ga4_property_id.presence || "-" %></td>
             <td><%= site.enabled? ? "有効" : "無効" %></td>
+            <td><span class="pill"><%= site.auto_created? ? "自動作成済み" : "手動" %></span></td>
+            <td><span class="pill"><%= site.shared_authentication? ? "共通" : "個別" %></span></td>
+            <td><span class="pill"><%= site.google_credential_label %></span></td>
             <td><span class="pill"><%= site.gsc_status %></span></td>
             <td><span class="pill"><%= site.ga4_status %></span></td>
             <td><%= [ site.last_gsc_fetch_at, site.last_ga4_fetch_at ].compact.max.then { |time| time ? l(time, format: :short) : "-" } %></td>
@@ -56,5 +63,19 @@
       </tbody>
     </table>
   </div>
+  <% @sites.each do |site| %>
+    <% if site.authentication_warning.present? %>
+      <p class="aicoo-lab-help"><%= site.name %>: <%= site.authentication_warning %></p>
+    <% end %>
+    <% if site.gsc_missing? %>
+      <p class="aicoo-lab-help"><%= site.name %>: GSC未設定</p>
+    <% end %>
+    <% if site.ga4_missing? %>
+      <p class="aicoo-lab-help"><%= site.name %>: GA4未設定</p>
+    <% end %>
+    <% if site.public_url_missing? %>
+      <p class="aicoo-lab-help"><%= site.name %>: 公開URL未設定</p>
+    <% end %>
+  <% end %>
 </section>
 </div>

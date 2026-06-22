@@ -48,6 +48,18 @@
       有効
     </label>
     <div class="field">
+      <%= form.label :authentication_mode, "認証方式" %>
+      <%= form.select :authentication_mode,
+                      options_for_select([
+                        [ "AICOO共通認証を使う", "shared" ],
+                        [ "この設定専用認証を使う", "individual" ]
+                      ], setting.authentication_mode.presence || "shared") %>
+    </div>
+    <div class="field">
+      <%= form.label :google_credential_id, "使用Google認証（任意）" %>
+      <%= form.collection_select :google_credential_id, AicooGoogleCredential.enabled.recent, :id, :name, include_blank: "共通Google認証を自動利用" %>
+    </div>
+    <div class="field">
       <%= form.label :client_id, "Client ID（任意）" %>
       <% if setting.client_id.present? %>
         <p class="aicoo-lab-help">設定済み。変更する場合だけ新しい値を入力してください。</p>

@@ -1,0 +1,9 @@
+<% content_for :title, "Google認証を編集" %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "Google認証を編集",
+             description: "secretやrefresh_tokenは空欄保存では消えません。",
+             active_main: :datahub %>
+  <%= render "form", credential: @credential %>
+</div>

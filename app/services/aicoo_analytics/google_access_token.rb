@@ -32,35 +32,131 @@ module AicooAnalytics
     end
 
     def credential_value(key)
-      setting_value(key) || env_value(key) || json_value(key)
+      credential_set.fetch(key)
     end
 
     def credential_source(key)
-      return "setting" if setting_value(key).present?
-      return "env" if env_value(key).present?
-      return "credentials_json" if json_value(key).present?
-
-      "missing"
+      credential_set_source
     end
 
-    def setting_value(key)
-      setting.public_send(key).presence
+    def credential_set
+      @credential_set ||=
+        case setting.authentication_mode
+        when "individual"
+          individual_credential_set
+        else
+          shared_credential_set
+        end
     end
 
-    def env_value(key)
-      ENV[env_key(key)].presence
+    def credential_set_source
+      @credential_set_source ||=
+        case setting.authentication_mode
+        when "individual"
+          individual_credential_source
+        else
+          shared_credential_source
+        end
     end
 
-    def json_value(key)
-      parsed_credentials[key.to_s].presence
+    def individual_credential_set
+      if individual_setting_credentials_present?
+        setting_credentials
+      elsif env_credentials_present?
+        env_credentials
+      else
+        missing_credentials
+      end
+    end
+
+    def individual_credential_source
+      if individual_setting_credentials_present?
+        "setting"
+      elsif env_credentials_present?
+        "env"
+      else
+        "missing"
+      end
+    end
+
+    def shared_credential_set
+      if common_google_credential.present?
+        google_credential_credentials
+      elsif env_credentials_present?
+        env_credentials
+      else
+        missing_credentials
+      end
+    end
+
+    def shared_credential_source
+      if common_google_credential.present?
+        "google_credential"
+      elsif env_credentials_present?
+        "env"
+      else
+        "missing"
+      end
+    end
+
+    def individual_setting_credentials_present?
+      setting.client_id.present? && setting.client_secret.present? && setting.refresh_token.present?
+    end
+
+    def common_google_credential
+      @common_google_credential ||= begin
+        credential = setting.google_credential
+        credential = AicooGoogleCredential.default unless credential&.enabled? && credential.connected?
+        credential if credential&.enabled? && credential.connected?
+      end
+    end
+
+    def env_credentials_present?
+      env_keys.values.all? { |key| ENV[key].present? }
+    end
+
+    def setting_credentials
+      {
+        client_id: setting.client_id,
+        client_secret: setting.client_secret,
+        refresh_token: setting.refresh_token
+      }
+    end
+
+    def google_credential_credentials
+      {
+        client_id: common_google_credential.client_id,
+        client_secret: common_google_credential.client_secret,
+        refresh_token: common_google_credential.refresh_token
+      }
+    end
+
+    def env_credentials
+      {
+        client_id: ENV["GOOGLE_CLIENT_ID"],
+        client_secret: ENV["GOOGLE_CLIENT_SECRET"],
+        refresh_token: ENV["GOOGLE_REFRESH_TOKEN"]
+      }
+    end
+
+    def missing_credentials
+      {
+        client_id: nil,
+        client_secret: nil,
+        refresh_token: nil
+      }
     end
 
     def env_key(key)
+      env_keys.fetch(key)
+    end
+
+    def env_keys
       {
         client_id: "GOOGLE_CLIENT_ID",
         client_secret: "GOOGLE_CLIENT_SECRET",
         refresh_token: "GOOGLE_REFRESH_TOKEN"
-      }.fetch(key)
+      }
     end
 
     def credentials_json_source

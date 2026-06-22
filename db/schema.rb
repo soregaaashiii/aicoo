@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_22_103000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_22_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -122,6 +122,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_22_103000) do
   end
 
   create_table "aicoo_analytics_sites", force: :cascade do |t|
+    t.string "authentication_mode", default: "shared", null: false
+    t.boolean "auto_created", default: false, null: false
+    t.integer "autolink_source_id"
+    t.string "autolink_source_type"
     t.bigint "business_id"
     t.datetime "created_at", null: false
     t.string "domain"
@@ -134,6 +138,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_22_103000) do
     t.text "notes"
     t.string "public_url"
     t.datetime "updated_at", null: false
+    t.index ["authentication_mode"], name: "index_aicoo_analytics_sites_on_authentication_mode"
+    t.index ["auto_created"], name: "index_aicoo_analytics_sites_on_auto_created"
+    t.index ["autolink_source_type", "autolink_source_id"], name: "idx_analytics_sites_on_autolink_source"
     t.index ["business_id"], name: "index_aicoo_analytics_sites_on_business_id"
     t.index ["domain"], name: "index_aicoo_analytics_sites_on_domain"
     t.index ["ga4_property_id"], name: "index_aicoo_analytics_sites_on_ga4_property_id"
@@ -203,6 +210,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_22_103000) do
     t.index ["execution_type"], name: "index_aicoo_executor_tasks_on_execution_type"
     t.index ["source_type", "source_id"], name: "index_aicoo_executor_tasks_on_source_type_and_source_id"
     t.index ["status"], name: "index_aicoo_executor_tasks_on_status"
+  end
+
+  create_table "aicoo_google_credentials", force: :cascade do |t|
+    t.text "client_id"
+    t.text "client_secret"
+    t.datetime "connected_at"
+    t.datetime "created_at", null: false
+    t.boolean "enabled", default: true, null: false
+    t.string "name", null: false
+    t.text "notes"
+    t.text "refresh_token"
+    t.datetime "updated_at", null: false
+    t.index ["enabled"], name: "index_aicoo_google_credentials_on_enabled"
   end
 
   create_table "aicoo_lab_ai_drafts", force: :cascade do |t|
@@ -499,12 +519,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_22_103000) do
 
   create_table "analytics_source_settings", force: :cascade do |t|
     t.bigint "aicoo_analytics_site_id"
+    t.string "authentication_mode", default: "shared", null: false
     t.text "client_id"
     t.text "client_secret"
     t.datetime "created_at", null: false
     t.text "credentials_json"
     t.boolean "enabled", default: true, null: false
     t.integer "fetch_days", default: 28, null: false
+    t.bigint "google_credential_id"
     t.datetime "last_fetched_at"
     t.string "name", null: false
     t.datetime "oauth_connected_at"
@@ -514,6 +536,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_22_103000) do
     t.string "source_type", null: false
     t.datetime "updated_at", null: false
     t.index ["aicoo_analytics_site_id"], name: "index_analytics_source_settings_on_aicoo_analytics_site_id"
+    t.index ["authentication_mode"], name: "index_analytics_source_settings_on_authentication_mode"
+    t.index ["google_credential_id"], name: "index_analytics_source_settings_on_google_credential_id"
     t.index ["source_type"], name: "index_analytics_source_settings_on_source_type"
   end
 
@@ -686,6 +710,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_22_103000) do
   add_foreign_key "aicoo_lab_signups", "aicoo_lab_landing_pages"
   add_foreign_key "analytics_fetch_runs", "analytics_source_settings"
   add_foreign_key "analytics_source_settings", "aicoo_analytics_sites"
+  add_foreign_key "analytics_source_settings", "aicoo_google_credentials", column: "google_credential_id"
   add_foreign_key "business_metric_dailies", "businesses"
   add_foreign_key "data_imports", "aicoo_analytics_sites"
   add_foreign_key "data_imports", "data_sources"

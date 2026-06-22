@@ -15,9 +15,13 @@ module Admin
       assert_includes response.body, "GSC取得"
       assert_includes response.body, "GA4取得"
       assert_includes response.body, "両方取得"
+      assert_includes response.body, "認証方式"
+      assert_includes response.body, "使用認証"
     end
 
     test "creates analytics site and source settings" do
+      credential = create_google_credential
+
       assert_difference("AicooAnalyticsSite.count", 1) do
         assert_difference("AnalyticsSourceSetting.count", 2) do
           post admin_analytics_sites_url, params: {
@@ -27,6 +31,7 @@ module Admin
               domain: "suelog.jp",
               gsc_site_url: "sc-domain:suelog.jp",
               ga4_property_id: "536889590",
+              authentication_mode: "shared",
               enabled: "1"
             }
           }
@@ -34,8 +39,50 @@ module Admin
       end
 
       site = AicooAnalyticsSite.find_by!(name: "吸えログ")
-      assert_equal site, AnalyticsSourceSetting.find_by!(source_type: "gsc", site_url: "sc-domain:suelog.jp").aicoo_analytics_site
-      assert_equal site, AnalyticsSourceSetting.find_by!(source_type: "ga4", property_id: "536889590").aicoo_analytics_site
+      gsc = AnalyticsSourceSetting.find_by!(source_type: "gsc", site_url: "sc-domain:suelog.jp")
+      ga4 = AnalyticsSourceSetting.find_by!(source_type: "ga4", property_id: "536889590")
+      assert_equal site, gsc.aicoo_analytics_site
+      assert_equal site, ga4.aicoo_analytics_site
+      assert_equal "shared", gsc.authentication_mode
+      assert_equal "shared", ga4.authentication_mode
+      assert_equal credential, gsc.google_credential
+      assert_equal credential, ga4.google_credential
+    end
+
+    test "creates individual authentication source settings" do
+      post admin_analytics_sites_url, params: {
+        aicoo_analytics_site: {
+          name: "個別サイト",
+          gsc_site_url: "sc-domain:individual.jp",
+          ga4_property_id: "123456789",
+          authentication_mode: "individual",
+          enabled: "1"
+        }
+      }
+
+      site = AicooAnalyticsSite.find_by!(name: "個別サイト")
+      [ site.gsc_setting, site.ga4_setting ].each do |setting|
+        assert_equal "individual", setting.authentication_mode
+        assert_nil setting.google_credential
+      end
+    end
+
+    test "shows warning for individual authentication without credentials" do
+      AicooAnalyticsSite.create!(name: "個別サイト", gsc_site_url: "sc-domain:individual.jp", authentication_mode: "individual")
+
+      get admin_analytics_sites_url
+
+      assert_response :success
+      assert_includes response.body, "このサイトは個別認証を使う設定ですが、認証情報が未設定です"
+    end
+
+    test "shows warning for shared authentication without common credential" do
+      AicooAnalyticsSite.create!(name: "共通サイト", gsc_site_url: "sc-domain:shared.jp", authentication_mode: "shared")
+
+      get admin_analytics_sites_url
+
+      assert_response :success
+      assert_includes response.body, "AICOO共通Google認証が未接続です"
     end
 
     test "reuses existing source setting" do
@@ -73,7 +120,60 @@ module Admin
       assert_includes response.body, "GA4は未設定のためスキップしました。"
     end
 
+    test "autolink creates analytics site from published landing pages" do
+      landing_page = create_published_landing_page
+
+      assert_difference("AicooAnalyticsSite.count", 1) do
+        post autolink_admin_analytics_sites_url
+      end
+
+      site = AicooAnalyticsSite.find_by!(autolink_source_type: "AicooLabLandingPage", autolink_source_id: landing_page.id)
+      assert_redirected_to admin_analytics_sites_url
+      assert site.auto_created?
+      assert_equal "shared", site.authentication_mode
+    end
+
+    test "shows gsc and ga4 missing warnings" do
+      AicooAnalyticsSite.create!(name: "Auto LP", public_url: "https://lp.example.com", domain: "lp.example.com", auto_created: true)
+
+      get admin_analytics_sites_url
+
+      assert_response :success
+      assert_includes response.body, "自動作成済み"
+      assert_includes response.body, "GSC未設定"
+      assert_includes response.body, "GA4未設定"
+    end
+
     private
+
+    def create_google_credential
+      AicooGoogleCredential.create!(
+        name: "AICOO共通Google認証",
+        client_id: "client",
+        client_secret: "secret",
+        refresh_token: "refresh",
+        connected_at: Time.current
+      )
+    end
+
+    def create_published_landing_page
+      experiment = AicooLabExperiment.create!(
+        title: "Analytics autolink publish",
+        experiment_type: "lp",
+        acquisition_channel: "sns",
+        status: "preview_ready",
+        approval_status: "approved"
+      )
+      landing_page = experiment.create_aicoo_lab_landing_page!(
+        headline: "Analytics autolink headline",
+        subheadline: "Sub",
+        body: "Body",
+        cta_text: "登録する",
+        status: "preview_ready"
+      )
+      landing_page.publish!
+      landing_page
+    end
 
     def with_runner_stub(fake_runner)
       original_new = AicooAnalytics::FetchRunner.method(:new)

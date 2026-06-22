@@ -1,12 +1,15 @@
 class AnalyticsSourceSetting < ApplicationRecord
   SOURCE_TYPES = %w[ga4 gsc].freeze
+  AUTHENTICATION_MODES = %w[shared individual].freeze
 
   has_many :analytics_fetch_runs, dependent: :destroy
   belongs_to :aicoo_analytics_site, optional: true
+  belongs_to :google_credential, class_name: "AicooGoogleCredential", optional: true
 
   before_validation :set_defaults
 
   validates :source_type, inclusion: { in: SOURCE_TYPES }
+  validates :authentication_mode, inclusion: { in: AUTHENTICATION_MODES }
   validates :name, presence: true
   validates :fetch_days, numericality: { only_integer: true, greater_than: 0 }
   validates :property_id, presence: true, if: -> { source_type == "ga4" }
@@ -20,6 +23,28 @@ class AnalyticsSourceSetting < ApplicationRecord
     analytics_fetch_runs.recent.first
   end
 
+  def effective_google_credential
+    return nil unless shared_authentication?
+
+    google_credential if google_credential&.enabled? && google_credential.connected?
+  end
+
+  def uses_common_google_credential?
+    shared_authentication? && effective_google_credential.present?
+  end
+
+  def individual_credentials_present?
+    client_id.present? && client_secret.present? && refresh_token.present?
+  end
+
+  def shared_authentication?
+    authentication_mode == "shared"
+  end
+
+  def individual_authentication?
+    authentication_mode == "individual"
+  end
+
   def duplicate_enabled?
     duplicate_enabled_scope.exists?
   end
@@ -29,6 +54,7 @@ class AnalyticsSourceSetting < ApplicationRecord
   def set_defaults
     self.enabled = true if enabled.nil?
     self.fetch_days = 28 if fetch_days.blank?
+    self.authentication_mode = "shared" if authentication_mode.blank?
   end
 
   def unique_enabled_gsc_site_url

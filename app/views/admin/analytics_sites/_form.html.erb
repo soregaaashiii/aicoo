@@ -30,6 +30,17 @@
     <%= form.label :ga4_property_id, "GA4 property_id" %>
     <%= form.text_field :ga4_property_id, placeholder: "536889590" %>
   </div>
+  <div class="field">
+    <%= form.label :authentication_mode, "認証方式" %>
+    <%= form.select :authentication_mode,
+                    options_for_select([
+                      [ "AICOO共通認証を使う", "shared" ],
+                      [ "このサイト専用認証を使う", "individual" ]
+                    ], site.authentication_mode.presence || "shared") %>
+    <p class="aicoo-lab-help">
+      個別認証を使う場合、上級者向け設定でGSC/GA4両方に同じ client_id / client_secret / refresh_token を保存してください。
+    </p>
+  </div>
   <label class="checkbox-label">
     <%= form.check_box :enabled %>
     有効

@@ -37,7 +37,8 @@ module AicooAnalytics
         [
           source_type_check(setting),
           ga4_property_check(setting),
-          gsc_site_url_check(setting)
+          gsc_site_url_check(setting),
+          authentication_mode_check(setting)
         ].compact
       end
     end
@@ -62,20 +63,38 @@ module AicooAnalytics
       error("#{setting.name} site_url", "GSC設定にsite_urlがありません")
     end
 
+    def authentication_mode_check(setting)
+      if setting.individual_authentication? && !setting.individual_credentials_present?
+        warning("#{setting.name} 認証方式", "この設定は個別認証ですが、個別認証情報が未設定です")
+      elsif setting.shared_authentication? && AicooGoogleCredential.default.blank?
+        warning("#{setting.name} 認証方式", "AICOO共通Google認証が未接続です")
+      else
+        ok("#{setting.name} 認証方式", setting.shared_authentication? ? "共通認証を使います" : "個別認証を使います")
+      end
+    end
+
     def credentials_check
       return ok("認証情報", "認証情報が設定されています") if credentials_present?
 
-      error("認証情報", "client_id、client_secret、credentials_json、refresh_token、またはGOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / GOOGLE_REFRESH_TOKENが不足しています")
+      error("認証情報", "共通Google認証、個別認証、またはGOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / GOOGLE_REFRESH_TOKENが不足しています")
     end
 
     def credentials_present?
-      setting_credentials_present? || env_credentials_present?
+      setting_credentials_present? || google_credential_present? || env_credentials_present?
     end
 
     def setting_credentials_present?
       enabled_settings.any? do |setting|
-        setting.client_id.present? || setting.client_secret.present? || setting.credentials_json.present? || setting.refresh_token.present?
+        if setting.individual_authentication?
+          setting.individual_credentials_present?
+        else
+          setting.effective_google_credential.present?
+        end
       end
+    end
+
+    def google_credential_present?
+      AicooGoogleCredential.default.present?
     end
 
     def env_credentials_present?

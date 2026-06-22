@@ -74,10 +74,12 @@ module Admin
           :property_id,
           :site_url,
           :enabled,
+          :authentication_mode,
           :client_id,
           :client_secret,
           :credentials_json,
           :refresh_token,
+          :google_credential_id,
           :fetch_days
         ]
       )
