@@ -13,13 +13,11 @@
       <tr>
         <th>行動</th>
         <th>事業</th>
-        <th>実行日</th>
         <th>評価日</th>
         <th>状態</th>
         <th>予測期待利益</th>
         <th>実績利益</th>
-        <th>誤差</th>
-        <th></th>
+        <th>操作</th>
       </tr>
     </thead>
     <tbody>
@@ -27,13 +25,11 @@
         <tr>
           <td><%= link_to result.action_candidate.title, result.action_candidate %></td>
           <td><%= link_to result.business.name, result.business %></td>
-          <td><%= result.executed_on %></td>
           <td><%= result.evaluated_on %></td>
           <td><span class="pill"><%= result.evaluation_status %></span></td>
           <td class="number"><%= number_to_currency(result.predicted_expected_profit_yen, unit: "¥", precision: 0) %></td>
           <td class="number"><%= number_to_currency(result.actual_profit_yen, unit: "¥", precision: 0) %></td>
-          <td class="number"><%= number_to_currency(result.prediction_error_yen, unit: "¥", precision: 0) %></td>
-          <td><%= link_to "詳細", result %></td>
+          <td><%= link_to "詳細", result, class: "button secondary" %></td>
         </tr>
       <% end %>
     </tbody>

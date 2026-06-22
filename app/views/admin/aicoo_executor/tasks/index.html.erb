@@ -43,7 +43,6 @@
       <thead>
         <tr>
           <th>タイトル</th>
-          <th>元データ</th>
           <th>実行タイプ</th>
           <th>見積時間</th>
           <th>状態</th>
@@ -55,7 +54,6 @@
         <% @tasks.each do |task| %>
           <tr>
             <td><%= link_to task.title, admin_aicoo_executor_task_path(task) %></td>
-            <td><%= task.source_type %>#<%= task.source_id %></td>
             <td><span class="pill"><%= task.execution_type %></span></td>
             <td class="number"><%= task.estimated_minutes || "-" %>分</td>
             <td><%= aicoo_executor_status_label(task.status) %></td>

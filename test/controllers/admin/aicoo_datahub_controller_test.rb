@@ -58,7 +58,7 @@ module Admin
       assert_response :success
       assert_includes response.body, "DataHub view scoring lab"
       assert_includes response.body, "新規事業検証"
-      assert_includes response.body, "使える指標"
+      assert_includes response.body, "採点画面"
       assert_includes response.body, admin_aicoo_lab_scoring_queue_snapshot_path(experiment, 30)
     end
 

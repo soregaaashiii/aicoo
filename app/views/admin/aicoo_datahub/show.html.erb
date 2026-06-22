@@ -97,8 +97,6 @@
         <tr>
           <th>対象</th>
           <th>名称</th>
-          <th>理由</th>
-          <th>使える指標</th>
           <th>採点画面</th>
         </tr>
       </thead>
@@ -107,8 +105,6 @@
           <tr>
             <td><span class="pill"><%= aicoo_source_label(candidate.target_type) %></span></td>
             <td><%= candidate.title %></td>
-            <td><%= candidate.reason %></td>
-            <td><code><%= candidate.available_metrics.to_json %></code></td>
             <td><%= link_to "開く", candidate.suggested_action_url, class: "button secondary" %></td>
           </tr>
         <% end %>
@@ -130,7 +126,6 @@
           <th>種類</th>
           <th>ID</th>
           <th>取得日時</th>
-          <th>内容</th>
         </tr>
       </thead>
       <tbody>
@@ -139,7 +134,6 @@
             <td><span class="pill"><%= aicoo_source_label(snapshot.source_type) %></span></td>
             <td class="number"><%= snapshot.source_id %></td>
             <td><%= l(snapshot.captured_at, format: :short) %></td>
-            <td><code><%= truncate(snapshot.payload.to_json, length: 160) %></code></td>
           </tr>
         <% end %>
       </tbody>

@@ -31,11 +31,7 @@
               <th>選択</th>
               <th>タイトル</th>
               <th>事業</th>
-              <th>行動タイプ</th>
               <th>総期待値</th>
-              <th>収益価値</th>
-              <th>学習価値</th>
-              <th>作成元</th>
               <th>承認日時</th>
               <th>信頼度</th>
             </tr>
@@ -46,17 +42,13 @@
                 <td><%= check_box_tag "action_candidate_ids[]", action_candidate.id, false, id: "action_candidate_#{action_candidate.id}" %></td>
                 <td><%= link_to action_candidate.title, action_candidate_path(action_candidate) %></td>
                 <td><%= action_candidate.business.name %></td>
-                <td><%= action_candidate.action_type %></td>
                 <td><%= number_to_currency(action_candidate.expected_total_value_yen, unit: "¥", precision: 0) %></td>
-                <td><%= number_to_currency(action_candidate.expected_revenue_value_yen, unit: "¥", precision: 0) %></td>
-                <td><%= number_to_currency(action_candidate.expected_learning_value_yen, unit: "¥", precision: 0) %></td>
-                <td><%= action_candidate.generation_source %></td>
                 <td><%= action_candidate.approved_at ? l(action_candidate.approved_at, format: :short) : "-" %></td>
                 <td><%= action_candidate.confidence_score.to_i %></td>
               </tr>
             <% end %>
             <% if @approved_candidates.empty? %>
-              <tr><td colspan="10">承認済み候補はありません。</td></tr>
+              <tr><td colspan="6">承認済み候補はありません。</td></tr>
             <% end %>
           </tbody>
         </table>

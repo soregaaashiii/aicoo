@@ -19,9 +19,8 @@
       <tr>
         <th>事業名</th>
         <th>状態</th>
-        <th>説明</th>
         <th>行動候補数</th>
-        <th></th>
+        <th>操作</th>
       </tr>
     </thead>
     <tbody>
@@ -29,9 +28,13 @@
         <tr>
           <td><%= link_to business.name, business %></td>
           <td><span class="pill"><%= business.status %></span></td>
-          <td><%= truncate(business.description, length: 80) %></td>
           <td class="number"><%= business.action_candidates.count %></td>
-          <td><%= link_to "Edit", edit_business_path(business) %></td>
+          <td>
+            <div class="actions compact-actions">
+              <%= link_to "詳細", business, class: "button secondary" %>
+              <%= link_to "編集", edit_business_path(business), class: "button secondary" %>
+            </div>
+          </td>
         </tr>
       <% end %>
     </tbody>

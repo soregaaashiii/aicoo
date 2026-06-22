@@ -38,13 +38,8 @@
             <th>実行日時</th>
             <th>対象日</th>
             <th>状態</th>
-            <th>代理指標</th>
-            <th>重み補正</th>
             <th>候補生成</th>
             <th>結果評価</th>
-            <th>補正ログ</th>
-            <th>データ整備候補</th>
-            <th>自動投入</th>
             <th>詳細</th>
           </tr>
         </thead>
@@ -54,18 +49,13 @@
               <td><%= daily_run.started_at ? l(daily_run.started_at, format: :short) : "-" %></td>
               <td><%= daily_run.target_date %></td>
               <td><span class="pill"><%= daily_run.status %></span></td>
-              <td class="number"><%= daily_run.business_metrics_imported_count %></td>
-              <td class="number"><%= daily_run.proxy_weights_adjusted_count %></td>
               <td class="number"><%= daily_run.action_candidates_generated_count %></td>
               <td class="number"><%= daily_run.action_results_evaluated_count %></td>
-              <td class="number"><%= daily_run.score_snapshots_created_count %></td>
-              <td class="number"><%= daily_run.data_preparation_candidates_count %></td>
-              <td class="number"><%= daily_run.data_preparation_auto_queued_count %></td>
               <td><%= link_to "詳細", daily_run, class: "button secondary" %></td>
             </tr>
           <% end %>
           <% if @daily_runs.empty? %>
-            <tr><td colspan="11">まだDaily Runはありません。</td></tr>
+            <tr><td colspan="6">まだDaily Runはありません。</td></tr>
           <% end %>
         </tbody>
       </table>
