@@ -12,6 +12,18 @@ module AicooInsight
       scope.active_for_ranking.order(Arel.sql("expected_profit_yen DESC NULLS LAST, neglect_loss_90d_yen DESC NULLS LAST")).first
     end
 
+    def latest_run
+      AicooInsightGenerationRun.recent.first
+    end
+
+    def failed_count
+      AicooInsightGenerationRun.failed.count
+    end
+
+    def recent_runs(limit = 20)
+      AicooInsightGenerationRun.recent.limit(limit)
+    end
+
     def recent_actions(limit = 20)
       scope.includes(:business).order(created_at: :desc).limit(limit)
     end

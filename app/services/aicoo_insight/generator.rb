@@ -26,7 +26,28 @@ module AicooInsight
 
     DATE_KEYS = %w[date recorded_on occurred_on event_date].freeze
 
-    def self.generate_all!
+    def self.generate_all!(source: nil)
+      return generate_all_without_run! if source.blank?
+
+      run = AicooInsightGenerationRun.create!(source:, status: "running", started_at: Time.current)
+      result = generate_all_without_run!
+      run.update!(
+        status: "success",
+        finished_at: Time.current,
+        generated_count: result.created_count,
+        skipped_count: result.skipped_count
+      )
+      result
+    rescue StandardError => e
+      run&.update!(
+        status: "failed",
+        finished_at: Time.current,
+        error_message: "#{e.class}: #{e.message}"
+      )
+      raise
+    end
+
+    def self.generate_all_without_run!
       created = []
       skipped = []
 

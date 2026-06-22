@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_22_130000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_22_141000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -225,6 +225,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_22_130000) do
     t.text "refresh_token"
     t.datetime "updated_at", null: false
     t.index ["enabled"], name: "index_aicoo_google_credentials_on_enabled"
+  end
+
+  create_table "aicoo_insight_generation_runs", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.text "error_message"
+    t.datetime "finished_at"
+    t.integer "generated_count", default: 0, null: false
+    t.integer "skipped_count", default: 0, null: false
+    t.string "source", default: "manual", null: false
+    t.datetime "started_at", null: false
+    t.string "status", default: "running", null: false
+    t.datetime "updated_at", null: false
+    t.index ["source"], name: "index_aicoo_insight_generation_runs_on_source"
+    t.index ["started_at"], name: "index_aicoo_insight_generation_runs_on_started_at"
+    t.index ["status"], name: "index_aicoo_insight_generation_runs_on_status"
   end
 
   create_table "aicoo_lab_ai_drafts", force: :cascade do |t|

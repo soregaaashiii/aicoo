@@ -134,6 +134,11 @@
     <div class="metric-card"><span>Insight件数</span><strong><%= @aicoo_insight_summary.total_count %></strong></div>
     <div class="metric-card"><span>今日生成した改善案</span><strong><%= @aicoo_insight_summary.today_count %></strong></div>
     <div class="metric-card">
+      <span>最終Insight生成日時</span>
+      <strong><%= @aicoo_insight_summary.latest_run ? l(@aicoo_insight_summary.latest_run.started_at, format: :short) : "-" %></strong>
+    </div>
+    <div class="metric-card"><span>Insight生成失敗件数</span><strong><%= @aicoo_insight_summary.failed_count %></strong></div>
+    <div class="metric-card">
       <span>最重要改善案</span>
       <% if @aicoo_insight_summary.top_action %>
         <strong><%= link_to @aicoo_insight_summary.top_action.title, @aicoo_insight_summary.top_action %></strong>

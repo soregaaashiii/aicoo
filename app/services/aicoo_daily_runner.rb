@@ -30,6 +30,9 @@ class AicooDailyRunner
   def execute_steps!(run)
     log!("Daily Run started target_date=#{target_date}")
 
+    datahub_run = AicooDataHub::DailyCollector.new.call
+    log!("DataHub collected snapshots count=#{datahub_run.snapshot_count}")
+
     imported_results = BusinessMetricDailyImporter.import_all!(date: target_date)
     run.update!(business_metrics_imported_count: imported_results.size)
     log!("BusinessMetricDaily imported count=#{imported_results.size}")
@@ -42,6 +45,10 @@ class AicooDailyRunner
     generated_count = generation_results.sum(&:created_count)
     run.update!(action_candidates_generated_count: generated_count)
     log!("ActionCandidate generated count=#{generated_count}")
+
+    insight_result = AicooInsight::Generator.generate_all!(source: "daily_run")
+    log!("Insight generated count=#{insight_result.created_count}")
+    log!("Insight skipped count=#{insight_result.skipped_count}")
 
     evaluated_results = ActionResultEvaluator.evaluate_pending!
     run.update!(action_results_evaluated_count: evaluated_results.size)

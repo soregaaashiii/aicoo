@@ -23,6 +23,9 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
       assert_equal 5, run.data_preparation_candidates_count
       assert_equal 3, run.data_preparation_auto_queued_count
       assert_match "Daily Run finished", run.run_log
+      assert_match "DataHub collected snapshots count=4", run.run_log
+      assert_match "Insight generated count=1", run.run_log
+      assert_match "Insight skipped count=2", run.run_log
       assert_match "ActionCandidate score snapshots created count=3", run.run_log
       assert_match "Data preparation candidates: 5", run.run_log
       assert_match "Auto queued: 3", run.run_log
@@ -31,7 +34,7 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
       assert_match "MetaEvaluationSnapshot created count=5", run.run_log
       assert_match "Most trusted evaluator: gsc", run.run_log
       assert_match "GSC average confidence=82.0", run.run_log
-      assert_equal %i[import adjust_all generate evaluate snapshot queue meta_snapshot], order
+      assert_equal %i[datahub import adjust_all generate insight evaluate snapshot queue meta_snapshot], order
     end
   end
 
@@ -79,33 +82,49 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
       order << :import
       [ Object.new, Object.new ]
     }) do
-      with_singleton_stub(ProxyScoreWeightAdjuster, :new, -> { adjuster }) do
-        with_singleton_stub(MetricActionCandidateGenerator, :generate_all!, -> {
-          order << :generate
-          generator_results
-        }) do
-          with_singleton_stub(ActionResultEvaluator, :evaluate_pending!, -> {
-            order << :evaluate
-            evaluated_results
+      with_singleton_stub(AicooDataHub::DailyCollector, :new, -> { fake_datahub_collector(order) }) do
+        with_singleton_stub(ProxyScoreWeightAdjuster, :new, -> { adjuster }) do
+          with_singleton_stub(MetricActionCandidateGenerator, :generate_all!, -> {
+            order << :generate
+            generator_results
           }) do
-            with_method_stub(ActionCandidateScoreSnapshotter, :snapshot_top_candidates!, ->(date:) {
-              order << :snapshot
-              ActionCandidateScoreSnapshotter::Result.new(
-                snapshots: [ Object.new, Object.new, Object.new ],
-                created_count: 3,
-                rank_up_count: 1,
-                rank_down_count: 1,
-                no_adjustment_count: 1
-              )
+            with_singleton_stub(AicooInsight::Generator, :generate_all!, ->(source:) {
+              order << :insight
+              AicooInsight::Generator::Result.new(created: [ Object.new ], skipped: [ Object.new, Object.new ])
             }) do
-              with_singleton_stub(DataPreparationExecutorQueuer, :new, -> { fake_queuer(order) }) do
-                with_singleton_stub(MetaEvaluationSnapshotter, :new, -> { fake_meta_snapshotter(order) }) do
-                  yield
+              with_singleton_stub(ActionResultEvaluator, :evaluate_pending!, -> {
+                order << :evaluate
+                evaluated_results
+              }) do
+                with_method_stub(ActionCandidateScoreSnapshotter, :snapshot_top_candidates!, ->(date:) {
+                  order << :snapshot
+                  ActionCandidateScoreSnapshotter::Result.new(
+                    snapshots: [ Object.new, Object.new, Object.new ],
+                    created_count: 3,
+                    rank_up_count: 1,
+                    rank_down_count: 1,
+                    no_adjustment_count: 1
+                  )
+                }) do
+                  with_singleton_stub(DataPreparationExecutorQueuer, :new, -> { fake_queuer(order) }) do
+                    with_singleton_stub(MetaEvaluationSnapshotter, :new, -> { fake_meta_snapshotter(order) }) do
+                      yield
+                    end
+                  end
                 end
               end
             end
           end
         end
+      end
+    end
+  end
+
+  def fake_datahub_collector(order)
+    Object.new.tap do |collector|
+      collector.define_singleton_method(:call) do
+        order << :datahub
+        AicooDataHubCollectionRun.new(status: "success", started_at: Time.current, finished_at: Time.current, snapshot_count: 4)
       end
     end
   end

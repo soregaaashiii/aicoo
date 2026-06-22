@@ -16,6 +16,8 @@
     <div class="metric-grid">
       <div class="metric-card"><span>Insight件数</span><strong><%= @summary.total_count %></strong></div>
       <div class="metric-card"><span>今日生成</span><strong><%= @summary.today_count %></strong></div>
+      <div class="metric-card"><span>最終生成</span><strong><%= @summary.latest_run ? l(@summary.latest_run.started_at, format: :short) : "-" %></strong></div>
+      <div class="metric-card"><span>生成失敗</span><strong><%= @summary.failed_count %></strong></div>
       <div class="metric-card">
         <span>最重要改善案</span>
         <strong><%= @summary.top_action ? number_to_currency(@summary.top_action.expected_profit_yen, unit: "¥", precision: 0) : "-" %></strong>
@@ -60,6 +62,43 @@
           <% end %>
           <% if @insights.empty? %>
             <tr><td colspan="7">まだ改善案はありません。「改善案を生成」を押してください。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>生成履歴</h2>
+      <p>手動生成とDaily Runによる自動生成の結果です。</p>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>実行日時</th>
+            <th>source</th>
+            <th>status</th>
+            <th>生成</th>
+            <th>スキップ</th>
+            <th>エラー</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @generation_runs.each do |run| %>
+            <tr>
+              <td><%= l(run.started_at, format: :short) %></td>
+              <td><span class="pill"><%= run.source %></span></td>
+              <td><span class="pill"><%= run.status %></span></td>
+              <td class="number"><%= run.generated_count %></td>
+              <td class="number"><%= run.skipped_count %></td>
+              <td><%= run.error_message.presence || "-" %></td>
+            </tr>
+          <% end %>
+          <% if @generation_runs.empty? %>
+            <tr><td colspan="6">まだ生成履歴はありません。</td></tr>
           <% end %>
         </tbody>
       </table>

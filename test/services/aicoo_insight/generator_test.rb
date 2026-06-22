@@ -114,6 +114,36 @@ module AicooInsight
       assert_includes ranking.revenue_rankings.map(&:source_id), candidate.id
     end
 
+    test "generate all with source records successful generation run" do
+      business = create_business("Run success insight")
+      create_gsc_snapshot(business, rows: [
+        { "query" => "京橋 喫煙", "impressions" => 240, "clicks" => 1, "ctr" => 0.004, "position" => 4 }
+      ])
+
+      result = Generator.generate_all!(source: "manual")
+      run = AicooInsightGenerationRun.last
+
+      assert_equal 1, result.created_count
+      assert_equal "manual", run.source
+      assert_equal "success", run.status
+      assert_equal 1, run.generated_count
+      assert_equal 0, run.skipped_count
+      assert run.finished_at
+    end
+
+    test "generate all with source records failed generation run" do
+      with_singleton_stub(Generator, :generate_all_without_run!, -> { raise RuntimeError, "insight boom" }) do
+        assert_raises(RuntimeError) do
+          Generator.generate_all!(source: "daily_run")
+        end
+      end
+
+      run = AicooInsightGenerationRun.last
+      assert_equal "daily_run", run.source
+      assert_equal "failed", run.status
+      assert_match "RuntimeError: insight boom", run.error_message
+    end
+
     private
 
     def create_business(name)
@@ -126,6 +156,16 @@ module AicooInsight
         source_id: business.id,
         payload: { "business_id" => business.id, "rows" => rows }
       )
+    end
+
+    def with_singleton_stub(klass, method_name, replacement)
+      original = klass.method(method_name)
+      klass.define_singleton_method(method_name) { |*args, **kwargs| replacement.call(*args, **kwargs) }
+      yield
+    ensure
+      klass.define_singleton_method(method_name) do |*args, **kwargs, &block|
+        original.call(*args, **kwargs, &block)
+      end
     end
   end
 end

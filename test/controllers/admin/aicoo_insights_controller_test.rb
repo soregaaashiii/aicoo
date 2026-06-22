@@ -11,6 +11,14 @@ module Admin
         success_probability: 0.5,
         evaluation_reason: "CTR改善: controller"
       )
+      AicooInsightGenerationRun.create!(
+        started_at: Time.current,
+        finished_at: Time.current,
+        source: "manual",
+        status: "success",
+        generated_count: 1,
+        skipped_count: 2
+      )
 
       get admin_aicoo_insights_url
 
@@ -19,6 +27,9 @@ module Admin
       assert_includes response.body, "検出された改善機会"
       assert_includes response.body, action.title
       assert_includes response.body, "改善案を生成"
+      assert_includes response.body, "生成履歴"
+      assert_includes response.body, "manual"
+      assert_includes response.body, "success"
     end
 
     test "generates insights from admin action" do
@@ -35,11 +46,14 @@ module Admin
       )
 
       assert_difference("ActionCandidate.where(generation_source: 'ai_insight').count", 1) do
-        post admin_aicoo_insights_generate_url
+        assert_difference("AicooInsightGenerationRun.count", 1) do
+          post admin_aicoo_insights_generate_url
+        end
       end
 
       assert_redirected_to admin_aicoo_insights_url
       assert_match(/改善案を1件生成しました/, flash[:notice])
+      assert_equal "manual", AicooInsightGenerationRun.last.source
     end
   end
 end

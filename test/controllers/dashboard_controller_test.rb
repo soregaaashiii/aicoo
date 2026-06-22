@@ -41,6 +41,8 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Insight件数"
     assert_includes response.body, "今日生成した改善案"
     assert_includes response.body, "最重要改善案"
+    assert_includes response.body, "最終Insight生成日時"
+    assert_includes response.body, "Insight生成失敗件数"
     assert_includes response.body, "改善案を見る"
     assert_includes response.body, "総合ランキング TOP10"
     assert_includes response.body, "Revenue 1位"
