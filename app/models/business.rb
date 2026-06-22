@@ -4,6 +4,7 @@ class Business < ApplicationRecord
   has_many :action_candidates, dependent: :destroy
   has_many :action_results, dependent: :destroy
   has_many :action_candidate_score_snapshots, dependent: :destroy
+  has_many :meta_evaluation_snapshots, dependent: :destroy
   has_many :ai_evaluation_runs, dependent: :destroy
   has_many :data_sources, dependent: :destroy
   has_many :data_imports, through: :data_sources

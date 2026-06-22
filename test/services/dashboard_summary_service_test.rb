@@ -38,6 +38,44 @@ class DashboardSummaryServiceTest < ActiveSupport::TestCase
     assert_nil result.judge.summary.hit_rate
   end
 
+  test "owner today tasks are backfilled to at least three when no candidates exist" do
+    ActionCandidate.update_all(status: "archived")
+
+    result = DashboardSummaryService.new.call
+
+    assert_operator result.today_tasks.size, :>=, 3
+    assert_operator result.owner_fallback_tasks.size, :>=, 3
+    assert result.today_tasks.all? { |task| task.is_a?(ActionCandidate) }
+  end
+
+  test "owner today tasks are backfilled to at least three when only one candidate exists" do
+    ActionCandidate.update_all(status: "archived")
+    existing = ActionCandidate.create!(
+      business: businesses(:suelog),
+      title: "既存の収益候補",
+      action_type: "seo_improvement",
+      status: "idea",
+      immediate_value_yen: 10_000,
+      success_probability: 0.7,
+      expected_hours: 1
+    )
+
+    result = DashboardSummaryService.new.call
+
+    assert_includes result.today_tasks, existing
+    assert_operator result.today_tasks.size, :>=, 3
+  end
+
+  test "summarizes learning progress and aicoo maturity" do
+    result = DashboardSummaryService.new.call
+
+    assert_equal AicooCorrectionReadinessService::ACTION_RESULT_REQUIRED, result.learning_progress.action_result_required
+    assert_equal AicooCorrectionReadinessService::BUSINESS_METRIC_DAILY_REQUIRED, result.learning_progress.business_metric_required
+    assert_operator result.aicoo_maturity_score, :>=, 0
+    assert_operator result.aicoo_maturity_score, :<=, 100
+    assert_includes [ "初期学習段階", "学習中", "Judge運用中", "自走運用中" ], result.aicoo_maturity_label
+  end
+
   private
 
   def create_result(business:, generation_source:, action_type:, actual:)

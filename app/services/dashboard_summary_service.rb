@@ -14,7 +14,12 @@ class DashboardSummaryService
     :owner_alerts,
     :business_rankings,
     :approval_queue,
-    :learning_value_summary
+    :learning_value_summary,
+    :owner_fallback_tasks,
+    :learning_progress,
+    :aicoo_maturity_score,
+    :aicoo_maturity_label,
+    :evaluator_confidence_summary
   )
   Today = Data.define(
     :daily_run,
@@ -46,6 +51,18 @@ class DashboardSummaryService
   )
   LearningValueSummary = Data.define(:total_learning_value_yen, :learning_candidate_count)
   BusinessRanking = Data.define(:business, :expected_total_value_yen, :expected_revenue_value_yen, :expected_learning_value_yen)
+  EvaluatorConfidence = Data.define(:evaluator_type, :confidence_score, :weighted_contribution_score, :confidence_delta)
+  LearningProgress = Data.define(
+    :action_result_current,
+    :action_result_required,
+    :evaluated_current,
+    :evaluated_required,
+    :judge_status,
+    :business_metric_current,
+    :business_metric_required,
+    :revenue_event_current,
+    :revenue_event_required
+  )
 
   def initialize(owner_mode: "balanced")
     @owner_mode = owner_mode.presence_in(%w[balanced revenue learning]) || "balanced"
@@ -53,6 +70,10 @@ class DashboardSummaryService
 
   def call
     score_builder = AicooJudge::ActionCandidateScore.new
+    fallback_tasks = owner_fallback_tasks
+    learning_progress = learning_progress_summary
+    maturity_score = aicoo_maturity_score(learning_progress)
+
     Result.new(
       today: today_summary,
       judge: judge_summary,
@@ -68,7 +89,12 @@ class DashboardSummaryService
       owner_alerts: owner_alerts,
       business_rankings: owner_business_rankings,
       approval_queue: approval_queue_summary,
-      learning_value_summary: learning_value_summary
+      learning_value_summary: learning_value_summary,
+      owner_fallback_tasks: fallback_tasks,
+      learning_progress: learning_progress,
+      aicoo_maturity_score: maturity_score,
+      aicoo_maturity_label: aicoo_maturity_label(maturity_score),
+      evaluator_confidence_summary: evaluator_confidence_summary
     )
   end
 
@@ -152,6 +178,8 @@ class DashboardSummaryService
   end
 
   def owner_today_tasks
+    ensure_owner_minimum_candidates!
+
     owner_scope
       .sort_by { |candidate| [ -owner_sort_value(candidate), -candidate.confidence_score.to_i, candidate.title.to_s ] }
       .first(10)
@@ -164,12 +192,15 @@ class DashboardSummaryService
     when "learning"
       candidate.expected_learning_value_yen.to_i
     else
-      candidate.expected_total_value_yen.to_i
+      candidate.final_expected_value_yen.to_i
     end
   end
 
   def owner_scope
-    @owner_scope ||= ActionCandidate.active_for_ranking.includes(:business).where.not(action_type: "data_preparation").to_a
+    @owner_scope ||= ActionCandidate.active_for_ranking
+                                    .includes(:business)
+                                    .where(status: %w[idea pending])
+                                    .to_a
   end
 
   def owner_metrics
@@ -226,6 +257,95 @@ class DashboardSummaryService
     )
   end
 
+  def evaluator_confidence_summary
+    latest_date = MetaEvaluationSnapshot.global.maximum(:recorded_on)
+    return evaluator_confidence_summary_from_candidates unless latest_date
+
+    latest = MetaEvaluationSnapshot.global.for_date(latest_date).index_by(&:evaluator_type)
+    previous_date = MetaEvaluationSnapshot.global.where(recorded_on: ...latest_date).maximum(:recorded_on)
+    previous = previous_date ? MetaEvaluationSnapshot.global.for_date(previous_date).index_by(&:evaluator_type) : {}
+    %w[gsc ga4 judge revenue learning].map do |evaluator_type|
+      snapshot = latest[evaluator_type]
+      previous_snapshot = previous[evaluator_type]
+      confidence = snapshot&.average_confidence_score.to_d
+      previous_confidence = previous_snapshot&.average_confidence_score.to_d
+      EvaluatorConfidence.new(
+        evaluator_type:,
+        confidence_score: confidence.round,
+        weighted_contribution_score: snapshot&.weighted_contribution_score.to_d,
+        confidence_delta: previous_snapshot ? (confidence - previous_confidence).round : nil
+      )
+    end
+  end
+
+  def evaluator_confidence_summary_from_candidates
+    breakdowns = ActionCandidate.active_for_ranking.limit(50).flat_map do |candidate|
+      candidate.metadata.to_h.fetch("evaluator_breakdown", [])
+    end
+
+    %w[gsc ga4 judge revenue learning].map do |evaluator_type|
+      entries = breakdowns.select { |entry| entry["evaluator_type"].to_s == evaluator_type }
+      confidence = entries.any? ? (entries.sum { |entry| entry["confidence_score"].to_i }.to_d / entries.size).round : 0
+      expected_value = entries.any? ? entries.sum { |entry| entry["expected_value_yen"].to_i }.to_d / entries.size : 0
+      EvaluatorConfidence.new(
+        evaluator_type:,
+        confidence_score: confidence,
+        weighted_contribution_score: expected_value * (confidence.to_d / 100),
+        confidence_delta: nil
+      )
+    end
+  end
+
+  def owner_fallback_tasks
+    ensure_owner_minimum_candidates!
+
+    ActionCandidate.active_for_ranking
+                   .includes(:business)
+                   .where(status: %w[idea pending], action_type: "data_preparation")
+                   .where("metadata ->> 'metric_rule' IN (?)", %w[correction_readiness owner_readiness])
+                   .order(created_at: :desc)
+                   .limit(10)
+  end
+
+  def learning_progress_summary
+    evaluated_count = ActionResult.evaluated.count
+    LearningProgress.new(
+      action_result_current: ActionResult.count,
+      action_result_required: AicooCorrectionReadinessService::ACTION_RESULT_REQUIRED,
+      evaluated_current: evaluated_count,
+      evaluated_required: AicooCorrectionReadinessService::EVALUATED_REQUIRED,
+      judge_status: evaluated_count >= AicooCorrectionReadinessService::EVALUATED_REQUIRED ? "稼働中" : "未開始",
+      business_metric_current: BusinessMetricDaily.select(:recorded_on).distinct.count,
+      business_metric_required: AicooCorrectionReadinessService::BUSINESS_METRIC_DAILY_REQUIRED,
+      revenue_event_current: RevenueEvent.revenue.count,
+      revenue_event_required: 10
+    )
+  end
+
+  def aicoo_maturity_score(progress)
+    score = 0
+    score += capped_ratio(progress.action_result_current, progress.action_result_required) * 20
+    score += capped_ratio(progress.evaluated_current, progress.evaluated_required) * 20
+    score += capped_ratio(progress.business_metric_current, progress.business_metric_required) * 20
+    score += capped_ratio(progress.revenue_event_current, progress.revenue_event_required) * 15
+    score += 10 if AicooDailyRun.where(status: "succeeded").exists?
+    score += capped_ratio(ActionCandidateScoreSnapshot.count, 10) * 15
+    score.round
+  end
+
+  def aicoo_maturity_label(score)
+    case score
+    when 0...25
+      "初期学習段階"
+    when 25...50
+      "学習中"
+    when 50...80
+      "Judge運用中"
+    else
+      "自走運用中"
+    end
+  end
+
   def latest_daily_run
     @latest_daily_run ||= AicooDailyRun.recent.first
   end
@@ -265,5 +385,97 @@ class DashboardSummaryService
     summaries
       .select { |summary| summary.evaluated_count.positive? && summary.hit_rate.present? }
       .max_by { |summary| [ summary.hit_rate.to_d, summary.evaluated_count ] }
+  end
+
+  def ensure_owner_minimum_candidates!
+    return if @owner_minimum_candidates_checked
+
+    @owner_minimum_candidates_checked = true
+    return if owner_scope.size >= 3
+
+    CorrectionReadinessActionCandidateGenerator.generate_all!
+    create_owner_readiness_candidates!
+    @owner_scope = nil
+  end
+
+  def create_owner_readiness_candidates!
+    business = Business.order(:created_at).first
+    return unless business
+
+    owner_readiness_templates.first(3).each do |template|
+      next if recent_owner_readiness_duplicate?(business, template.fetch(:title))
+
+      business.action_candidates.create!(
+        title: template.fetch(:title),
+        description: template.fetch(:description),
+        action_type: "data_preparation",
+        immediate_value_yen: 0,
+        success_probability: 0.7,
+        strategic_value_score: template.fetch(:strategic_value_score),
+        risk_reduction_score: template.fetch(:risk_reduction_score),
+        confidence_score: 70,
+        data_confidence_score: 40,
+        expected_hours: 1,
+        cost_yen: 0,
+        generation_source: "ai_business",
+        metadata: {
+          "metric_rule" => "owner_readiness",
+          "missing_type" => template.fetch(:missing_type),
+          "required_count" => { template.fetch(:missing_type) => template.fetch(:required_count) },
+          "current_count" => { template.fetch(:missing_type) => template.fetch(:current_count) },
+          "business_id" => business.id
+        },
+        evaluation_reason: template.fetch(:description),
+        execution_prompt: template.fetch(:execution_prompt)
+      )
+    end
+  end
+
+  def owner_readiness_templates
+    [
+      {
+        title: "ActionResultを3件記録する",
+        description: "Judge補正を始めるため、実行済みActionCandidateの結果を最低3件記録します。",
+        missing_type: "action_results",
+        required_count: 3,
+        current_count: ActionResult.count,
+        strategic_value_score: 70,
+        risk_reduction_score: 80,
+        execution_prompt: "実行済みActionCandidateを3件選び、ActionResultに実績利益・proxy_score差分・メモを記録してください。"
+      },
+      {
+        title: "BusinessMetricDailyを30日分蓄積する",
+        description: "proxy_scoreの時系列評価と重み補正を始めるため、BusinessMetricDailyを30日分取り込みます。",
+        missing_type: "business_metric_daily",
+        required_count: 30,
+        current_count: BusinessMetricDaily.select(:recorded_on).distinct.count,
+        strategic_value_score: 65,
+        risk_reduction_score: 75,
+        execution_prompt: "GSC/GA4/LPイベントまたは手入力から、直近30日分のBusinessMetricDailyを取り込んでください。"
+      },
+      {
+        title: "RevenueEventを10件記録する",
+        description: "収益判断を始めるため、売上または費用をRevenueEventとして記録します。",
+        missing_type: "revenue_events",
+        required_count: 10,
+        current_count: RevenueEvent.revenue.count,
+        strategic_value_score: 60,
+        risk_reduction_score: 60,
+        execution_prompt: "各Businessの売上・費用を確認し、RevenueEventに売上または費用として記録してください。"
+      }
+    ]
+  end
+
+  def recent_owner_readiness_duplicate?(business, title)
+    business.action_candidates
+            .where(created_at: 7.days.ago..)
+            .where(title:)
+            .exists?
+  end
+
+  def capped_ratio(current, required)
+    return 0 if required.to_i.zero?
+
+    [ current.to_d / required.to_d, 1 ].min
   end
 end

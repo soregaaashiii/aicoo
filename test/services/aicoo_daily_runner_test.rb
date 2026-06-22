@@ -28,7 +28,10 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
       assert_match "Auto queued: 3", run.run_log
       assert_match "Skipped: 2", run.run_log
       assert_match "Reason: already queued=2", run.run_log
-      assert_equal %i[import adjust_all generate evaluate snapshot queue], order
+      assert_match "MetaEvaluationSnapshot created count=5", run.run_log
+      assert_match "Most trusted evaluator: gsc", run.run_log
+      assert_match "GSC average confidence=82.0", run.run_log
+      assert_equal %i[import adjust_all generate evaluate snapshot queue meta_snapshot], order
     end
   end
 
@@ -96,7 +99,9 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
               )
             }) do
               with_singleton_stub(DataPreparationExecutorQueuer, :new, -> { fake_queuer(order) }) do
-                yield
+                with_singleton_stub(MetaEvaluationSnapshotter, :new, -> { fake_meta_snapshotter(order) }) do
+                  yield
+                end
               end
             end
           end
@@ -115,6 +120,26 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
           skipped_count: 2,
           skipped_reasons: { "already queued" => 2 },
           disabled: false
+        )
+      end
+    end
+  end
+
+  def fake_meta_snapshotter(order)
+    Object.new.tap do |snapshotter|
+      snapshotter.define_singleton_method(:snapshot!) do |date:, aicoo_daily_run:|
+        order << :meta_snapshot
+        MetaEvaluationSnapshotter::Result.new(
+          snapshots: Array.new(5),
+          created_count: 5,
+          top_evaluator: "gsc",
+          confidence_by_type: {
+            "gsc" => 82.to_d,
+            "ga4" => 72.to_d,
+            "judge" => 15.to_d,
+            "revenue" => 0.to_d,
+            "learning" => 40.to_d
+          }
         )
       end
     end

@@ -48,6 +48,44 @@
 
 <section class="dashboard-section">
   <div class="section-heading">
+    <h2>信頼度ベース評価</h2>
+    <p>GA4/GSC/Judge/Revenue/Learningの評価を、各信頼度で加重して統合します。</p>
+  </div>
+  <div class="metric-grid">
+    <div class="metric-card"><span>最終期待値</span><strong><%= number_to_currency(@action_candidate.final_expected_value_yen, unit: "¥", precision: 0) %></strong></div>
+    <div class="metric-card"><span>最終信頼度</span><strong><%= @action_candidate.final_confidence_score.to_i %></strong></div>
+    <% primary_evaluator = @action_candidate.metadata.to_h.fetch("evaluator_breakdown", []).max_by { |entry| entry["confidence_score"].to_i } %>
+    <div class="metric-card"><span>主な根拠</span><strong><%= primary_evaluator ? primary_evaluator["evaluator_type"].to_s.upcase : "-" %></strong><small><%= primary_evaluator ? primary_evaluator["reason"] : "評価内訳はまだありません。" %></small></div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>評価器</th>
+          <th>期待値</th>
+          <th>信頼度</th>
+          <th>理由</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @action_candidate.metadata.to_h.fetch("evaluator_breakdown", []).each do |entry| %>
+          <tr>
+            <td><%= entry["evaluator_type"].to_s.upcase %></td>
+            <td class="number"><%= number_to_currency(entry["expected_value_yen"].to_i, unit: "¥", precision: 0) %></td>
+            <td class="number"><%= entry["confidence_score"].to_i %></td>
+            <td><%= entry["reason"] %></td>
+          </tr>
+        <% end %>
+        <% if @action_candidate.metadata.to_h.fetch("evaluator_breakdown", []).empty? %>
+          <tr><td colspan="4">評価内訳はまだありません。</td></tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
     <h2>Judge補正</h2>
     <p>同じ生成元・行動タイプの過去的中率を使って、最終スコアを軽く補正します。</p>
   </div>

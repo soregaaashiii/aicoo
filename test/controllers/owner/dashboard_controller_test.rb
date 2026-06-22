@@ -59,7 +59,23 @@ module Owner
       assert_includes response.body, "今日Executor送信"
       assert_includes response.body, "ExecutorTask approval_pending"
       assert_includes response.body, "事業ランキング"
+      assert_includes response.body, "学習状況"
+      assert_includes response.body, "AICOO成熟度"
+      assert_includes response.body, "BusinessMetric"
+      assert_includes response.body, "現在の評価比重"
+      assert_includes response.body, "GSC"
+      assert_includes response.body, "前回比"
       assert_includes response.body, businesses(:suelog).name
+    end
+
+    test "shows at least three owner tasks when candidates are empty" do
+      ActionCandidate.update_all(status: "archived")
+
+      get owner_dashboard_url
+
+      assert_response :success
+      assert_includes response.body, "AICOO推奨タスク"
+      assert_operator response.body.scan("<tr>").size, :>=, 3
     end
 
     test "can approve action candidate from owner dashboard" do

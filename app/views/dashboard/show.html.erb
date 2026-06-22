@@ -241,12 +241,14 @@
       <tbody>
         <% @dashboard_summary.data_preparation_tasks.each do |task| %>
           <% executor_task = task.unfinished_executor_task %>
+          <% current_count = task.metadata["current_count"] %>
+          <% required_count = task.metadata["required_count"] %>
           <tr>
             <td><%= link_to task.title, task %></td>
             <td><%= link_to task.business.name, task.business %></td>
             <td><%= Array(task.metadata["missing_type"]).join(", ") %></td>
-            <td><%= task.metadata["current_count"].to_h.values.join(" / ") %></td>
-            <td><%= task.metadata["required_count"].to_h.values.join(" / ") %></td>
+            <td><%= current_count.respond_to?(:to_h) ? current_count.to_h.values.join(" / ") : current_count.to_i %></td>
+            <td><%= required_count.respond_to?(:to_h) ? required_count.to_h.values.join(" / ") : required_count.to_i %></td>
             <td><span class="pill"><%= task.status %></span></td>
             <td>
               <% if executor_task %>

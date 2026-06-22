@@ -4,6 +4,8 @@ class AicooDailyRun < ApplicationRecord
   validates :target_date, presence: true
   validates :status, inclusion: { in: STATUSES }
 
+  has_many :meta_evaluation_snapshots, dependent: :nullify
+
   scope :recent, -> { order(started_at: :desc, created_at: :desc) }
   scope :running, -> { where(status: "running") }
 

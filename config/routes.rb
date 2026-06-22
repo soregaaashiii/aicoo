@@ -7,6 +7,7 @@ Rails.application.routes.draw do
   root "dashboard#show"
   get "owner", to: "owner/dashboard#show", as: :owner_dashboard
   get "owner/dashboard", to: "owner/dashboard#show"
+  get "owner/evaluator_trends", to: "owner/evaluator_trends#index", as: :owner_evaluator_trends
   get "owner/approved_queue", to: "owner/approved_queue#index", as: :owner_approved_queue
   post "owner/approved_queue/queue_selected", to: "owner/approved_queue#queue_selected", as: :queue_selected_owner_approved_queue
   post "owner/approved_queue/queue_all", to: "owner/approved_queue#queue_all", as: :queue_all_owner_approved_queue

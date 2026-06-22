@@ -71,6 +71,14 @@ class AicooDailyRunner
     log!("Skipped: #{queue_result.skipped_count}")
     log!("Reason: #{queue_result.skipped_reasons.map { |reason, count| "#{reason}=#{count}" }.join(', ')}")
 
+    meta_snapshot_result = MetaEvaluationSnapshotter.new.snapshot!(date: target_date, aicoo_daily_run: run)
+    log!("MetaEvaluationSnapshot created count=#{meta_snapshot_result.created_count}")
+    log!("Most trusted evaluator: #{meta_snapshot_result.top_evaluator || 'none'}")
+    MetaEvaluationSnapshot::EVALUATOR_TYPES.each do |evaluator_type|
+      confidence = meta_snapshot_result.confidence_by_type.fetch(evaluator_type).round(1)
+      log!("#{evaluator_type.upcase} average confidence=#{confidence}")
+    end
+
     log!("Daily Run finished target_date=#{target_date}")
   end
 

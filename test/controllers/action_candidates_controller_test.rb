@@ -58,6 +58,9 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.body, "この候補に近い過去精度"
     assert_includes response.body, "このgeneration_source"
+    assert_includes response.body, "信頼度ベース評価"
+    assert_includes response.body, "最終期待値"
+    assert_includes response.body, "GSC"
     assert_includes response.body, "Judge補正スコア履歴"
     assert_includes response.body, "Judge補正で順位低下"
   end

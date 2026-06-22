@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_22_101000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_22_103000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -58,6 +58,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_22_101000) do
     t.integer "expected_profit_yen"
     t.integer "expected_revenue_value_yen", default: 0, null: false
     t.integer "expected_total_value_yen", default: 0, null: false
+    t.integer "final_confidence_score", default: 0, null: false
+    t.integer "final_expected_value_yen", default: 0, null: false
     t.decimal "final_score"
     t.string "generation_source", default: "manual", null: false
     t.integer "immediate_value_yen"
@@ -567,6 +569,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_22_101000) do
     t.index ["business_id"], name: "index_data_sources_on_business_id"
   end
 
+  create_table "meta_evaluation_snapshots", force: :cascade do |t|
+    t.bigint "aicoo_daily_run_id"
+    t.decimal "average_confidence_score", default: "0.0", null: false
+    t.integer "average_expected_value_yen", default: 0, null: false
+    t.bigint "business_id"
+    t.integer "candidate_count", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.string "evaluator_type", null: false
+    t.text "note"
+    t.date "recorded_on", null: false
+    t.datetime "updated_at", null: false
+    t.decimal "weighted_contribution_score", default: "0.0", null: false
+    t.index ["aicoo_daily_run_id"], name: "index_meta_evaluation_snapshots_on_aicoo_daily_run_id"
+    t.index ["business_id"], name: "index_meta_evaluation_snapshots_on_business_id"
+    t.index ["recorded_on", "business_id", "evaluator_type"], name: "idx_meta_eval_snapshots_unique_date_business_type", unique: true
+    t.index ["recorded_on", "evaluator_type"], name: "idx_meta_eval_snapshots_unique_global_type", unique: true, where: "(business_id IS NULL)"
+  end
+
   create_table "proxy_score_weight_adjustment_logs", force: :cascade do |t|
     t.datetime "adjusted_at", null: false
     t.decimal "adjustment_rate", precision: 10, scale: 6, default: "0.0", null: false
@@ -670,6 +690,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_22_101000) do
   add_foreign_key "data_imports", "aicoo_analytics_sites"
   add_foreign_key "data_imports", "data_sources"
   add_foreign_key "data_sources", "businesses"
+  add_foreign_key "meta_evaluation_snapshots", "aicoo_daily_runs"
+  add_foreign_key "meta_evaluation_snapshots", "businesses"
   add_foreign_key "proxy_score_weight_adjustment_logs", "businesses"
   add_foreign_key "proxy_score_weight_adjustment_logs", "proxy_score_weights"
   add_foreign_key "proxy_score_weights", "businesses"

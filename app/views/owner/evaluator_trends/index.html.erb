@@ -1,0 +1,64 @@
+<% content_for :title, "評価比重の推移" %>
+
+<% header_actions = capture do %>
+  <%= link_to "オーナーモード", owner_dashboard_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "評価比重の推移",
+             description: "Daily Runごとに、AICOOがGSC / GA4 / Judge / Revenue / Learningをどれくらい信じたかを確認します。",
+             active_main: :revenue,
+             actions: header_actions %>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>表示期間</h2>
+      <p>直近7日または30日の評価比重ログを表示します。</p>
+    </div>
+    <div class="actions compact-actions">
+      <%= link_to "直近7日", owner_evaluator_trends_path(range: 7), class: "button secondary" %>
+      <%= link_to "直近30日", owner_evaluator_trends_path(range: 30), class: "button secondary" %>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>日別の評価比重</h2>
+      <p>信頼度とweighted contributionをEvaluator別に表示します。</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>日付</th>
+            <th>Evaluator</th>
+            <th>平均期待値</th>
+            <th>平均信頼度</th>
+            <th>候補数</th>
+            <th>貢献度</th>
+            <th>メモ</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @snapshots_by_date.each do |recorded_on, snapshots| %>
+            <% snapshots.each do |snapshot| %>
+              <tr>
+                <td><%= recorded_on %></td>
+                <td><%= snapshot.evaluator_type.upcase %></td>
+                <td class="number"><%= number_to_currency(snapshot.average_expected_value_yen, unit: "¥", precision: 0) %></td>
+                <td class="number"><%= number_with_precision(snapshot.average_confidence_score, precision: 1) %></td>
+                <td class="number"><%= snapshot.candidate_count %></td>
+                <td class="number"><%= number_with_precision(snapshot.weighted_contribution_score, precision: 1) %></td>
+                <td><%= snapshot.note %></td>
+              </tr>
+            <% end %>
+          <% end %>
+          <% if @snapshots_by_date.empty? %>
+            <tr><td colspan="7">まだMetaEvaluator評価比重ログはありません。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>

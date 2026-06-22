@@ -46,6 +46,8 @@ class ActionCandidate < ApplicationRecord
   validates :estimated_neglect_loss_90d_yen, numericality: { only_integer: true, greater_than_or_equal_to: 0 }, allow_nil: true
   validates :expected_revenue_value_yen, :expected_learning_value_yen, :expected_total_value_yen,
             numericality: { only_integer: true, greater_than_or_equal_to: 0 }, allow_nil: true
+  validates :final_expected_value_yen, :final_confidence_score,
+            numericality: { only_integer: true, greater_than_or_equal_to: 0 }, allow_nil: true
 
   scope :by_expected_value, -> { includes(:business).order(Arel.sql("expected_hourly_value_yen DESC NULLS LAST, expected_profit_yen DESC NULLS LAST")) }
   scope :by_recommendation, -> { includes(:business).order(Arel.sql("final_score DESC NULLS LAST, expected_hourly_value_yen DESC NULLS LAST")) }
@@ -98,6 +100,8 @@ class ActionCandidate < ApplicationRecord
     self.expected_revenue_value_yen = 0 if expected_revenue_value_yen.nil?
     self.expected_learning_value_yen = 0 if expected_learning_value_yen.nil?
     self.expected_total_value_yen = 0 if expected_total_value_yen.nil?
+    self.final_expected_value_yen = 0 if final_expected_value_yen.nil?
+    self.final_confidence_score = 0 if final_confidence_score.nil?
   end
 
   def calculate_scores
@@ -108,6 +112,7 @@ class ActionCandidate < ApplicationRecord
     self.expected_revenue_value_yen = calculate_expected_revenue_value
     self.expected_learning_value_yen = LearningValueCalculator.new(self).value_yen
     self.expected_total_value_yen = expected_revenue_value_yen.to_i + expected_learning_value_yen.to_i
+    apply_meta_evaluation
   end
 
   def calculate_expected_hourly_value
@@ -142,5 +147,12 @@ class ActionCandidate < ApplicationRecord
     return 0 if expected_total_value_yen.to_i.zero?
 
     (value.to_d / expected_total_value_yen.to_d * 100).round
+  end
+
+  def apply_meta_evaluation
+    result = AicooMetaEvaluator::MetaEvaluator.new(self).call
+    self.final_expected_value_yen = result.final_expected_value_yen
+    self.final_confidence_score = result.final_confidence_score
+    self.metadata = metadata.to_h.merge("evaluator_breakdown" => result.evaluator_breakdown)
   end
 end
