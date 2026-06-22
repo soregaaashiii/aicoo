@@ -10,6 +10,8 @@ module Owner
 
       assert_response :success
       assert_includes response.body, "AICOO CEO MODE"
+      assert_includes response.body, "aicoo-owner-secondary"
+      assert_includes response.body, "table-wrap"
       assert_includes response.body, "現在"
       assert_includes response.body, "CEO MODE"
       assert_includes response.body, "SYSTEM MODEへ"
@@ -66,7 +68,7 @@ module Owner
       assert_includes response.body, "学習状況"
       assert_includes response.body, "AICOO成熟度"
       assert_includes response.body, "日次指標"
-      assert_includes response.body, "現在の判断材料"
+      assert_includes response.body, "判断材料の推移"
       assert_includes response.body, "検索流入"
       assert_includes response.body, "前回比"
       assert_includes response.body, businesses(:suelog).name

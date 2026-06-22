@@ -73,7 +73,9 @@ a:hover {
 .app-main {
   margin: 0 auto;
   max-width: 1480px;
+  overflow-x: hidden;
   padding: 28px;
+  width: 100%;
 }
 
 .notice {
@@ -132,11 +134,13 @@ h2 {
   border: 1px solid var(--border);
   border-radius: 8px;
   overflow-x: auto;
+  width: 100%;
+  -webkit-overflow-scrolling: touch;
 }
 
 table {
   border-collapse: collapse;
-  min-width: 100%;
+  min-width: max(100%, 760px);
   width: max-content;
 }
 
@@ -158,6 +162,8 @@ th {
 
 td {
   font-size: 14px;
+  max-width: 420px;
+  overflow-wrap: anywhere;
 }
 
 tbody tr:last-child td {
@@ -200,7 +206,11 @@ input[type="submit"] {
   display: inline-block;
   font: inherit;
   font-weight: 700;
+  max-width: 100%;
+  overflow-wrap: anywhere;
   padding: 9px 13px;
+  text-align: center;
+  white-space: normal;
 }
 
 .button:hover {
@@ -312,13 +322,15 @@ details.revenue-card > summary {
 .metric-grid {
   display: grid;
   gap: 14px;
-  grid-template-columns: repeat(3, minmax(160px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .metric-card {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
+  min-width: 0;
+  overflow-wrap: anywhere;
   padding: 16px;
 }
 
@@ -331,8 +343,9 @@ details.revenue-card > summary {
 
 .metric-card strong {
   display: block;
-  font-size: 28px;
+  font-size: clamp(20px, 2.2vw, 28px);
   margin-top: 6px;
+  overflow-wrap: anywhere;
 }
 
 .aicoo-lab-inbox-grid {
@@ -529,6 +542,7 @@ textarea {
 .actions {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   margin-top: 18px;
 }
@@ -603,6 +617,7 @@ textarea {
   display: flex;
   gap: 16px;
   justify-content: space-between;
+  min-width: 0;
 }
 
 .aicoo-header h1 {
@@ -641,6 +656,7 @@ textarea {
   display: flex;
   gap: 8px;
   overflow-x: auto;
+  max-width: 100%;
 }
 
 .aicoo-mode-switch {
@@ -650,6 +666,8 @@ textarea {
   border-radius: 8px;
   display: flex;
   gap: 8px;
+  max-width: 100%;
+  min-width: 0;
   padding: 8px;
 }
 
@@ -771,14 +789,81 @@ textarea {
 .aicoo-card-grid {
   display: grid;
   gap: 14px;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .aicoo-card {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
+  min-width: 0;
+  overflow-wrap: anywhere;
   padding: 16px;
+}
+
+.aicoo-card h2,
+.aicoo-card h3,
+.metric-card h2,
+.metric-card h3 {
+  overflow-wrap: anywhere;
+}
+
+.aicoo-card p,
+.metric-card p,
+.aicoo-card small,
+.metric-card small {
+  overflow-wrap: anywhere;
+}
+
+.aicoo-card .detail-list {
+  background: transparent;
+  border: 0;
+  margin-top: 12px;
+  padding: 0;
+  grid-template-columns: minmax(96px, 40%) minmax(0, 1fr);
+}
+
+.detail-list dd,
+.detail-list dt {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.aicoo-grid,
+.aicoo-grid-3 {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.aicoo-grid-2 {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.aicoo-card-compact,
+.aicoo-empty-state {
+  padding: 12px 14px;
+}
+
+.aicoo-kpi-card strong {
+  font-size: clamp(20px, 2.4vw, 30px);
+}
+
+.aicoo-table-scroll {
+  overflow-x: auto;
+  width: 100%;
+  -webkit-overflow-scrolling: touch;
+}
+
+.aicoo-owner-primary {
+  grid-template-columns: 1fr;
+}
+
+.aicoo-owner-secondary,
+.aicoo-system-summary {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .aicoo-table {
@@ -810,5 +895,56 @@ textarea {
   .computed dl,
   .detail-list {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1100px) {
+  .aicoo-card-grid,
+  .aicoo-grid,
+  .aicoo-grid-3,
+  .aicoo-owner-secondary,
+  .aicoo-system-summary,
+  .metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .aicoo-card-grid,
+  .aicoo-grid,
+  .aicoo-grid-3,
+  .aicoo-grid-2,
+  .metric-grid,
+  .aicoo-system-summary,
+  .aicoo-owner-secondary {
+    grid-template-columns: 1fr;
+  }
+
+  table {
+    min-width: 720px;
+  }
+
+  .aicoo-current-mode,
+  .aicoo-mode-link,
+  .aicoo-tab {
+    min-width: 140px;
+  }
+
+  .aicoo-tab {
+    white-space: normal;
+  }
+
+  .aicoo-tab span {
+    overflow-wrap: anywhere;
+  }
+
+  .aicoo-mode-switch {
+    flex-direction: column;
+  }
+
+  .aicoo-current-mode,
+  .aicoo-mode-link {
+    flex-basis: auto;
+    min-width: 0;
   }
 }

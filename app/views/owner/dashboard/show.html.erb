@@ -108,11 +108,11 @@
 
   <section class="dashboard-section">
     <div class="section-heading">
-      <h2>承認待ち</h2>
+      <h2>承認済み</h2>
       <p>経営者が止めずに流すべき判断待ちです。</p>
     </div>
     <% approval = @dashboard_summary.approval_queue %>
-    <div class="metric-grid">
+    <div class="metric-grid aicoo-owner-secondary">
       <div class="metric-card"><span>行動候補</span><strong><%= approval.action_candidate_count %>件</strong></div>
       <%= link_to owner_approved_queue_path, class: "metric-card" do %>
         <span>承認済み</span><strong><%= approval.approved_remaining_count %>件</strong>
@@ -126,47 +126,12 @@
 
   <section class="dashboard-section">
     <div class="section-heading">
-      <h2>学習状況</h2>
-      <p>予測精度と成長スコアを改善するための準備状況です。</p>
-    </div>
-    <% progress = @dashboard_summary.learning_progress %>
-    <div class="metric-grid">
-      <div class="metric-card"><span>AICOO成熟度</span><strong><%= @dashboard_summary.aicoo_maturity_score %>/100</strong><small><%= @dashboard_summary.aicoo_maturity_label %></small></div>
-      <div class="metric-card"><span>実行結果</span><strong><%= progress.action_result_current %>/<%= progress.action_result_required %>件</strong></div>
-      <div class="metric-card"><span>予測補正</span><strong><%= progress.judge_status %></strong><small><%= progress.evaluated_current %>/<%= progress.evaluated_required %>件 評価済み</small></div>
-      <div class="metric-card"><span>日次指標</span><strong><%= progress.business_metric_current %>/<%= progress.business_metric_required %>日</strong></div>
-      <div class="metric-card"><span>売上記録</span><strong><%= progress.revenue_event_current %>/<%= progress.revenue_event_required %>件</strong></div>
-    </div>
-  </section>
-
-  <section class="dashboard-section">
-    <div class="section-heading">
-      <h2>現在の判断材料</h2>
-      <p>検索流入・サイト行動・予測精度・売上記録・学習準備のうち、今どれを信じているかを表示します。</p>
-    </div>
-    <div class="actions compact-actions">
-      <%= link_to "判断材料の推移を見る", owner_evaluator_trends_path, class: "button secondary" %>
-    </div>
-    <div class="metric-grid">
-      <% @dashboard_summary.evaluator_confidence_summary.each do |entry| %>
-        <div class="metric-card">
-          <span><%= owner_evaluator_label(entry.evaluator_type) %></span>
-          <strong>信頼度 <%= entry.confidence_score %></strong>
-          <small>判断への影響 <%= number_with_precision(entry.weighted_contribution_score, precision: 1) %></small>
-          <small>前回比 <%= entry.confidence_delta.nil? ? "-" : "%+d" % entry.confidence_delta %></small>
-        </div>
-      <% end %>
-    </div>
-  </section>
-
-  <section class="dashboard-section">
-    <div class="section-heading">
       <h2>危険アラート</h2>
       <p>学習や収益判断が止まりそうな原因です。</p>
     </div>
-    <div class="aicoo-card">
+    <div class="aicoo-card aicoo-card-compact">
       <% if @dashboard_summary.owner_alerts.any? %>
-        <ul>
+        <ul class="compact-list">
           <% @dashboard_summary.owner_alerts.each do |alert| %>
             <li><%= alert %></li>
           <% end %>
@@ -179,11 +144,26 @@
 
   <section class="dashboard-section">
     <div class="section-heading">
+      <h2>学習状況</h2>
+      <p>予測精度と成長スコアを改善するための準備状況です。</p>
+    </div>
+    <% progress = @dashboard_summary.learning_progress %>
+    <div class="metric-grid aicoo-owner-secondary">
+      <div class="metric-card"><span>AICOO成熟度</span><strong><%= @dashboard_summary.aicoo_maturity_score %>/100</strong><small><%= @dashboard_summary.aicoo_maturity_label %></small></div>
+      <div class="metric-card"><span>実行結果</span><strong><%= progress.action_result_current %>/<%= progress.action_result_required %>件</strong></div>
+      <div class="metric-card"><span>予測補正</span><strong><%= progress.judge_status %></strong><small><%= progress.evaluated_current %>/<%= progress.evaluated_required %>件 評価済み</small></div>
+      <div class="metric-card"><span>日次指標</span><strong><%= progress.business_metric_current %>/<%= progress.business_metric_required %>日</strong></div>
+      <div class="metric-card"><span>売上記録</span><strong><%= progress.revenue_event_current %>/<%= progress.revenue_event_required %>件</strong></div>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
       <h2>今日の数字</h2>
       <p>経営判断に必要な数字だけを表示します。</p>
     </div>
     <% metrics = @dashboard_summary.owner_metrics %>
-    <div class="metric-grid">
+    <div class="metric-grid aicoo-owner-secondary">
       <div class="metric-card"><span>売上</span><strong><%= number_to_currency(metrics.revenue_yen, unit: "¥", precision: 0) %></strong></div>
       <div class="metric-card"><span>利益</span><strong><%= number_to_currency(metrics.profit_yen, unit: "¥", precision: 0) %></strong></div>
       <div class="metric-card"><span>成長スコア</span><strong><%= number_with_precision(metrics.proxy_score, precision: 1) %></strong></div>
@@ -220,6 +200,26 @@
           <% end %>
         </tbody>
       </table>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>判断材料の推移</h2>
+      <p>検索流入・サイト行動・予測精度・売上記録・学習準備のうち、今どれを信じているかを表示します。</p>
+    </div>
+    <div class="actions compact-actions">
+      <%= link_to "詳しく見る", owner_evaluator_trends_path, class: "button secondary" %>
+    </div>
+    <div class="metric-grid aicoo-owner-secondary">
+      <% @dashboard_summary.evaluator_confidence_summary.each do |entry| %>
+        <div class="metric-card aicoo-card-compact">
+          <span><%= owner_evaluator_label(entry.evaluator_type) %></span>
+          <strong>信頼度 <%= entry.confidence_score %></strong>
+          <small>判断への影響 <%= number_with_precision(entry.weighted_contribution_score, precision: 1) %></small>
+          <small>前回比 <%= entry.confidence_delta.nil? ? "-" : "%+d" % entry.confidence_delta %></small>
+        </div>
+      <% end %>
     </div>
   </section>
 
