@@ -15,6 +15,9 @@
     <% else %>
       <%= link_to "実行結果を記録", new_action_result_path(action_result: { action_candidate_id: @action_candidate.id }), class: "button secondary" %>
     <% end %>
+    <% if @action_candidate.status == "approved" %>
+      <%= link_to "承認済みキュー", owner_approved_queue_path, class: "button secondary" %>
+    <% end %>
     <%= link_to "Edit", edit_action_candidate_path(@action_candidate), class: "button secondary" %>
 <% end %>
 
@@ -27,6 +30,21 @@
   <%= render "shared/aicoo_execution_tabs", active: :today %>
 
 <%= render @action_candidate %>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>承認履歴</h2>
+    <p>Owner承認からExecutor投入までの状態を確認します。</p>
+  </div>
+  <dl class="detail-list">
+    <dt>approved_at</dt>
+    <dd><%= @action_candidate.approved_at ? l(@action_candidate.approved_at, format: :short) : "-" %></dd>
+    <dt>approved_by</dt>
+    <dd><%= @action_candidate.approved_by.presence || "-" %></dd>
+    <dt>executor_queued_at</dt>
+    <dd><%= @action_candidate.executor_queued_at ? l(@action_candidate.executor_queued_at, format: :short) : "-" %></dd>
+  </dl>
+</section>
 
 <section class="dashboard-section">
   <div class="section-heading">

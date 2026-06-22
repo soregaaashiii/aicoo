@@ -1,5 +1,5 @@
 class ActionCandidatesController < ApplicationController
-  before_action :set_action_candidate, only: %i[ show edit update destroy reevaluate_ai send_to_executor ]
+  before_action :set_action_candidate, only: %i[ show edit update destroy approve reevaluate_ai send_to_executor ]
 
   # GET /action_candidates or /action_candidates.json
   def index
@@ -60,6 +60,11 @@ class ActionCandidatesController < ApplicationController
       format.html { redirect_to action_candidates_path, notice: "Action candidate was successfully destroyed.", status: :see_other }
       format.json { head :no_content }
     end
+  end
+
+  def approve
+    @action_candidate.approve!(approved_by: "owner")
+    redirect_back fallback_location: owner_dashboard_path, notice: "ActionCandidateを承認しました。"
   end
 
   def reevaluate_ai

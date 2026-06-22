@@ -18,7 +18,7 @@ class ActionCandidate < ApplicationRecord
     other
   ].freeze
 
-  STATUSES = %w[idea pending approved in_progress done rejected archived].freeze
+  STATUSES = %w[idea pending approved executor_queued in_progress done rejected archived].freeze
   INACTIVE_STATUSES = %w[archived rejected done].freeze
   GENERATION_SOURCES = %w[manual seed ai_business ai_cross_business ai_reevaluation].freeze
 
@@ -44,10 +44,13 @@ class ActionCandidate < ApplicationRecord
   validates :immediate_value_yen, numericality: { only_integer: true }, allow_nil: true
   validates :neglect_loss_90d_yen, numericality: { only_integer: true, greater_than_or_equal_to: 0 }, allow_nil: true
   validates :estimated_neglect_loss_90d_yen, numericality: { only_integer: true, greater_than_or_equal_to: 0 }, allow_nil: true
+  validates :expected_revenue_value_yen, :expected_learning_value_yen, :expected_total_value_yen,
+            numericality: { only_integer: true, greater_than_or_equal_to: 0 }, allow_nil: true
 
   scope :by_expected_value, -> { includes(:business).order(Arel.sql("expected_hourly_value_yen DESC NULLS LAST, expected_profit_yen DESC NULLS LAST")) }
   scope :by_recommendation, -> { includes(:business).order(Arel.sql("final_score DESC NULLS LAST, expected_hourly_value_yen DESC NULLS LAST")) }
   scope :active_for_ranking, -> { where.not(status: INACTIVE_STATUSES) }
+  scope :approved_queue, -> { where(status: "approved").order(approved_at: :desc, expected_total_value_yen: :desc) }
 
   def data_preparation?
     action_type == "data_preparation"
@@ -57,6 +60,24 @@ class ActionCandidate < ApplicationRecord
     return unless data_preparation?
 
     AicooExecutorTask.unfinished_for_action_candidate(self)
+  end
+
+  def approve!(approved_by: nil)
+    update!(status: "approved", approved_at: Time.current, approved_by:)
+  end
+
+  def mark_executor_queued!
+    update!(status: "executor_queued", executor_queued_at: Time.current)
+  end
+
+  def revenue_ratio
+    value_ratio(expected_revenue_value_yen)
+  end
+
+  def learning_ratio
+    return 0 if expected_total_value_yen.to_i.zero?
+
+    100 - revenue_ratio
   end
 
   private
@@ -74,6 +95,9 @@ class ActionCandidate < ApplicationRecord
     self.priority_score = 0 if priority_score.nil?
     self.neglect_loss_90d_yen = 0 if neglect_loss_90d_yen.nil?
     self.estimated_neglect_loss_90d_yen = 0 if estimated_neglect_loss_90d_yen.nil?
+    self.expected_revenue_value_yen = 0 if expected_revenue_value_yen.nil?
+    self.expected_learning_value_yen = 0 if expected_learning_value_yen.nil?
+    self.expected_total_value_yen = 0 if expected_total_value_yen.nil?
   end
 
   def calculate_scores
@@ -81,6 +105,9 @@ class ActionCandidate < ApplicationRecord
     self.expected_hourly_value_yen = calculate_expected_hourly_value
     self.roi = calculate_roi
     self.final_score = calculate_final_score
+    self.expected_revenue_value_yen = calculate_expected_revenue_value
+    self.expected_learning_value_yen = LearningValueCalculator.new(self).value_yen
+    self.expected_total_value_yen = expected_revenue_value_yen.to_i + expected_learning_value_yen.to_i
   end
 
   def calculate_expected_hourly_value
@@ -101,5 +128,19 @@ class ActionCandidate < ApplicationRecord
     risk_reduction_value = risk_reduction_score.to_i * 100
 
     (hourly_value * 0.7) + (strategic_value * 0.2) + (risk_reduction_value * 0.1)
+  end
+
+  def calculate_expected_revenue_value
+    [
+      expected_profit_yen.to_i,
+      neglect_loss_90d_yen.to_i,
+      estimated_neglect_loss_90d_yen.to_i
+    ].sum
+  end
+
+  def value_ratio(value)
+    return 0 if expected_total_value_yen.to_i.zero?
+
+    (value.to_d / expected_total_value_yen.to_d * 100).round
   end
 end

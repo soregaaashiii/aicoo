@@ -119,6 +119,18 @@ module AicooExecutor
       end
     end
 
+    test "builds inferred executor task directly from action candidate" do
+      action_candidate = create_action_candidate(title: "SEO記事を作る", action_type: "seo_article")
+
+      task = TaskBuilder.from_action_candidate(action_candidate)
+
+      assert_equal "action_candidate", task.source_type
+      assert_equal action_candidate.id, task.source_id
+      assert_equal "seo_content", task.execution_type
+      assert_equal "approval_pending", task.status
+      assert_common_prompt_text(task.execution_prompt)
+    end
+
     private
 
     def assert_common_prompt_text(prompt)

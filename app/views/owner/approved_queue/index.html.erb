@@ -1,0 +1,70 @@
+<% content_for :title, "承認済みキュー" %>
+
+<% header_actions = capture do %>
+  <%= link_to "オーナーモード", owner_dashboard_path, class: "button secondary" %>
+  <%= button_to "全承認済み候補をExecutorへ送る", queue_all_owner_approved_queue_path, method: :post, class: "button" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "承認済みキュー",
+             description: "Ownerが承認したActionCandidateをExecutorへ送る前に集約します。",
+             active_main: :revenue,
+             actions: header_actions %>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>承認済み候補</h2>
+      <p>承認後すぐ実行せず、一度ここに集約してからExecutorへ送ります。</p>
+    </div>
+
+    <div class="actions compact-actions">
+      <%= link_to "承認日時順", owner_approved_queue_path(sort: "approved_at"), class: "button secondary" %>
+      <%= link_to "総期待値順", owner_approved_queue_path(sort: "expected_total_value"), class: "button secondary" %>
+    </div>
+
+    <%= form_with url: queue_selected_owner_approved_queue_path, method: :post do %>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>選択</th>
+              <th>タイトル</th>
+              <th>Business</th>
+              <th>action_type</th>
+              <th>総期待値</th>
+              <th>収益価値</th>
+              <th>学習価値</th>
+              <th>生成元</th>
+              <th>承認日時</th>
+              <th>信頼度</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @approved_candidates.each do |action_candidate| %>
+              <tr>
+                <td><%= check_box_tag "action_candidate_ids[]", action_candidate.id, false, id: "action_candidate_#{action_candidate.id}" %></td>
+                <td><%= link_to action_candidate.title, action_candidate_path(action_candidate) %></td>
+                <td><%= action_candidate.business.name %></td>
+                <td><%= action_candidate.action_type %></td>
+                <td><%= number_to_currency(action_candidate.expected_total_value_yen, unit: "¥", precision: 0) %></td>
+                <td><%= number_to_currency(action_candidate.expected_revenue_value_yen, unit: "¥", precision: 0) %></td>
+                <td><%= number_to_currency(action_candidate.expected_learning_value_yen, unit: "¥", precision: 0) %></td>
+                <td><%= action_candidate.generation_source %></td>
+                <td><%= action_candidate.approved_at ? l(action_candidate.approved_at, format: :short) : "-" %></td>
+                <td><%= action_candidate.confidence_score.to_i %></td>
+              </tr>
+            <% end %>
+            <% if @approved_candidates.empty? %>
+              <tr><td colspan="10">承認済み候補はありません。</td></tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="actions compact-actions">
+        <%= submit_tag "選択した候補をExecutorへ送る", class: "button" %>
+      </div>
+    <% end %>
+  </section>
+</div>

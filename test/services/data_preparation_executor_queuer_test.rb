@@ -57,6 +57,21 @@ class DataPreparationExecutorQueuerTest < ActiveSupport::TestCase
     end
   end
 
+  test "does not queue approved data preparation candidates" do
+    AicooSetting.current.update!(auto_queue_data_preparation_tasks: true)
+    candidate = create_data_preparation_candidate
+    candidate.update!(status: "approved", approved_at: Time.current, approved_by: "owner")
+
+    assert_no_difference("AicooExecutorTask.count") do
+      result = DataPreparationExecutorQueuer.new.call
+
+      assert_equal 0, result.candidate_count
+      assert_equal 0, result.queued_count
+    end
+
+    assert_equal "approved", candidate.reload.status
+  end
+
   private
 
   def create_data_preparation_candidate

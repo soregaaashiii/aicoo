@@ -33,7 +33,7 @@ module AicooExecutor
         title: task_title,
         source_type: "action_candidate",
         source_id: source_record.id,
-        execution_type: "data_preparation",
+        execution_type:,
         execution_prompt: source_record.execution_prompt.presence || execution_prompt,
         estimated_minutes:,
         status: "approval_pending"

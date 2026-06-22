@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_22_090100) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_22_101000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -40,6 +40,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_22_090100) do
 
   create_table "action_candidates", force: :cascade do |t|
     t.string "action_type"
+    t.datetime "approved_at"
+    t.string "approved_by"
     t.bigint "business_id", null: false
     t.integer "confidence_score"
     t.integer "cost_yen"
@@ -49,9 +51,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_22_090100) do
     t.integer "estimated_neglect_loss_90d_yen", default: 0, null: false
     t.text "evaluation_reason"
     t.text "execution_prompt"
+    t.datetime "executor_queued_at"
     t.integer "expected_hourly_value_yen"
     t.decimal "expected_hours"
+    t.integer "expected_learning_value_yen", default: 0, null: false
     t.integer "expected_profit_yen"
+    t.integer "expected_revenue_value_yen", default: 0, null: false
+    t.integer "expected_total_value_yen", default: 0, null: false
     t.decimal "final_score"
     t.string "generation_source", default: "manual", null: false
     t.integer "immediate_value_yen"

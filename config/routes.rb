@@ -5,6 +5,11 @@ Rails.application.routes.draw do
   match "rails/conductor/action_mailbox/*path", to: "blocked_internal_routes#not_found", via: :all
 
   root "dashboard#show"
+  get "owner", to: "owner/dashboard#show", as: :owner_dashboard
+  get "owner/dashboard", to: "owner/dashboard#show"
+  get "owner/approved_queue", to: "owner/approved_queue#index", as: :owner_approved_queue
+  post "owner/approved_queue/queue_selected", to: "owner/approved_queue#queue_selected", as: :queue_selected_owner_approved_queue
+  post "owner/approved_queue/queue_all", to: "owner/approved_queue#queue_all", as: :queue_all_owner_approved_queue
   get "dashboard", to: "dashboard#show"
   post "dashboard/generate_ai_top10", to: "dashboard#generate_ai_top10", as: :generate_ai_top10_dashboard
   post "dashboard/import_business_metrics_today", to: "dashboard#import_business_metrics_today", as: :import_business_metrics_today_dashboard
@@ -16,6 +21,7 @@ Rails.application.routes.draw do
   post "dashboard/adjust_all_business_proxy_score_weights", to: "dashboard#adjust_all_business_proxy_score_weights", as: :adjust_all_business_proxy_score_weights_dashboard
 
   resources :action_candidates do
+    patch :approve, on: :member
     post :reevaluate_ai, on: :member
     post :send_to_executor, on: :member
   end
