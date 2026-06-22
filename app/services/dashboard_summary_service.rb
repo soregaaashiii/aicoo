@@ -337,7 +337,7 @@ class DashboardSummaryService
     score += capped_ratio(progress.evaluated_current, progress.evaluated_required) * 20
     score += capped_ratio(progress.business_metric_current, progress.business_metric_required) * 20
     score += capped_ratio(progress.revenue_event_current, progress.revenue_event_required) * 15
-    score += 10 if AicooDailyRun.where(status: "succeeded").exists?
+    score += 10 if AicooDailyRun.successful.exists?
     score += capped_ratio(ActionCandidateScoreSnapshot.count, 10) * 15
     score.round
   end

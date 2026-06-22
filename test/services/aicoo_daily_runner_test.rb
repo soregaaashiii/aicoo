@@ -10,8 +10,13 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
     stub_daily_steps(order:, adjuster:, generator_results: [ generator_result ], evaluated_results: [ Object.new ]) do
       run = AicooDailyRunner.run!(target_date:)
 
-      assert_equal "succeeded", run.status
+      assert_equal "success", run.status
       assert_equal target_date, run.target_date
+      assert_equal "manual", run.source
+      assert_equal 0, run.retry_count
+      assert_equal 1, run.analytics_fetch_count
+      assert_equal 4, run.snapshot_count
+      assert_equal 1, run.insight_generated_count
       assert_equal 2, run.business_metrics_imported_count
       assert_equal 1, run.proxy_weights_adjusted_count
       assert_equal 2, run.action_candidates_generated_count
@@ -23,6 +28,7 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
       assert_equal 5, run.data_preparation_candidates_count
       assert_equal 3, run.data_preparation_auto_queued_count
       assert_match "Daily Run finished", run.run_log
+      assert_match "Analytics fetched success=1 failed=0", run.run_log
       assert_match "DataHub collected snapshots count=4", run.run_log
       assert_match "Insight generated count=1", run.run_log
       assert_match "Insight skipped count=2", run.run_log
@@ -34,7 +40,23 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
       assert_match "MetaEvaluationSnapshot created count=5", run.run_log
       assert_match "Most trusted evaluator: gsc", run.run_log
       assert_match "GSC average confidence=82.0", run.run_log
-      assert_equal %i[datahub import adjust_all generate insight evaluate snapshot queue meta_snapshot], order
+      assert_equal %i[analytics datahub import adjust_all generate insight evaluate snapshot queue meta_snapshot], order
+    end
+  end
+
+  test "partial failed run when analytics has failed fetch run" do
+    order = []
+    target_date = Date.new(2026, 6, 21)
+    adjuster = fake_adjuster(order)
+    generator_result = MetricActionCandidateGenerator::Result.new(created: [], skipped: [])
+
+    stub_daily_steps(order:, adjuster:, generator_results: [ generator_result ], evaluated_results: [], analytics_status: "failed") do
+      run = AicooDailyRunner.run!(target_date:, source: "cron")
+
+      assert_equal "partial_failed", run.status
+      assert_equal "cron", run.source
+      assert_equal 0, run.analytics_fetch_count
+      assert_match "Analytics fetched success=0 failed=1", run.run_log
     end
   end
 
@@ -77,38 +99,40 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
     end
   end
 
-  def stub_daily_steps(order:, adjuster:, generator_results:, evaluated_results:)
-    with_singleton_stub(BusinessMetricDailyImporter, :import_all!, ->(date:) {
-      order << :import
-      [ Object.new, Object.new ]
-    }) do
+  def stub_daily_steps(order:, adjuster:, generator_results:, evaluated_results:, analytics_status: "success")
+    with_singleton_stub(AicooAnalytics::DailyFetchJob, :perform_now, -> { fake_analytics_fetch(order, analytics_status) }) do
       with_singleton_stub(AicooDataHub::DailyCollector, :new, -> { fake_datahub_collector(order) }) do
-        with_singleton_stub(ProxyScoreWeightAdjuster, :new, -> { adjuster }) do
-          with_singleton_stub(MetricActionCandidateGenerator, :generate_all!, -> {
-            order << :generate
-            generator_results
-          }) do
-            with_singleton_stub(AicooInsight::Generator, :generate_all!, ->(source:) {
-              order << :insight
-              AicooInsight::Generator::Result.new(created: [ Object.new ], skipped: [ Object.new, Object.new ])
+        with_singleton_stub(BusinessMetricDailyImporter, :import_all!, ->(date:) {
+          order << :import
+          [ Object.new, Object.new ]
+        }) do
+          with_singleton_stub(ProxyScoreWeightAdjuster, :new, -> { adjuster }) do
+            with_singleton_stub(MetricActionCandidateGenerator, :generate_all!, -> {
+              order << :generate
+              generator_results
             }) do
-              with_singleton_stub(ActionResultEvaluator, :evaluate_pending!, -> {
-                order << :evaluate
-                evaluated_results
+              with_singleton_stub(AicooInsight::Generator, :generate_all!, ->(source:) {
+                order << :insight
+                AicooInsight::Generator::Result.new(created: [ Object.new ], skipped: [ Object.new, Object.new ])
               }) do
-                with_method_stub(ActionCandidateScoreSnapshotter, :snapshot_top_candidates!, ->(date:) {
-                  order << :snapshot
-                  ActionCandidateScoreSnapshotter::Result.new(
-                    snapshots: [ Object.new, Object.new, Object.new ],
-                    created_count: 3,
-                    rank_up_count: 1,
-                    rank_down_count: 1,
-                    no_adjustment_count: 1
-                  )
+                with_singleton_stub(ActionResultEvaluator, :evaluate_pending!, -> {
+                  order << :evaluate
+                  evaluated_results
                 }) do
-                  with_singleton_stub(DataPreparationExecutorQueuer, :new, -> { fake_queuer(order) }) do
-                    with_singleton_stub(MetaEvaluationSnapshotter, :new, -> { fake_meta_snapshotter(order) }) do
-                      yield
+                  with_method_stub(ActionCandidateScoreSnapshotter, :snapshot_top_candidates!, ->(date:) {
+                    order << :snapshot
+                    ActionCandidateScoreSnapshotter::Result.new(
+                      snapshots: [ Object.new, Object.new, Object.new ],
+                      created_count: 3,
+                      rank_up_count: 1,
+                      rank_down_count: 1,
+                      no_adjustment_count: 1
+                    )
+                  }) do
+                    with_singleton_stub(DataPreparationExecutorQueuer, :new, -> { fake_queuer(order) }) do
+                      with_singleton_stub(MetaEvaluationSnapshotter, :new, -> { fake_meta_snapshotter(order) }) do
+                        yield
+                      end
                     end
                   end
                 end
@@ -118,6 +142,21 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
         end
       end
     end
+  end
+
+  def fake_analytics_fetch(order, status)
+    order << :analytics
+    setting = AnalyticsSourceSetting.create!(
+      name: "Daily runner test #{status} #{SecureRandom.hex(4)}",
+      source_type: "gsc",
+      site_url: "sc-domain:#{SecureRandom.hex(8)}.test",
+      enabled: false
+    )
+    setting.analytics_fetch_runs.create!(
+      status:,
+      started_at: Time.current,
+      finished_at: Time.current
+    )
   end
 
   def fake_datahub_collector(order)

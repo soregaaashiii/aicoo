@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_22_141000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_22_143100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -149,25 +149,45 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_22_141000) do
     t.index ["gsc_site_url"], name: "index_aicoo_analytics_sites_on_gsc_site_url"
   end
 
+  create_table "aicoo_daily_run_settings", force: :cascade do |t|
+    t.boolean "catch_up_enabled", default: true, null: false
+    t.datetime "created_at", null: false
+    t.boolean "enabled", default: true, null: false
+    t.datetime "last_checked_at"
+    t.datetime "last_success_at"
+    t.integer "max_retry_per_day", default: 10, null: false
+    t.boolean "retry_until_success", default: true, null: false
+    t.integer "run_hour", default: 8, null: false
+    t.integer "run_minute", default: 0, null: false
+    t.string "timezone", default: "Asia/Tokyo", null: false
+    t.datetime "updated_at", null: false
+  end
+
   create_table "aicoo_daily_runs", force: :cascade do |t|
     t.integer "action_candidates_generated_count", default: 0, null: false
     t.integer "action_results_evaluated_count", default: 0, null: false
+    t.integer "analytics_fetch_count", default: 0, null: false
     t.integer "business_metrics_imported_count", default: 0, null: false
     t.datetime "created_at", null: false
     t.integer "data_preparation_auto_queued_count", default: 0, null: false
     t.integer "data_preparation_candidates_count", default: 0, null: false
     t.text "error_message"
     t.datetime "finished_at"
+    t.integer "insight_generated_count", default: 0, null: false
     t.integer "proxy_weights_adjusted_count", default: 0, null: false
+    t.integer "retry_count", default: 0, null: false
     t.text "run_log"
     t.integer "score_snapshot_no_adjustment_count", default: 0, null: false
     t.integer "score_snapshot_rank_down_count", default: 0, null: false
     t.integer "score_snapshot_rank_up_count", default: 0, null: false
     t.integer "score_snapshots_created_count", default: 0, null: false
+    t.integer "snapshot_count", default: 0, null: false
+    t.string "source", default: "manual", null: false
     t.datetime "started_at"
     t.string "status", default: "pending", null: false
     t.date "target_date", null: false
     t.datetime "updated_at", null: false
+    t.index ["source"], name: "index_aicoo_daily_runs_on_source"
     t.index ["target_date", "status"], name: "index_aicoo_daily_runs_on_target_date_and_status"
     t.index ["target_date"], name: "index_aicoo_daily_runs_on_target_date"
   end

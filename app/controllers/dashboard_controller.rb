@@ -1,5 +1,6 @@
 class DashboardController < ApplicationController
   def show
+    run_daily_catch_up_if_due
     @dashboard_summary = DashboardSummaryService.new.call
     @department_ranking = ActionCandidateDepartmentRanking.new(limit: 10).call
     @department_precision_summaries = ActionResultDepartmentSummary.new.summaries
@@ -35,6 +36,7 @@ class DashboardController < ApplicationController
     end
     @recent_proxy_score_weight_logs = ProxyScoreWeightAdjustmentLog.includes(:business).order(adjusted_at: :desc).limit(10)
     @latest_aicoo_daily_run = AicooDailyRun.recent.first
+    @daily_run_scheduler_status = AicooDailyRunScheduler.status
   end
 
   def generate_ai_top10
@@ -96,6 +98,18 @@ class DashboardController < ApplicationController
 
   def dashboard_ranking_scope
     ActionCandidate.active_for_ranking.where.not(action_type: "data_preparation")
+  end
+
+  def run_daily_catch_up_if_due
+    return if Rails.env.test?
+
+    status = AicooDailyRunScheduler.status
+    setting = status.setting
+    return unless setting.enabled? && setting.catch_up_enabled? && status.ready
+
+    AicooDailyRunScheduler.catch_up_if_due!
+  rescue StandardError => e
+    Rails.logger.warn("AICOO Daily Run catch-up failed: #{e.class}: #{e.message}")
   end
 
   def import_business_metrics_for(date, label)

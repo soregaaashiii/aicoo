@@ -16,6 +16,11 @@
   <section class="dashboard-section">
     <div class="metric-grid">
       <div class="metric-card"><span>状態</span><strong><%= @daily_run.status %></strong></div>
+      <div class="metric-card"><span>source</span><strong><%= @daily_run.source %></strong></div>
+      <div class="metric-card"><span>retry</span><strong><%= @daily_run.retry_count %></strong></div>
+      <div class="metric-card"><span>Analytics取得</span><strong><%= @daily_run.analytics_fetch_count %></strong></div>
+      <div class="metric-card"><span>DataHub Snapshot</span><strong><%= @daily_run.snapshot_count %></strong></div>
+      <div class="metric-card"><span>Insight生成</span><strong><%= @daily_run.insight_generated_count %></strong></div>
       <div class="metric-card"><span>代理指標取り込み</span><strong><%= @daily_run.business_metrics_imported_count %></strong></div>
       <div class="metric-card"><span>重み補正</span><strong><%= @daily_run.proxy_weights_adjusted_count %></strong></div>
       <div class="metric-card"><span>候補生成</span><strong><%= @daily_run.action_candidates_generated_count %></strong></div>

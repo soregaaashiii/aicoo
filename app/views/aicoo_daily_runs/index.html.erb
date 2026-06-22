@@ -37,7 +37,12 @@
           <tr>
             <th>実行日時</th>
             <th>対象日</th>
+            <th>source</th>
             <th>状態</th>
+            <th>retry</th>
+            <th>Analytics</th>
+            <th>Snapshot</th>
+            <th>Insight</th>
             <th>候補生成</th>
             <th>結果評価</th>
             <th>詳細</th>
@@ -48,14 +53,19 @@
             <tr>
               <td><%= daily_run.started_at ? l(daily_run.started_at, format: :short) : "-" %></td>
               <td><%= daily_run.target_date %></td>
+              <td><span class="pill"><%= daily_run.source %></span></td>
               <td><span class="pill"><%= daily_run.status %></span></td>
+              <td class="number"><%= daily_run.retry_count %></td>
+              <td class="number"><%= daily_run.analytics_fetch_count %></td>
+              <td class="number"><%= daily_run.snapshot_count %></td>
+              <td class="number"><%= daily_run.insight_generated_count %></td>
               <td class="number"><%= daily_run.action_candidates_generated_count %></td>
               <td class="number"><%= daily_run.action_results_evaluated_count %></td>
               <td><%= link_to "詳細", daily_run, class: "button secondary" %></td>
             </tr>
           <% end %>
           <% if @daily_runs.empty? %>
-            <tr><td colspan="6">まだDaily Runはありません。</td></tr>
+            <tr><td colspan="10">まだDaily Runはありません。</td></tr>
           <% end %>
         </tbody>
       </table>

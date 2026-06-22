@@ -10,7 +10,7 @@ class AicooDailyRunsController < ApplicationController
 
   def create
     target_date = daily_run_target_date
-    daily_run = AicooDailyRunner.run!(target_date:)
+    daily_run = AicooDailyRunner.run!(target_date:, source: "manual")
 
     if daily_run.running?
       redirect_to daily_run, alert: "#{target_date} のDaily Runはすでに実行中です。"

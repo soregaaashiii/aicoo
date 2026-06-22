@@ -416,10 +416,20 @@
     <div class="metric-grid">
       <div class="metric-card"><span>最新Daily Run</span><strong><%= link_to @latest_aicoo_daily_run.status, @latest_aicoo_daily_run %></strong></div>
       <div class="metric-card"><span>対象日</span><strong><%= @latest_aicoo_daily_run.target_date %></strong></div>
+      <div class="metric-card"><span>最終成功日時</span><strong><%= @daily_run_scheduler_status.last_success_at ? l(@daily_run_scheduler_status.last_success_at, format: :short) : "-" %></strong></div>
+      <div class="metric-card"><span>次回予定時刻</span><strong><%= l(@daily_run_scheduler_status.next_run_at, format: :short) %></strong></div>
+      <div class="metric-card"><span>retry回数</span><strong><%= @daily_run_scheduler_status.retry_count %> / <%= @daily_run_scheduler_status.max_retry_per_day %></strong></div>
+      <div class="metric-card"><span>最終エラー</span><strong><%= @daily_run_scheduler_status.last_error.presence || "-" %></strong></div>
+      <div class="metric-card"><span>Analytics取得</span><strong><%= @latest_aicoo_daily_run.analytics_fetch_count %></strong></div>
+      <div class="metric-card"><span>DataHub Snapshot</span><strong><%= @latest_aicoo_daily_run.snapshot_count %></strong></div>
+      <div class="metric-card"><span>Insight生成</span><strong><%= @latest_aicoo_daily_run.insight_generated_count %></strong></div>
       <div class="metric-card"><span>候補生成</span><strong><%= @latest_aicoo_daily_run.action_candidates_generated_count %></strong></div>
       <div class="metric-card"><span>結果評価</span><strong><%= @latest_aicoo_daily_run.action_results_evaluated_count %></strong></div>
     </div>
   <% end %>
+  <div class="actions compact-actions">
+    <%= link_to "Daily Run設定", admin_aicoo_daily_run_settings_path, class: "button secondary" %>
+  </div>
 </section>
 
 <section class="dashboard-section">

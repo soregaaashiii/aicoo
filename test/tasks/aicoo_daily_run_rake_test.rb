@@ -13,15 +13,33 @@ class AicooDailyRunRakeTest < ActiveSupport::TestCase
 
   test "daily_run task calls runner" do
     called = false
-    daily_run = AicooDailyRun.create!(target_date: Date.new(2026, 6, 21), status: "succeeded")
+    daily_run = AicooDailyRun.create!(target_date: Date.new(2026, 6, 21), status: "success")
 
-    with_daily_runner_stub(->(target_date:) {
+    with_daily_runner_stub(->(target_date:, source:) {
       called = true
       assert_equal Date.new(2026, 6, 21), target_date
+      assert_equal "manual", source
       daily_run
     }) do
       capture_io do
         Rake::Task["aicoo:daily_run"].invoke("2026-06-21")
+      end
+    end
+
+    assert called
+  end
+
+  test "daily_run task without date calls scheduler as cron" do
+    called = false
+    daily_run = AicooDailyRun.create!(target_date: Date.yesterday, status: "success", source: "cron")
+
+    with_scheduler_stub(->(source:) {
+      called = true
+      assert_equal "cron", source
+      daily_run
+    }) do
+      capture_io do
+        Rake::Task["aicoo:daily_run"].invoke
       end
     end
 
@@ -36,6 +54,16 @@ class AicooDailyRunRakeTest < ActiveSupport::TestCase
     yield
   ensure
     AicooDailyRunner.define_singleton_method(:run!) do |*args, **kwargs, &block|
+      original.call(*args, **kwargs, &block)
+    end
+  end
+
+  def with_scheduler_stub(replacement)
+    original = AicooDailyRunScheduler.method(:check!)
+    AicooDailyRunScheduler.define_singleton_method(:check!) { |*args, **kwargs| replacement.call(*args, **kwargs) }
+    yield
+  ensure
+    AicooDailyRunScheduler.define_singleton_method(:check!) do |*args, **kwargs, &block|
       original.call(*args, **kwargs, &block)
     end
   end

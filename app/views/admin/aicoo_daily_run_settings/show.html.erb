@@ -1,0 +1,74 @@
+<% content_for :title, "Daily Run設定" %>
+
+<% header_actions = capture do %>
+  <%= link_to "Daily Run履歴", aicoo_daily_runs_path, class: "button secondary" %>
+  <%= link_to "操作盤に戻る", dashboard_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "Daily Run設定",
+             description: "AICOOが毎日成功するまで、Analytics取得・DataHub収集・Insight生成を再試行する設定です。",
+             active_main: :dashboard,
+             actions: header_actions %>
+  <%= render "shared/aicoo_execution_tabs", active: :dashboard %>
+
+  <section class="dashboard-section">
+    <div class="metric-grid">
+      <div class="metric-card"><span>自動実行</span><strong><%= @setting.enabled? ? "ON" : "OFF" %></strong></div>
+      <div class="metric-card"><span>最終成功日時</span><strong><%= @scheduler_status.last_success_at ? l(@scheduler_status.last_success_at, format: :short) : "-" %></strong></div>
+      <div class="metric-card"><span>次回予定時刻</span><strong><%= l(@scheduler_status.next_run_at, format: :short) %></strong></div>
+      <div class="metric-card"><span>retry回数</span><strong><%= @scheduler_status.retry_count %> / <%= @scheduler_status.max_retry_per_day %></strong></div>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>自動実行設定</h2>
+      <p>Render Cronには下のコマンドを設定してください。AICOO側で成功するまで再試行を制御します。</p>
+    </div>
+
+    <%= form_with model: @setting, url: admin_aicoo_daily_run_settings_path, method: :patch do |form| %>
+      <div class="form-grid">
+        <div class="field">
+          <%= form.label :enabled, "自動実行" %>
+          <%= form.check_box :enabled %>
+        </div>
+        <div class="field">
+          <%= form.label :run_hour, "実行時" %>
+          <%= form.number_field :run_hour, min: 0, max: 23 %>
+        </div>
+        <div class="field">
+          <%= form.label :run_minute, "実行分" %>
+          <%= form.number_field :run_minute, min: 0, max: 59 %>
+        </div>
+        <div class="field">
+          <%= form.label :timezone, "タイムゾーン" %>
+          <%= form.text_field :timezone %>
+        </div>
+        <div class="field">
+          <%= form.label :catch_up_enabled, "Catch-up" %>
+          <%= form.check_box :catch_up_enabled %>
+        </div>
+        <div class="field">
+          <%= form.label :retry_until_success, "成功まで再試行" %>
+          <%= form.check_box :retry_until_success %>
+        </div>
+        <div class="field">
+          <%= form.label :max_retry_per_day, "最大再試行回数" %>
+          <%= form.number_field :max_retry_per_day, min: 1 %>
+        </div>
+      </div>
+
+      <%= form.submit "保存", class: "button" %>
+    <% end %>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="aicoo-card">
+      <h2>Render Cron推奨設定</h2>
+      <p>毎日08:00 JSTに以下を実行してください。</p>
+      <pre>bin/rails aicoo:daily_run</pre>
+    </div>
+  </section>
+</div>
