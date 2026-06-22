@@ -92,6 +92,8 @@ Rails.application.routes.draw do
     get "aicoo_datahub", to: "aicoo_datahub#show", as: :aicoo_datahub
     get "aicoo_judge", to: "aicoo_judge#show", as: :aicoo_judge
     get "aicoo_judge/action_predictions", to: "aicoo_judge#action_predictions", as: :aicoo_judge_action_predictions
+    get "aicoo_insights", to: "aicoo_insights#index", as: :aicoo_insights
+    post "aicoo_insights/generate", to: "aicoo_insights#generate", as: :aicoo_insights_generate
     post "aicoo_datahub/collect_landing_pages", to: "aicoo_datahub#collect_landing_pages", as: :aicoo_datahub_collect_landing_pages
     post "aicoo_datahub/collect_revenue", to: "aicoo_datahub#collect_revenue", as: :aicoo_datahub_collect_revenue
     post "aicoo_datahub/collect_data_imports", to: "aicoo_datahub#collect_data_imports", as: :aicoo_datahub_collect_data_imports

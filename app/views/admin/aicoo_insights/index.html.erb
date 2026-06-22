@@ -1,0 +1,68 @@
+<% content_for :title, "改善案" %>
+
+<% header_actions = capture do %>
+  <%= button_to "改善案を生成", admin_aicoo_insights_generate_path, method: :post, class: "button" %>
+  <%= link_to "ActionCandidate", action_candidates_path(generation_source: "ai_insight"), class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "改善案",
+             description: "GSC・GA4・収益・実績データから、次にやるべきことをActionCandidateとして生成します。",
+             active_main: :dashboard,
+             actions: header_actions %>
+
+  <section class="dashboard-section">
+    <div class="metric-grid">
+      <div class="metric-card"><span>Insight件数</span><strong><%= @summary.total_count %></strong></div>
+      <div class="metric-card"><span>今日生成</span><strong><%= @summary.today_count %></strong></div>
+      <div class="metric-card">
+        <span>最重要改善案</span>
+        <strong><%= @summary.top_action ? number_to_currency(@summary.top_action.expected_profit_yen, unit: "¥", precision: 0) : "-" %></strong>
+      </div>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>検出された改善機会</h2>
+      <p>一覧は短く保ち、生成理由や実行指示はActionCandidate詳細で確認します。</p>
+    </div>
+
+    <div class="actions compact-actions">
+      <%= button_to "改善案を生成", admin_aicoo_insights_generate_path, method: :post, class: "button" %>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>生成日時</th>
+            <th>対象事業</th>
+            <th>改善案</th>
+            <th>期待利益</th>
+            <th>放置損失</th>
+            <th>生成理由</th>
+            <th>詳細</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @insights.each do |action| %>
+            <tr>
+              <td><%= l(action.created_at, format: :short) %></td>
+              <td><%= link_to action.business.name, action.business %></td>
+              <td><%= action.title %></td>
+              <td class="number"><%= number_to_currency(action.expected_profit_yen, unit: "¥", precision: 0) %></td>
+              <td class="number"><%= number_to_currency(action.neglect_loss_90d_yen, unit: "¥", precision: 0) %></td>
+              <td><%= action.evaluation_reason.to_s.lines.first || "-" %></td>
+              <td><%= link_to "開く", action, class: "button secondary" %></td>
+            </tr>
+          <% end %>
+          <% if @insights.empty? %>
+            <tr><td colspan="7">まだ改善案はありません。「改善案を生成」を押してください。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>

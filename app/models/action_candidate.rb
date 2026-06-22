@@ -21,7 +21,7 @@ class ActionCandidate < ApplicationRecord
 
   STATUSES = %w[idea pending approved executor_queued in_progress done rejected archived].freeze
   INACTIVE_STATUSES = %w[archived rejected done].freeze
-  GENERATION_SOURCES = %w[manual seed ai_business ai_cross_business ai_reevaluation].freeze
+  GENERATION_SOURCES = %w[manual seed ai_business ai_cross_business ai_reevaluation ai_insight].freeze
   DEPARTMENTS = %w[general revenue lab new_business].freeze
 
   belongs_to :business
@@ -68,7 +68,7 @@ class ActionCandidate < ApplicationRecord
   end
 
   def unfinished_executor_task
-    return unless data_preparation?
+    return unless data_preparation? || generation_source == "ai_insight"
 
     AicooExecutorTask.unfinished_for_action_candidate(self)
   end

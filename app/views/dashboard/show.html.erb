@@ -126,6 +126,28 @@
 <% judge_summary = @dashboard_summary.judge %>
 
 <section class="dashboard-section">
+  <div class="section-heading">
+    <h2>Insight Engine</h2>
+    <p>GSC・GA4・収益・実績データから、次にやるべき改善案を生成します。</p>
+  </div>
+  <div class="metric-grid">
+    <div class="metric-card"><span>Insight件数</span><strong><%= @aicoo_insight_summary.total_count %></strong></div>
+    <div class="metric-card"><span>今日生成した改善案</span><strong><%= @aicoo_insight_summary.today_count %></strong></div>
+    <div class="metric-card">
+      <span>最重要改善案</span>
+      <% if @aicoo_insight_summary.top_action %>
+        <strong><%= link_to @aicoo_insight_summary.top_action.title, @aicoo_insight_summary.top_action %></strong>
+      <% else %>
+        <strong>未生成</strong>
+      <% end %>
+    </div>
+  </div>
+  <div class="actions compact-actions">
+    <%= link_to "改善案を見る", admin_aicoo_insights_path, class: "button secondary" %>
+  </div>
+</section>
+
+<section class="dashboard-section">
   <div class="aicoo-card">
     <h2>LP外部公開URL</h2>
     <p>公開LPだけをSNS共有できます。Dashboardや管理画面は本番ではBasic認証で保護します。</p>

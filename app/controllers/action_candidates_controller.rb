@@ -78,13 +78,13 @@ class ActionCandidatesController < ApplicationController
   end
 
   def send_to_executor
-    unless @action_candidate.data_preparation?
-      redirect_to @action_candidate, alert: "Executorへ直接送れるのはデータ整備タスクだけです。"
+    unless executor_direct_sendable?
+      redirect_to @action_candidate, alert: "Executorへ直接送れるのはデータ整備タスクまたはInsight候補だけです。"
       return
     end
 
     task = AicooExecutor::TaskBuilder.from_action_candidate(@action_candidate)
-    redirect_to admin_aicoo_executor_task_path(task), notice: "データ整備タスクをExecutorへ送りました。"
+    redirect_to admin_aicoo_executor_task_path(task), notice: "ActionCandidateをExecutorへ送りました。"
   end
 
   private
@@ -112,5 +112,9 @@ class ActionCandidatesController < ApplicationController
         candidates = candidates.where(data_confidence_score: params[:data_confidence_score].to_i..)
       end
       candidates
+    end
+
+    def executor_direct_sendable?
+      @action_candidate.data_preparation? || @action_candidate.generation_source == "ai_insight"
     end
 end

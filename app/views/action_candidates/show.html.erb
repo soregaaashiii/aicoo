@@ -2,7 +2,7 @@
 
 <% header_actions = capture do %>
     <%= button_to "AIで再評価", reevaluate_ai_action_candidate_path(@action_candidate), method: :post, class: "button" %>
-    <% if @action_candidate.data_preparation? %>
+    <% if @action_candidate.data_preparation? || @action_candidate.generation_source == "ai_insight" %>
       <% executor_task = @action_candidate.unfinished_executor_task %>
       <% if executor_task %>
         <%= link_to "Executor送信済み", admin_aicoo_executor_task_path(executor_task), class: "button secondary" %>
