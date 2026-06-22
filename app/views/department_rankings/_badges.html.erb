@@ -1,0 +1,9 @@
+<% if badges.any? %>
+  <div class="actions compact-actions">
+    <% badges.first(3).each do |badge| %>
+      <span class="pill"><%= badge %></span>
+    <% end %>
+  </div>
+<% else %>
+  -
+<% end %>

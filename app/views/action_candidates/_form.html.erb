@@ -36,6 +36,11 @@
       </div>
 
       <div class="field">
+        <%= form.label :department, "部門" %>
+        <%= form.select :department, ActionCandidate::DEPARTMENTS.map { |department| [ActionCandidateDepartmentRanking::DEPARTMENTS.fetch(department), department] } %>
+      </div>
+
+      <div class="field">
         <%= form.label :status, "状態" %>
         <%= form.select :status, ActionCandidate::STATUSES.map { |status| [status.humanize, status] } %>
       </div>

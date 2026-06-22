@@ -8,6 +8,7 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
   test "should get index" do
     get action_candidates_url
     assert_response :success
+    assert_includes response.body, "generalのみdepartment一括分類"
   end
 
   test "index hides archived action candidates by default" do
@@ -28,6 +29,25 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, @action_candidate.title
   end
 
+  test "index can filter by department" do
+    @action_candidate.update!(department: "revenue")
+    other = ActionCandidate.create!(
+      business: businesses(:suelog),
+      title: "Lab department action",
+      action_type: "data_preparation",
+      department: "lab",
+      generation_source: "ai_business",
+      immediate_value_yen: 0,
+      success_probability: 0.4
+    )
+
+    get action_candidates_url(department: "revenue")
+
+    assert_response :success
+    assert_includes response.body, @action_candidate.title
+    assert_not_includes response.body, other.title
+  end
+
   test "should get new" do
     get new_action_candidate_url
     assert_response :success
@@ -35,10 +55,11 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
 
   test "should create action_candidate" do
     assert_difference("ActionCandidate.count") do
-      post action_candidates_url, params: { action_candidate: writable_action_candidate_params.merge(title: "新しい行動候補") }
+      post action_candidates_url, params: { action_candidate: writable_action_candidate_params.merge(title: "新しい行動候補", department: "revenue") }
     end
 
     assert_redirected_to action_candidate_url(ActionCandidate.last)
+    assert_equal "revenue", ActionCandidate.last.department
   end
 
   test "should show action_candidate" do
@@ -63,6 +84,7 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "GSC"
     assert_includes response.body, "Judge補正スコア履歴"
     assert_includes response.body, "Judge補正で順位低下"
+    assert_includes response.body, "部門"
   end
 
   test "normal action candidate does not show direct executor button" do
@@ -142,6 +164,7 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
       confidence_score: @action_candidate.confidence_score,
       cost_yen: @action_candidate.cost_yen,
       description: @action_candidate.description,
+      department: @action_candidate.department,
       evaluation_reason: @action_candidate.evaluation_reason,
       execution_prompt: @action_candidate.execution_prompt,
       expected_hours: @action_candidate.expected_hours,

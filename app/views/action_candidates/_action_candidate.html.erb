@@ -11,6 +11,9 @@
   <dt>行動タイプ</dt>
   <dd><%= action_candidate.action_type %></dd>
 
+  <dt>部門</dt>
+  <dd><span class="pill"><%= ActionCandidateDepartmentRanking::DEPARTMENTS.fetch(action_candidate.department, action_candidate.department) %></span></dd>
+
   <dt>生成元</dt>
   <dd><span class="pill"><%= action_candidate.generation_source %></span></dd>
 

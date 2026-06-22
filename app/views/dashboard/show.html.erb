@@ -18,6 +18,110 @@
              actions: header_actions %>
   <%= render "shared/aicoo_execution_tabs", active: :dashboard %>
 
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>AICOO完成段階</h2>
+    <p>今AICOOがどこまで自走できているかを、7段階で確認します。</p>
+  </div>
+  <div class="aicoo-card-grid">
+    <% @aicoo_completion_levels.each do |level| %>
+      <div class="aicoo-card aicoo-card-compact">
+        <h3>Lv<%= level.level %> <%= level.title %></h3>
+        <p><span class="pill"><%= level.status_label %></span></p>
+        <p class="aicoo-lab-help">不足: <%= level.missing_item %></p>
+        <small>現在 <%= level.current_count %> / 目安 <%= level.required_count %></small>
+        <div class="actions compact-actions">
+          <% if level.next_action.available? %>
+            <%= link_to level.next_action.label, level.next_action.path, class: "button secondary" %>
+          <% else %>
+            <span class="button secondary disabled"><%= level.next_action.label %></span>
+          <% end %>
+        </div>
+        <small><%= level.next_action.reason %></small>
+      </div>
+    <% end %>
+  </div>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>総合ランキング TOP10</h2>
+    <p>総合ランキングを主役にし、部門別ランキングは深掘り用に分けています。</p>
+  </div>
+
+  <div class="aicoo-card-grid">
+    <% @department_ranking.department_leaders.each do |department, score| %>
+      <div class="aicoo-card aicoo-card-compact">
+        <h3><%= ActionCandidateDepartmentRanking::DEPARTMENTS.fetch(department) %> 1位</h3>
+        <% if score %>
+          <% action = score.action_candidate %>
+          <p><strong><%= link_to action.title, action %></strong></p>
+          <p><%= action.business.name %> / <%= number_with_precision(score.judge_adjusted_score, precision: 1) %></p>
+          <p class="aicoo-lab-help"><%= score.summary_reason %></p>
+        <% else %>
+          <p>表示できる候補はありません。</p>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>順位</th>
+          <th>行動</th>
+          <th>事業</th>
+          <th>部門</th>
+          <th>期待利益</th>
+          <th>Judge補正後</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @department_ranking.rankings.each.with_index(1) do |score, index| %>
+          <% action = score.action_candidate %>
+          <tr>
+            <td class="number"><%= index %></td>
+            <td><%= link_to action.title, action %></td>
+            <td><%= action.business.name %></td>
+            <td><span class="pill"><%= ActionCandidateDepartmentRanking::DEPARTMENTS.fetch(action.department, action.department) %></span></td>
+            <td class="number"><%= number_to_currency(action.expected_profit_yen, unit: "¥", precision: 0) %></td>
+            <td class="number"><%= number_with_precision(score.judge_adjusted_score, precision: 1) %></td>
+          </tr>
+        <% end %>
+        <% if @department_ranking.rankings.empty? %>
+          <tr><td colspan="6">表示できるActionCandidateがありません。</td></tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+  <div class="actions compact-actions">
+    <%= link_to "部門別ランキングを見る", department_rankings_path, class: "button secondary" %>
+  </div>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>部門別精度サマリー</h2>
+    <p>ActionResultをもとに、Revenue / Lab / 新規事業ごとの当たり具合を小さく確認します。</p>
+  </div>
+  <div class="aicoo-card-grid">
+    <% @department_precision_summaries.each do |summary| %>
+      <div class="aicoo-card aicoo-card-compact">
+        <h3><%= summary.label %></h3>
+        <dl class="detail-list compact-list">
+          <dt>実行済み</dt>
+          <dd><%= summary.executed_count %>件</dd>
+          <dt>成功率</dt>
+          <dd><%= summary.success_rate ? number_to_percentage(summary.success_rate * 100, precision: 1) : "データ不足" %></dd>
+          <dt>予測との差</dt>
+          <dd><%= number_to_currency(summary.prediction_gap_yen, unit: "¥", precision: 0) %></dd>
+        </dl>
+      </div>
+    <% end %>
+  </div>
+</section>
+
 <% today_summary = @dashboard_summary.today %>
 <% judge_summary = @dashboard_summary.judge %>
 

@@ -95,13 +95,14 @@ class ActionCandidatesController < ApplicationController
 
     # Only allow a list of trusted parameters through.
     def action_candidate_params
-      params.expect(action_candidate: [ :business_id, :title, :description, :action_type, :expected_hours, :cost_yen, :success_probability, :immediate_value_yen, :neglect_loss_90d_yen, :neglect_loss_reason, :strategic_value_score, :risk_reduction_score, :confidence_score, :data_confidence_score, :priority_score, :status, :generation_source, :execution_prompt, :evaluation_reason ])
+      params.expect(action_candidate: [ :business_id, :title, :description, :action_type, :department, :expected_hours, :cost_yen, :success_probability, :immediate_value_yen, :neglect_loss_90d_yen, :neglect_loss_reason, :strategic_value_score, :risk_reduction_score, :confidence_score, :data_confidence_score, :priority_score, :status, :generation_source, :execution_prompt, :evaluation_reason ])
     end
 
     def filtered_action_candidates
       candidates = ActionCandidate.includes(:business).order(created_at: :desc)
       candidates = candidates.where(business_id: params[:business_id]) if params[:business_id].present?
       candidates = candidates.where(action_type: params[:action_type]) if params[:action_type].present?
+      candidates = candidates.where(department: params[:department]) if params[:department].present?
       if params[:status].present?
         candidates = candidates.where(status: params[:status])
       else

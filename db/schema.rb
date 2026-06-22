@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_22_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_22_130000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -47,6 +47,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_22_120000) do
     t.integer "cost_yen"
     t.datetime "created_at", null: false
     t.integer "data_confidence_score"
+    t.string "department", default: "general", null: false
     t.text "description"
     t.integer "estimated_neglect_loss_90d_yen", default: 0, null: false
     t.text "evaluation_reason"
@@ -76,6 +77,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_22_120000) do
     t.string "title"
     t.datetime "updated_at", null: false
     t.index ["business_id"], name: "index_action_candidates_on_business_id"
+    t.index ["department"], name: "index_action_candidates_on_department"
     t.index ["generation_source"], name: "index_action_candidates_on_generation_source"
   end
 

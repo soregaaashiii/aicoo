@@ -2,6 +2,11 @@
 
 <% header_actions = capture do %>
   <%= link_to "行動候補を追加", new_action_candidate_path, class: "button" %>
+  <%= button_to "generalのみdepartment一括分類",
+                classify_department_rankings_path,
+                method: :post,
+                class: "button secondary",
+                form: { data: { turbo_confirm: "departmentがgeneralの候補だけを一括分類します。実行しますか？" } } %>
 <% end %>
 
 <div class="aicoo-page">
@@ -22,6 +27,10 @@
     <%= form.select :action_type, options_for_select(ActionCandidate::ACTION_TYPES, params[:action_type]), include_blank: "All" %>
   </div>
   <div class="field compact-field">
+    <%= form.label :department, "部門" %>
+    <%= form.select :department, options_for_select(ActionCandidate::DEPARTMENTS.map { |department| [ActionCandidateDepartmentRanking::DEPARTMENTS.fetch(department), department] }, params[:department]), include_blank: "All" %>
+  </div>
+  <div class="field compact-field">
     <%= form.label :status, "Status" %>
     <%= form.select :status, options_for_select(ActionCandidate::STATUSES, params[:status]), include_blank: "All" %>
   </div>
@@ -39,6 +48,7 @@
       <tr>
         <th>行動タイトル</th>
         <th>事業</th>
+        <th>部門</th>
         <th>種別</th>
         <th>期待利益</th>
         <th>Judge補正後</th>
@@ -53,6 +63,7 @@
         <tr>
           <td><%= link_to action_candidate.title, action_candidate %></td>
           <td><%= action_candidate.business.name %></td>
+          <td><span class="pill"><%= ActionCandidateDepartmentRanking::DEPARTMENTS.fetch(action_candidate.department, action_candidate.department) %></span></td>
           <td><span class="pill"><%= action_candidate.action_type %></span></td>
           <td class="number"><%= number_to_currency(action_candidate.expected_profit_yen, unit: "¥", precision: 0) %></td>
           <td class="number"><%= number_with_precision(judge_score.judge_adjusted_score, precision: 1) %></td>

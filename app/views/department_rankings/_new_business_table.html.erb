@@ -1,0 +1,34 @@
+<table>
+  <thead>
+    <tr>
+      <th>順位</th>
+      <th>行動</th>
+      <th>事業</th>
+      <th>市場規模</th>
+      <th>自動化率</th>
+      <th>成功確率</th>
+      <th>初速</th>
+      <th>補助</th>
+      <th>状態</th>
+    </tr>
+  </thead>
+  <tbody>
+    <% rows.each.with_index(1) do |row, index| %>
+      <% action_candidate = row.action_candidate %>
+      <tr>
+        <td class="number"><%= index %></td>
+        <td><%= link_to action_candidate.title, action_candidate %></td>
+        <td><%= link_to action_candidate.business.name, action_candidate.business %></td>
+        <td class="number"><%= row.department_score.market_size_score || "-" %></td>
+        <td class="number"><%= row.department_score.automation_rate_score || "-" %></td>
+        <td class="number"><%= number_to_percentage(row.department_score.success_probability.to_d * 100, precision: 1) %></td>
+        <td class="number"><%= row.department_score.launch_speed_score || "-" %></td>
+        <td><%= render "badges", badges: row.badges %></td>
+        <td><span class="pill"><%= action_candidate.status %></span></td>
+      </tr>
+    <% end %>
+    <% if rows.empty? %>
+      <tr><td colspan="9">新規事業部門に表示できるActionCandidateはありません。</td></tr>
+    <% end %>
+  </tbody>
+</table>

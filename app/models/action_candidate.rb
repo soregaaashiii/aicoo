@@ -15,16 +15,23 @@ class ActionCandidate < ApplicationRecord
     withdraw
     sell
     data_preparation
+    evaluation_tuning
     other
   ].freeze
 
   STATUSES = %w[idea pending approved executor_queued in_progress done rejected archived].freeze
   INACTIVE_STATUSES = %w[archived rejected done].freeze
   GENERATION_SOURCES = %w[manual seed ai_business ai_cross_business ai_reevaluation].freeze
+  DEPARTMENTS = %w[general revenue lab new_business].freeze
 
   belongs_to :business
   has_one :action_result, dependent: :destroy
   has_many :action_candidate_score_snapshots, dependent: :destroy
+
+  def department=(value)
+    @department_explicitly_assigned = true if value.present?
+    super
+  end
 
   before_validation :set_defaults
   before_save :calculate_scores
@@ -33,6 +40,7 @@ class ActionCandidate < ApplicationRecord
   validates :action_type, inclusion: { in: ACTION_TYPES }, allow_blank: true
   validates :status, inclusion: { in: STATUSES }, allow_blank: true
   validates :generation_source, inclusion: { in: GENERATION_SOURCES }, allow_blank: true
+  validates :department, inclusion: { in: DEPARTMENTS }, allow_blank: true
   validates :success_probability, numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 1 }, allow_nil: true
   validates :strategic_value_score, numericality: { only_integer: true, greater_than_or_equal_to: 0, less_than_or_equal_to: 100 }, allow_nil: true
   validates :risk_reduction_score, numericality: { only_integer: true, greater_than_or_equal_to: 0, less_than_or_equal_to: 100 }, allow_nil: true
@@ -53,6 +61,7 @@ class ActionCandidate < ApplicationRecord
   scope :by_recommendation, -> { includes(:business).order(Arel.sql("final_score DESC NULLS LAST, expected_hourly_value_yen DESC NULLS LAST")) }
   scope :active_for_ranking, -> { where.not(status: INACTIVE_STATUSES) }
   scope :approved_queue, -> { where(status: "approved").order(approved_at: :desc, expected_total_value_yen: :desc) }
+  scope :for_department, ->(department) { department == "general" ? all : where(department:) }
 
   def data_preparation?
     action_type == "data_preparation"
@@ -88,6 +97,7 @@ class ActionCandidate < ApplicationRecord
     self.action_type = "other" if action_type.blank?
     self.status = "idea" if status.blank?
     self.generation_source = "manual" if generation_source.blank?
+    self.department = auto_classified_department if auto_classify_department?
     self.success_probability = 0 if success_probability.nil?
     self.immediate_value_yen = 0 if immediate_value_yen.nil?
     self.strategic_value_score = 0 if strategic_value_score.nil?
@@ -147,6 +157,18 @@ class ActionCandidate < ApplicationRecord
     return 0 if expected_total_value_yen.to_i.zero?
 
     (value.to_d / expected_total_value_yen.to_d * 100).round
+  end
+
+  def auto_classify_department?
+    new_record? && !department_explicitly_assigned? && (department.blank? || department == "general")
+  end
+
+  def department_explicitly_assigned?
+    @department_explicitly_assigned == true
+  end
+
+  def auto_classified_department
+    ActionCandidateDepartmentClassifierService.new.classify(self)
   end
 
   def apply_meta_evaluation

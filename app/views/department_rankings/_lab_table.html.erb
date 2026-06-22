@@ -1,0 +1,34 @@
+<table>
+  <thead>
+    <tr>
+      <th>順位</th>
+      <th>行動</th>
+      <th>事業</th>
+      <th>学習価値</th>
+      <th>データ信頼度</th>
+      <th>実験コスト</th>
+      <th>実行時間</th>
+      <th>補助</th>
+      <th>状態</th>
+    </tr>
+  </thead>
+  <tbody>
+    <% rows.each.with_index(1) do |row, index| %>
+      <% action_candidate = row.action_candidate %>
+      <tr>
+        <td class="number"><%= index %></td>
+        <td><%= link_to action_candidate.title, action_candidate %></td>
+        <td><%= link_to action_candidate.business.name, action_candidate.business %></td>
+        <td class="number"><%= number_to_currency(row.department_score.learning_value_yen, unit: "¥", precision: 0) %></td>
+        <td class="number"><%= row.department_score.data_confidence_score %></td>
+        <td class="number"><%= number_to_currency(row.department_score.experiment_cost_yen, unit: "¥", precision: 0) %></td>
+        <td class="number"><%= row.department_score.execution_hours || "-" %></td>
+        <td><%= render "badges", badges: row.badges %></td>
+        <td><span class="pill"><%= action_candidate.status %></span></td>
+      </tr>
+    <% end %>
+    <% if rows.empty? %>
+      <tr><td colspan="9">Lab部門に表示できるActionCandidateはありません。</td></tr>
+    <% end %>
+  </tbody>
+</table>

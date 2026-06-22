@@ -1,0 +1,91 @@
+<% content_for :title, "部門別ランキング" %>
+
+<div class="aicoo-page">
+  <% header_actions = capture do %>
+    <%= button_to "generalのみdepartment一括分類",
+                  classify_department_rankings_path,
+                  method: :post,
+                  class: "button",
+                  form: { data: { turbo_confirm: "departmentがgeneralの候補だけを一括分類します。実行しますか？" } } %>
+    <%= button_to "全件再分類",
+                  classify_department_rankings_path(mode: "all"),
+                  method: :post,
+                  class: "button secondary",
+                  form: { data: { turbo_confirm: "既存departmentを上書きして全件再分類します。実行しますか？" } } %>
+    <%= button_to "評価式改善候補を生成",
+                  generate_evaluation_tuning_department_rankings_path,
+                  method: :post,
+                  class: "button secondary",
+                  form: { data: { turbo_confirm: "部門別精度サマリーから評価式改善候補を生成します。実行しますか？" } } %>
+  <% end %>
+
+  <%= render "shared/aicoo_header",
+             title: "部門別ランキング",
+             description: "総合ランキングを主役にしたまま、Revenue・Lab・新規事業ごとに深掘りします。",
+             active_main: :dashboard,
+             actions: header_actions %>
+
+  <nav class="aicoo-sub-tabs" aria-label="department rankings">
+    <% @department_ranking.tabs.each do |tab| %>
+      <% active = @department_ranking.active_department == tab.key %>
+      <%= link_to tab.label, tab.path, class: "aicoo-sub-tab#{' active' if active}", aria: (active ? { current: "page" } : nil) %>
+    <% end %>
+  </nav>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>部門別精度サマリー</h2>
+      <p>ActionResultとActionCandidateのdepartmentを紐づけて、部門ごとの予測精度を確認します。</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>部門</th>
+            <th>実行済み件数</th>
+            <th>成功件数</th>
+            <th>成功率</th>
+            <th>予測期待利益合計</th>
+            <th>実績利益合計</th>
+            <th>予測との差</th>
+            <th>平均信頼度</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @department_precision_summaries.each do |summary| %>
+            <tr>
+              <td><%= summary.label %></td>
+              <td class="number"><%= summary.executed_count %></td>
+              <td class="number"><%= summary.success_count %></td>
+              <td class="number"><%= summary.success_rate ? number_to_percentage(summary.success_rate * 100, precision: 1) : "データ不足" %></td>
+              <td class="number"><%= number_to_currency(summary.predicted_expected_profit_total_yen, unit: "¥", precision: 0) %></td>
+              <td class="number"><%= number_to_currency(summary.actual_profit_total_yen, unit: "¥", precision: 0) %></td>
+              <td class="number"><%= number_to_currency(summary.prediction_gap_yen, unit: "¥", precision: 0) %></td>
+              <td class="number"><%= summary.average_confidence_score ? number_with_precision(summary.average_confidence_score, precision: 1) : "データ不足" %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2><%= ActionCandidateDepartmentRanking::DEPARTMENTS.fetch(@department_ranking.active_department) %>ランキング</h2>
+      <p>一覧では判断に必要な主要項目だけを表示します。理由・metadata・実行指示は詳細画面で確認します。</p>
+    </div>
+
+    <div class="table-wrap">
+      <% case @department_ranking.active_department %>
+      <% when "revenue" %>
+        <%= render "revenue_table", rows: @department_ranking.rankings %>
+      <% when "lab" %>
+        <%= render "lab_table", rows: @department_ranking.rankings %>
+      <% when "new_business" %>
+        <%= render "new_business_table", rows: @department_ranking.rankings %>
+      <% else %>
+        <%= render "general_table", rows: @department_ranking.rankings %>
+      <% end %>
+    </div>
+  </section>
+</div>

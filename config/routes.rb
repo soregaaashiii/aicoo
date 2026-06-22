@@ -20,6 +20,9 @@ Rails.application.routes.draw do
   post "dashboard/generate_correction_readiness_actions", to: "dashboard#generate_correction_readiness_actions", as: :generate_correction_readiness_actions_dashboard
   post "dashboard/adjust_global_proxy_score_weights", to: "dashboard#adjust_global_proxy_score_weights", as: :adjust_global_proxy_score_weights_dashboard
   post "dashboard/adjust_all_business_proxy_score_weights", to: "dashboard#adjust_all_business_proxy_score_weights", as: :adjust_all_business_proxy_score_weights_dashboard
+  get "department_rankings", to: "department_rankings#index"
+  post "department_rankings/classify", to: "department_rankings#classify", as: :classify_department_rankings
+  post "department_rankings/generate_evaluation_tuning", to: "department_rankings#generate_evaluation_tuning", as: :generate_evaluation_tuning_department_rankings
 
   resources :action_candidates do
     patch :approve, on: :member
