@@ -169,6 +169,14 @@
           <%= button_to "GSC取得", fetch_gsc_admin_analytics_connections_path, method: :post, params: { business_name: connection.business_name }, class: "button secondary" %>
           <%= button_to "GA4取得", fetch_ga4_admin_analytics_connections_path, method: :post, params: { business_name: connection.business_name }, class: "button secondary" %>
           <%= button_to "両方取得", fetch_all_for_business_admin_analytics_connections_path, method: :post, params: { business_name: connection.business_name }, class: "button" %>
+          <% if connection.credentials_json_status == "設定済み" %>
+            <%= button_to "認証JSONを削除",
+                          delete_credentials_json_admin_analytics_connections_path,
+                          method: :post,
+                          params: { business_name: connection.business_name },
+                          class: "button danger",
+                          form: { data: { turbo_confirm: "この事業のGSC/GA4設定から認証JSONだけを削除します。client_id / client_secret / refresh_token は残します。" } } %>
+          <% end %>
         </div>
       </article>
     <% end %>

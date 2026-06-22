@@ -68,6 +68,7 @@ Rails.application.routes.draw do
       post :fetch_gsc, on: :collection
       post :fetch_ga4, on: :collection
       post :fetch_all_for_business, on: :collection
+      post :delete_credentials_json, on: :collection
     end
     get "analytics_oauth/connect", to: "analytics_oauth#connect", as: :analytics_oauth_connect
     get "analytics_oauth/callback", to: "analytics_oauth#callback", as: :analytics_oauth_callback

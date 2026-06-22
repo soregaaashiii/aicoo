@@ -45,6 +45,21 @@ module Admin
       redirect_with_fetch_messages(fetch_many)
     end
 
+    def delete_credentials_json
+      settings = business_settings(connection_business_name)
+      updated_count = 0
+
+      settings.each do |setting|
+        next if setting.credentials_json.blank?
+
+        setting.update!(credentials_json: nil)
+        updated_count += 1
+      end
+
+      redirect_to admin_analytics_connections_path,
+                  notice: "認証JSONを#{updated_count}件削除しました。client_id / client_secret / refresh_token は保持しました。"
+    end
+
     private
 
     def build_connections
@@ -287,36 +302,34 @@ module Admin
     def credential_attributes_for(setting, business_name: nil)
       attributes = {}
       source_setting = credential_source_for(setting, business_name)
-      credentials = parsed_credentials(source_setting&.credentials_json)
-      credentials["client_id"] = source_setting.client_id if source_setting&.client_id.present?
-      credentials["client_secret"] = source_setting.client_secret if source_setting&.client_secret.present?
-      credentials["refresh_token"] = source_setting.refresh_token if source_setting&.refresh_token.present?
 
       attributes[:client_id] = source_setting.client_id if source_setting&.client_id.present?
       attributes[:client_secret] = source_setting.client_secret if source_setting&.client_secret.present?
       attributes[:refresh_token] = source_setting.refresh_token if source_setting&.refresh_token.present?
 
-      if connection_params[:credentials_json].present?
-        credentials.merge!(parsed_credentials(connection_params[:credentials_json]))
-      end
-
       if connection_params[:google_client_id].present?
         attributes[:client_id] = clean_credential_value(connection_params[:google_client_id])
-        credentials["client_id"] = attributes[:client_id]
       end
 
       if connection_params[:google_client_secret].present?
         attributes[:client_secret] = clean_credential_value(connection_params[:google_client_secret])
-        credentials["client_secret"] = attributes[:client_secret]
       end
 
       if connection_params[:google_refresh_token].present?
         attributes[:refresh_token] = clean_credential_value(connection_params[:google_refresh_token])
-        credentials["refresh_token"] = attributes[:refresh_token]
       end
 
-      attributes[:credentials_json] = JSON.generate(credentials) if credentials.present?
+      attributes[:credentials_json] = credential_json_attributes(source_setting, attributes) if credential_input_present?
       attributes
+    end
+
+    def credential_json_attributes(source_setting, attributes)
+      credentials = parsed_credentials(source_setting&.credentials_json)
+      credentials["client_id"] = attributes[:client_id] if attributes[:client_id].present?
+      credentials["client_secret"] = attributes[:client_secret] if attributes[:client_secret].present?
+      credentials["refresh_token"] = attributes[:refresh_token] if attributes[:refresh_token].present?
+      credentials.merge!(parsed_credentials(connection_params[:credentials_json])) if connection_params[:credentials_json].present?
+      credentials.present? ? JSON.generate(credentials) : nil
     end
 
     def credential_source_for(setting, business_name)

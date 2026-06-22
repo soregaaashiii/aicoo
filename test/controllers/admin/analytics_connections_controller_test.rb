@@ -120,6 +120,29 @@ module Admin
       assert_equal "secret-refresh-token", setting.refresh_token
     end
 
+    test "blank credential save does not clear existing credentials json" do
+      create_gsc_setting(name: "吸えログ GSC", site_url: "sc-domain:suelog.jp").update!(
+        credentials_json: '{"client_id":"json-client"}'
+      )
+
+      post admin_analytics_connections_url, params: {
+        analytics_connection: {
+          business_name: "吸えログ",
+          gsc_site_url: "sc-domain:suelog.jp",
+          ga4_property_id: "",
+          google_client_id: "",
+          google_client_secret: "",
+          google_refresh_token: "",
+          credentials_json: "",
+          enabled: "1",
+          fetch_days: "28"
+        }
+      }
+
+      setting = AnalyticsSourceSetting.find_by!(source_type: "gsc", name: "吸えログ GSC")
+      assert_includes setting.credentials_json, "json-client"
+    end
+
     test "saves credentials json from analytics connections screen" do
       post admin_analytics_connections_url, params: {
         analytics_connection: {
@@ -182,6 +205,61 @@ module Admin
       assert_not_includes response.body, "saved-secret"
       assert_not_includes response.body, "saved-refresh-token"
       assert_not_includes response.body, "json-client"
+    end
+
+    test "deletes credentials json for gsc and ga4 while preserving direct credentials" do
+      gsc = create_gsc_setting(name: "吸えログ GSC", site_url: "sc-domain:suelog.jp")
+      ga4 = create_ga4_setting(name: "吸えログ GA4", property_id: "536889590")
+      [ gsc, ga4 ].each do |setting|
+        setting.update!(
+          client_id: "saved-client",
+          client_secret: "saved-secret",
+          refresh_token: "saved-refresh-token",
+          credentials_json: '{"client_id":"old-json-client","client_secret":"old-json-secret","refresh_token":"old-json-refresh"}'
+        )
+      end
+
+      post delete_credentials_json_admin_analytics_connections_url, params: { business_name: "吸えログ" }
+
+      assert_redirected_to admin_analytics_connections_url
+      [ gsc.reload, ga4.reload ].each do |setting|
+        assert_nil setting.credentials_json
+        assert_equal "saved-client", setting.client_id
+        assert_equal "saved-secret", setting.client_secret
+        assert_equal "saved-refresh-token", setting.refresh_token
+        assert_includes AicooAnalytics::GoogleAccessToken.new(setting).credential_source_summary, "credentials_json_source=missing"
+      end
+    end
+
+    test "blank save after credentials json deletion does not recreate credentials json" do
+      setting = create_gsc_setting(name: "吸えログ GSC", site_url: "sc-domain:suelog.jp")
+      setting.update!(
+        client_id: "saved-client",
+        client_secret: "saved-secret",
+        refresh_token: "saved-refresh-token",
+        credentials_json: '{"client_id":"old-json-client"}'
+      )
+
+      post delete_credentials_json_admin_analytics_connections_url, params: { business_name: "吸えログ" }
+      post admin_analytics_connections_url, params: {
+        analytics_connection: {
+          business_name: "吸えログ",
+          gsc_site_url: "sc-domain:suelog.jp",
+          ga4_property_id: "",
+          google_client_id: "",
+          google_client_secret: "",
+          google_refresh_token: "",
+          credentials_json: "",
+          enabled: "1",
+          fetch_days: "28"
+        }
+      }
+
+      setting.reload
+      assert_nil setting.credentials_json
+      assert_equal "saved-client", setting.client_id
+      assert_equal "saved-secret", setting.client_secret
+      assert_equal "saved-refresh-token", setting.refresh_token
     end
 
     test "inherits existing credentials when adding the other analytics source later" do
