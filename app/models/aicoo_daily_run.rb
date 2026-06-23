@@ -13,6 +13,7 @@ class AicooDailyRun < ApplicationRecord
   validates :pending_calibration_count, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
 
   has_many :meta_evaluation_snapshots, dependent: :nullify
+  has_one :auto_revision_queue_run, dependent: :destroy
 
   scope :recent, -> { order(started_at: :desc, created_at: :desc) }
   scope :running, -> { where(status: "running") }

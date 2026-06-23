@@ -26,6 +26,14 @@ class AicooDailyRunsControllerTest < ActionDispatch::IntegrationTest
       execution_prompt: "SEOタイトルを改善してください。",
       created_at: Date.yesterday.noon
     )
+    AutoRevisionTask.create!(
+      action_candidate: action_candidates(:nagazakicho_article),
+      business: businesses(:suelog),
+      title: "Recent auto revision task",
+      execution_prompt: "文言を改善する",
+      status: "waiting_approval",
+      risk_level: "low"
+    )
 
     get aicoo_daily_run_url(daily_run)
 
@@ -37,6 +45,8 @@ class AicooDailyRunsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Insight生成"
     assert_includes response.body, "評価関数補正"
     assert_includes response.body, "承認待ち補正"
+    assert_includes response.body, "Auto Revision Queue"
+    assert_includes response.body, "Auto Revision生成"
     assert_includes response.body, "calibration_ran"
     assert_includes response.body, "calibration_error"
     assert_includes response.body, "AICOO Learning Loop"
@@ -47,6 +57,8 @@ class AicooDailyRunsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "売上登録待ち"
     assert_includes response.body, "自動改修タスク候補"
     assert_includes response.body, "Daily Run auto revision candidate"
+    assert_includes response.body, "最近作成されたAuto Revision Task"
+    assert_includes response.body, "Recent auto revision task"
     assert_includes response.body, "Execution Feasibility Insight"
     assert_includes response.body, "補正提案"
     assert_includes response.body, "Execution Correction Overview"

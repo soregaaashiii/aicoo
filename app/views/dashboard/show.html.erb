@@ -24,18 +24,32 @@
 
 <section class="dashboard-section">
   <div class="section-heading">
-    <h2>Auto Revision Tasks</h2>
-    <p>Codexへ渡せる粒度に整えた改修タスクです。まだ自動実行はしません。</p>
+    <h2>Auto Revision Approval Queue</h2>
+    <p>価値が高く、low/medium riskのActionCandidateをCodex投入前の承認待ちへ積みます。</p>
+  </div>
+  <div class="actions compact-actions">
+    <%= button_to "承認待ちタスクを自動生成", build_auto_revision_queue_dashboard_path, method: :post, class: "button", data: { turbo_confirm: "実行価値の高い候補からAuto Revision Taskを最大5件作成しますか？" } %>
+    <%= link_to "Auto Revision Tasksを見る", auto_revision_tasks_path, class: "button secondary" %>
+    <%= link_to "自動生成設定", admin_aicoo_auto_revision_settings_path, class: "button secondary" %>
   </div>
   <div class="metric-grid">
+    <div class="metric-card"><span>自動生成</span><strong><%= @auto_revision_task_summary.auto_queue_enabled ? "ON" : "OFF" %></strong></div>
+    <div class="metric-card"><span>最終自動実行</span><strong><%= @auto_revision_task_summary.last_auto_queue_at ? l(@auto_revision_task_summary.last_auto_queue_at, format: :short) : "-" %></strong></div>
+    <div class="metric-card"><span>前回生成</span><strong><%= @auto_revision_task_summary.last_generated_count %>件</strong></div>
     <div class="metric-card"><span>waiting_approval</span><strong><%= @auto_revision_task_summary.waiting_approval_count %>件</strong></div>
     <div class="metric-card"><span>approved</span><strong><%= @auto_revision_task_summary.approved_count %>件</strong></div>
     <div class="metric-card"><span>running</span><strong><%= @auto_revision_task_summary.running_count %>件</strong></div>
     <div class="metric-card"><span>succeeded</span><strong><%= @auto_revision_task_summary.succeeded_count %>件</strong></div>
     <div class="metric-card"><span>partial_succeeded</span><strong><%= @auto_revision_task_summary.partial_succeeded_count %>件</strong></div>
     <div class="metric-card"><span>failed</span><strong><%= @auto_revision_task_summary.failed_count %>件</strong></div>
+    <div class="metric-card"><span>推定合計スコア</span><strong><%= number_with_precision(@auto_revision_task_summary.waiting_total_priority_score, precision: 1) %></strong></div>
+    <div class="metric-card"><span>推定合計工数</span><strong><%= number_with_precision(@auto_revision_task_summary.waiting_total_expected_hours, precision: 1) %>h</strong></div>
+    <div class="metric-card"><span>高リスク候補あり</span><strong><%= @auto_revision_task_summary.high_risk_candidate_count %>件</strong></div>
     <% @auto_revision_task_summary.risk_counts.each do |risk, count| %>
       <div class="metric-card"><span><%= risk %> risk</span><strong><%= count %>件</strong></div>
+    <% end %>
+    <% @auto_revision_task_summary.waiting_risk_counts.each do |risk, count| %>
+      <div class="metric-card"><span>queue <%= risk %></span><strong><%= count %>件</strong></div>
     <% end %>
   </div>
   <div class="table-wrap">
@@ -48,10 +62,11 @@
           <th>status</th>
           <th>優先度</th>
           <th>詳細</th>
+          <th>操作</th>
         </tr>
       </thead>
       <tbody>
-        <% @auto_revision_task_summary.top_tasks.each do |task| %>
+        <% @auto_revision_task_summary.approval_queue_tasks.each do |task| %>
           <tr>
             <td><%= task.title %></td>
             <td><%= task.business.name %></td>
@@ -59,10 +74,16 @@
             <td><span class="pill"><%= task.status %></span></td>
             <td class="number"><%= number_with_precision(task.priority_score, precision: 1) %></td>
             <td><%= link_to "詳細", task, class: "button secondary" %></td>
+            <td>
+              <div class="actions compact-actions">
+                <%= button_to "承認", approve_auto_revision_task_path(task), method: :patch, class: "button" %>
+                <%= button_to "キャンセル", cancel_auto_revision_task_path(task), method: :patch, class: "button danger", data: { turbo_confirm: "このAuto Revision Taskをキャンセルしますか？" } %>
+              </div>
+            </td>
           </tr>
         <% end %>
-        <% if @auto_revision_task_summary.top_tasks.empty? %>
-          <tr><td colspan="6">まだAuto Revision Taskはありません。</td></tr>
+        <% if @auto_revision_task_summary.approval_queue_tasks.empty? %>
+          <tr><td colspan="7">承認待ちのAuto Revision Taskはありません。</td></tr>
         <% end %>
       </tbody>
     </table>
@@ -92,9 +113,6 @@
         <p class="aicoo-empty-state">失敗中のAuto Revision Taskはありません。</p>
       <% end %>
     </div>
-  </div>
-  <div class="actions compact-actions">
-    <%= link_to "Auto Revision Tasksを見る", auto_revision_tasks_path, class: "button secondary" %>
   </div>
 </section>
 

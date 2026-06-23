@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_23_132000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_23_133100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -232,6 +232,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_23_132000) do
     t.index ["domain"], name: "index_aicoo_analytics_sites_on_domain"
     t.index ["ga4_property_id"], name: "index_aicoo_analytics_sites_on_ga4_property_id"
     t.index ["gsc_site_url"], name: "index_aicoo_analytics_sites_on_gsc_site_url"
+  end
+
+  create_table "aicoo_auto_revision_settings", force: :cascade do |t|
+    t.boolean "allow_medium_risk", default: true, null: false
+    t.datetime "created_at", null: false
+    t.boolean "created_by_system", default: true, null: false
+    t.boolean "enabled", default: false, null: false
+    t.datetime "last_auto_queue_at"
+    t.integer "max_tasks_per_run", default: 5, null: false
+    t.decimal "minimum_final_score", default: "1000.0", null: false
+    t.datetime "updated_at", null: false
   end
 
   create_table "aicoo_daily_run_settings", force: :cascade do |t|
@@ -670,6 +681,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_23_132000) do
     t.index ["source_type"], name: "index_analytics_source_settings_on_source_type"
   end
 
+  create_table "auto_revision_queue_runs", force: :cascade do |t|
+    t.bigint "aicoo_daily_run_id"
+    t.datetime "created_at", null: false
+    t.datetime "executed_at", null: false
+    t.integer "generated_tasks_count", default: 0, null: false
+    t.integer "high_risk_candidates_count", default: 0, null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.integer "skipped_candidates_count", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.index ["aicoo_daily_run_id"], name: "index_auto_revision_queue_runs_on_aicoo_daily_run_id", unique: true, where: "(aicoo_daily_run_id IS NOT NULL)"
+    t.index ["executed_at"], name: "index_auto_revision_queue_runs_on_executed_at"
+  end
+
   create_table "auto_revision_tasks", force: :cascade do |t|
     t.bigint "action_candidate_id", null: false
     t.datetime "approved_at"
@@ -896,6 +920,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_23_132000) do
   add_foreign_key "analytics_fetch_runs", "analytics_source_settings"
   add_foreign_key "analytics_source_settings", "aicoo_analytics_sites"
   add_foreign_key "analytics_source_settings", "aicoo_google_credentials", column: "google_credential_id"
+  add_foreign_key "auto_revision_queue_runs", "aicoo_daily_runs"
   add_foreign_key "auto_revision_tasks", "action_candidates"
   add_foreign_key "auto_revision_tasks", "businesses"
   add_foreign_key "business_metric_dailies", "businesses"

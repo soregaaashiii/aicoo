@@ -49,6 +49,16 @@ class AutoRevisionTasksControllerTest < ActionDispatch::IntegrationTest
     assert_not_nil task.approved_at
   end
 
+  test "cancels auto revision task" do
+    task = AutoRevisionTask.from_action_candidate(action_candidates(:nagazakicho_article))
+
+    patch cancel_auto_revision_task_url(task)
+
+    assert_redirected_to auto_revision_tasks_url
+    assert_equal "canceled", task.reload.status
+    assert_not_nil task.finished_at
+  end
+
   test "records succeeded result and creates action execution log" do
     task = AutoRevisionTask.from_action_candidate(action_candidates(:nagazakicho_article))
 

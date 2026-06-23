@@ -10,12 +10,14 @@ class AicooDailyRunsController < ApplicationController
     @execution_feasibility_correction_overview = AicooExecutionFeasibilityCorrectionOverviewService.new.call
     @learning_loop_summary = AicooLearningLoopSummaryService.new.call
     @learning_loop_action_center = AicooLearningLoopActionCenterService.new.call
+    @auto_revision_queue_run = @daily_run.auto_revision_queue_run
     @auto_revision_candidates = ActionCandidate.includes(:business)
                                                .active_for_ranking
                                                .where(created_at: @daily_run.target_date.all_day)
                                                .where.not(execution_prompt: [ nil, "" ])
                                                .order(final_score: :desc, created_at: :desc)
                                                .limit(5)
+    @recent_auto_revision_tasks = AutoRevisionTask.includes(:business, :action_candidate).recent.limit(5)
   end
 
   def create

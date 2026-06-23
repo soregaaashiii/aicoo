@@ -1,5 +1,5 @@
 class AutoRevisionTasksController < ApplicationController
-  before_action :set_auto_revision_task, only: %i[show approve record_result]
+  before_action :set_auto_revision_task, only: %i[show approve cancel record_result]
 
   def index
     @auto_revision_tasks = AutoRevisionTask.includes(:business, :action_candidate).by_priority.limit(100)
@@ -18,6 +18,11 @@ class AutoRevisionTasksController < ApplicationController
   def approve
     @auto_revision_task.approve!
     redirect_to @auto_revision_task, notice: "Auto Revision Taskを承認しました。"
+  end
+
+  def cancel
+    @auto_revision_task.update!(status: "canceled", finished_at: Time.current)
+    redirect_back fallback_location: auto_revision_tasks_path, notice: "Auto Revision Taskをキャンセルしました。"
   end
 
   def record_result

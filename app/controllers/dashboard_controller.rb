@@ -94,6 +94,17 @@ class DashboardController < ApplicationController
     redirect_to dashboard_path, notice: "補正できない理由から行動候補を#{result.created.size}件生成しました。スキップ: #{result.skipped}件"
   end
 
+  def build_auto_revision_queue
+    setting = AicooAutoRevisionSetting.current
+    result = AicooAutoRevisionQueueBuilderService.new(
+      minimum_final_score: setting.minimum_final_score,
+      allow_medium_risk: setting.allow_medium_risk
+    ).call(limit: setting.max_tasks_per_run)
+
+    redirect_to dashboard_path,
+                notice: "Auto Revision承認待ちタスクを#{result.created_count}件作成しました。スキップ: #{result.skipped_count}件 / 高リスク候補: #{result.high_risk_candidates.size}件"
+  end
+
   def adjust_global_proxy_score_weights
     log = ProxyScoreWeightAdjuster.new.adjust_global!(start_date: 30.days.ago.to_date, end_date: Date.current)
     redirect_to dashboard_path, notice: "全体proxy_score重みを確認しました: #{log.reason}"

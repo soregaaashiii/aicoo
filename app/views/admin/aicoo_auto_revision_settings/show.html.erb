@@ -1,0 +1,61 @@
+<% content_for :title, "Auto Revision自動キュー設定" %>
+
+<% header_actions = capture do %>
+  <%= link_to "操作盤に戻る", dashboard_path, class: "button secondary" %>
+  <%= link_to "Daily Run履歴", aicoo_daily_runs_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "Auto Revision自動キュー設定",
+             description: "Daily Run成功後に、実行価値の高い候補を承認待ちAuto Revision Taskへ積むかを管理します。",
+             active_main: :dashboard,
+             actions: header_actions %>
+  <%= render "shared/aicoo_execution_tabs", active: :dashboard %>
+
+  <section class="dashboard-section">
+    <div class="metric-grid">
+      <div class="metric-card"><span>自動生成</span><strong><%= @setting.enabled? ? "ON" : "OFF" %></strong></div>
+      <div class="metric-card"><span>1回最大生成</span><strong><%= @setting.max_tasks_per_run %>件</strong></div>
+      <div class="metric-card"><span>最低スコア</span><strong><%= number_with_precision(@setting.minimum_final_score, precision: 1) %></strong></div>
+      <div class="metric-card"><span>medium risk</span><strong><%= @setting.allow_medium_risk? ? "許可" : "除外" %></strong></div>
+      <div class="metric-card"><span>最終実行</span><strong><%= @setting.last_auto_queue_at ? l(@setting.last_auto_queue_at, format: :short) : "-" %></strong></div>
+      <div class="metric-card"><span>前回生成</span><strong><%= @latest_queue_run ? "#{@latest_queue_run.generated_tasks_count}件" : "-" %></strong></div>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <%= form_with model: @setting,
+                  url: admin_aicoo_auto_revision_settings_path,
+                  method: :patch,
+                  class: "aicoo-form" do |form| %>
+      <div class="form-grid">
+        <label>
+          <span>自動キュー生成</span>
+          <%= form.check_box :enabled %>
+          <small>ONにすると、Daily Run成功後に承認待ちAuto Revision Taskを自動作成します。</small>
+        </label>
+
+        <label>
+          <span>1回最大生成件数</span>
+          <%= form.number_field :max_tasks_per_run, min: 1, max: 50 %>
+        </label>
+
+        <label>
+          <span>最低スコア</span>
+          <%= form.number_field :minimum_final_score, min: 0, step: 1 %>
+        </label>
+
+        <label>
+          <span>medium riskを許可</span>
+          <%= form.check_box :allow_medium_risk %>
+          <small>OFFにするとlow riskだけを自動キューへ積みます。high riskは常に除外します。</small>
+        </label>
+      </div>
+
+      <div class="actions">
+        <%= form.submit "保存", class: "button" %>
+      </div>
+    <% end %>
+  </section>
+</div>

@@ -21,6 +21,7 @@ Rails.application.routes.draw do
   post "dashboard/backfill_business_metrics", to: "dashboard#backfill_business_metrics", as: :backfill_business_metrics_dashboard
   post "dashboard/generate_action_candidates_from_metrics", to: "dashboard#generate_action_candidates_from_metrics", as: :generate_action_candidates_from_metrics_dashboard
   post "dashboard/generate_correction_readiness_actions", to: "dashboard#generate_correction_readiness_actions", as: :generate_correction_readiness_actions_dashboard
+  post "dashboard/build_auto_revision_queue", to: "dashboard#build_auto_revision_queue", as: :build_auto_revision_queue_dashboard
   post "dashboard/adjust_global_proxy_score_weights", to: "dashboard#adjust_global_proxy_score_weights", as: :adjust_global_proxy_score_weights_dashboard
   post "dashboard/adjust_all_business_proxy_score_weights", to: "dashboard#adjust_all_business_proxy_score_weights", as: :adjust_all_business_proxy_score_weights_dashboard
   get "department_rankings", to: "department_rankings#index"
@@ -40,6 +41,7 @@ Rails.application.routes.draw do
   resources :action_execution_logs, only: %i[show new create edit update]
   resources :auto_revision_tasks, only: %i[index show create] do
     patch :approve, on: :member
+    patch :cancel, on: :member
     patch :record_result, on: :member
   end
 
@@ -108,6 +110,7 @@ Rails.application.routes.draw do
     get "aicoo_insights", to: "aicoo_insights#index", as: :aicoo_insights
     post "aicoo_insights/generate", to: "aicoo_insights#generate", as: :aicoo_insights_generate
     resource :aicoo_daily_run_settings, only: %i[show update]
+    resource :aicoo_auto_revision_settings, only: %i[show update]
     post "aicoo_datahub/collect_landing_pages", to: "aicoo_datahub#collect_landing_pages", as: :aicoo_datahub_collect_landing_pages
     post "aicoo_datahub/collect_revenue", to: "aicoo_datahub#collect_revenue", as: :aicoo_datahub_collect_revenue
     post "aicoo_datahub/collect_data_imports", to: "aicoo_datahub#collect_data_imports", as: :aicoo_datahub_collect_data_imports

@@ -1,6 +1,13 @@
 require "test_helper"
 
 class AicooDailyRunnerTest < ActiveSupport::TestCase
+  setup do
+    AicooAutoRevisionSetting.delete_all
+    AutoRevisionQueueRun.delete_all
+    AutoRevisionTask.delete_all
+    ActionCandidate.update_all(status: "done")
+  end
+
   test "successful run marks daily run as succeeded and stores counts" do
     order = []
     target_date = Date.new(2026, 6, 21)
@@ -46,7 +53,28 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
       assert_match "GSC average confidence=82.0", run.run_log
       assert_match "Calibration finished updated_calibration_count=2", run.run_log
       assert_match "pending_calibration_count=0", run.run_log
+      assert_match "AutoRevisionQueue skipped reason=disabled", run.run_log
+      assert_equal 0, AutoRevisionQueueRun.count
       assert_equal %i[analytics datahub import adjust_all generate insight evaluate snapshot queue meta_snapshot calibration], order
+    end
+  end
+
+  test "successful run queues auto revision tasks when enabled" do
+    AicooAutoRevisionSetting.current.update!(enabled: true, max_tasks_per_run: 1)
+    create_auto_revision_candidate
+    order = []
+    target_date = Date.new(2026, 6, 21)
+    adjuster = fake_adjuster(order)
+    generator_result = MetricActionCandidateGenerator::Result.new(created: [], skipped: [])
+
+    stub_daily_steps(order:, adjuster:, generator_results: [ generator_result ], evaluated_results: []) do
+      run = AicooDailyRunner.run!(target_date:)
+
+      assert_equal "success", run.status
+      assert_equal 1, AutoRevisionQueueRun.count
+      assert_equal 1, AutoRevisionTask.count
+      assert_equal run, AutoRevisionQueueRun.last.aicoo_daily_run
+      assert_match "AutoRevisionQueue generated=1", run.run_log
     end
   end
 
@@ -125,6 +153,19 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
         Object.new
       end
     end
+  end
+
+  def create_auto_revision_candidate
+    ActionCandidate.create!(
+      business: businesses(:suelog),
+      title: "SEOタイトル改善 自動投入",
+      action_type: "seo_improvement",
+      status: "idea",
+      immediate_value_yen: 20_000,
+      success_probability: 1,
+      expected_hours: 1,
+      execution_prompt: "SEOタイトルを改善してください。"
+    )
   end
 
   def stub_daily_steps(order:, adjuster:, generator_results:, evaluated_results:, analytics_status: "success", calibration_error: nil)

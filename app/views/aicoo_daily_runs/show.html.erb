@@ -35,6 +35,10 @@
       <div class="metric-card"><span>補正更新</span><strong><%= @daily_run.updated_calibration_count %></strong></div>
       <div class="metric-card"><span>補正ログ</span><strong><%= @daily_run.calibration_log_count %></strong></div>
       <div class="metric-card"><span>承認待ち補正</span><strong><%= @daily_run.pending_calibration_count %></strong></div>
+      <div class="metric-card"><span>Auto Revision Queue</span><strong><%= @auto_revision_queue_run ? "実行済み" : "未実行" %></strong></div>
+      <div class="metric-card"><span>Auto Revision生成</span><strong><%= @auto_revision_queue_run&.generated_tasks_count.to_i %></strong></div>
+      <div class="metric-card"><span>Auto Revision高risk</span><strong><%= @auto_revision_queue_run&.high_risk_candidates_count.to_i %></strong></div>
+      <div class="metric-card"><span>Auto Revisionスキップ</span><strong><%= @auto_revision_queue_run&.skipped_candidates_count.to_i %></strong></div>
     </div>
   </section>
 
@@ -54,6 +58,17 @@
       <dd><%= @daily_run.calibration_finished_at ? l(@daily_run.calibration_finished_at, format: :long) : "-" %></dd>
       <dt>calibration_error</dt>
       <dd><%= simple_format(@daily_run.calibration_error.presence || "-") %></dd>
+      <dt>Auto Revision Queue</dt>
+      <dd>
+        <% if @auto_revision_queue_run %>
+          自動実行済み:
+          生成 <%= @auto_revision_queue_run.generated_tasks_count %>件 /
+          high risk <%= @auto_revision_queue_run.high_risk_candidates_count %>件 /
+          スキップ <%= @auto_revision_queue_run.skipped_candidates_count %>件
+        <% else %>
+          未実行
+        <% end %>
+      </dd>
       <dt>エラー</dt>
       <dd><%= simple_format(@daily_run.error_message.presence || "-") %></dd>
     </dl>
@@ -105,6 +120,42 @@
           <% end %>
           <% if @auto_revision_candidates.empty? %>
             <tr><td colspan="5">この対象日の自動改修タスク候補はありません。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>最近作成されたAuto Revision Task</h2>
+      <p>Daily Runとの直接紐づきがない場合も、直近の承認待ちタスクを確認できます。</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>タイトル</th>
+            <th>事業</th>
+            <th>risk</th>
+            <th>status</th>
+            <th>作成</th>
+            <th>詳細</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @recent_auto_revision_tasks.each do |task| %>
+            <tr>
+              <td><%= task.title %></td>
+              <td><%= task.business.name %></td>
+              <td><span class="pill"><%= task.risk_level %></span></td>
+              <td><span class="pill"><%= task.status %></span></td>
+              <td><%= l(task.created_at, format: :short) %></td>
+              <td><%= link_to "詳細", task, class: "button secondary" %></td>
+            </tr>
+          <% end %>
+          <% if @recent_auto_revision_tasks.empty? %>
+            <tr><td colspan="6">最近作成されたAuto Revision Taskはありません。</td></tr>
           <% end %>
         </tbody>
       </table>

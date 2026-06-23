@@ -25,7 +25,11 @@ class AicooDailyRunner
     execute_steps!(run)
     final_status = partial_failures.empty? ? "success" : "partial_failed"
     run.update!(status: final_status, finished_at: Time.current, run_log: log_text)
-    AicooDailyRunSetting.current.update!(last_success_at: run.finished_at) if final_status == "success"
+    if final_status == "success"
+      run_auto_revision_queue!(run)
+      run.update!(run_log: log_text)
+      AicooDailyRunSetting.current.update!(last_success_at: run.finished_at)
+    end
     run
   rescue StandardError => e
     fail_run!(run, e) if run
@@ -157,6 +161,28 @@ class AicooDailyRunner
       calibration_error: error_message
     )
     log!("Calibration failed: #{error_message}")
+  end
+
+  def run_auto_revision_queue!(run)
+    result = AicooAutoRevisionDailyRunQueuer.new.call(daily_run: run)
+    case result.reason
+    when "created"
+      log!(
+        "AutoRevisionQueue generated=#{result.queue_run.generated_tasks_count} " \
+        "skipped=#{result.queue_run.skipped_candidates_count} " \
+        "high_risk=#{result.queue_run.high_risk_candidates_count}"
+      )
+    when "already_run"
+      log!("AutoRevisionQueue skipped reason=already_run")
+    when "disabled"
+      log!("AutoRevisionQueue skipped reason=disabled")
+    else
+      log!("AutoRevisionQueue skipped reason=#{result.reason}")
+    end
+  rescue StandardError => e
+    error_message = "#{e.class}: #{e.message}"
+    Rails.logger.error("AICOO Daily Run auto revision queue failed: #{error_message}")
+    log!("AutoRevisionQueue failed: #{error_message}")
   end
 
   def fail_run!(run, error)

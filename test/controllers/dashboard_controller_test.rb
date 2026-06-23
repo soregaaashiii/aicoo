@@ -35,6 +35,13 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "今日の確認ダイジェスト"
     assert_includes response.body, "確認タスク一覧へ"
     assert_includes response.body, "Auto Revision Tasks"
+    assert_includes response.body, "Auto Revision Approval Queue"
+    assert_includes response.body, "承認待ちタスクを自動生成"
+    assert_includes response.body, "自動生成設定"
+    assert_includes response.body, "最終自動実行"
+    assert_includes response.body, "前回生成"
+    assert_includes response.body, "推定合計スコア"
+    assert_includes response.body, "高リスク候補あり"
     assert_includes response.body, "partial_succeeded"
     assert_includes response.body, "最近完了"
     assert_includes response.body, "AICOO完成段階"
@@ -198,6 +205,27 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
 
     assert_redirected_to dashboard_url
     assert_match(/補正できない理由から行動候補を/, flash[:notice])
+  end
+
+  test "builds auto revision approval queue from dashboard" do
+    ActionCandidate.update_all(status: "done")
+    ActionCandidate.create!(
+      business: businesses(:suelog),
+      title: "Dashboard auto revision queue candidate",
+      action_type: "seo_improvement",
+      status: "idea",
+      immediate_value_yen: 20_000,
+      success_probability: 1,
+      expected_hours: 1,
+      execution_prompt: "SEOタイトルを改善してください。"
+    )
+
+    assert_difference("AutoRevisionTask.count", 1) do
+      post build_auto_revision_queue_dashboard_url
+    end
+
+    assert_redirected_to dashboard_url
+    assert_match(/Auto Revision承認待ちタスクを1件作成しました/, flash[:notice])
   end
 
   test "dashboard data preparation task can be sent to executor" do
