@@ -224,6 +224,30 @@ class AutoRevisionTask < ApplicationRecord
     target_repository_name.presence || execution_profile&.display_repository_name || "-"
   end
 
+  def repository_target_status
+    profile = business&.business_execution_profile
+    return "missing" unless profile
+
+    profile.coverage_status
+  end
+
+  def repository_target_status_label
+    AicooRepositoryTargetCoverageService::STATUS_LABELS.fetch(repository_target_status)
+  end
+
+  def repository_target_warning?
+    repository_target_status != "configured"
+  end
+
+  def repository_target_missing_fields_label
+    profile = business&.business_execution_profile
+    return "Execution Profile未作成" unless profile
+    return "無効化されています" if profile.coverage_status == "inactive"
+    return "-" if profile.missing_required_fields.empty?
+
+    profile.missing_required_fields.join(", ")
+  end
+
   private
 
   def set_defaults

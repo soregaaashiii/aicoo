@@ -5,6 +5,14 @@ class BusinessExecutionProfile < ApplicationRecord
     "db:reset",
     "drop database"
   ].freeze
+  REQUIRED_FIELDS = %w[
+    repository_name
+    repository_type
+    repository_path
+    github_repository
+    test_command
+    deploy_command
+  ].freeze
 
   belongs_to :business
 
@@ -23,6 +31,21 @@ class BusinessExecutionProfile < ApplicationRecord
 
   def display_repository_name
     repository_name.presence || github_repository.presence || repository_path.presence || "-"
+  end
+
+  def coverage_status
+    return "inactive" unless active?
+    return "configured" if missing_required_fields.empty?
+
+    "incomplete"
+  end
+
+  def missing_required_fields
+    REQUIRED_FIELDS.select { |field| public_send(field).blank? }
+  end
+
+  def configured_for_codex?
+    coverage_status == "configured"
   end
 
   private

@@ -39,6 +39,30 @@ class AutoRevisionTasksControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "承認"
     assert_includes response.body, "Codex Quality Check"
     assert_includes response.body, "実装結果を登録"
+    assert_includes response.body, "Target Repository"
+    assert_includes response.body, "Execution Profileがmissing"
+    assert_includes response.body, "Execution Profileを作成"
+  end
+
+  test "shows configured execution profile on task detail" do
+    BusinessExecutionProfile.create!(
+      business: businesses(:suelog),
+      repository_name: "suelog",
+      repository_type: "rails",
+      repository_path: "/apps/suelog",
+      github_repository: "kawamura/suelog",
+      test_command: "bin/rails test",
+      deploy_command: "bin/deploy"
+    )
+    task = AutoRevisionTask.from_action_candidate(action_candidates(:nagazakicho_article))
+
+    get auto_revision_task_url(task)
+
+    assert_response :success
+    assert_includes response.body, "Coverage Status"
+    assert_includes response.body, "configured"
+    assert_includes response.body, "kawamura/suelog"
+    assert_not_includes response.body, "Execution Profileがmissing"
   end
 
   test "approves auto revision task" do
@@ -194,6 +218,8 @@ class AutoRevisionTasksControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "実装開始"
     assert_includes response.body, "最終確認"
     assert_includes response.body, "Codexスレッド"
+    assert_includes response.body, "Target"
+    assert_includes response.body, "missing"
     assert_includes response.body, "Codex投入済みにする"
     assert_includes response.body, "実装開始"
     assert_includes response.body, "結果登録"

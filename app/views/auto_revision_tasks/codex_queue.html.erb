@@ -35,6 +35,7 @@
             <th>事業</th>
             <th>Repository</th>
             <th>Type</th>
+            <th>Target</th>
             <th>risk</th>
             <th>status</th>
             <th>優先度</th>
@@ -53,6 +54,12 @@
               <td><%= task.business.name %></td>
               <td><%= task.target_repository_display %></td>
               <td><span class="pill"><%= task.target_repository_type.presence || "-" %></span></td>
+              <td>
+                <span class="pill"><%= task.repository_target_status_label %></span>
+                <% if task.repository_target_warning? %>
+                  <small>不足: <%= task.repository_target_missing_fields_label %></small>
+                <% end %>
+              </td>
               <td><span class="pill"><%= task.risk_level %></span></td>
               <td><span class="pill"><%= task.status %></span></td>
               <td class="number"><%= number_with_precision(task.priority_score, precision: 1) %></td>
@@ -92,7 +99,7 @@
             </tr>
           <% end %>
           <% if @auto_revision_tasks.empty? %>
-            <tr><td colspan="13">Codex投入待ちのAuto Revision Taskはありません。</td></tr>
+            <tr><td colspan="14">Codex投入待ちのAuto Revision Taskはありません。</td></tr>
           <% end %>
         </tbody>
       </table>

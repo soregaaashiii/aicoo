@@ -19,6 +19,7 @@
       <tr>
         <th>事業名</th>
         <th>状態</th>
+        <th>Execution Profile</th>
         <th>行動候補数</th>
         <th>操作</th>
       </tr>
@@ -28,11 +29,29 @@
         <tr>
           <td><%= link_to business.name, business %></td>
           <td><span class="pill"><%= business.status %></span></td>
+          <td>
+            <% if (profile = business.business_execution_profile) %>
+              <span class="pill"><%= AicooRepositoryTargetCoverageService::STATUS_LABELS.fetch(profile.coverage_status) %></span>
+              <% if profile.coverage_status == "configured" %>
+                <small><%= profile.display_repository_name %></small>
+              <% else %>
+                <small><%= profile.coverage_status == "inactive" ? "無効化" : "不足: #{profile.missing_required_fields.join(", ")}" %></small>
+              <% end %>
+            <% else %>
+              <span class="pill">❌ missing</span>
+              <small>Execution Profile未作成</small>
+            <% end %>
+          </td>
           <td class="number"><%= business.action_candidates.count %></td>
           <td>
             <div class="actions compact-actions">
               <%= link_to "詳細", business, class: "button secondary" %>
               <%= link_to "編集", edit_business_path(business), class: "button secondary" %>
+              <% if business.business_execution_profile %>
+                <%= link_to "Profile編集", edit_admin_business_execution_profile_path(business.business_execution_profile), class: "button secondary" %>
+              <% else %>
+                <%= link_to "Profile作成", new_admin_business_execution_profile_path(business_id: business.id), class: "button secondary" %>
+              <% end %>
             </div>
           </td>
         </tr>

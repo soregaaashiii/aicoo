@@ -14,6 +14,7 @@ class DashboardController < ApplicationController
     @owner_task_digest = Aicoo::OwnerTaskDigest.new(owner_task_inbox: @owner_task_inbox).call
     @owner_task_completion_logs = OwnerTaskCompletionLog.recent.limit(3)
     @auto_revision_task_summary = AutoRevisionTaskSummary.new.call
+    @repository_target_coverage = AicooRepositoryTargetCoverageService.new.call
     @action_prediction_calibration_summary = ActionPredictionCalibrationSummary.new.call
     @action_prediction_calibration_impact = ActionPredictionCalibrationImpact.new.call
     ranking_scope = dashboard_ranking_scope

@@ -41,6 +41,19 @@
       <h2>Target Repository</h2>
       <p>このタスクをCodexへ渡すときの対象事業・リポジトリ・実行コマンドです。</p>
     </div>
+    <% if @auto_revision_task.repository_target_warning? %>
+      <p class="aicoo-empty-state">
+        ⚠ この事業はExecution Profileが<%= @auto_revision_task.repository_target_status %>です。
+        Codex投入前に設定してください。不足: <%= @auto_revision_task.repository_target_missing_fields_label %>
+      </p>
+      <div class="actions compact-actions">
+        <% if @auto_revision_task.business.business_execution_profile %>
+          <%= link_to "Execution Profileを編集", edit_admin_business_execution_profile_path(@auto_revision_task.business.business_execution_profile), class: "button" %>
+        <% else %>
+          <%= link_to "Execution Profileを作成", new_admin_business_execution_profile_path(business_id: @auto_revision_task.business_id), class: "button" %>
+        <% end %>
+      </div>
+    <% end %>
     <% profile = @auto_revision_task.execution_profile %>
     <dl class="detail-list">
       <dt>対象事業</dt>
@@ -49,6 +62,8 @@
       <dd><%= @auto_revision_task.target_repository_display %></dd>
       <dt>Repository Type</dt>
       <dd><%= @auto_revision_task.target_repository_type.presence || "-" %></dd>
+      <dt>Coverage Status</dt>
+      <dd><%= @auto_revision_task.repository_target_status_label %></dd>
       <dt>GitHub Repository</dt>
       <dd><%= profile&.github_repository.presence || "-" %></dd>
       <dt>Repository Path</dt>

@@ -8,6 +8,28 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
   test "should get index" do
     get businesses_url
     assert_response :success
+    assert_includes response.body, "Execution Profile"
+    assert_includes response.body, "missing"
+    assert_includes response.body, "Profile作成"
+  end
+
+  test "index shows execution profile coverage status" do
+    BusinessExecutionProfile.create!(
+      business: @business,
+      repository_name: "suelog",
+      repository_type: "rails",
+      repository_path: "/apps/suelog",
+      github_repository: "kawamura/suelog",
+      test_command: "bin/rails test",
+      deploy_command: "bin/deploy"
+    )
+
+    get businesses_url
+
+    assert_response :success
+    assert_includes response.body, "configured"
+    assert_includes response.body, "suelog"
+    assert_includes response.body, "Profile編集"
   end
 
   test "should get new" do
@@ -43,6 +65,7 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "累計 proxy_score"
     assert_includes response.body, "proxy_score重み"
     assert_includes response.body, "confidence_score"
+    assert_includes response.body, "Execution Profile"
   end
 
   test "should get edit" do

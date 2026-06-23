@@ -3,7 +3,7 @@ class BusinessesController < ApplicationController
 
   # GET /businesses or /businesses.json
   def index
-    @businesses = Business.order(:name)
+    @businesses = Business.includes(:business_execution_profile).order(:name)
   end
 
   # GET /businesses/1 or /businesses/1.json
