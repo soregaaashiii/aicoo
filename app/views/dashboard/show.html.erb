@@ -134,10 +134,19 @@
     <% @auto_revision_task_summary.quality_result_counts.each do |result, count| %>
       <div class="metric-card"><span>quality <%= result %></span><strong><%= count %>件</strong></div>
     <% end %>
+    <% @auto_revision_task_summary.quality_approval_counts.each do |status, count| %>
+      <div class="metric-card"><span>gate <%= status %></span><strong><%= count %>件</strong></div>
+    <% end %>
   </div>
   <% if @auto_revision_task_summary.stale_codex_task_count.positive? %>
     <p class="aicoo-empty-state">長期間確認されていないCodexタスクがあります。Codex Queueで状況を確認してください。</p>
   <% end %>
+  <% if @auto_revision_task_summary.pending_quality_gate_count >= 5 %>
+    <p class="aicoo-empty-state">Quality Gate未処理タスクがあります。品質確認後にLearning Loopへ反映してください。</p>
+  <% end %>
+  <div class="actions compact-actions">
+    <%= link_to "Quality Gateを見る", codex_quality_checks_path, class: "button secondary" %>
+  </div>
   <% if @auto_revision_task_summary.recent_quality_warnings.any? %>
     <div class="aicoo-card aicoo-card-compact">
       <h3>最近の品質警告</h3>
@@ -146,6 +155,20 @@
           <li>
             <%= link_to quality_check.auto_revision_task.title, quality_check.auto_revision_task %>
             <span class="pill"><%= quality_check.result %></span>
+          </li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+  <% if @auto_revision_task_summary.recent_pending_quality_checks.any? %>
+    <div class="aicoo-card aicoo-card-compact">
+      <h3>最近の要確認品質チェック</h3>
+      <ul>
+        <% @auto_revision_task_summary.recent_pending_quality_checks.each do |quality_check| %>
+          <li>
+            <%= link_to quality_check.auto_revision_task.title, quality_check %>
+            <span class="pill"><%= quality_check.result %></span>
+            score <%= quality_check.quality_score %> / risk <%= quality_check.risk_score %> / warnings <%= quality_check.warning_count %>
           </li>
         <% end %>
       </ul>

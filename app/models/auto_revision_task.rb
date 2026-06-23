@@ -18,6 +18,7 @@ class AutoRevisionTask < ApplicationRecord
 
   belongs_to :action_candidate
   belongs_to :business
+  belongs_to :target_business, class_name: "Business", optional: true
   has_one :codex_quality_check, dependent: :destroy
 
   validates :title, presence: true
@@ -38,6 +39,7 @@ class AutoRevisionTask < ApplicationRecord
   scope :by_priority, -> { order(priority_score: :desc, created_at: :desc) }
 
   before_validation :set_defaults
+  before_validation :copy_execution_profile_defaults
 
   def self.from_action_candidate(action_candidate, generated_by: "owner")
     active.find_by(action_candidate:) ||
@@ -133,7 +135,9 @@ class AutoRevisionTask < ApplicationRecord
         "test_result" => test_result,
         "codex_quality_check_id" => codex_quality_check&.id,
         "codex_quality_result" => codex_quality_check&.result,
-        "quality_review_required" => codex_quality_check&.review_required? || false
+        "codex_quality_approval_status" => codex_quality_check&.approval_status,
+        "quality_review_required" => codex_quality_check&.approval_status != "approved",
+        "learning_loop_verified" => codex_quality_check&.learning_loop_verified? || false
       }
     )
   end
@@ -164,8 +168,16 @@ class AutoRevisionTask < ApplicationRecord
       AICOOが生成したActionCandidateを、Codexへ渡せる実行単位として整理したAutoRevisionTaskです。
       タスクID: AutoRevisionTask ##{id}
       対象事業: #{business.name}
+      対象リポジトリ: #{target_repository_display}
+      リポジトリ種別: #{target_repository_type.presence || "-"}
+      GitHub Repository: #{execution_profile&.github_repository.presence || "-"}
+      Repository Path: #{execution_profile&.repository_path.presence || "-"}
+      Default Branch: #{execution_profile&.default_branch.presence || "-"}
       action_type: #{metadata.to_h["action_type"].presence || action_candidate.action_type}
       risk_level: #{risk_level}
+
+      事業別Codex指示:
+      #{execution_profile&.codex_instructions.presence || "特記事項はありません。"}
 
       実装要件:
       #{execution_prompt.presence || "ActionCandidate詳細を確認し、目的に沿って必要最小限の改修を行ってください。"}
@@ -182,11 +194,10 @@ class AutoRevisionTask < ApplicationRecord
       - 既存機能を壊さない
       - 本番secretやtokenを表示しない
       - 高リスク変更は勝手に広げない
+      #{profile_forbidden_pattern_prompt}
 
       確認コマンド:
-      - bin/rails test
-      - bin/rails zeitwerk:check
-      - RUBOCOP_CACHE_ROOT=tmp/rubocop_cache bundle exec rubocop
+      #{confirmation_command_prompt}
       #{migration_confirmation_commands}
 
       完了報告に含めるもの:
@@ -202,6 +213,17 @@ class AutoRevisionTask < ApplicationRecord
     PROMPT
   end
 
+  def execution_profile
+    profile = business&.business_execution_profile
+    return unless profile&.active?
+
+    profile
+  end
+
+  def target_repository_display
+    target_repository_name.presence || execution_profile&.display_repository_name || "-"
+  end
+
   private
 
   def set_defaults
@@ -210,6 +232,29 @@ class AutoRevisionTask < ApplicationRecord
     self.priority_score = 0 if priority_score.blank?
     self.generated_by = "aicoo" if generated_by.blank?
     self.metadata = {} if metadata.blank?
+  end
+
+  def copy_execution_profile_defaults
+    self.target_business_id ||= business_id
+    self.target_repository_name ||= execution_profile&.repository_name
+    self.target_repository_type ||= execution_profile&.repository_type
+  end
+
+  def profile_forbidden_pattern_prompt
+    patterns = execution_profile&.forbidden_pattern_lines || []
+    return "" if patterns.empty?
+
+    patterns.map { |pattern| "- #{pattern}" }.join("\n")
+  end
+
+  def confirmation_command_prompt
+    commands = [
+      execution_profile&.test_command.presence || "bin/rails test",
+      "bin/rails zeitwerk:check",
+      execution_profile&.lint_command.presence || "RUBOCOP_CACHE_ROOT=tmp/rubocop_cache bundle exec rubocop"
+    ].uniq
+
+    commands.map { |command| "- #{command}" }.join("\n")
   end
 
   def migration_confirmation_commands

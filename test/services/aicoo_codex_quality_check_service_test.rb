@@ -11,6 +11,8 @@ class AicooCodexQualityCheckServiceTest < ActiveSupport::TestCase
 
     assert_equal "passed", check.result
     assert_equal "passed", check.test_status
+    assert_equal "approved", check.approval_status
+    assert_not_nil check.approved_at
     assert_operator check.quality_score, :>=, 80
     assert_equal 0, check.warning_count
   end
@@ -48,6 +50,7 @@ class AicooCodexQualityCheckServiceTest < ActiveSupport::TestCase
     check = AicooCodexQualityCheckService.new(task).call
 
     assert_equal "passed_with_warnings", check.result
+    assert_equal "pending", check.approval_status
   end
 
   test "returns review required for multiple warnings" do
@@ -60,6 +63,7 @@ class AicooCodexQualityCheckServiceTest < ActiveSupport::TestCase
     check = AicooCodexQualityCheckService.new(task).call
 
     assert_equal "review_required", check.result
+    assert_equal "pending", check.approval_status
     assert_operator check.warning_count, :>=, 3
   end
 
@@ -73,6 +77,7 @@ class AicooCodexQualityCheckServiceTest < ActiveSupport::TestCase
 
     assert_equal "failed", check.result
     assert_equal "failed", check.test_status
+    assert_equal "rejected", check.approval_status
   end
 
   private

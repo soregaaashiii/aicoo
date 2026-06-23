@@ -77,7 +77,8 @@ class AicooCodexQualityCheckService
       changed_files_count: changed_files.size,
       warning_count: warnings.size,
       warnings:,
-      result:
+      result:,
+      **approval_attributes_for(result)
     )
   end
 
@@ -129,5 +130,31 @@ class AicooCodexQualityCheckService
     return "passed_with_warnings" if quality_score >= 70
 
     "review_required"
+  end
+
+  def approval_attributes_for(result)
+    case result
+    when "passed"
+      {
+        approval_status: "approved",
+        approved_at: Time.current,
+        approved_by: "system",
+        approval_note: "Codex Quality Check passedのため自動承認"
+      }
+    when "failed"
+      {
+        approval_status: "rejected",
+        approved_at: nil,
+        approved_by: "system",
+        approval_note: "Codex Quality Check failedのため自動却下"
+      }
+    else
+      {
+        approval_status: "pending",
+        approved_at: nil,
+        approved_by: nil,
+        approval_note: "人間確認が必要です"
+      }
+    end
   end
 end

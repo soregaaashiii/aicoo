@@ -1,0 +1,80 @@
+<%= form_with model: business_execution_profile,
+              url: business_execution_profile.persisted? ? admin_business_execution_profile_path(business_execution_profile) : admin_business_execution_profiles_path,
+              class: "form" do |form| %>
+  <% if business_execution_profile.errors.any? %>
+    <div class="alert">
+      <p>保存できませんでした。</p>
+      <ul>
+        <% business_execution_profile.errors.full_messages.each do |message| %>
+          <li><%= message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div class="grid">
+    <div class="field">
+      <%= form.label :business_id, "Business" %>
+      <%= form.collection_select :business_id, Business.order(:name), :id, :name, prompt: "選択してください" %>
+    </div>
+    <div class="field">
+      <%= form.label :repository_type, "Repository Type" %>
+      <%= form.select :repository_type, BusinessExecutionProfile::REPOSITORY_TYPES.map { |type| [type, type] } %>
+    </div>
+    <div class="field">
+      <%= form.label :repository_name, "Repository Name" %>
+      <%= form.text_field :repository_name, placeholder: "例: suelog" %>
+    </div>
+    <div class="field">
+      <%= form.label :github_repository, "GitHub Repository" %>
+      <%= form.text_field :github_repository, placeholder: "例: owner/suelog" %>
+    </div>
+    <div class="field">
+      <%= form.label :repository_path, "Repository Path" %>
+      <%= form.text_field :repository_path, placeholder: "例: /Users/.../suelog" %>
+    </div>
+    <div class="field">
+      <%= form.label :default_branch, "Default Branch" %>
+      <%= form.text_field :default_branch, placeholder: "main" %>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="field">
+      <%= form.label :test_command, "Test Command" %>
+      <%= form.text_field :test_command, placeholder: "bin/rails test" %>
+    </div>
+    <div class="field">
+      <%= form.label :lint_command, "Lint Command" %>
+      <%= form.text_field :lint_command, placeholder: "RUBOCOP_CACHE_ROOT=tmp/rubocop_cache bundle exec rubocop" %>
+    </div>
+    <div class="field">
+      <%= form.label :deploy_command, "Deploy Command" %>
+      <%= form.text_field :deploy_command, placeholder: "必要な場合だけ入力" %>
+    </div>
+    <div class="field">
+      <%= form.label :production_url, "Production URL" %>
+      <%= form.url_field :production_url, placeholder: "https://example.com" %>
+    </div>
+  </div>
+
+  <div class="field">
+    <%= form.label :codex_instructions, "Codex Instructions" %>
+    <%= form.text_area :codex_instructions, rows: 5, placeholder: "この事業の改修時にCodexへ必ず伝える指示" %>
+  </div>
+
+  <div class="field">
+    <%= form.label :forbidden_patterns, "Forbidden Patterns" %>
+    <%= form.text_area :forbidden_patterns, rows: 5, placeholder: "db:drop\ndb:reset\ndrop database" %>
+  </div>
+
+  <label class="checkbox">
+    <%= form.check_box :active %>
+    有効
+  </label>
+
+  <div class="actions">
+    <%= form.submit "保存", class: "button" %>
+    <%= link_to "一覧へ戻る", admin_business_execution_profiles_path, class: "button secondary" %>
+  </div>
+<% end %>

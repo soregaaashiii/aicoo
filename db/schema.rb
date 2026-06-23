@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_23_135000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_24_100100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -716,6 +716,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_23_135000) do
     t.datetime "started_at"
     t.datetime "started_running_at"
     t.string "status", default: "draft", null: false
+    t.bigint "target_business_id"
+    t.string "target_repository_name"
+    t.string "target_repository_type"
     t.text "test_result"
     t.string "title", null: false
     t.datetime "updated_at", null: false
@@ -728,6 +731,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_23_135000) do
     t.index ["sent_to_codex_at"], name: "index_auto_revision_tasks_on_sent_to_codex_at"
     t.index ["started_running_at"], name: "index_auto_revision_tasks_on_started_running_at"
     t.index ["status"], name: "index_auto_revision_tasks_on_status"
+    t.index ["target_business_id"], name: "index_auto_revision_tasks_on_target_business_id"
+  end
+
+  create_table "business_execution_profiles", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.bigint "business_id", null: false
+    t.text "codex_instructions"
+    t.datetime "created_at", null: false
+    t.string "default_branch", default: "main", null: false
+    t.text "deploy_command"
+    t.text "forbidden_patterns"
+    t.string "github_repository"
+    t.text "lint_command"
+    t.string "production_url"
+    t.string "repository_name"
+    t.string "repository_path"
+    t.string "repository_type", default: "other", null: false
+    t.text "test_command"
+    t.datetime "updated_at", null: false
+    t.index ["business_id"], name: "index_business_execution_profiles_on_business_id", unique: true
   end
 
   create_table "business_metric_dailies", force: :cascade do |t|
@@ -757,6 +780,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_23_135000) do
   end
 
   create_table "codex_quality_checks", force: :cascade do |t|
+    t.text "approval_note"
+    t.string "approval_status", default: "pending", null: false
+    t.datetime "approved_at"
+    t.string "approved_by"
     t.bigint "auto_revision_task_id", null: false
     t.integer "changed_files_count", default: 0, null: false
     t.datetime "created_at", null: false
@@ -769,6 +796,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_23_135000) do
     t.datetime "updated_at", null: false
     t.integer "warning_count", default: 0, null: false
     t.jsonb "warnings", default: [], null: false
+    t.index ["approval_status"], name: "index_codex_quality_checks_on_approval_status"
+    t.index ["approved_at"], name: "index_codex_quality_checks_on_approved_at"
     t.index ["auto_revision_task_id"], name: "index_codex_quality_checks_on_auto_revision_task_id", unique: true
     t.index ["result"], name: "index_codex_quality_checks_on_result"
     t.index ["test_status"], name: "index_codex_quality_checks_on_test_status"
@@ -949,6 +978,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_23_135000) do
   add_foreign_key "auto_revision_queue_runs", "aicoo_daily_runs"
   add_foreign_key "auto_revision_tasks", "action_candidates"
   add_foreign_key "auto_revision_tasks", "businesses"
+  add_foreign_key "auto_revision_tasks", "businesses", column: "target_business_id"
+  add_foreign_key "business_execution_profiles", "businesses"
   add_foreign_key "business_metric_dailies", "businesses"
   add_foreign_key "codex_quality_checks", "auto_revision_tasks"
   add_foreign_key "data_imports", "aicoo_analytics_sites"

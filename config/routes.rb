@@ -39,6 +39,10 @@ Rails.application.routes.draw do
     post :evaluate, on: :member
   end
   resources :action_execution_logs, only: %i[show new create edit update]
+  resources :codex_quality_checks, only: %i[index show] do
+    patch :approve, on: :member
+    patch :reject, on: :member
+  end
   resources :auto_revision_tasks, only: %i[index show create] do
     get :codex_queue, on: :collection
     patch :approve, on: :member
@@ -75,6 +79,7 @@ Rails.application.routes.draw do
   end
 
   namespace :admin do
+    resources :business_execution_profiles, except: %i[show destroy]
     resources :google_credentials, except: %i[show destroy] do
       get :connect, on: :member
     end

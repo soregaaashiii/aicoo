@@ -27,11 +27,41 @@
       <div class="metric-card"><span>risk</span><strong><%= @auto_revision_task.risk_level %></strong></div>
       <div class="metric-card"><span>優先度</span><strong><%= number_with_precision(@auto_revision_task.priority_score, precision: 1) %></strong></div>
       <div class="metric-card"><span>generated_by</span><strong><%= @auto_revision_task.generated_by %></strong></div>
+      <div class="metric-card"><span>Repository</span><strong><%= @auto_revision_task.target_repository_display %></strong></div>
+      <div class="metric-card"><span>Repository Type</span><strong><%= @auto_revision_task.target_repository_type.presence || "-" %></strong></div>
       <div class="metric-card"><span>Codex投入</span><strong><%= @auto_revision_task.sent_to_codex_at ? l(@auto_revision_task.sent_to_codex_at, format: :short) : "-" %></strong></div>
       <div class="metric-card"><span>実装開始</span><strong><%= @auto_revision_task.started_running_at ? l(@auto_revision_task.started_running_at, format: :short) : "-" %></strong></div>
       <div class="metric-card"><span>最終確認</span><strong><%= @auto_revision_task.last_checked_at ? l(@auto_revision_task.last_checked_at, format: :short) : "-" %></strong></div>
       <div class="metric-card"><span>放置判定</span><strong><%= @auto_revision_task.stale_codex_task? ? "要確認" : "正常" %></strong></div>
     </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Target Repository</h2>
+      <p>このタスクをCodexへ渡すときの対象事業・リポジトリ・実行コマンドです。</p>
+    </div>
+    <% profile = @auto_revision_task.execution_profile %>
+    <dl class="detail-list">
+      <dt>対象事業</dt>
+      <dd><%= @auto_revision_task.target_business&.name || @auto_revision_task.business.name %></dd>
+      <dt>Repository</dt>
+      <dd><%= @auto_revision_task.target_repository_display %></dd>
+      <dt>Repository Type</dt>
+      <dd><%= @auto_revision_task.target_repository_type.presence || "-" %></dd>
+      <dt>GitHub Repository</dt>
+      <dd><%= profile&.github_repository.presence || "-" %></dd>
+      <dt>Repository Path</dt>
+      <dd><%= profile&.repository_path.presence || "-" %></dd>
+      <dt>Test Command</dt>
+      <dd><%= profile&.test_command.presence || "bin/rails test" %></dd>
+      <dt>Lint Command</dt>
+      <dd><%= profile&.lint_command.presence || "RUBOCOP_CACHE_ROOT=tmp/rubocop_cache bundle exec rubocop" %></dd>
+      <dt>Deploy Command</dt>
+      <dd><%= profile&.deploy_command.presence || "-" %></dd>
+      <dt>Forbidden Patterns</dt>
+      <dd><%= simple_format(profile&.forbidden_pattern_lines&.join("\n").presence || "db:drop\ndb:reset\ndrop database") %></dd>
+    </dl>
   </section>
 
   <section class="dashboard-section">
@@ -112,6 +142,7 @@
         <div class="metric-card"><span>リスクスコア</span><strong><%= quality_check.risk_score %></strong></div>
         <div class="metric-card"><span>test_status</span><strong><%= quality_check.test_status %></strong></div>
         <div class="metric-card"><span>判定結果</span><strong><%= quality_check.result %></strong></div>
+        <div class="metric-card"><span>Quality Gate Status</span><strong><%= quality_check.quality_gate_label %></strong></div>
         <div class="metric-card"><span>migration検知</span><strong><%= quality_check.migration_detected? ? "あり" : "なし" %></strong></div>
         <div class="metric-card"><span>high risk検知</span><strong><%= quality_check.high_risk_change_detected? ? "あり" : "なし" %></strong></div>
         <div class="metric-card"><span>変更ファイル</span><strong><%= quality_check.changed_files_count %></strong></div>
@@ -126,6 +157,13 @@
       <% else %>
         <p class="aicoo-empty-state">品質警告はありません。</p>
       <% end %>
+      <div class="actions compact-actions">
+        <%= link_to "Quality Gate詳細", quality_check, class: "button secondary" %>
+        <% if quality_check.approval_status == "pending" %>
+          <%= button_to "Quality Gate承認", approve_codex_quality_check_path(quality_check), method: :patch, class: "button" %>
+          <%= button_to "Quality Gate却下", reject_codex_quality_check_path(quality_check), method: :patch, class: "button danger" %>
+        <% end %>
+      </div>
     <% else %>
       <p class="aicoo-empty-state">実装結果を登録すると、Codex Quality Checkが自動作成されます。</p>
     <% end %>

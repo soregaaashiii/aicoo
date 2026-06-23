@@ -1,0 +1,12 @@
+<% content_for :title, "Execution Profile作成" %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "Execution Profile作成",
+             description: "Businessに対象リポジトリと実行環境を紐づけます。",
+             active_main: :dashboard %>
+
+  <section class="dashboard-section">
+    <%= render "form", business_execution_profile: @business_execution_profile %>
+  </section>
+</div>

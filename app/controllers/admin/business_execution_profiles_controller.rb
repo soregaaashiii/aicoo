@@ -1,0 +1,60 @@
+module Admin
+  class BusinessExecutionProfilesController < ApplicationController
+    before_action :set_business_execution_profile, only: %i[edit update]
+
+    def index
+      @business_execution_profiles = BusinessExecutionProfile.includes(:business).order(updated_at: :desc)
+    end
+
+    def new
+      @business_execution_profile = BusinessExecutionProfile.new(business_id: params[:business_id])
+    end
+
+    def create
+      @business_execution_profile = BusinessExecutionProfile.new(business_execution_profile_params)
+
+      if @business_execution_profile.save
+        redirect_to admin_business_execution_profiles_path, notice: "Execution Profileを作成しました。"
+      else
+        render :new, status: :unprocessable_entity
+      end
+    end
+
+    def edit
+    end
+
+    def update
+      if @business_execution_profile.update(business_execution_profile_params)
+        redirect_to admin_business_execution_profiles_path, notice: "Execution Profileを更新しました。"
+      else
+        render :edit, status: :unprocessable_entity
+      end
+    end
+
+    private
+
+    def set_business_execution_profile
+      @business_execution_profile = BusinessExecutionProfile.find(params.expect(:id))
+    end
+
+    def business_execution_profile_params
+      params.expect(
+        business_execution_profile: [
+          :business_id,
+          :repository_name,
+          :repository_type,
+          :repository_path,
+          :github_repository,
+          :default_branch,
+          :test_command,
+          :lint_command,
+          :deploy_command,
+          :production_url,
+          :codex_instructions,
+          :forbidden_patterns,
+          :active
+        ]
+      )
+    end
+  end
+end

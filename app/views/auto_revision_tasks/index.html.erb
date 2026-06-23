@@ -18,6 +18,8 @@
         <tr>
           <th>タイトル</th>
           <th>事業</th>
+          <th>Repository</th>
+          <th>Type</th>
           <th>risk</th>
           <th>status</th>
           <th>優先度</th>
@@ -30,6 +32,8 @@
           <tr>
             <td><%= task.title %></td>
             <td><%= task.business.name %></td>
+            <td><%= task.target_repository_display %></td>
+            <td><span class="pill"><%= task.target_repository_type.presence || "-" %></span></td>
             <td><span class="pill"><%= task.risk_level %></span></td>
             <td><span class="pill"><%= task.status %></span></td>
             <td class="number"><%= number_with_precision(task.priority_score, precision: 1) %></td>
@@ -38,7 +42,7 @@
           </tr>
         <% end %>
         <% if @auto_revision_tasks.empty? %>
-          <tr><td colspan="7">まだAuto Revision Taskはありません。</td></tr>
+          <tr><td colspan="9">まだAuto Revision Taskはありません。</td></tr>
         <% end %>
       </tbody>
     </table>

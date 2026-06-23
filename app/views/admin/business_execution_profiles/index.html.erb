@@ -1,0 +1,48 @@
+<% content_for :title, "Business Execution Profiles" %>
+
+<% header_actions = capture do %>
+  <%= link_to "新規作成", new_admin_business_execution_profile_path, class: "button" %>
+  <%= link_to "操作盤に戻る", dashboard_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "Business Execution Profiles",
+             description: "事業ごとの対象リポジトリ、テスト、Lint、デプロイ、Codex禁止事項を管理します。",
+             active_main: :dashboard,
+             actions: header_actions %>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Business</th>
+          <th>Repository</th>
+          <th>Type</th>
+          <th>GitHub</th>
+          <th>Test</th>
+          <th>Lint</th>
+          <th>Active</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @business_execution_profiles.each do |profile| %>
+          <tr>
+            <td><%= link_to profile.business.name, profile.business %></td>
+            <td><%= profile.display_repository_name %></td>
+            <td><span class="pill"><%= profile.repository_type %></span></td>
+            <td><%= profile.github_repository.presence || "-" %></td>
+            <td><%= profile.test_command.presence || "-" %></td>
+            <td><%= profile.lint_command.presence || "-" %></td>
+            <td><span class="pill"><%= profile.active? ? "有効" : "無効" %></span></td>
+            <td><%= link_to "編集", edit_admin_business_execution_profile_path(profile), class: "button secondary" %></td>
+          </tr>
+        <% end %>
+        <% if @business_execution_profiles.empty? %>
+          <tr><td colspan="8">まだExecution Profileはありません。</td></tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</div>

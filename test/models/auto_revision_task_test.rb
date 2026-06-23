@@ -96,6 +96,52 @@ class AutoRevisionTaskTest < ActiveSupport::TestCase
     assert_includes prompt, "test_result に確認コマンドの結果を記録してください"
   end
 
+  test "copies business execution profile target repository" do
+    BusinessExecutionProfile.create!(
+      business: businesses(:suelog),
+      repository_name: "suelog",
+      repository_type: "rails",
+      github_repository: "kawamura/suelog",
+      test_command: "bin/rails test",
+      lint_command: "bundle exec rubocop",
+      forbidden_patterns: "db:drop\ndelete_all"
+    )
+
+    task = AutoRevisionTask.from_action_candidate(action_candidates(:nagazakicho_article))
+
+    assert_equal businesses(:suelog), task.target_business
+    assert_equal "suelog", task.target_repository_name
+    assert_equal "rails", task.target_repository_type
+    assert_equal "suelog", task.target_repository_display
+  end
+
+  test "codex prompt includes business execution profile" do
+    BusinessExecutionProfile.create!(
+      business: businesses(:suelog),
+      repository_name: "suelog",
+      repository_type: "rails",
+      repository_path: "/apps/suelog",
+      github_repository: "kawamura/suelog",
+      test_command: "bin/rails test:system",
+      lint_command: "bundle exec standardrb",
+      deploy_command: "bin/deploy",
+      codex_instructions: "吸えログ固有のSEO導線を壊さない。",
+      forbidden_patterns: "db:drop\ndestroy_all"
+    )
+
+    task = AutoRevisionTask.from_action_candidate(action_candidates(:nagazakicho_article))
+    prompt = task.codex_prompt
+
+    assert_includes prompt, "対象リポジトリ: suelog"
+    assert_includes prompt, "リポジトリ種別: rails"
+    assert_includes prompt, "GitHub Repository: kawamura/suelog"
+    assert_includes prompt, "Repository Path: /apps/suelog"
+    assert_includes prompt, "吸えログ固有のSEO導線を壊さない。"
+    assert_includes prompt, "bin/rails test:system"
+    assert_includes prompt, "bundle exec standardrb"
+    assert_includes prompt, "destroy_all"
+  end
+
   test "records succeeded result with finished_at" do
     task = AutoRevisionTask.from_action_candidate(action_candidates(:nagazakicho_article))
 
@@ -154,5 +200,26 @@ class AutoRevisionTaskTest < ActiveSupport::TestCase
     assert_equal task.id, log.metadata["auto_revision_task_id"]
     assert_equal task.codex_quality_check.id, log.metadata["codex_quality_check_id"]
     assert_equal false, log.metadata["quality_review_required"]
+    assert_equal true, log.metadata["learning_loop_verified"]
+    assert_equal "approved", log.metadata["codex_quality_approval_status"]
+  end
+
+  test "unapproved quality gate is not learning loop verified" do
+    task = AutoRevisionTask.from_action_candidate(action_candidates(:nagazakicho_article))
+    task.record_result!(
+      status: "partial_succeeded",
+      result_summary: "要確認",
+      changed_files: "db/migrate/20260623000000_add_column.rb\nconfig/credentials.yml.enc",
+      test_result: ""
+    )
+
+    assert_difference("ActionExecutionLog.count", 1) do
+      task.create_action_execution_log!
+    end
+
+    log = ActionExecutionLog.last
+    assert_equal "pending", task.codex_quality_check.approval_status
+    assert_equal true, log.metadata["quality_review_required"]
+    assert_equal false, log.metadata["learning_loop_verified"]
   end
 end

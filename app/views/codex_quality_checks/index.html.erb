@@ -1,0 +1,58 @@
+<% content_for :title, "Quality Gate" %>
+
+<% header_actions = capture do %>
+  <%= link_to "Codex Queue", codex_queue_auto_revision_tasks_path, class: "button secondary" %>
+  <%= link_to "操作盤に戻る", dashboard_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "Quality Gate",
+             description: "Codex実装結果をLearning Loopへ反映してよいか確認します。",
+             active_main: :dashboard,
+             actions: header_actions %>
+
+  <section class="dashboard-section">
+    <div class="actions compact-actions">
+      <% ([ [ "すべて", nil ] ] + CodexQualityCheck::APPROVAL_STATUSES.map { |status| [ status, status ] } + CodexQualityCheck::RESULTS.map { |result| [ result, result ] }).each do |label, filter| %>
+        <%= link_to label,
+                    codex_quality_checks_path(filter:),
+                    class: "button #{(@filter == filter || (@filter.blank? && filter.blank?)) ? "" : "secondary"}" %>
+      <% end %>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>result</th>
+            <th>approval</th>
+            <th>AutoRevisionTask</th>
+            <th>品質</th>
+            <th>リスク</th>
+            <th>warnings</th>
+            <th>作成</th>
+            <th>詳細</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @codex_quality_checks.each do |quality_check| %>
+            <tr>
+              <td><span class="pill"><%= quality_check.result %></span></td>
+              <td><span class="pill"><%= quality_check.approval_status %></span></td>
+              <td><%= link_to quality_check.auto_revision_task.title, quality_check.auto_revision_task %></td>
+              <td class="number"><%= quality_check.quality_score %></td>
+              <td class="number"><%= quality_check.risk_score %></td>
+              <td class="number"><%= quality_check.warning_count %></td>
+              <td><%= l(quality_check.created_at, format: :short) %></td>
+              <td><%= link_to "詳細", quality_check, class: "button secondary" %></td>
+            </tr>
+          <% end %>
+          <% if @codex_quality_checks.empty? %>
+            <tr><td colspan="8">Quality Gate対象はありません。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>

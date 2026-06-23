@@ -1,0 +1,69 @@
+<% content_for :title, "Quality Gate ##{@codex_quality_check.id}" %>
+
+<% task = @codex_quality_check.auto_revision_task %>
+<% header_actions = capture do %>
+  <%= link_to "一覧", codex_quality_checks_path, class: "button secondary" %>
+  <%= link_to "AutoRevisionTask", task, class: "button secondary" %>
+  <% if @codex_quality_check.approval_status == "pending" %>
+    <%= button_to "承認", approve_codex_quality_check_path(@codex_quality_check), method: :patch, class: "button", data: { turbo_confirm: "この品質チェックを承認しますか？" } %>
+    <%= button_to "却下", reject_codex_quality_check_path(@codex_quality_check), method: :patch, class: "button danger", data: { turbo_confirm: "この品質チェックを却下しますか？" } %>
+  <% end %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "Quality Gate ##{@codex_quality_check.id}",
+             description: "Codex実装結果の品質ゲート判定です。",
+             active_main: :dashboard,
+             actions: header_actions %>
+
+  <section class="dashboard-section">
+    <div class="metric-grid">
+      <div class="metric-card"><span>品質スコア</span><strong><%= @codex_quality_check.quality_score %></strong></div>
+      <div class="metric-card"><span>リスクスコア</span><strong><%= @codex_quality_check.risk_score %></strong></div>
+      <div class="metric-card"><span>test_status</span><strong><%= @codex_quality_check.test_status %></strong></div>
+      <div class="metric-card"><span>result</span><strong><%= @codex_quality_check.result %></strong></div>
+      <div class="metric-card"><span>approval</span><strong><%= @codex_quality_check.approval_status %></strong></div>
+      <div class="metric-card"><span>migration</span><strong><%= @codex_quality_check.migration_detected? ? "あり" : "なし" %></strong></div>
+      <div class="metric-card"><span>high risk</span><strong><%= @codex_quality_check.high_risk_change_detected? ? "あり" : "なし" %></strong></div>
+      <div class="metric-card"><span>changed files</span><strong><%= @codex_quality_check.changed_files_count %></strong></div>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <dl class="detail-list">
+      <dt>AutoRevisionTask</dt>
+      <dd><%= link_to task.title, task %></dd>
+      <dt>result_summary</dt>
+      <dd><%= simple_format(task.result_summary.presence || "-") %></dd>
+      <dt>changed_files</dt>
+      <dd><%= simple_format(task.changed_files.presence || "-") %></dd>
+      <dt>test_result</dt>
+      <dd><%= simple_format(task.test_result.presence || "-") %></dd>
+      <dt>codex_output</dt>
+      <dd><%= simple_format(task.codex_output.presence || "-") %></dd>
+      <dt>approval_note</dt>
+      <dd><%= simple_format(@codex_quality_check.approval_note.presence || "-") %></dd>
+      <dt>approved_at</dt>
+      <dd><%= @codex_quality_check.approved_at ? l(@codex_quality_check.approved_at, format: :long) : "-" %></dd>
+      <dt>approved_by</dt>
+      <dd><%= @codex_quality_check.approved_by.presence || "-" %></dd>
+    </dl>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>warnings</h2>
+      <p>Learning Loopへ流す前に確認すべき品質警告です。</p>
+    </div>
+    <% if @codex_quality_check.warnings.present? %>
+      <ul>
+        <% @codex_quality_check.warnings.each do |warning| %>
+          <li><%= warning %></li>
+        <% end %>
+      </ul>
+    <% else %>
+      <p class="aicoo-empty-state">警告はありません。</p>
+    <% end %>
+  </section>
+</div>
