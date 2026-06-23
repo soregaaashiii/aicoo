@@ -67,6 +67,8 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Execution Correction Overview"
     assert_includes response.body, "補正率が高い action_type"
     assert_includes response.body, "最近補正された候補"
+    assert_includes response.body, "評価関数精度"
+    assert_includes response.body, "補正係数を見る"
     assert_includes response.body, "aicoo-card-grid"
     assert_includes response.body, "table-wrap"
     assert_includes response.body, "今日やるべきこと TOP10"

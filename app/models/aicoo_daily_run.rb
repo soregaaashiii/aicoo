@@ -8,6 +8,8 @@ class AicooDailyRun < ApplicationRecord
   validates :source, inclusion: { in: SOURCES }
   validates :retry_count, :analytics_fetch_count, :snapshot_count, :insight_generated_count,
             numericality: { only_integer: true, greater_than_or_equal_to: 0 }
+  validates :updated_calibration_count, :calibration_log_count,
+            numericality: { only_integer: true, greater_than_or_equal_to: 0 }
 
   has_many :meta_evaluation_snapshots, dependent: :nullify
 

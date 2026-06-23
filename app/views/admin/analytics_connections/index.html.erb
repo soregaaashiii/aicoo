@@ -46,9 +46,12 @@
         <%= form.label :business_name, "事業名" %>
         <%= form.text_field :business_name, value: @business_name, placeholder: "吸えログ", required: true %>
       </div>
-      <div class="field checkbox-field">
-        <%= form.check_box :enabled, checked: @enabled %>
-        <%= form.label :enabled, "有効" %>
+      <div class="field">
+        <label class="checkbox-control" for="analytics_connection_enabled">
+          <%= form.check_box :enabled, checked: @enabled %>
+          <span>取得対象にする</span>
+        </label>
+        <p class="aicoo-lab-help">ONの場合だけ、手動取得やDaily Runでこの事業のGSC/GA4を取得します。Google認証の接続状態や、取得成功を意味する項目ではありません。</p>
       </div>
       <div class="field">
         <%= form.label :fetch_days, "取得日数" %>
@@ -144,8 +147,8 @@
           <dd><span class="pill"><%= connection.credentials_json_status %></span></dd>
           <dt>最終OAuth接続</dt>
           <dd><%= connection.oauth_connected_at ? l(connection.oauth_connected_at, format: :short) : "-" %></dd>
-          <dt>有効</dt>
-          <dd><span class="pill"><%= connection.enabled? ? "有効" : "無効" %></span></dd>
+          <dt>データ取得対象</dt>
+          <dd><span class="pill"><%= connection.enabled? ? "取得する" : "取得しない" %></span></dd>
           <dt>取得日数</dt>
           <dd><%= connection.fetch_days %>日</dd>
           <dt>最終取得</dt>

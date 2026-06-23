@@ -10,6 +10,7 @@ class DashboardController < ApplicationController
     @execution_feasibility_correction_overview = AicooExecutionFeasibilityCorrectionOverviewService.new.call
     @learning_loop_summary = AicooLearningLoopSummaryService.new.call
     @learning_loop_action_center = AicooLearningLoopActionCenterService.new.call
+    @action_prediction_calibration_summary = ActionPredictionCalibrationSummary.new.call
     ranking_scope = dashboard_ranking_scope
     @expected_value_rankings = ranking_scope.by_expected_value
     @recommendation_rankings = ranking_scope.by_recommendation

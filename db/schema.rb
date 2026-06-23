@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_23_110000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_23_122100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -111,6 +111,43 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_23_110000) do
     t.index ["user_id"], name: "index_action_execution_logs_on_user_id"
   end
 
+  create_table "action_prediction_calibration_logs", force: :cascade do |t|
+    t.string "action_type", null: false
+    t.bigint "aicoo_daily_run_id"
+    t.decimal "avg_actual_profit_yen"
+    t.decimal "avg_predicted_profit_yen"
+    t.decimal "avg_profit_error_rate"
+    t.datetime "calculated_at"
+    t.datetime "created_at", null: false
+    t.decimal "new_probability_calibration_factor"
+    t.decimal "new_profit_calibration_factor"
+    t.decimal "old_probability_calibration_factor"
+    t.decimal "old_profit_calibration_factor"
+    t.integer "sample_count"
+    t.string "source", default: "manual", null: false
+    t.datetime "updated_at", null: false
+    t.index ["action_type"], name: "index_action_prediction_calibration_logs_on_action_type"
+    t.index ["aicoo_daily_run_id"], name: "index_action_prediction_calibration_logs_on_aicoo_daily_run_id"
+    t.index ["calculated_at"], name: "index_action_prediction_calibration_logs_on_calculated_at"
+    t.index ["source"], name: "index_action_prediction_calibration_logs_on_source"
+  end
+
+  create_table "action_prediction_calibrations", force: :cascade do |t|
+    t.string "action_type", null: false
+    t.decimal "actual_success_rate"
+    t.decimal "avg_actual_profit_yen"
+    t.decimal "avg_predicted_profit_yen"
+    t.decimal "avg_predicted_success_probability"
+    t.decimal "avg_profit_error_rate"
+    t.datetime "created_at", null: false
+    t.datetime "last_calculated_at"
+    t.decimal "probability_calibration_factor", default: "1.0", null: false
+    t.decimal "profit_calibration_factor", default: "1.0", null: false
+    t.integer "sample_count", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.index ["action_type"], name: "index_action_prediction_calibrations_on_action_type", unique: true
+  end
+
   create_table "action_results", force: :cascade do |t|
     t.bigint "action_candidate_id", null: false
     t.integer "actual_affiliate_clicks_delta", default: 0, null: false
@@ -198,6 +235,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_23_110000) do
     t.integer "action_results_evaluated_count", default: 0, null: false
     t.integer "analytics_fetch_count", default: 0, null: false
     t.integer "business_metrics_imported_count", default: 0, null: false
+    t.text "calibration_error"
+    t.datetime "calibration_finished_at"
+    t.integer "calibration_log_count", default: 0, null: false
+    t.boolean "calibration_ran", default: false, null: false
+    t.datetime "calibration_started_at"
     t.datetime "created_at", null: false
     t.integer "data_preparation_auto_queued_count", default: 0, null: false
     t.integer "data_preparation_candidates_count", default: 0, null: false
@@ -217,6 +259,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_23_110000) do
     t.string "status", default: "pending", null: false
     t.date "target_date", null: false
     t.datetime "updated_at", null: false
+    t.integer "updated_calibration_count", default: 0, null: false
     t.index ["source"], name: "index_aicoo_daily_runs_on_source"
     t.index ["target_date", "status"], name: "index_aicoo_daily_runs_on_target_date_and_status"
     t.index ["target_date"], name: "index_aicoo_daily_runs_on_target_date"
@@ -771,6 +814,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_23_110000) do
   add_foreign_key "action_execution_logs", "action_results"
   add_foreign_key "action_execution_logs", "businesses"
   add_foreign_key "action_execution_logs", "revenue_events"
+  add_foreign_key "action_prediction_calibration_logs", "aicoo_daily_runs"
   add_foreign_key "action_results", "action_candidates"
   add_foreign_key "action_results", "businesses"
   add_foreign_key "ai_evaluation_runs", "businesses"

@@ -94,6 +94,10 @@ class ActionCandidate < ApplicationRecord
     100 - revenue_ratio
   end
 
+  def calibrated_success_probability
+    apply_probability_calibration(success_probability.to_d, prediction_calibration)
+  end
+
   private
 
   def set_defaults
@@ -118,7 +122,17 @@ class ActionCandidate < ApplicationRecord
   end
 
   def calculate_scores
-    self.expected_profit_yen = (immediate_value_yen.to_d * success_probability.to_d).round
+    calibration = prediction_calibration
+    raw_expected_profit_yen = immediate_value_yen.to_d * success_probability.to_d
+    adjusted_success_probability = apply_probability_calibration(success_probability.to_d, calibration)
+    adjusted_expected_profit_yen = raw_expected_profit_yen * calibration.profit_factor
+    self.expected_profit_yen = adjusted_expected_profit_yen.round
+    apply_prediction_calibration_metadata(
+      calibration:,
+      raw_expected_profit_yen:,
+      adjusted_expected_profit_yen:,
+      adjusted_success_probability:
+    )
     self.expected_hourly_value_yen = calculate_expected_hourly_value
     self.roi = calculate_roi
     self.final_score = calculate_final_score
@@ -183,5 +197,34 @@ class ActionCandidate < ApplicationRecord
     self.final_expected_value_yen = result.final_expected_value_yen
     self.final_confidence_score = result.final_confidence_score
     self.metadata = metadata.to_h.merge("evaluator_breakdown" => result.evaluator_breakdown)
+  end
+
+  def prediction_calibration
+    ActionPredictionCalibration.for_action_type(action_type.presence || "other")
+  end
+
+  def apply_probability_calibration(raw_probability, calibration)
+    adjusted = raw_probability.to_d * calibration.probability_factor
+    return 0.01.to_d if adjusted < 0.01.to_d
+    return 0.99.to_d if adjusted > 0.99.to_d
+
+    adjusted
+  end
+
+  def apply_prediction_calibration_metadata(calibration:, raw_expected_profit_yen:, adjusted_expected_profit_yen:, adjusted_success_probability:)
+    self.metadata = metadata.to_h.merge(
+      "prediction_calibration" => {
+        "action_type" => action_type,
+        "sample_count" => calibration.sample_count.to_i,
+        "active" => calibration.active?,
+        "profit_calibration_factor" => calibration.profit_factor.to_s,
+        "probability_calibration_factor" => calibration.probability_factor.to_s,
+        "raw_expected_profit_yen" => raw_expected_profit_yen.round,
+        "adjusted_expected_profit_yen" => adjusted_expected_profit_yen.round,
+        "raw_success_probability" => success_probability.to_d.to_s,
+        "adjusted_success_probability" => adjusted_success_probability.to_s,
+        "last_calculated_at" => calibration.last_calculated_at&.iso8601
+      }
+    )
   end
 end

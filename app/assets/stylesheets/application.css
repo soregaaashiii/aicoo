@@ -502,6 +502,31 @@ label {
   margin: 0;
 }
 
+.form label.checkbox-control,
+.checkbox-control {
+  align-items: center;
+  color: #34424e;
+  display: inline-flex;
+  gap: 8px;
+  line-height: 1.4;
+  margin-bottom: 6px;
+  max-width: 100%;
+  min-width: 0;
+  width: auto;
+  writing-mode: horizontal-tb;
+}
+
+.checkbox-control input {
+  flex: 0 0 auto;
+}
+
+.checkbox-control span {
+  display: inline-block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  writing-mode: horizontal-tb;
+}
+
 .compact-form {
   padding: 16px;
 }

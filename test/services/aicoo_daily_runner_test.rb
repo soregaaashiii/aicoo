@@ -27,6 +27,9 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
       assert_equal 1, run.score_snapshot_no_adjustment_count
       assert_equal 5, run.data_preparation_candidates_count
       assert_equal 3, run.data_preparation_auto_queued_count
+      assert_equal true, run.calibration_ran
+      assert_equal 2, run.updated_calibration_count
+      assert_equal 2, run.calibration_log_count
       assert_match "Daily Run finished", run.run_log
       assert_match "Analytics fetched success=1 failed=0", run.run_log
       assert_match "DataHub collected snapshots count=4", run.run_log
@@ -40,7 +43,8 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
       assert_match "MetaEvaluationSnapshot created count=5", run.run_log
       assert_match "Most trusted evaluator: gsc", run.run_log
       assert_match "GSC average confidence=82.0", run.run_log
-      assert_equal %i[analytics datahub import adjust_all generate insight evaluate snapshot queue meta_snapshot], order
+      assert_match "Calibration finished updated_calibration_count=2", run.run_log
+      assert_equal %i[analytics datahub import adjust_all generate insight evaluate snapshot queue meta_snapshot calibration], order
     end
   end
 
@@ -57,6 +61,28 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
       assert_equal "cron", run.source
       assert_equal 0, run.analytics_fetch_count
       assert_match "Analytics fetched success=0 failed=1", run.run_log
+    end
+  end
+
+  test "calibration failure does not crash daily run" do
+    order = []
+    target_date = Date.new(2026, 6, 21)
+    adjuster = fake_adjuster(order)
+    generator_result = MetricActionCandidateGenerator::Result.new(created: [], skipped: [])
+
+    stub_daily_steps(
+      order:,
+      adjuster:,
+      generator_results: [ generator_result ],
+      evaluated_results: [],
+      calibration_error: RuntimeError.new("calibration boom")
+    ) do
+      run = AicooDailyRunner.run!(target_date:)
+
+      assert_equal "partial_failed", run.status
+      assert_equal false, run.calibration_ran
+      assert_match "RuntimeError: calibration boom", run.calibration_error
+      assert_match "Calibration failed", run.run_log
     end
   end
 
@@ -99,7 +125,7 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
     end
   end
 
-  def stub_daily_steps(order:, adjuster:, generator_results:, evaluated_results:, analytics_status: "success")
+  def stub_daily_steps(order:, adjuster:, generator_results:, evaluated_results:, analytics_status: "success", calibration_error: nil)
     with_singleton_stub(AicooAnalytics::DailyFetchJob, :perform_now, -> { fake_analytics_fetch(order, analytics_status) }) do
       with_singleton_stub(AicooDataHub::DailyCollector, :new, -> { fake_datahub_collector(order) }) do
         with_singleton_stub(BusinessMetricDailyImporter, :import_all!, ->(date:) {
@@ -131,7 +157,17 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
                   }) do
                     with_singleton_stub(DataPreparationExecutorQueuer, :new, -> { fake_queuer(order) }) do
                       with_singleton_stub(MetaEvaluationSnapshotter, :new, -> { fake_meta_snapshotter(order) }) do
-                        yield
+                        with_singleton_stub(Aicoo::CalibrationEngine, :run!, ->(source:, aicoo_daily_run:) {
+                          order << :calibration
+                          raise calibration_error if calibration_error
+
+                          Aicoo::CalibrationEngine::Result.new(
+                            calibrations: [ Object.new, Object.new ],
+                            logs: [ Object.new, Object.new ]
+                          )
+                        }) do
+                          yield
+                        end
                       end
                     end
                   end

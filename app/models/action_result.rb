@@ -35,7 +35,7 @@ class ActionResult < ApplicationRecord
     self.business ||= action_candidate&.business
     self.predicted_value_yen = action_candidate&.immediate_value_yen.to_i if predicted_value_yen.nil?
     if predicted_success_probability.nil?
-      self.predicted_success_probability = action_candidate&.success_probability.to_d
+      self.predicted_success_probability = action_candidate&.calibrated_success_probability.to_d
     end
     return unless predicted_expected_profit_yen.nil?
 

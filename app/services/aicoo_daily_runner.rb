@@ -104,6 +104,8 @@ class AicooDailyRunner
       log!("#{evaluator_type.upcase} average confidence=#{confidence}")
     end
 
+    run_calibration!(run)
+
     log!("Daily Run finished target_date=#{target_date}")
   end
 
@@ -124,6 +126,35 @@ class AicooDailyRunner
 
   def global_adjustable?
     BusinessMetricDaily.count >= 90 && RevenueEvent.revenue.count >= 20
+  end
+
+  def run_calibration!(run)
+    started_at = Time.current
+    run.update!(calibration_started_at: started_at, calibration_error: nil)
+    log!("Calibration started")
+    result = Aicoo::CalibrationEngine.run!(source: "daily_run", aicoo_daily_run: run)
+    finished_at = Time.current
+    run.update!(
+      calibration_ran: true,
+      calibration_finished_at: finished_at,
+      updated_calibration_count: result.calibration_count,
+      calibration_log_count: result.logs.size
+    )
+    log!(
+      "Calibration finished updated_calibration_count=#{result.calibration_count} " \
+      "created_log_count=#{result.logs.size}"
+    )
+  rescue StandardError => e
+    finished_at = Time.current
+    error_message = "#{e.class}: #{e.message}"
+    Rails.logger.error("AICOO Daily Run calibration failed: #{error_message}")
+    partial_failures << "calibration_failed"
+    run.update!(
+      calibration_ran: false,
+      calibration_finished_at: finished_at,
+      calibration_error: error_message
+    )
+    log!("Calibration failed: #{error_message}")
   end
 
   def fail_run!(run, error)

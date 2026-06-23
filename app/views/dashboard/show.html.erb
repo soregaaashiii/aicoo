@@ -135,6 +135,36 @@
 <%= render "shared/execution_feasibility_correction_overview",
            overview: @execution_feasibility_correction_overview %>
 
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>評価関数精度</h2>
+    <p>ActionCandidateの予測利益と実績利益のズレから、action_typeごとの評価係数を補正します。</p>
+  </div>
+  <div class="metric-grid">
+    <div class="metric-card"><span>総サンプル数</span><strong><%= @action_prediction_calibration_summary.total_sample_count %>件</strong></div>
+    <div class="metric-card">
+      <span>平均利益誤差率</span>
+      <strong><%= @action_prediction_calibration_summary.average_profit_error_rate ? number_to_percentage(@action_prediction_calibration_summary.average_profit_error_rate * 100, precision: 1) : "データ不足" %></strong>
+    </div>
+    <div class="metric-card"><span>補正対象action_type数</span><strong><%= @action_prediction_calibration_summary.calibrated_action_type_count %></strong></div>
+    <div class="metric-card">
+      <span>最も予測過大</span>
+      <strong><%= @action_prediction_calibration_summary.most_overestimated&.action_type || "データ不足" %></strong>
+    </div>
+    <div class="metric-card">
+      <span>最も予測過小</span>
+      <strong><%= @action_prediction_calibration_summary.most_underestimated&.action_type || "データ不足" %></strong>
+    </div>
+    <div class="metric-card">
+      <span>最終補正日時</span>
+      <strong><%= @action_prediction_calibration_summary.last_calculated_at ? l(@action_prediction_calibration_summary.last_calculated_at, format: :short) : "-" %></strong>
+    </div>
+  </div>
+  <div class="actions compact-actions">
+    <%= link_to "補正係数を見る", admin_aicoo_calibration_path, class: "button secondary" %>
+  </div>
+</section>
+
 <% today_summary = @dashboard_summary.today %>
 <% judge_summary = @dashboard_summary.judge %>
 

@@ -173,4 +173,28 @@ class ActionCandidateTest < ActiveSupport::TestCase
     assert_equal 5_200, action_candidate.expected_profit_yen
     assert_equal "over_sized", action_candidate.metadata.dig("execution_feasibility_correction", "feasibility_label")
   end
+
+  test "applies prediction calibration to expected profit without overwriting raw probability" do
+    ActionPredictionCalibration.create!(
+      action_type: "serp_research",
+      sample_count: 10,
+      profit_calibration_factor: 0.5,
+      probability_calibration_factor: 0.8
+    )
+
+    action_candidate = ActionCandidate.create!(
+      business: businesses(:suelog),
+      title: "SERP調査の補正テスト",
+      action_type: "serp_research",
+      immediate_value_yen: 10_000,
+      success_probability: 0.5,
+      expected_hours: 1
+    )
+
+    assert_equal 2_500, action_candidate.expected_profit_yen
+    assert_equal 0.5.to_d, action_candidate.success_probability
+    assert_equal 0.4.to_d, action_candidate.calibrated_success_probability
+    assert_equal true, action_candidate.metadata.dig("prediction_calibration", "active")
+    assert_equal "0.5", action_candidate.metadata.dig("prediction_calibration", "profit_calibration_factor")
+  end
 end

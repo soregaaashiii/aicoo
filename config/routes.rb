@@ -93,6 +93,8 @@ Rails.application.routes.draw do
     get "aicoo_datahub", to: "aicoo_datahub#show", as: :aicoo_datahub
     get "aicoo_judge", to: "aicoo_judge#show", as: :aicoo_judge
     get "aicoo_judge/action_predictions", to: "aicoo_judge#action_predictions", as: :aicoo_judge_action_predictions
+    get "aicoo/calibration", to: "aicoo_calibration#index", as: :aicoo_calibration
+    post "aicoo/calibration/recalculate", to: "aicoo_calibration#recalculate", as: :aicoo_calibration_recalculate
     get "aicoo_insights", to: "aicoo_insights#index", as: :aicoo_insights
     post "aicoo_insights/generate", to: "aicoo_insights#generate", as: :aicoo_insights_generate
     resource :aicoo_daily_run_settings, only: %i[show update]

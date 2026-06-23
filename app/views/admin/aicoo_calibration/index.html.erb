@@ -1,0 +1,124 @@
+<% content_for :title, "評価関数補正" %>
+
+<% header_actions = capture do %>
+  <%= button_to "再計算", admin_aicoo_calibration_recalculate_path, method: :post, class: "button" %>
+  <%= link_to "成績表", admin_aicoo_judge_path, class: "button secondary" %>
+  <%= link_to "操作盤", dashboard_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "評価関数補正",
+             description: "ActionCandidateの予測値と実績値のズレをaction_typeごとに集計し、次回以降の評価に補正係数を反映します。",
+             active_main: :judge,
+             actions: header_actions %>
+
+  <section class="dashboard-section">
+    <div class="metric-grid">
+      <div class="metric-card"><span>総サンプル数</span><strong><%= @summary.total_sample_count %>件</strong></div>
+      <div class="metric-card">
+        <span>平均利益誤差率</span>
+        <strong><%= @summary.average_profit_error_rate ? number_to_percentage(@summary.average_profit_error_rate * 100, precision: 1) : "データ不足" %></strong>
+      </div>
+      <div class="metric-card"><span>補正対象action_type数</span><strong><%= @summary.calibrated_action_type_count %></strong></div>
+      <div class="metric-card">
+        <span>最終補正日時</span>
+        <strong><%= @summary.last_calculated_at ? l(@summary.last_calculated_at, format: :short) : "-" %></strong>
+      </div>
+      <div class="metric-card">
+        <span>最終自動実行日時</span>
+        <strong><%= @latest_daily_run_log&.calculated_at ? l(@latest_daily_run_log.calculated_at, format: :short) : "-" %></strong>
+      </div>
+      <div class="metric-card">
+        <span>最終手動実行日時</span>
+        <strong><%= @latest_manual_log&.calculated_at ? l(@latest_manual_log.calculated_at, format: :short) : "-" %></strong>
+      </div>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>action_type別補正係数</h2>
+      <p>サンプルが10件未満のaction_typeは、係数を1.0のまま保持します。</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>action_type</th>
+            <th>sample</th>
+            <th>予測利益平均</th>
+            <th>実績利益平均</th>
+            <th>利益補正</th>
+            <th>予測成功率平均</th>
+            <th>実績成功率</th>
+            <th>確率補正</th>
+            <th>平均誤差率</th>
+            <th>最終計算</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @calibrations.each do |calibration| %>
+            <tr>
+              <td><%= calibration.action_type %></td>
+              <td class="number"><%= calibration.sample_count %></td>
+              <td class="number"><%= number_to_currency(calibration.avg_predicted_profit_yen, unit: "¥", precision: 0) %></td>
+              <td class="number"><%= number_to_currency(calibration.avg_actual_profit_yen, unit: "¥", precision: 0) %></td>
+              <td class="number"><%= number_with_precision(calibration.profit_calibration_factor, precision: 2) %></td>
+              <td class="number"><%= calibration.avg_predicted_success_probability ? number_to_percentage(calibration.avg_predicted_success_probability * 100, precision: 1) : "-" %></td>
+              <td class="number"><%= calibration.actual_success_rate ? number_to_percentage(calibration.actual_success_rate * 100, precision: 1) : "-" %></td>
+              <td class="number"><%= number_with_precision(calibration.probability_calibration_factor, precision: 2) %></td>
+              <td class="number"><%= calibration.avg_profit_error_rate ? number_to_percentage(calibration.avg_profit_error_rate * 100, precision: 1) : "-" %></td>
+              <td><%= calibration.last_calculated_at ? l(calibration.last_calculated_at, format: :short) : "-" %></td>
+            </tr>
+          <% end %>
+          <% if @calibrations.empty? %>
+            <tr><td colspan="10">まだ補正データはありません。ActionResultを評価後に再計算してください。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>最新ログ</h2>
+      <p>再計算ごとの係数変化を確認します。</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>計算日時</th>
+            <th>action_type</th>
+            <th>source</th>
+            <th>sample</th>
+            <th>利益補正 前</th>
+            <th>利益補正 後</th>
+            <th>確率補正 前</th>
+            <th>確率補正 後</th>
+            <th>平均誤差率</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @logs.each do |log| %>
+            <tr>
+              <td><%= log.calculated_at ? l(log.calculated_at, format: :short) : "-" %></td>
+              <td><%= log.action_type %></td>
+              <td><span class="pill"><%= log.source == "daily_run" ? "Daily Run" : "手動" %></span></td>
+              <td class="number"><%= log.sample_count %></td>
+              <td class="number"><%= number_with_precision(log.old_profit_calibration_factor, precision: 2) %></td>
+              <td class="number"><%= number_with_precision(log.new_profit_calibration_factor, precision: 2) %></td>
+              <td class="number"><%= number_with_precision(log.old_probability_calibration_factor, precision: 2) %></td>
+              <td class="number"><%= number_with_precision(log.new_probability_calibration_factor, precision: 2) %></td>
+              <td class="number"><%= log.avg_profit_error_rate ? number_to_percentage(log.avg_profit_error_rate * 100, precision: 1) : "-" %></td>
+            </tr>
+          <% end %>
+          <% if @logs.empty? %>
+            <tr><td colspan="9">まだ再計算ログはありません。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>

@@ -184,6 +184,31 @@
 
 <section class="dashboard-section">
   <div class="section-heading">
+    <h2>評価関数補正</h2>
+    <p>同じaction_typeの予測誤差から、期待利益と成功確率を保守的に補正します。</p>
+  </div>
+  <% prediction_calibration = @action_candidate.metadata.to_h.fetch("prediction_calibration", {}) %>
+  <div class="metric-grid">
+    <div class="metric-card"><span>補正</span><strong><%= prediction_calibration["active"] ? "適用中" : "未適用" %></strong></div>
+    <div class="metric-card"><span>sample</span><strong><%= prediction_calibration["sample_count"].to_i %>件</strong></div>
+    <div class="metric-card"><span>利益補正係数</span><strong><%= prediction_calibration["profit_calibration_factor"].presence || "1.0" %></strong></div>
+    <div class="metric-card"><span>確率補正係数</span><strong><%= prediction_calibration["probability_calibration_factor"].presence || "1.0" %></strong></div>
+    <div class="metric-card">
+      <span>補正前期待利益</span>
+      <strong><%= number_to_currency(prediction_calibration["raw_expected_profit_yen"].to_i, unit: "¥", precision: 0) %></strong>
+    </div>
+    <div class="metric-card">
+      <span>補正後期待利益</span>
+      <strong><%= number_to_currency(prediction_calibration["adjusted_expected_profit_yen"].to_i, unit: "¥", precision: 0) %></strong>
+    </div>
+  </div>
+  <div class="actions compact-actions">
+    <%= link_to "補正係数を見る", admin_aicoo_calibration_path, class: "button secondary" %>
+  </div>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
     <h2>Judge補正</h2>
     <p>同じ生成元・行動タイプの過去的中率を使って、最終スコアを軽く補正します。</p>
   </div>
