@@ -40,8 +40,12 @@ Rails.application.routes.draw do
   end
   resources :action_execution_logs, only: %i[show new create edit update]
   resources :auto_revision_tasks, only: %i[index show create] do
+    get :codex_queue, on: :collection
     patch :approve, on: :member
     patch :cancel, on: :member
+    patch :mark_sent_to_codex, on: :member
+    patch :start_implementation, on: :member
+    patch :update_codex_tracking, on: :member
     patch :record_result, on: :member
   end
 

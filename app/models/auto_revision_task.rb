@@ -1,10 +1,24 @@
 class AutoRevisionTask < ApplicationRecord
-  STATUSES = %w[draft waiting_approval approved running succeeded partial_succeeded failed canceled].freeze
+  STATUSES = %w[
+    draft
+    waiting_approval
+    approved
+    ready_for_codex
+    sent_to_codex
+    running
+    succeeded
+    partial_succeeded
+    failed
+    canceled
+  ].freeze
   RISK_LEVELS = %w[low medium high].freeze
-  ACTIVE_STATUSES = %w[draft waiting_approval approved running].freeze
+  ACTIVE_STATUSES = %w[draft waiting_approval approved ready_for_codex sent_to_codex running].freeze
+  CODEX_QUEUE_STATUSES = %w[ready_for_codex sent_to_codex running].freeze
+  STALE_AFTER = 7.days
 
   belongs_to :action_candidate
   belongs_to :business
+  has_one :codex_quality_check, dependent: :destroy
 
   validates :title, presence: true
   validates :status, inclusion: { in: STATUSES }
@@ -13,6 +27,14 @@ class AutoRevisionTask < ApplicationRecord
 
   scope :recent, -> { order(created_at: :desc) }
   scope :active, -> { where(status: ACTIVE_STATUSES) }
+  scope :codex_queue, -> { where(status: CODEX_QUEUE_STATUSES).by_priority }
+  scope :codex_check_overdue, -> {
+    codex_queue.where("COALESCE(last_checked_at, sent_to_codex_at, started_running_at, created_at) < ?", STALE_AFTER.ago)
+  }
+  scope :stale_codex, -> {
+    where(status: "running")
+      .where("COALESCE(last_checked_at, started_running_at, started_at, sent_to_codex_at, created_at) < ?", STALE_AFTER.ago)
+  }
   scope :by_priority, -> { order(priority_score: :desc, created_at: :desc) }
 
   before_validation :set_defaults
@@ -53,7 +75,30 @@ class AutoRevisionTask < ApplicationRecord
   end
 
   def approve!
-    update!(status: "approved", approved_at: Time.current)
+    update!(status: "ready_for_codex", approved_at: Time.current)
+  end
+
+  def mark_sent_to_codex!
+    update!(status: "sent_to_codex", sent_to_codex_at: sent_to_codex_at || Time.current)
+  end
+
+  def start_implementation!
+    started_time = Time.current
+    update!(
+      status: "running",
+      started_at: started_at || started_time,
+      started_running_at: started_running_at || started_time
+    )
+  end
+
+  def stale_codex_task?
+    return false unless status == "running"
+
+    last_codex_activity_at < STALE_AFTER.ago
+  end
+
+  def last_codex_activity_at
+    last_checked_at || started_running_at || started_at || sent_to_codex_at || created_at
   end
 
   def record_result!(attributes)
@@ -68,6 +113,7 @@ class AutoRevisionTask < ApplicationRecord
       codex_output: normalized_attributes[:codex_output],
       finished_at: normalized_attributes[:finished_at].presence || Time.current
     )
+    run_codex_quality_check!
   end
 
   def create_action_execution_log!
@@ -84,9 +130,25 @@ class AutoRevisionTask < ApplicationRecord
         "auto_revision_task_id" => id,
         "auto_revision_status" => status,
         "changed_files" => changed_files,
-        "test_result" => test_result
+        "test_result" => test_result,
+        "codex_quality_check_id" => codex_quality_check&.id,
+        "codex_quality_result" => codex_quality_check&.result,
+        "quality_review_required" => codex_quality_check&.review_required? || false
       }
     )
+  end
+
+  def run_codex_quality_check!
+    AicooCodexQualityCheckService.new(self).call
+  end
+
+  def create_or_update_codex_quality_check!(attributes)
+    if codex_quality_check
+      codex_quality_check.update!(attributes)
+      codex_quality_check
+    else
+      create_codex_quality_check!(attributes)
+    end
   end
 
   def successful_result?
@@ -100,6 +162,7 @@ class AutoRevisionTask < ApplicationRecord
 
       背景:
       AICOOが生成したActionCandidateを、Codexへ渡せる実行単位として整理したAutoRevisionTaskです。
+      タスクID: AutoRevisionTask ##{id}
       対象事業: #{business.name}
       action_type: #{metadata.to_h["action_type"].presence || action_candidate.action_type}
       risk_level: #{risk_level}
@@ -131,6 +194,11 @@ class AutoRevisionTask < ApplicationRecord
       - 変更ファイル一覧
       - 実行した確認コマンド
       - 残リスク
+
+      実装完了後:
+      - AICOOのAutoRevisionTask ##{id} に結果を登録してください
+      - changed_files に変更ファイルを記録してください
+      - test_result に確認コマンドの結果を記録してください
     PROMPT
   end
 

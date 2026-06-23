@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_23_133100) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_23_135000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -700,16 +700,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_23_133100) do
     t.bigint "business_id", null: false
     t.text "changed_files"
     t.text "codex_output"
+    t.string "codex_session_label"
+    t.string "codex_thread_url"
     t.datetime "created_at", null: false
     t.text "error_message"
     t.text "execution_prompt"
     t.datetime "finished_at"
     t.string "generated_by", default: "aicoo", null: false
+    t.datetime "last_checked_at"
     t.jsonb "metadata", default: {}, null: false
     t.decimal "priority_score", precision: 12, scale: 2, default: "0.0", null: false
     t.text "result_summary"
     t.string "risk_level", default: "medium", null: false
+    t.datetime "sent_to_codex_at"
     t.datetime "started_at"
+    t.datetime "started_running_at"
     t.string "status", default: "draft", null: false
     t.text "test_result"
     t.string "title", null: false
@@ -717,8 +722,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_23_133100) do
     t.index ["action_candidate_id"], name: "index_auto_revision_tasks_on_action_candidate_id"
     t.index ["business_id"], name: "index_auto_revision_tasks_on_business_id"
     t.index ["generated_by"], name: "index_auto_revision_tasks_on_generated_by"
+    t.index ["last_checked_at"], name: "index_auto_revision_tasks_on_last_checked_at"
     t.index ["priority_score"], name: "index_auto_revision_tasks_on_priority_score"
     t.index ["risk_level"], name: "index_auto_revision_tasks_on_risk_level"
+    t.index ["sent_to_codex_at"], name: "index_auto_revision_tasks_on_sent_to_codex_at"
+    t.index ["started_running_at"], name: "index_auto_revision_tasks_on_started_running_at"
     t.index ["status"], name: "index_auto_revision_tasks_on_status"
   end
 
@@ -746,6 +754,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_23_133100) do
     t.string "name"
     t.string "status"
     t.datetime "updated_at", null: false
+  end
+
+  create_table "codex_quality_checks", force: :cascade do |t|
+    t.bigint "auto_revision_task_id", null: false
+    t.integer "changed_files_count", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.boolean "high_risk_change_detected", default: false, null: false
+    t.boolean "migration_detected", default: false, null: false
+    t.integer "quality_score", default: 0, null: false
+    t.string "result", default: "review_required", null: false
+    t.integer "risk_score", default: 0, null: false
+    t.string "test_status", default: "unknown", null: false
+    t.datetime "updated_at", null: false
+    t.integer "warning_count", default: 0, null: false
+    t.jsonb "warnings", default: [], null: false
+    t.index ["auto_revision_task_id"], name: "index_codex_quality_checks_on_auto_revision_task_id", unique: true
+    t.index ["result"], name: "index_codex_quality_checks_on_result"
+    t.index ["test_status"], name: "index_codex_quality_checks_on_test_status"
   end
 
   create_table "data_imports", force: :cascade do |t|
@@ -924,6 +950,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_23_133100) do
   add_foreign_key "auto_revision_tasks", "action_candidates"
   add_foreign_key "auto_revision_tasks", "businesses"
   add_foreign_key "business_metric_dailies", "businesses"
+  add_foreign_key "codex_quality_checks", "auto_revision_tasks"
   add_foreign_key "data_imports", "aicoo_analytics_sites"
   add_foreign_key "data_imports", "data_sources"
   add_foreign_key "data_sources", "businesses"

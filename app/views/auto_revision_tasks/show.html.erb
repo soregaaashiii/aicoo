@@ -2,9 +2,15 @@
 
 <% header_actions = capture do %>
   <%= link_to "一覧", auto_revision_tasks_path, class: "button secondary" %>
+  <%= link_to "Codex Queue", codex_queue_auto_revision_tasks_path, class: "button secondary" %>
   <%= link_to "ActionCandidate", @auto_revision_task.action_candidate, class: "button secondary" %>
   <% if %w[draft waiting_approval].include?(@auto_revision_task.status) %>
     <%= button_to "承認", approve_auto_revision_task_path(@auto_revision_task), method: :patch, class: "button", data: { turbo_confirm: "#{@auto_revision_task.risk_level} riskの改修タスクを承認しますか？" } %>
+  <% end %>
+  <% if @auto_revision_task.status == "ready_for_codex" %>
+    <%= button_to "Codex投入済みにする", mark_sent_to_codex_auto_revision_task_path(@auto_revision_task), method: :patch, class: "button" %>
+  <% elsif @auto_revision_task.status == "sent_to_codex" %>
+    <%= button_to "実装開始", start_implementation_auto_revision_task_path(@auto_revision_task), method: :patch, class: "button" %>
   <% end %>
 <% end %>
 
@@ -21,7 +27,61 @@
       <div class="metric-card"><span>risk</span><strong><%= @auto_revision_task.risk_level %></strong></div>
       <div class="metric-card"><span>優先度</span><strong><%= number_with_precision(@auto_revision_task.priority_score, precision: 1) %></strong></div>
       <div class="metric-card"><span>generated_by</span><strong><%= @auto_revision_task.generated_by %></strong></div>
+      <div class="metric-card"><span>Codex投入</span><strong><%= @auto_revision_task.sent_to_codex_at ? l(@auto_revision_task.sent_to_codex_at, format: :short) : "-" %></strong></div>
+      <div class="metric-card"><span>実装開始</span><strong><%= @auto_revision_task.started_running_at ? l(@auto_revision_task.started_running_at, format: :short) : "-" %></strong></div>
+      <div class="metric-card"><span>最終確認</span><strong><%= @auto_revision_task.last_checked_at ? l(@auto_revision_task.last_checked_at, format: :short) : "-" %></strong></div>
+      <div class="metric-card"><span>放置判定</span><strong><%= @auto_revision_task.stale_codex_task? ? "要確認" : "正常" %></strong></div>
     </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Codex Execution Tracking</h2>
+      <p>Codexへ投入した日時、実行スレッド、最終確認日時を記録します。</p>
+    </div>
+    <dl class="detail-list">
+      <dt>status</dt>
+      <dd><%= @auto_revision_task.status %></dd>
+      <dt>sent_to_codex_at</dt>
+      <dd><%= @auto_revision_task.sent_to_codex_at ? l(@auto_revision_task.sent_to_codex_at, format: :long) : "-" %></dd>
+      <dt>started_running_at</dt>
+      <dd><%= @auto_revision_task.started_running_at ? l(@auto_revision_task.started_running_at, format: :long) : "-" %></dd>
+      <dt>last_checked_at</dt>
+      <dd><%= @auto_revision_task.last_checked_at ? l(@auto_revision_task.last_checked_at, format: :long) : "-" %></dd>
+      <dt>codex_thread_url</dt>
+      <dd>
+        <% if @auto_revision_task.codex_thread_url.present? %>
+          <%= link_to @auto_revision_task.codex_thread_url, @auto_revision_task.codex_thread_url, target: "_blank", rel: "noopener" %>
+        <% else %>
+          -
+        <% end %>
+      </dd>
+      <dt>codex_session_label</dt>
+      <dd><%= @auto_revision_task.codex_session_label.presence || "-" %></dd>
+    </dl>
+
+    <%= form_with model: @auto_revision_task,
+                  url: update_codex_tracking_auto_revision_task_path(@auto_revision_task),
+                  method: :patch,
+                  class: "aicoo-form" do |form| %>
+      <div class="field">
+        <%= form.label :codex_thread_url, "CodexスレッドURL" %>
+        <%= form.url_field :codex_thread_url, placeholder: "https://chatgpt.com/..." %>
+      </div>
+      <div class="field">
+        <%= form.label :codex_session_label, "Codexセッション名" %>
+        <%= form.text_field :codex_session_label, placeholder: "SUELOG-SEO-001" %>
+      </div>
+      <div class="field">
+        <%= form.label :last_checked_at, "最終確認日時" %>
+        <%= form.datetime_field :last_checked_at,
+                                value: (@auto_revision_task.last_checked_at&.strftime("%Y-%m-%dT%H:%M")) %>
+      </div>
+      <div class="actions compact-actions">
+        <%= form.submit "追跡情報を保存", class: "button" %>
+        <%= button_tag "最終確認を今に更新", type: "submit", name: "mark_checked", value: "1", class: "button secondary" %>
+      </div>
+    <% end %>
   </section>
 
   <section class="dashboard-section">
@@ -29,9 +89,46 @@
       <h2>Codex用プロンプト</h2>
       <p>この内容をCodexに貼って、承認済みタスクとして実行できます。</p>
     </div>
-    <div class="field">
-      <textarea readonly rows="26" class="code-textarea"><%= @auto_revision_task.codex_prompt %></textarea>
+    <div class="actions compact-actions">
+      <button type="button"
+              class="button secondary"
+              onclick="navigator.clipboard.writeText(document.getElementById('auto-revision-codex-prompt').value)">
+        Codexプロンプトをコピー
+      </button>
     </div>
+    <div class="field">
+      <textarea id="auto-revision-codex-prompt" readonly rows="30" class="code-textarea"><%= @auto_revision_task.codex_prompt %></textarea>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Codex Quality Check</h2>
+      <p>Codex実装結果の安全性、テスト状況、リスクを自動評価します。</p>
+    </div>
+    <% if (quality_check = @auto_revision_task.codex_quality_check) %>
+      <div class="metric-grid">
+        <div class="metric-card"><span>品質スコア</span><strong><%= quality_check.quality_score %></strong></div>
+        <div class="metric-card"><span>リスクスコア</span><strong><%= quality_check.risk_score %></strong></div>
+        <div class="metric-card"><span>test_status</span><strong><%= quality_check.test_status %></strong></div>
+        <div class="metric-card"><span>判定結果</span><strong><%= quality_check.result %></strong></div>
+        <div class="metric-card"><span>migration検知</span><strong><%= quality_check.migration_detected? ? "あり" : "なし" %></strong></div>
+        <div class="metric-card"><span>high risk検知</span><strong><%= quality_check.high_risk_change_detected? ? "あり" : "なし" %></strong></div>
+        <div class="metric-card"><span>変更ファイル</span><strong><%= quality_check.changed_files_count %></strong></div>
+        <div class="metric-card"><span>warning</span><strong><%= quality_check.warning_count %></strong></div>
+      </div>
+      <% if quality_check.warnings.present? %>
+        <ul>
+          <% quality_check.warnings.each do |warning| %>
+            <li><%= warning %></li>
+          <% end %>
+        </ul>
+      <% else %>
+        <p class="aicoo-empty-state">品質警告はありません。</p>
+      <% end %>
+    <% else %>
+      <p class="aicoo-empty-state">実装結果を登録すると、Codex Quality Checkが自動作成されます。</p>
+    <% end %>
   </section>
 
   <section class="dashboard-section">

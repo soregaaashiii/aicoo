@@ -1,0 +1,97 @@
+<% content_for :title, "Codex Executor Queue" %>
+
+<% header_actions = capture do %>
+  <%= link_to "Auto Revision Tasks", auto_revision_tasks_path, class: "button secondary" %>
+  <%= link_to "操作盤に戻る", dashboard_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "Codex Executor Queue",
+             description: "承認済みAutoRevisionTaskをCodex投入待ち・投入済み・実装中として管理します。",
+             active_main: :dashboard,
+             actions: header_actions %>
+
+  <section class="dashboard-section">
+    <div class="actions compact-actions">
+      <% [
+        [ "すべて", nil ],
+        [ "投入待ち", "ready_for_codex" ],
+        [ "投入済み", "sent_to_codex" ],
+        [ "実装中", "running" ],
+        [ "放置", "stale" ]
+      ].each do |label, status| %>
+        <%= link_to label,
+                    codex_queue_auto_revision_tasks_path(status:),
+                    class: "button #{(@status_filter == status || (@status_filter.blank? && status.blank?)) ? "" : "secondary"}" %>
+      <% end %>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>タイトル</th>
+            <th>事業</th>
+            <th>risk</th>
+            <th>status</th>
+            <th>優先度</th>
+            <th>Codex投入</th>
+            <th>実装開始</th>
+            <th>最終確認</th>
+            <th>Codexスレッド</th>
+            <th>作成</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @auto_revision_tasks.each do |task| %>
+            <tr>
+              <td><%= link_to task.title, task %></td>
+              <td><%= task.business.name %></td>
+              <td><span class="pill"><%= task.risk_level %></span></td>
+              <td><span class="pill"><%= task.status %></span></td>
+              <td class="number"><%= number_with_precision(task.priority_score, precision: 1) %></td>
+              <td><%= task.sent_to_codex_at ? l(task.sent_to_codex_at, format: :short) : "-" %></td>
+              <td><%= task.started_running_at ? l(task.started_running_at, format: :short) : "-" %></td>
+              <td>
+                <%= task.last_checked_at ? l(task.last_checked_at, format: :short) : "-" %>
+                <% if task.stale_codex_task? %>
+                  <span class="pill danger">stale</span>
+                <% end %>
+              </td>
+              <td>
+                <% if task.codex_thread_url.present? %>
+                  <%= link_to "開く", task.codex_thread_url, class: "button secondary", target: "_blank", rel: "noopener" %>
+                <% else %>
+                  -
+                <% end %>
+              </td>
+              <td><%= l(task.created_at, format: :short) %></td>
+              <td>
+                <div class="actions compact-actions">
+                  <button type="button"
+                          class="button secondary"
+                          onclick="navigator.clipboard.writeText(this.dataset.prompt)"
+                          data-prompt="<%= h(task.codex_prompt) %>">
+                    Codexプロンプトをコピー
+                  </button>
+                  <% if task.status == "ready_for_codex" %>
+                    <%= button_to "Codex投入済みにする", mark_sent_to_codex_auto_revision_task_path(task), method: :patch, class: "button" %>
+                  <% elsif task.status == "sent_to_codex" %>
+                    <%= button_to "実装開始", start_implementation_auto_revision_task_path(task), method: :patch, class: "button" %>
+                  <% elsif task.status == "running" %>
+                    <%= link_to "結果登録", task, class: "button" %>
+                  <% end %>
+                </div>
+              </td>
+            </tr>
+          <% end %>
+          <% if @auto_revision_tasks.empty? %>
+            <tr><td colspan="11">Codex投入待ちのAuto Revision Taskはありません。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
