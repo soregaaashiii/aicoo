@@ -1,0 +1,18 @@
+<% content_for :title, "実行差分を編集" %>
+
+<% header_actions = capture do %>
+  <%= link_to "実行差分詳細へ戻る", @action_execution_log, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "実行差分を編集",
+             description: "提案と実行の差分記録を更新します。",
+             active_main: :revenue,
+             actions: header_actions %>
+  <%= render "shared/aicoo_execution_tabs", active: :today %>
+
+  <section class="dashboard-section">
+    <%= render "form", action_execution_log: @action_execution_log %>
+  </section>
+</div>

@@ -48,6 +48,24 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, other.title
   end
 
+  test "index shows execution feasibility correction label" do
+    @action_candidate.update_columns(
+      metadata: @action_candidate.metadata.merge(
+        "execution_feasibility_correction" => {
+          "applied" => true,
+          "feasibility_label" => "hard_to_execute",
+          "reason" => "実行失敗が多い"
+        }
+      )
+    )
+
+    get action_candidates_url
+
+    assert_response :success
+    assert_includes response.body, "実行補正あり"
+    assert_includes response.body, "hard_to_execute"
+  end
+
   test "should get new" do
     get new_action_candidate_url
     assert_response :success
@@ -74,9 +92,34 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
       rank_delta: -1,
       reason: "Judge補正で順位低下"
     )
+    @action_candidate.action_execution_logs.create!(
+      business: @action_candidate.business,
+      planned_action: "SEO記事を1本作成",
+      planned_quantity: 1,
+      actual_action: "SEO記事作成 + LP改善",
+      actual_quantity: 2,
+      variance_reason: "LPの問題が見つかった",
+      status: "changed"
+    )
+    @action_candidate.update_columns(
+      metadata: @action_candidate.metadata.merge(
+        "execution_feasibility_correction" => {
+          "applied" => true,
+          "feasibility_label" => "over_sized",
+          "base_success_probability" => "0.6",
+          "adjusted_success_probability" => "0.52",
+          "reason" => "過去ログ上、同種提案は完了率が低いため数量を保守化"
+        }
+      )
+    )
 
     get action_candidate_url(@action_candidate)
     assert_response :success
+    assert_includes response.body, "提案と実行の差分"
+    assert_includes response.body, "SEO記事作成 + LP改善"
+    assert_includes response.body, "実行可能性補正"
+    assert_includes response.body, "補正前 success_probability"
+    assert_includes response.body, "over_sized"
     assert_includes response.body, "この候補に近い過去精度"
     assert_includes response.body, "このgeneration_source"
     assert_includes response.body, "信頼度ベース評価"

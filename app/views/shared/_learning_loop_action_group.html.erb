@@ -1,0 +1,35 @@
+<div class="aicoo-card aicoo-card-compact">
+  <h3><%= title %></h3>
+  <p><span class="pill"><%= count %>件</span></p>
+
+  <% if items.any? %>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>候補</th>
+            <th>事業</th>
+            <% unless compact %>
+              <th>期待値</th>
+            <% end %>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% items.each do |item| %>
+            <tr>
+              <td><%= link_to item.title, item.detail_path %></td>
+              <td><%= item.business.name %></td>
+              <% unless compact %>
+                <td class="number"><%= number_to_currency(item.expected_value_yen, unit: "¥", precision: 0) %></td>
+              <% end %>
+              <td><%= link_to item.quick_action_label, item.quick_action_path, class: "button secondary" %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% else %>
+    <p class="aicoo-empty-state"><%= empty_message %></p>
+  <% end %>
+</div>

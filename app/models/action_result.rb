@@ -12,10 +12,13 @@ class ActionResult < ApplicationRecord
 
   belongs_to :action_candidate
   belongs_to :business
+  has_many :action_execution_logs, dependent: :nullify
+  has_many :revenue_events, dependent: :nullify
 
   before_validation :copy_prediction_snapshot, on: :create
   before_validation :set_default_status
   before_save :calculate_prediction_error
+  after_commit :auto_link_action_execution_log, on: %i[create update]
 
   validates :executed_on, :evaluated_on, presence: true
   validates :evaluation_status, inclusion: { in: EVALUATION_STATUSES }
@@ -48,5 +51,9 @@ class ActionResult < ApplicationRecord
     actual = actual_profit_yen.to_i
     self.prediction_error_yen = (predicted - actual).abs
     self.prediction_error_rate = predicted.positive? ? prediction_error_yen.to_d / predicted : nil
+  end
+
+  def auto_link_action_execution_log
+    AicooLearningLoopAutoLinkService.new(self).call
   end
 end

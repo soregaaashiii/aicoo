@@ -26,6 +26,8 @@ class ActionCandidate < ApplicationRecord
 
   belongs_to :business
   has_one :action_result, dependent: :destroy
+  has_many :action_execution_logs, dependent: :destroy
+  has_many :revenue_events, dependent: :nullify
   has_many :action_candidate_score_snapshots, dependent: :destroy
 
   def department=(value)
@@ -34,6 +36,7 @@ class ActionCandidate < ApplicationRecord
   end
 
   before_validation :set_defaults
+  before_save :apply_execution_feasibility_correction
   before_save :calculate_scores
 
   validates :title, presence: true
@@ -169,6 +172,10 @@ class ActionCandidate < ApplicationRecord
 
   def auto_classified_department
     ActionCandidateDepartmentClassifierService.new.classify(self)
+  end
+
+  def apply_execution_feasibility_correction
+    AicooExecutionFeasibilityCorrectionService.new(self).apply!
   end
 
   def apply_meta_evaluation

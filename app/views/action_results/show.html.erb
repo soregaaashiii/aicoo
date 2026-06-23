@@ -2,6 +2,7 @@
 
 <% header_actions = capture do %>
     <%= button_to "指標差分を評価", evaluate_action_result_path(@action_result), method: :post, class: "button" %>
+    <%= link_to "売上/費用を登録", new_revenue_event_path(revenue_event: { action_result_id: @action_result.id }), class: "button" %>
     <%= link_to "編集", edit_action_result_path(@action_result), class: "button secondary" %>
     <%= link_to "一覧", action_results_path, class: "button secondary" %>
 <% end %>
@@ -51,4 +52,36 @@
   <dt>メモ</dt>
   <dd><%= simple_format(@action_result.note.presence || "-") %></dd>
 </dl>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>紐づいた売上/費用</h2>
+    <p>この実行結果に由来するRevenueEventです。</p>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>日付</th>
+          <th>区分</th>
+          <th>金額</th>
+          <th>詳細</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @action_result.revenue_events.order(occurred_on: :desc, created_at: :desc).each do |event| %>
+          <tr>
+            <td><%= l(event.occurred_on) %></td>
+            <td><span class="pill"><%= event.revenue? ? "売上" : "費用" %></span></td>
+            <td class="number"><%= number_to_currency(event.amount, unit: "¥", precision: 0) %></td>
+            <td><%= link_to "詳細", event %></td>
+          </tr>
+        <% end %>
+        <% if @action_result.revenue_events.empty? %>
+          <tr><td colspan="4">まだ売上/費用は紐づいていません。</td></tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</section>
 </div>

@@ -1,0 +1,29 @@
+<% content_for :title, "実行差分を記録" %>
+
+<% header_actions = capture do %>
+  <%= link_to "ActionCandidateへ戻る", @action_execution_log.action_candidate, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "実行差分を記録",
+             description: "AICOOの提案と、人間が実際に行った内容の差分を保存します。",
+             active_main: :revenue,
+             actions: header_actions %>
+  <%= render "shared/aicoo_execution_tabs", active: :today %>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>対象候補</h2>
+      <p>提案内容を確認し、実際の実行内容を記録してください。</p>
+    </div>
+    <div class="aicoo-card">
+      <strong><%= @action_execution_log.action_candidate.title %></strong>
+      <p><%= @action_execution_log.action_candidate.business.name %></p>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <%= render "form", action_execution_log: @action_execution_log %>
+  </section>
+</div>

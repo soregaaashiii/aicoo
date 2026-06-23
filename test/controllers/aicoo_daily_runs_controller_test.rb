@@ -25,6 +25,15 @@ class AicooDailyRunsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "BusinessMetricDaily不足"
     assert_includes response.body, "Analytics取得"
     assert_includes response.body, "Insight生成"
+    assert_includes response.body, "AICOO Learning Loop"
+    assert_includes response.body, "学習状態"
+    assert_includes response.body, "Learning Loop Action Center"
+    assert_includes response.body, "実行ログ待ち"
+    assert_includes response.body, "結果登録待ち"
+    assert_includes response.body, "売上登録待ち"
+    assert_includes response.body, "Execution Feasibility Insight"
+    assert_includes response.body, "補正提案"
+    assert_includes response.body, "Execution Correction Overview"
     assert_includes response.body, "done"
   end
 

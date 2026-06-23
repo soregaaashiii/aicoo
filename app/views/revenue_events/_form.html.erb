@@ -30,6 +30,38 @@
     <%= form.number_field :amount, min: 1, step: 1 %>
   </div>
 
+  <fieldset class="aicoo-card aicoo-card-compact">
+    <legend>Learning Loop紐づけ</legend>
+    <p class="aicoo-lab-help">どの提案・実行結果・実行差分から発生した売上/費用かを記録します。</p>
+
+    <div class="field">
+      <%= form.label :action_candidate_id, "ActionCandidate" %>
+      <%= form.select :action_candidate_id,
+                      options_for_select(ActionCandidate.includes(:business).order(created_at: :desc).limit(200).map { |candidate|
+                                           [ "#{candidate.business.name}: #{candidate.title}", candidate.id ]
+                                         }, revenue_event.action_candidate_id),
+                      { include_blank: "紐づけなし" } %>
+    </div>
+
+    <div class="field">
+      <%= form.label :action_result_id, "ActionResult" %>
+      <%= form.select :action_result_id,
+                      options_for_select(ActionResult.includes(:business, :action_candidate).order(created_at: :desc).limit(200).map { |result|
+                                           [ "##{result.id} #{result.business.name}: #{result.action_candidate.title}", result.id ]
+                                         }, revenue_event.action_result_id),
+                      { include_blank: "紐づけなし" } %>
+    </div>
+
+    <div class="field">
+      <%= form.label :action_execution_log_id, "ActionExecutionLog" %>
+      <%= form.select :action_execution_log_id,
+                      options_for_select(ActionExecutionLog.includes(:business, :action_candidate).recent.limit(200).map { |log|
+                                           [ "##{log.id} #{log.business.name}: #{log.action_candidate.title}", log.id ]
+                                         }, revenue_event.action_execution_log_id),
+                      { include_blank: "紐づけなし" } %>
+    </div>
+  </fieldset>
+
   <div class="actions">
     <%= form.submit "保存", class: "button" %>
   </div>

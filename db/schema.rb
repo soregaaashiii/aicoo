@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_22_143100) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_23_110000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -79,6 +79,36 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_22_143100) do
     t.index ["business_id"], name: "index_action_candidates_on_business_id"
     t.index ["department"], name: "index_action_candidates_on_department"
     t.index ["generation_source"], name: "index_action_candidates_on_generation_source"
+  end
+
+  create_table "action_execution_logs", force: :cascade do |t|
+    t.bigint "action_candidate_id", null: false
+    t.bigint "action_result_id"
+    t.text "actual_action", null: false
+    t.decimal "actual_quantity"
+    t.bigint "business_id", null: false
+    t.decimal "completion_rate"
+    t.datetime "created_at", null: false
+    t.datetime "finished_at"
+    t.text "human_note"
+    t.jsonb "metadata", default: {}, null: false
+    t.text "planned_action", null: false
+    t.decimal "planned_quantity"
+    t.bigint "revenue_event_id"
+    t.datetime "started_at"
+    t.string "status", default: "completed", null: false
+    t.datetime "updated_at", null: false
+    t.integer "user_id"
+    t.decimal "variance_quantity"
+    t.text "variance_reason"
+    t.index ["action_candidate_id"], name: "index_action_execution_logs_on_action_candidate_id"
+    t.index ["action_result_id"], name: "index_action_execution_logs_on_action_result_id"
+    t.index ["business_id"], name: "index_action_execution_logs_on_business_id"
+    t.index ["finished_at"], name: "index_action_execution_logs_on_finished_at"
+    t.index ["revenue_event_id"], name: "index_action_execution_logs_on_revenue_event_id"
+    t.index ["started_at"], name: "index_action_execution_logs_on_started_at"
+    t.index ["status"], name: "index_action_execution_logs_on_status"
+    t.index ["user_id"], name: "index_action_execution_logs_on_user_id"
   end
 
   create_table "action_results", force: :cascade do |t|
@@ -689,12 +719,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_22_143100) do
   end
 
   create_table "revenue_events", force: :cascade do |t|
+    t.bigint "action_candidate_id"
+    t.bigint "action_execution_log_id"
+    t.bigint "action_result_id"
     t.integer "amount", null: false
     t.bigint "business_id", null: false
     t.datetime "created_at", null: false
     t.string "event_type", null: false
     t.date "occurred_on", null: false
     t.datetime "updated_at", null: false
+    t.index ["action_candidate_id"], name: "index_revenue_events_on_action_candidate_id"
+    t.index ["action_execution_log_id"], name: "index_revenue_events_on_action_execution_log_id"
+    t.index ["action_result_id"], name: "index_revenue_events_on_action_result_id"
     t.index ["business_id"], name: "index_revenue_events_on_business_id"
     t.index ["event_type"], name: "index_revenue_events_on_event_type"
     t.index ["occurred_on"], name: "index_revenue_events_on_occurred_on"
@@ -731,6 +767,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_22_143100) do
   add_foreign_key "action_candidate_score_snapshots", "action_candidates"
   add_foreign_key "action_candidate_score_snapshots", "businesses"
   add_foreign_key "action_candidates", "businesses"
+  add_foreign_key "action_execution_logs", "action_candidates"
+  add_foreign_key "action_execution_logs", "action_results"
+  add_foreign_key "action_execution_logs", "businesses"
+  add_foreign_key "action_execution_logs", "revenue_events"
   add_foreign_key "action_results", "action_candidates"
   add_foreign_key "action_results", "businesses"
   add_foreign_key "ai_evaluation_runs", "businesses"
@@ -757,6 +797,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_22_143100) do
   add_foreign_key "proxy_score_weight_adjustment_logs", "businesses"
   add_foreign_key "proxy_score_weight_adjustment_logs", "proxy_score_weights"
   add_foreign_key "proxy_score_weights", "businesses"
+  add_foreign_key "revenue_events", "action_candidates"
+  add_foreign_key "revenue_events", "action_execution_logs"
+  add_foreign_key "revenue_events", "action_results"
   add_foreign_key "revenue_events", "businesses"
   add_foreign_key "serp_analyses", "businesses"
   add_foreign_key "serp_analyses", "data_imports"

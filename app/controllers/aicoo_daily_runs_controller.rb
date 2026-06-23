@@ -6,6 +6,10 @@ class AicooDailyRunsController < ApplicationController
   def show
     @daily_run = AicooDailyRun.find(params[:id])
     @correction_readiness = AicooCorrectionReadinessService.new.call
+    @execution_feasibility_insight = AicooExecutionFeasibilityInsightService.new.call
+    @execution_feasibility_correction_overview = AicooExecutionFeasibilityCorrectionOverviewService.new.call
+    @learning_loop_summary = AicooLearningLoopSummaryService.new.call
+    @learning_loop_action_center = AicooLearningLoopActionCenterService.new.call
   end
 
   def create

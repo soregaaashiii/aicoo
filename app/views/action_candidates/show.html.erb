@@ -15,6 +15,8 @@
     <% else %>
       <%= link_to "実行結果を記録", new_action_result_path(action_result: { action_candidate_id: @action_candidate.id }), class: "button secondary" %>
     <% end %>
+    <%= link_to "実行差分を記録", new_action_execution_log_path(action_candidate_id: @action_candidate.id), class: "button secondary" %>
+    <%= link_to "売上/費用を登録", new_revenue_event_path(revenue_event: { action_candidate_id: @action_candidate.id }), class: "button secondary" %>
     <% if @action_candidate.status == "approved" %>
       <%= link_to "承認済みキュー", owner_approved_queue_path, class: "button secondary" %>
     <% end %>
@@ -30,6 +32,84 @@
   <%= render "shared/aicoo_execution_tabs", active: :today %>
 
 <%= render @action_candidate %>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>提案と実行の差分</h2>
+    <p>AICOOの提案に対して、人間が実際に何をどれだけ行ったかを記録します。</p>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>完了日時</th>
+          <th>状態</th>
+          <th>実行内容</th>
+          <th>完了率</th>
+          <th>差分</th>
+          <th>理由</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @action_execution_logs.each do |log| %>
+          <tr>
+            <td><%= log.finished_at ? l(log.finished_at, format: :short) : "-" %></td>
+            <td><%= log.status %></td>
+            <td><%= truncate(log.actual_action, length: 48) %></td>
+            <td class="number"><%= log.completion_rate ? number_to_percentage(log.completion_rate * 100, precision: 1) : "-" %></td>
+            <td class="number"><%= log.variance_quantity || "-" %></td>
+            <td><%= truncate(log.variance_reason.to_s, length: 48) %></td>
+            <td><%= link_to "詳細", log %></td>
+          </tr>
+        <% end %>
+        <% if @action_execution_logs.empty? %>
+          <tr><td colspan="7">まだ実行差分は記録されていません。</td></tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+  <div class="actions">
+    <%= link_to "実行差分を記録", new_action_execution_log_path(action_candidate_id: @action_candidate.id), class: "button" %>
+  </div>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>紐づいた売上/費用</h2>
+    <p>この提案から発生したRevenueEventを確認します。</p>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>日付</th>
+          <th>区分</th>
+          <th>金額</th>
+          <th>結果</th>
+          <th>詳細</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @action_candidate.revenue_events.order(occurred_on: :desc, created_at: :desc).each do |event| %>
+          <tr>
+            <td><%= l(event.occurred_on) %></td>
+            <td><span class="pill"><%= event.revenue? ? "売上" : "費用" %></span></td>
+            <td class="number"><%= number_to_currency(event.amount, unit: "¥", precision: 0) %></td>
+            <td><%= event.action_result ? link_to("ActionResult ##{event.action_result.id}", event.action_result) : "-" %></td>
+            <td><%= link_to "詳細", event %></td>
+          </tr>
+        <% end %>
+        <% if @action_candidate.revenue_events.empty? %>
+          <tr><td colspan="5">まだ売上/費用は紐づいていません。</td></tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+  <div class="actions">
+    <%= link_to "売上/費用を登録", new_revenue_event_path(revenue_event: { action_candidate_id: @action_candidate.id }), class: "button" %>
+  </div>
+</section>
 
 <section class="dashboard-section">
   <div class="section-heading">
@@ -81,6 +161,24 @@
         <% end %>
       </tbody>
     </table>
+  </div>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>実行可能性補正</h2>
+    <p>ActionExecutionLogをもとに、過大提案や実行されにくい提案を保守的に補正します。</p>
+  </div>
+  <% feasibility_correction = @action_candidate.metadata.to_h.fetch("execution_feasibility_correction", {}) %>
+  <div class="metric-grid">
+    <div class="metric-card"><span>補正</span><strong><%= feasibility_correction["applied"] ? "あり" : "なし" %></strong></div>
+    <div class="metric-card"><span>補正ラベル</span><strong><%= feasibility_correction["feasibility_label"].presence || "データ不足" %></strong></div>
+    <div class="metric-card"><span>補正前 success_probability</span><strong><%= feasibility_correction["base_success_probability"].present? ? number_to_percentage(feasibility_correction["base_success_probability"].to_d * 100, precision: 1) : "-" %></strong></div>
+    <div class="metric-card"><span>補正後 success_probability</span><strong><%= feasibility_correction["adjusted_success_probability"].present? ? number_to_percentage(feasibility_correction["adjusted_success_probability"].to_d * 100, precision: 1) : "-" %></strong></div>
+  </div>
+  <div class="aicoo-card aicoo-card-compact">
+    <strong>補正理由</strong>
+    <p><%= feasibility_correction["reason"].presence || "ActionExecutionLogが不足しているため、実行可能性補正はまだありません。" %></p>
   </div>
 </section>
 

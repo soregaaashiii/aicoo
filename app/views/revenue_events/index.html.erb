@@ -20,6 +20,7 @@
         <th>事業名</th>
         <th>区分</th>
         <th>金額</th>
+        <th>紐づき</th>
         <th></th>
       </tr>
     </thead>
@@ -30,6 +31,17 @@
           <td><%= link_to revenue_event.business.name, revenue_event.business %></td>
           <td><span class="pill"><%= revenue_event.revenue? ? "売上" : "費用" %></span></td>
           <td class="number"><%= number_to_currency(revenue_event.amount, unit: "¥", precision: 0) %></td>
+          <td>
+            <% if revenue_event.action_candidate %>
+              <%= link_to truncate(revenue_event.action_candidate.title, length: 24), revenue_event.action_candidate %>
+            <% elsif revenue_event.action_result %>
+              <%= link_to "ActionResult ##{revenue_event.action_result.id}", revenue_event.action_result %>
+            <% elsif revenue_event.action_execution_log %>
+              <%= link_to "ActionExecutionLog ##{revenue_event.action_execution_log.id}", revenue_event.action_execution_log %>
+            <% else %>
+              -
+            <% end %>
+          </td>
           <td>
             <%= link_to "詳細", revenue_event %>
             <%= link_to "編集", edit_revenue_event_path(revenue_event) %>

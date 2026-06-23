@@ -67,7 +67,14 @@
           <td><span class="pill"><%= action_candidate.action_type %></span></td>
           <td class="number"><%= number_to_currency(action_candidate.expected_profit_yen, unit: "¥", precision: 0) %></td>
           <td class="number"><%= number_with_precision(judge_score.judge_adjusted_score, precision: 1) %></td>
-          <td><span class="pill"><%= action_candidate.status %></span></td>
+          <td>
+            <span class="pill"><%= action_candidate.status %></span>
+            <% feasibility_correction = action_candidate.metadata.to_h.fetch("execution_feasibility_correction", {}) %>
+            <% if feasibility_correction["applied"] %>
+              <br><span class="pill">実行補正あり</span>
+              <span class="pill"><%= feasibility_correction["feasibility_label"] %></span>
+            <% end %>
+          </td>
           <td>
             <div class="actions compact-actions">
               <%= link_to "詳細", action_candidate, class: "button secondary" %>

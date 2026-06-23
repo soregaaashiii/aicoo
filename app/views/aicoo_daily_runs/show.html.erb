@@ -51,6 +51,20 @@
              readiness: @correction_readiness,
              show_action_button: true %>
 
+  <%= render "shared/learning_loop_summary",
+             summary: @learning_loop_summary,
+             action_center: @learning_loop_action_center %>
+
+  <%= render "shared/learning_loop_action_center",
+             action_center: @learning_loop_action_center,
+             compact: true %>
+
+  <%= render "shared/execution_feasibility_insight",
+             execution_feasibility: @execution_feasibility_insight %>
+
+  <%= render "shared/execution_feasibility_correction_overview",
+             overview: @execution_feasibility_correction_overview %>
+
   <section class="dashboard-section">
     <div class="section-heading">
       <h2>Run Log</h2>

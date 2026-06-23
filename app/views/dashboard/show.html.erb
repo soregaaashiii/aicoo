@@ -122,6 +122,19 @@
   </div>
 </section>
 
+<%= render "shared/learning_loop_summary",
+           summary: @learning_loop_summary,
+           action_center: @learning_loop_action_center %>
+
+<%= render "shared/learning_loop_action_center",
+           action_center: @learning_loop_action_center %>
+
+<%= render "shared/execution_feasibility_insight",
+           execution_feasibility: @execution_feasibility_insight %>
+
+<%= render "shared/execution_feasibility_correction_overview",
+           overview: @execution_feasibility_correction_overview %>
+
 <% today_summary = @dashboard_summary.today %>
 <% judge_summary = @dashboard_summary.judge %>
 

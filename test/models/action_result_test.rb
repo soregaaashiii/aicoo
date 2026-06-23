@@ -30,4 +30,28 @@ class ActionResultTest < ActiveSupport::TestCase
     assert_equal 20_000, result.prediction_error_yen
     assert_in_delta BigDecimal("0.666"), result.prediction_error_rate, BigDecimal("0.001")
   end
+
+  test "auto links to an unlinked action execution log after save" do
+    action_candidate = action_candidates(:nagazakicho_article)
+    log = ActionExecutionLog.create!(
+      action_candidate:,
+      business: action_candidate.business,
+      planned_action: "梅田店舗を500件追加",
+      planned_quantity: 500,
+      actual_action: "梅田店舗を400件追加",
+      actual_quantity: 400,
+      status: "partial"
+    )
+
+    result = ActionResult.create!(
+      action_candidate:,
+      business: action_candidate.business,
+      executed_on: Date.current,
+      evaluated_on: Date.current,
+      actual_profit_yen: 10_000
+    )
+
+    assert_equal result, log.reload.action_result
+    assert_equal result.id, log.metadata["auto_linked_action_result_id"]
+  end
 end

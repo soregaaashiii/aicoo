@@ -21,6 +21,12 @@
   <dd><%= @revenue_event.revenue? ? "売上" : "費用" %></dd>
   <dt>金額</dt>
   <dd><%= number_to_currency(@revenue_event.amount, unit: "¥", precision: 0) %></dd>
+  <dt>ActionCandidate</dt>
+  <dd><%= @revenue_event.action_candidate ? link_to(@revenue_event.action_candidate.title, @revenue_event.action_candidate) : "-" %></dd>
+  <dt>ActionResult</dt>
+  <dd><%= @revenue_event.action_result ? link_to("ActionResult ##{@revenue_event.action_result.id}", @revenue_event.action_result) : "-" %></dd>
+  <dt>ActionExecutionLog</dt>
+  <dd><%= @revenue_event.action_execution_log ? link_to("ActionExecutionLog ##{@revenue_event.action_execution_log.id}", @revenue_event.action_execution_log) : "-" %></dd>
 </dl>
 
 <div class="actions">

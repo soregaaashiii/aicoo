@@ -33,6 +33,7 @@ Rails.application.routes.draw do
   resources :action_results, only: %i[index show new create edit update] do
     post :evaluate, on: :member
   end
+  resources :action_execution_logs, only: %i[show new create edit update]
 
   resources :revenue_events
   resources :business_metric_dailies

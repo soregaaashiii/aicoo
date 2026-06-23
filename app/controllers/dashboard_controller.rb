@@ -6,6 +6,10 @@ class DashboardController < ApplicationController
     @department_precision_summaries = ActionResultDepartmentSummary.new.summaries
     @aicoo_completion_levels = AicooCompletionLevelSummary.new.levels
     @aicoo_insight_summary = AicooInsight::Summary.new
+    @execution_feasibility_insight = AicooExecutionFeasibilityInsightService.new.call
+    @execution_feasibility_correction_overview = AicooExecutionFeasibilityCorrectionOverviewService.new.call
+    @learning_loop_summary = AicooLearningLoopSummaryService.new.call
+    @learning_loop_action_center = AicooLearningLoopActionCenterService.new.call
     ranking_scope = dashboard_ranking_scope
     @expected_value_rankings = ranking_scope.by_expected_value
     @recommendation_rankings = ranking_scope.by_recommendation

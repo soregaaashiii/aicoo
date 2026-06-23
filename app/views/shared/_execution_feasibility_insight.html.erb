@@ -1,0 +1,54 @@
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>Execution Feasibility Insight</h2>
+    <p>ActionExecutionLogから、AICOOの提案が実際に完了されやすいかを確認します。</p>
+  </div>
+
+  <% overall = execution_feasibility.fetch(:overall) %>
+  <div class="metric-grid">
+    <div class="metric-card"><span>全体ログ数</span><strong><%= overall.total_logs %></strong></div>
+    <div class="metric-card"><span>平均完了率</span><strong><%= overall.average_completion_rate ? number_to_percentage(overall.average_completion_rate * 100, precision: 1) : "データ不足" %></strong></div>
+    <div class="metric-card"><span>差分平均</span><strong><%= overall.average_variance_quantity ? number_with_precision(overall.average_variance_quantity, precision: 1) : "-" %></strong></div>
+    <div class="metric-card"><span>判定</span><strong><%= overall.feasibility_label %></strong></div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>action_type</th>
+          <th>ログ数</th>
+          <th>完了</th>
+          <th>一部</th>
+          <th>過達成</th>
+          <th>変更</th>
+          <th>失敗/skip</th>
+          <th>完了率</th>
+          <th>差分平均</th>
+          <th>ラベル</th>
+          <th>補正提案</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% execution_feasibility.fetch(:by_action_type).first(8).each do |summary| %>
+          <tr>
+            <td><%= summary.label %></td>
+            <td class="number"><%= summary.total_logs %></td>
+            <td class="number"><%= summary.completed_count %></td>
+            <td class="number"><%= summary.partial_count %></td>
+            <td class="number"><%= summary.over_completed_count %></td>
+            <td class="number"><%= summary.changed_count %></td>
+            <td class="number"><%= summary.failed_count + summary.skipped_count %></td>
+            <td class="number"><%= summary.average_completion_rate ? number_to_percentage(summary.average_completion_rate * 100, precision: 1) : "-" %></td>
+            <td class="number"><%= summary.average_variance_quantity ? number_with_precision(summary.average_variance_quantity, precision: 1) : "-" %></td>
+            <td><span class="pill"><%= summary.feasibility_label %></span></td>
+            <td><%= summary.recommendation %></td>
+          </tr>
+        <% end %>
+        <% if execution_feasibility.fetch(:by_action_type).empty? %>
+          <tr><td colspan="11">ActionExecutionLogがまだありません。</td></tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</section>

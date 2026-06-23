@@ -40,6 +40,22 @@ class ActionResultsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes response.body, "実行結果を記録"
+    assert_includes response.body, "売上/費用を登録"
+  end
+
+  test "show action result has revenue event link" do
+    result = ActionResult.create!(
+      action_candidate: @action_candidate,
+      business: @action_candidate.business,
+      executed_on: Date.current,
+      evaluated_on: Date.current
+    )
+
+    get action_result_url(result)
+
+    assert_response :success
+    assert_includes response.body, "売上/費用を登録"
+    assert_includes response.body, "紐づいた売上/費用"
   end
 
   test "evaluate action result" do

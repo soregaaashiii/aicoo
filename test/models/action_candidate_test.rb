@@ -135,4 +135,42 @@ class ActionCandidateTest < ActiveSupport::TestCase
 
     assert_equal "general", action_candidate.department
   end
+
+  test "applies execution feasibility correction before score calculation" do
+    business = businesses(:suelog)
+    seed_candidate = ActionCandidate.create!(
+      business:,
+      title: "SEO改善seed",
+      action_type: "seo_improvement",
+      immediate_value_yen: 10_000,
+      success_probability: 0.5,
+      expected_hours: 1
+    )
+    3.times do
+      ActionExecutionLog.create!(
+        action_candidate: seed_candidate,
+        business:,
+        planned_action: "500件実行",
+        planned_quantity: 500,
+        actual_action: "250件実行",
+        actual_quantity: 250,
+        status: "partial"
+      )
+    end
+
+    action_candidate = ActionCandidate.create!(
+      business:,
+      title: "SEO改善候補",
+      action_type: "seo_improvement",
+      immediate_value_yen: 10_000,
+      success_probability: 0.6,
+      expected_hours: 2,
+      execution_prompt: "梅田店舗を500件追加してください。"
+    )
+
+    assert_equal 0.52.to_d, action_candidate.success_probability
+    assert_equal 2.4.to_d, action_candidate.expected_hours
+    assert_equal 5_200, action_candidate.expected_profit_yen
+    assert_equal "over_sized", action_candidate.metadata.dig("execution_feasibility_correction", "feasibility_label")
+  end
 end

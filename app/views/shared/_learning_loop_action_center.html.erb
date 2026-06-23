@@ -1,0 +1,31 @@
+<% compact = local_assigns.fetch(:compact, false) %>
+
+<section class="dashboard-section" id="learning-loop-action-center">
+  <div class="section-heading">
+    <h2>Learning Loop Action Center</h2>
+    <p>学習ループで不足している登録作業へ、そのまま移動できます。</p>
+  </div>
+
+  <div class="aicoo-card-grid">
+    <%= render "shared/learning_loop_action_group",
+               title: "実行ログ待ち",
+               count: action_center.execution_log_backlog_count,
+               items: action_center.candidates_missing_execution_logs,
+               empty_message: "実行ログ待ちの候補はありません。",
+               compact: compact %>
+
+    <%= render "shared/learning_loop_action_group",
+               title: "結果登録待ち",
+               count: action_center.action_result_backlog_count,
+               items: action_center.candidates_missing_action_results,
+               empty_message: "結果登録待ちの候補はありません。",
+               compact: compact %>
+
+    <%= render "shared/learning_loop_action_group",
+               title: "売上登録待ち",
+               count: action_center.revenue_event_backlog_count,
+               items: action_center.candidates_missing_revenue_events,
+               empty_message: "売上登録待ちの候補はありません。",
+               compact: compact %>
+  </div>
+</section>

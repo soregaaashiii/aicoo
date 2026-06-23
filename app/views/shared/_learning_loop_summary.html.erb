@@ -1,0 +1,72 @@
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>AICOO Learning Loop</h2>
+    <p>提案 → 実行 → 差分 → 結果 → 補正 → 次回提案 の循環状況を確認します。</p>
+  </div>
+
+  <div class="metric-grid">
+    <div class="metric-card"><span>学習状態</span><strong><%= summary.learning_state_label %></strong></div>
+    <div class="metric-card"><span>提案数</span><strong><%= summary.total_candidates %></strong></div>
+    <div class="metric-card"><span>実行ログ登録率</span><strong><%= number_to_percentage(summary.execution_log_coverage_rate * 100, precision: 1) %></strong></div>
+    <div class="metric-card"><span>結果登録率</span><strong><%= number_to_percentage(summary.result_coverage_rate * 100, precision: 1) %></strong></div>
+    <div class="metric-card"><span>売上/費用登録率</span><strong><%= number_to_percentage(summary.revenue_event_coverage_rate * 100, precision: 1) %></strong></div>
+    <div class="metric-card"><span>実行可能性補正率</span><strong><%= number_to_percentage(summary.correction_rate * 100, precision: 1) %></strong></div>
+    <div class="metric-card"><span>平均完了率</span><strong><%= summary.average_completion_rate ? number_to_percentage(summary.average_completion_rate * 100, precision: 1) : "データ不足" %></strong></div>
+    <div class="metric-card"><span>次に足りないもの</span><strong><%= summary.next_missing_item %></strong></div>
+    <% if local_assigns[:action_center] %>
+      <div class="metric-card">
+        <span>未登録候補</span>
+        <strong><%= action_center.execution_log_backlog_count %>件</strong>
+        <small><%= link_to "Action Centerへ", "#learning-loop-action-center" %></small>
+      </div>
+    <% end %>
+  </div>
+
+  <div class="aicoo-card-grid">
+    <div class="aicoo-card aicoo-card-compact">
+      <h3>補正差分</h3>
+      <dl class="detail-list compact-list">
+        <dt>成功確率差分平均</dt>
+        <dd><%= summary.average_success_probability_delta ? number_to_percentage(summary.average_success_probability_delta * 100, precision: 1) : "-" %></dd>
+        <dt>工数差分平均</dt>
+        <dd><%= summary.average_expected_hours_delta ? number_with_precision(summary.average_expected_hours_delta, precision: 2) : "-" %></dd>
+      </dl>
+    </div>
+    <div class="aicoo-card aicoo-card-compact">
+      <h3>カバレッジ</h3>
+      <dl class="detail-list compact-list">
+        <dt>実行ログあり</dt>
+        <dd><%= summary.candidates_with_execution_logs %> / <%= summary.total_candidates %></dd>
+        <dt>ActionResultあり</dt>
+        <dd><%= summary.candidates_with_action_results %> / <%= summary.total_candidates %></dd>
+        <dt>RevenueEventあり</dt>
+        <dd><%= summary.candidates_with_revenue_events %> / <%= summary.total_candidates %></dd>
+      </dl>
+    </div>
+  </div>
+
+  <h3>最近の学習イベント</h3>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>日時</th>
+          <th>種類</th>
+          <th>内容</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% summary.recent_learning_events.each do |event| %>
+          <tr>
+            <td><%= l(event.occurred_at, format: :short) %></td>
+            <td><span class="pill"><%= event.event_type %></span></td>
+            <td><%= link_to event.label, event.path %></td>
+          </tr>
+        <% end %>
+        <% if summary.recent_learning_events.empty? %>
+          <tr><td colspan="3">まだ学習イベントはありません。</td></tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</section>

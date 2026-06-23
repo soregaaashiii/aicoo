@@ -1,0 +1,62 @@
+<%= form_with(model: action_execution_log, class: "form") do |form| %>
+  <% if action_execution_log.errors.any? %>
+    <div class="error-messages">
+      <h2><%= pluralize(action_execution_log.errors.count, "error") %> prohibited this execution log from being saved:</h2>
+      <ul>
+        <% action_execution_log.errors.each do |error| %>
+          <li><%= error.full_message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <%= form.hidden_field :action_candidate_id %>
+  <%= form.hidden_field :business_id %>
+
+  <div class="grid">
+    <div class="field">
+      <%= form.label :started_at, "開始日時" %>
+      <%= form.datetime_field :started_at %>
+    </div>
+    <div class="field">
+      <%= form.label :finished_at, "完了日時" %>
+      <%= form.datetime_field :finished_at %>
+    </div>
+    <div class="field">
+      <%= form.label :planned_quantity, "提案数量" %>
+      <%= form.number_field :planned_quantity, step: 0.01 %>
+    </div>
+    <div class="field">
+      <%= form.label :actual_quantity, "実施数量" %>
+      <%= form.number_field :actual_quantity, step: 0.01 %>
+    </div>
+    <div class="field">
+      <%= form.label :status, "状態" %>
+      <%= form.select :status, ActionExecutionLog::STATUSES %>
+    </div>
+  </div>
+
+  <div class="field">
+    <%= form.label :planned_action, "提案内容" %>
+    <%= form.textarea :planned_action, rows: 5 %>
+  </div>
+
+  <div class="field">
+    <%= form.label :actual_action, "実際にやった内容" %>
+    <%= form.textarea :actual_action, rows: 5 %>
+  </div>
+
+  <div class="field">
+    <%= form.label :variance_reason, "差分理由" %>
+    <%= form.textarea :variance_reason, rows: 4 %>
+  </div>
+
+  <div class="field">
+    <%= form.label :human_note, "メモ" %>
+    <%= form.textarea :human_note, rows: 4 %>
+  </div>
+
+  <div class="actions">
+    <%= form.submit "保存", class: "button" %>
+  </div>
+<% end %>

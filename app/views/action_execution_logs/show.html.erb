@@ -1,0 +1,116 @@
+<% content_for :title, "実行差分" %>
+
+<% header_actions = capture do %>
+  <%= link_to "売上/費用を登録", new_revenue_event_path(revenue_event: { action_execution_log_id: @action_execution_log.id }), class: "button" %>
+  <%= link_to "編集", edit_action_execution_log_path(@action_execution_log), class: "button secondary" %>
+  <%= link_to "ActionCandidateへ戻る", @action_execution_log.action_candidate, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "実行差分",
+             description: "AICOOの提案と、人間の実行内容のズレを確認します。",
+             active_main: :revenue,
+             actions: header_actions %>
+  <%= render "shared/aicoo_execution_tabs", active: :today %>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>差分サマリー</h2>
+      <p>実行可能性・工数予測・提案精度の改善に使う記録です。</p>
+    </div>
+    <div class="metric-grid">
+      <div class="metric-card"><span>状態</span><strong><%= @action_execution_log.status %></strong></div>
+      <div class="metric-card"><span>完了率</span><strong><%= @action_execution_log.completion_rate ? number_to_percentage(@action_execution_log.completion_rate * 100, precision: 1) : "-" %></strong></div>
+      <div class="metric-card"><span>差分数量</span><strong><%= @action_execution_log.variance_quantity || "-" %></strong></div>
+      <div class="metric-card"><span>Business</span><strong><%= @action_execution_log.business.name %></strong></div>
+      <div class="metric-card"><span>ActionResultリンク</span><strong><%= @action_execution_log.action_result ? "紐付け済み" : "未リンク" %></strong></div>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="table-wrap">
+      <table>
+        <tbody>
+          <tr>
+            <th>ActionCandidate</th>
+            <td><%= link_to @action_execution_log.action_candidate.title, @action_execution_log.action_candidate %></td>
+          </tr>
+          <tr>
+            <th>紐づいたActionResult</th>
+            <td>
+              <% if @action_execution_log.action_result %>
+                <%= link_to "ActionResult ##{@action_execution_log.action_result.id}", @action_execution_log.action_result %>
+                <% if @action_execution_log.auto_linked_action_result? %>
+                  <span class="pill">自動リンク</span>
+                <% end %>
+              <% else %>
+                -
+              <% end %>
+            </td>
+          </tr>
+          <tr>
+            <th>紐づいたRevenueEvent</th>
+            <td>
+              <% linked_revenue_events = @action_execution_log.revenue_events.order(occurred_on: :desc, created_at: :desc) %>
+              <% if linked_revenue_events.any? %>
+                <% linked_revenue_events.each do |event| %>
+                  <p>
+                    <%= link_to "RevenueEvent ##{event.id}", event %>
+                    <span class="pill"><%= event.revenue? ? "売上" : "費用" %></span>
+                    <%= number_to_currency(event.amount, unit: "¥", precision: 0) %>
+                  </p>
+                <% end %>
+              <% elsif @action_execution_log.linked_revenue_event %>
+                <%= link_to "RevenueEvent ##{@action_execution_log.linked_revenue_event.id}", @action_execution_log.linked_revenue_event %>
+                <span class="pill">旧リンク</span>
+              <% else %>
+                -
+              <% end %>
+            </td>
+          </tr>
+          <tr>
+            <th>自動リンク日時</th>
+            <td><%= @action_execution_log.auto_linked_at ? l(@action_execution_log.auto_linked_at, format: :short) : "-" %></td>
+          </tr>
+          <tr>
+            <th>リンク方法</th>
+            <td><%= @action_execution_log.auto_link_method.presence || "-" %></td>
+          </tr>
+          <tr>
+            <th>提案内容</th>
+            <td><%= simple_format(@action_execution_log.planned_action) %></td>
+          </tr>
+          <tr>
+            <th>提案数量</th>
+            <td><%= @action_execution_log.planned_quantity || "-" %></td>
+          </tr>
+          <tr>
+            <th>実行内容</th>
+            <td><%= simple_format(@action_execution_log.actual_action) %></td>
+          </tr>
+          <tr>
+            <th>実施数量</th>
+            <td><%= @action_execution_log.actual_quantity || "-" %></td>
+          </tr>
+          <tr>
+            <th>差分理由</th>
+            <td><%= simple_format(@action_execution_log.variance_reason.presence || "-") %></td>
+          </tr>
+          <tr>
+            <th>メモ</th>
+            <td><%= simple_format(@action_execution_log.human_note.presence || "-") %></td>
+          </tr>
+          <tr>
+            <th>開始日時</th>
+            <td><%= @action_execution_log.started_at ? l(@action_execution_log.started_at, format: :short) : "-" %></td>
+          </tr>
+          <tr>
+            <th>完了日時</th>
+            <td><%= @action_execution_log.finished_at ? l(@action_execution_log.finished_at, format: :short) : "-" %></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>

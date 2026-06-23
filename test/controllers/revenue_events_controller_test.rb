@@ -25,6 +25,9 @@ class RevenueEventsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select "select[name='revenue_event[business_id]']"
+    assert_select "select[name='revenue_event[action_candidate_id]']"
+    assert_select "select[name='revenue_event[action_result_id]']"
+    assert_select "select[name='revenue_event[action_execution_log_id]']"
   end
 
   test "should create revenue event" do
@@ -43,6 +46,26 @@ class RevenueEventsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to revenue_events_url
     assert_equal "expense", event.event_type
     assert_equal 3_000, event.amount
+  end
+
+  test "should create linked revenue event from action candidate" do
+    action_candidate = action_candidates(:nagazakicho_article)
+
+    assert_difference("RevenueEvent.count", 1) do
+      post revenue_events_url, params: {
+        revenue_event: {
+          action_candidate_id: action_candidate.id,
+          occurred_on: Date.current,
+          event_type: "revenue",
+          amount: 4_000
+        }
+      }
+    end
+
+    event = RevenueEvent.order(:created_at).last
+    assert_redirected_to revenue_events_url
+    assert_equal action_candidate, event.action_candidate
+    assert_equal action_candidate.business, event.business
   end
 
   test "should update revenue event" do
