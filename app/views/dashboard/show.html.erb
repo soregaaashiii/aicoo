@@ -18,6 +18,86 @@
              actions: header_actions %>
   <%= render "shared/aicoo_execution_tabs", active: :dashboard %>
 
+<%= render "shared/owner_task_inbox",
+           owner_task_inbox: @owner_task_inbox,
+           limit: 10 %>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>Auto Revision Tasks</h2>
+    <p>Codexへ渡せる粒度に整えた改修タスクです。まだ自動実行はしません。</p>
+  </div>
+  <div class="metric-grid">
+    <div class="metric-card"><span>waiting_approval</span><strong><%= @auto_revision_task_summary.waiting_approval_count %>件</strong></div>
+    <div class="metric-card"><span>approved</span><strong><%= @auto_revision_task_summary.approved_count %>件</strong></div>
+    <div class="metric-card"><span>running</span><strong><%= @auto_revision_task_summary.running_count %>件</strong></div>
+    <div class="metric-card"><span>succeeded</span><strong><%= @auto_revision_task_summary.succeeded_count %>件</strong></div>
+    <div class="metric-card"><span>partial_succeeded</span><strong><%= @auto_revision_task_summary.partial_succeeded_count %>件</strong></div>
+    <div class="metric-card"><span>failed</span><strong><%= @auto_revision_task_summary.failed_count %>件</strong></div>
+    <% @auto_revision_task_summary.risk_counts.each do |risk, count| %>
+      <div class="metric-card"><span><%= risk %> risk</span><strong><%= count %>件</strong></div>
+    <% end %>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>タイトル</th>
+          <th>事業</th>
+          <th>risk</th>
+          <th>status</th>
+          <th>優先度</th>
+          <th>詳細</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @auto_revision_task_summary.top_tasks.each do |task| %>
+          <tr>
+            <td><%= task.title %></td>
+            <td><%= task.business.name %></td>
+            <td><span class="pill"><%= task.risk_level %></span></td>
+            <td><span class="pill"><%= task.status %></span></td>
+            <td class="number"><%= number_with_precision(task.priority_score, precision: 1) %></td>
+            <td><%= link_to "詳細", task, class: "button secondary" %></td>
+          </tr>
+        <% end %>
+        <% if @auto_revision_task_summary.top_tasks.empty? %>
+          <tr><td colspan="6">まだAuto Revision Taskはありません。</td></tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+  <div class="aicoo-card-grid aicoo-grid-2">
+    <div class="aicoo-card aicoo-card-compact">
+      <h3>最近完了</h3>
+      <% if @auto_revision_task_summary.recent_completed_tasks.any? %>
+        <ul>
+          <% @auto_revision_task_summary.recent_completed_tasks.each do |task| %>
+            <li><%= link_to task.title, task %> <span class="pill"><%= task.status %></span></li>
+          <% end %>
+        </ul>
+      <% else %>
+        <p class="aicoo-empty-state">まだ完了したAuto Revision Taskはありません。</p>
+      <% end %>
+    </div>
+    <div class="aicoo-card aicoo-card-compact">
+      <h3>失敗中</h3>
+      <% if @auto_revision_task_summary.failed_tasks.any? %>
+        <ul>
+          <% @auto_revision_task_summary.failed_tasks.each do |task| %>
+            <li><%= link_to task.title, task %></li>
+          <% end %>
+        </ul>
+      <% else %>
+        <p class="aicoo-empty-state">失敗中のAuto Revision Taskはありません。</p>
+      <% end %>
+    </div>
+  </div>
+  <div class="actions compact-actions">
+    <%= link_to "Auto Revision Tasksを見る", auto_revision_tasks_path, class: "button secondary" %>
+  </div>
+</section>
+
 <section class="dashboard-section">
   <div class="section-heading">
     <h2>AICOO完成段階</h2>
@@ -159,9 +239,27 @@
       <span>最終補正日時</span>
       <strong><%= @action_prediction_calibration_summary.last_calculated_at ? l(@action_prediction_calibration_summary.last_calculated_at, format: :short) : "-" %></strong>
     </div>
+    <div class="metric-card"><span>warning中</span><strong><%= @action_prediction_calibration_summary.warning_count %></strong></div>
+    <div class="metric-card"><span>danger中</span><strong><%= @action_prediction_calibration_summary.danger_count %></strong></div>
+    <div class="metric-card"><span>承認待ち補正</span><strong><%= @action_prediction_calibration_summary.pending_count %>件</strong></div>
+    <div class="metric-card"><span>danger承認待ち</span><strong><%= @action_prediction_calibration_summary.danger_pending_count %>件</strong></div>
+    <div class="metric-card">
+      <span>最新の承認待ち</span>
+      <strong><%= @action_prediction_calibration_summary.latest_pending&.action_type || "なし" %></strong>
+    </div>
+    <div class="metric-card"><span>ランキング変動候補</span><strong><%= @action_prediction_calibration_impact.changed_count %>件</strong></div>
+    <div class="metric-card">
+      <span>最も補正で上昇</span>
+      <strong><%= @action_prediction_calibration_impact.largest_rank_up&.action_candidate&.title || "なし" %></strong>
+    </div>
+    <div class="metric-card">
+      <span>最も補正で低下</span>
+      <strong><%= @action_prediction_calibration_impact.largest_rank_down&.action_candidate&.title || "なし" %></strong>
+    </div>
   </div>
   <div class="actions compact-actions">
     <%= link_to "補正係数を見る", admin_aicoo_calibration_path, class: "button secondary" %>
+    <%= link_to "確認タスクを見る", owner_tasks_path, class: "button secondary" %>
   </div>
 </section>
 
@@ -472,6 +570,7 @@
   <% end %>
   <div class="actions compact-actions">
     <%= link_to "Daily Run設定", admin_aicoo_daily_run_settings_path, class: "button secondary" %>
+    <%= link_to "確認タスクを見る", owner_tasks_path, class: "button secondary" %>
   </div>
 </section>
 

@@ -16,6 +16,16 @@ class AicooDailyRunsControllerTest < ActionDispatch::IntegrationTest
 
   test "shows daily run detail" do
     daily_run = AicooDailyRun.create!(target_date: Date.yesterday, status: "success", source: "manual", run_log: "done")
+    ActionCandidate.create!(
+      business: businesses(:suelog),
+      title: "Daily Run auto revision candidate",
+      action_type: "seo_improvement",
+      immediate_value_yen: 1_000,
+      success_probability: 0.5,
+      expected_hours: 1,
+      execution_prompt: "SEOタイトルを改善してください。",
+      created_at: Date.yesterday.noon
+    )
 
     get aicoo_daily_run_url(daily_run)
 
@@ -26,6 +36,7 @@ class AicooDailyRunsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Analytics取得"
     assert_includes response.body, "Insight生成"
     assert_includes response.body, "評価関数補正"
+    assert_includes response.body, "承認待ち補正"
     assert_includes response.body, "calibration_ran"
     assert_includes response.body, "calibration_error"
     assert_includes response.body, "AICOO Learning Loop"
@@ -34,6 +45,8 @@ class AicooDailyRunsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "実行ログ待ち"
     assert_includes response.body, "結果登録待ち"
     assert_includes response.body, "売上登録待ち"
+    assert_includes response.body, "自動改修タスク候補"
+    assert_includes response.body, "Daily Run auto revision candidate"
     assert_includes response.body, "Execution Feasibility Insight"
     assert_includes response.body, "補正提案"
     assert_includes response.body, "Execution Correction Overview"
@@ -47,10 +60,14 @@ class AicooDailyRunsControllerTest < ActionDispatch::IntegrationTest
       assert_equal "manual", source
       daily_run
     }) do
-      post aicoo_daily_runs_url, params: { aicoo_daily_run: { target_date: Date.yesterday.to_s } }
+      assert_difference("OwnerTaskCompletionLog.count", 1) do
+        post aicoo_daily_runs_url, params: { aicoo_daily_run: { target_date: Date.yesterday.to_s } }
+      end
     end
 
     assert_redirected_to aicoo_daily_run_url(daily_run)
+    assert_equal "Daily Runを再実行しました。結果はDaily Run詳細で確認してください。", flash[:notice]
+    assert_equal "再実行", OwnerTaskCompletionLog.last.action_label
   end
 
   private

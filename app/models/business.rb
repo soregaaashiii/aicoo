@@ -2,6 +2,7 @@ class Business < ApplicationRecord
   STATUSES = %w[idea researching building launched paused sold withdrawn].freeze
 
   has_many :action_candidates, dependent: :destroy
+  has_many :auto_revision_tasks, dependent: :destroy
   has_many :action_results, dependent: :destroy
   has_many :action_candidate_score_snapshots, dependent: :destroy
   has_many :meta_evaluation_snapshots, dependent: :destroy

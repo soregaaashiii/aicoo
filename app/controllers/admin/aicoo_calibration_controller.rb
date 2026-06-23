@@ -13,14 +13,36 @@ module Admin
                   alert: "評価関数補正の再計算に失敗しました: #{e.record.errors.full_messages.to_sentence}"
     end
 
+    def approve
+      calibration = ActionPredictionCalibration.find(params[:id])
+      calibration.approve!(note: params[:approval_note])
+      redirect_to admin_aicoo_calibration_path(filter: params[:filter]),
+                  notice: "#{calibration.action_type} の補正を承認しました。"
+    end
+
+    def reject
+      calibration = ActionPredictionCalibration.find(params[:id])
+      calibration.reject!(note: params[:approval_note])
+      redirect_to admin_aicoo_calibration_path(filter: params[:filter]),
+                  notice: "#{calibration.action_type} の補正を却下しました。"
+    end
+
     private
 
     def load_calibration
       @summary = ActionPredictionCalibrationSummary.new.call
-      @calibrations = ActionPredictionCalibration.order(:action_type)
+      @filter = params[:filter].presence
+      @calibrations = calibration_scope.order(:action_type)
+      @impact = ActionPredictionCalibrationImpact.new.call
       @logs = ActionPredictionCalibrationLog.order(calculated_at: :desc, created_at: :desc).limit(30)
       @latest_manual_log = ActionPredictionCalibrationLog.where(source: "manual").order(calculated_at: :desc).first
       @latest_daily_run_log = ActionPredictionCalibrationLog.where(source: "daily_run").order(calculated_at: :desc).first
+    end
+
+    def calibration_scope
+      return ActionPredictionCalibration.where(approval_status: "pending") if @filter == "pending"
+
+      ActionPredictionCalibration.all
     end
   end
 end

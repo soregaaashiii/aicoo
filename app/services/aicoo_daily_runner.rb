@@ -138,11 +138,13 @@ class AicooDailyRunner
       calibration_ran: true,
       calibration_finished_at: finished_at,
       updated_calibration_count: result.calibration_count,
-      calibration_log_count: result.logs.size
+      calibration_log_count: result.logs.size,
+      pending_calibration_count: result.pending_count
     )
     log!(
       "Calibration finished updated_calibration_count=#{result.calibration_count} " \
-      "created_log_count=#{result.logs.size}"
+      "created_log_count=#{result.logs.size} " \
+      "pending_calibration_count=#{result.pending_count}"
     )
   rescue StandardError => e
     finished_at = Time.current

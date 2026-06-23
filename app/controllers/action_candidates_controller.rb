@@ -1,5 +1,5 @@
 class ActionCandidatesController < ApplicationController
-  before_action :set_action_candidate, only: %i[ show edit update destroy approve reevaluate_ai send_to_executor ]
+  before_action :set_action_candidate, only: %i[ show edit update destroy approve reject reevaluate_ai send_to_executor ]
 
   # GET /action_candidates or /action_candidates.json
   def index
@@ -65,7 +65,28 @@ class ActionCandidatesController < ApplicationController
 
   def approve
     @action_candidate.approve!(approved_by: "owner")
-    redirect_back fallback_location: owner_dashboard_path, notice: "ActionCandidateを承認しました。"
+    message = "ActionCandidate『#{@action_candidate.title}』を承認しました。承認待ちタスクから削除されました。"
+    OwnerTaskCompletionLog.record_success!(
+      task_type: "action_candidate_approval",
+      target: @action_candidate,
+      action_label: "承認",
+      message:,
+      metadata: { status: @action_candidate.status, approved_at: @action_candidate.approved_at }
+    )
+    redirect_back fallback_location: owner_dashboard_path, notice: message
+  end
+
+  def reject
+    @action_candidate.update!(status: "rejected")
+    message = "ActionCandidate『#{@action_candidate.title}』を却下しました。承認待ちタスクから削除されました。"
+    OwnerTaskCompletionLog.record_success!(
+      task_type: "action_candidate_approval",
+      target: @action_candidate,
+      action_label: "却下",
+      message:,
+      metadata: { status: @action_candidate.status }
+    )
+    redirect_back fallback_location: owner_tasks_path, notice: message
   end
 
   def reevaluate_ai

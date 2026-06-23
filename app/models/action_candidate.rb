@@ -29,6 +29,7 @@ class ActionCandidate < ApplicationRecord
   has_many :action_execution_logs, dependent: :destroy
   has_many :revenue_events, dependent: :nullify
   has_many :action_candidate_score_snapshots, dependent: :destroy
+  has_many :auto_revision_tasks, dependent: :destroy
 
   def department=(value)
     @department_explicitly_assigned = true if value.present?

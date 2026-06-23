@@ -33,6 +33,22 @@
         <span>最終手動実行日時</span>
         <strong><%= @latest_manual_log&.calculated_at ? l(@latest_manual_log.calculated_at, format: :short) : "-" %></strong>
       </div>
+      <div class="metric-card"><span>danger件数</span><strong><%= @summary.danger_count %></strong></div>
+      <div class="metric-card"><span>warning件数</span><strong><%= @summary.warning_count %></strong></div>
+      <div class="metric-card"><span>low confidence件数</span><strong><%= @summary.low_confidence_count %></strong></div>
+      <div class="metric-card"><span>high confidence件数</span><strong><%= @summary.high_confidence_count %></strong></div>
+      <div class="metric-card"><span>承認待ち件数</span><strong><%= @summary.pending_count %></strong></div>
+      <div class="metric-card"><span>自動反映件数</span><strong><%= @summary.auto_applied_count %></strong></div>
+      <div class="metric-card"><span>承認済み件数</span><strong><%= @summary.approved_count %></strong></div>
+      <div class="metric-card"><span>却下件数</span><strong><%= @summary.rejected_count %></strong></div>
+      <div class="metric-card">
+        <span>直近で最も変化</span>
+        <strong><%= @summary.most_changed&.action_type || "データ不足" %></strong>
+      </div>
+    </div>
+    <div class="actions compact-actions">
+      <%= link_to "全件を見る", admin_aicoo_calibration_path, class: "button secondary" %>
+      <%= link_to "承認待ちだけ見る", admin_aicoo_calibration_path(filter: "pending"), class: "button secondary" %>
     </div>
   </section>
 
@@ -54,7 +70,21 @@
             <th>実績成功率</th>
             <th>確率補正</th>
             <th>平均誤差率</th>
+            <th>confidence</th>
+            <th>warning</th>
+            <th>warning_reason</th>
+            <th>approval_status</th>
+            <th>pending利益補正</th>
+            <th>pending確率補正</th>
+            <th>承認依頼</th>
+            <th>承認</th>
+            <th>却下</th>
+            <th>approval_note</th>
+            <th>前回利益補正</th>
+            <th>前回確率補正</th>
+            <th>係数変更</th>
             <th>最終計算</th>
+            <th>操作</th>
           </tr>
         </thead>
         <tbody>
@@ -69,11 +99,119 @@
               <td class="number"><%= calibration.actual_success_rate ? number_to_percentage(calibration.actual_success_rate * 100, precision: 1) : "-" %></td>
               <td class="number"><%= number_with_precision(calibration.probability_calibration_factor, precision: 2) %></td>
               <td class="number"><%= calibration.avg_profit_error_rate ? number_to_percentage(calibration.avg_profit_error_rate * 100, precision: 1) : "-" %></td>
+              <td><span class="pill"><%= calibration.confidence_level %></span></td>
+              <td><span class="pill"><%= calibration.warning_level %></span></td>
+              <td><%= truncate(calibration.warning_reason.to_s.presence || "-", length: 80) %></td>
+              <td><span class="pill"><%= calibration.approval_status %></span></td>
+              <td class="number"><%= calibration.pending_profit_calibration_factor ? number_with_precision(calibration.pending_profit_calibration_factor, precision: 2) : "-" %></td>
+              <td class="number"><%= calibration.pending_probability_calibration_factor ? number_with_precision(calibration.pending_probability_calibration_factor, precision: 2) : "-" %></td>
+              <td><%= calibration.approval_requested_at ? l(calibration.approval_requested_at, format: :short) : "-" %></td>
+              <td><%= calibration.approved_at ? l(calibration.approved_at, format: :short) : "-" %></td>
+              <td><%= calibration.rejected_at ? l(calibration.rejected_at, format: :short) : "-" %></td>
+              <td><%= truncate(calibration.approval_note.to_s.presence || "-", length: 60) %></td>
+              <td class="number"><%= calibration.previous_profit_calibration_factor ? number_with_precision(calibration.previous_profit_calibration_factor, precision: 2) : "-" %></td>
+              <td class="number"><%= calibration.previous_probability_calibration_factor ? number_with_precision(calibration.previous_probability_calibration_factor, precision: 2) : "-" %></td>
+              <td><%= calibration.factor_changed_at ? l(calibration.factor_changed_at, format: :short) : "-" %></td>
               <td><%= calibration.last_calculated_at ? l(calibration.last_calculated_at, format: :short) : "-" %></td>
+              <td>
+                <% if calibration.pending? %>
+                  <div class="actions compact-actions">
+                    <%= button_to "承認", admin_aicoo_calibration_approve_path(calibration, filter: @filter), method: :patch, class: "button" %>
+                    <%= button_to "却下", admin_aicoo_calibration_reject_path(calibration, filter: @filter), method: :patch, class: "button danger" %>
+                  </div>
+                <% else %>
+                  -
+                <% end %>
+              </td>
             </tr>
           <% end %>
           <% if @calibrations.empty? %>
-            <tr><td colspan="10">まだ補正データはありません。ActionResultを評価後に再計算してください。</td></tr>
+            <tr><td colspan="24">まだ補正データはありません。ActionResultを評価後に再計算してください。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>補正によるランキング影響</h2>
+      <p>補正前スコアと補正後スコアを比較し、意思決定順位への影響を確認します。</p>
+    </div>
+    <div class="metric-grid">
+      <div class="metric-card"><span>順位変動候補</span><strong><%= @impact.changed_count %>件</strong></div>
+      <div class="metric-card"><span>最も上がった候補</span><strong><%= @impact.largest_rank_up&.action_candidate&.title || "なし" %></strong></div>
+      <div class="metric-card"><span>最も下がった候補</span><strong><%= @impact.largest_rank_down&.action_candidate&.title || "なし" %></strong></div>
+    </div>
+
+    <% [
+      [ "補正で順位が上がった候補TOP10", @impact.rank_up ],
+      [ "補正で順位が下がった候補TOP10", @impact.rank_down ],
+      [ "補正前後でTOP10入りした候補", @impact.entered_top10 ],
+      [ "補正前後でTOP10圏外になった候補", @impact.left_top10 ]
+    ].each do |title, rows| %>
+      <h3><%= title %></h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>title</th>
+              <th>business</th>
+              <th>action_type</th>
+              <th>補正前期待利益</th>
+              <th>補正後期待利益</th>
+              <th>補正前成功確率</th>
+              <th>補正後成功確率</th>
+              <th>補正前スコア</th>
+              <th>補正後スコア</th>
+              <th>差分</th>
+              <th>順位変動</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% rows.each do |row| %>
+              <tr>
+                <td><%= link_to row.action_candidate.title, row.action_candidate %></td>
+                <td><%= link_to row.action_candidate.business.name, row.action_candidate.business %></td>
+                <td><%= row.action_candidate.action_type %></td>
+                <td class="number"><%= number_to_currency(row.raw_expected_profit_yen, unit: "¥", precision: 0) %></td>
+                <td class="number"><%= number_to_currency(row.adjusted_expected_profit_yen, unit: "¥", precision: 0) %></td>
+                <td class="number"><%= number_to_percentage(row.raw_success_probability * 100, precision: 1) %></td>
+                <td class="number"><%= number_to_percentage(row.adjusted_success_probability * 100, precision: 1) %></td>
+                <td class="number"><%= number_with_precision(row.raw_score, precision: 1) %></td>
+                <td class="number"><%= number_with_precision(row.adjusted_score, precision: 1) %></td>
+                <td class="number"><%= number_with_precision(row.score_delta, precision: 1) %></td>
+                <td class="number"><%= row.rank_delta %></td>
+              </tr>
+            <% end %>
+            <% if rows.empty? %>
+              <tr><td colspan="11">該当候補はありません。</td></tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% end %>
+
+    <h3>action_type別 平均スコア変化</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>action_type</th>
+            <th>候補数</th>
+            <th>平均スコア変化</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @impact.action_type_changes.each do |change| %>
+            <tr>
+              <td><%= change.action_type %></td>
+              <td class="number"><%= change.candidate_count %></td>
+              <td class="number"><%= number_with_precision(change.average_score_delta, precision: 1) %></td>
+            </tr>
+          <% end %>
+          <% if @impact.action_type_changes.empty? %>
+            <tr><td colspan="3">表示できる候補はありません。</td></tr>
           <% end %>
         </tbody>
       </table>

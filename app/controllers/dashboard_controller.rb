@@ -10,7 +10,12 @@ class DashboardController < ApplicationController
     @execution_feasibility_correction_overview = AicooExecutionFeasibilityCorrectionOverviewService.new.call
     @learning_loop_summary = AicooLearningLoopSummaryService.new.call
     @learning_loop_action_center = AicooLearningLoopActionCenterService.new.call
+    @owner_task_inbox = Aicoo::OwnerTaskInbox.new.call
+    @owner_task_digest = Aicoo::OwnerTaskDigest.new(owner_task_inbox: @owner_task_inbox).call
+    @owner_task_completion_logs = OwnerTaskCompletionLog.recent.limit(3)
+    @auto_revision_task_summary = AutoRevisionTaskSummary.new.call
     @action_prediction_calibration_summary = ActionPredictionCalibrationSummary.new.call
+    @action_prediction_calibration_impact = ActionPredictionCalibrationImpact.new.call
     ranking_scope = dashboard_ranking_scope
     @expected_value_rankings = ranking_scope.by_expected_value
     @recommendation_rankings = ranking_scope.by_recommendation

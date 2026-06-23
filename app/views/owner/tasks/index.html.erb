@@ -1,0 +1,19 @@
+<% content_for :title, "今日の確認タスク" %>
+
+<% header_actions = capture do %>
+  <%= link_to "オーナーモードへ戻る", owner_dashboard_path, class: "button secondary" %>
+  <%= link_to "SYSTEM MODE", dashboard_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "今日の確認タスク",
+             description: "承認・警告・失敗対応をまとめて確認します。",
+             active_main: :revenue,
+             actions: header_actions %>
+
+  <%= render "shared/owner_task_inbox",
+             owner_task_inbox: @owner_task_inbox,
+             tasks: @tasks,
+             show_filters: true %>
+</div>

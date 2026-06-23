@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_23_122100) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_23_132000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -135,17 +135,35 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_23_122100) do
   create_table "action_prediction_calibrations", force: :cascade do |t|
     t.string "action_type", null: false
     t.decimal "actual_success_rate"
+    t.text "approval_note"
+    t.datetime "approval_requested_at"
+    t.string "approval_status", default: "auto_applied", null: false
+    t.datetime "approved_at"
+    t.decimal "approved_probability_calibration_factor"
+    t.decimal "approved_profit_calibration_factor"
     t.decimal "avg_actual_profit_yen"
     t.decimal "avg_predicted_profit_yen"
     t.decimal "avg_predicted_success_probability"
     t.decimal "avg_profit_error_rate"
+    t.string "confidence_level", default: "low", null: false
     t.datetime "created_at", null: false
+    t.datetime "factor_changed_at"
     t.datetime "last_calculated_at"
+    t.decimal "pending_probability_calibration_factor"
+    t.decimal "pending_profit_calibration_factor"
+    t.decimal "previous_probability_calibration_factor"
+    t.decimal "previous_profit_calibration_factor"
     t.decimal "probability_calibration_factor", default: "1.0", null: false
     t.decimal "profit_calibration_factor", default: "1.0", null: false
+    t.datetime "rejected_at"
     t.integer "sample_count", default: 0, null: false
     t.datetime "updated_at", null: false
+    t.string "warning_level", default: "none", null: false
+    t.text "warning_reason"
     t.index ["action_type"], name: "index_action_prediction_calibrations_on_action_type", unique: true
+    t.index ["approval_status"], name: "index_action_prediction_calibrations_on_approval_status"
+    t.index ["confidence_level"], name: "index_action_prediction_calibrations_on_confidence_level"
+    t.index ["warning_level"], name: "index_action_prediction_calibrations_on_warning_level"
   end
 
   create_table "action_results", force: :cascade do |t|
@@ -246,6 +264,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_23_122100) do
     t.text "error_message"
     t.datetime "finished_at"
     t.integer "insight_generated_count", default: 0, null: false
+    t.integer "pending_calibration_count", default: 0, null: false
     t.integer "proxy_weights_adjusted_count", default: 0, null: false
     t.integer "retry_count", default: 0, null: false
     t.text "run_log"
@@ -651,6 +670,34 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_23_122100) do
     t.index ["source_type"], name: "index_analytics_source_settings_on_source_type"
   end
 
+  create_table "auto_revision_tasks", force: :cascade do |t|
+    t.bigint "action_candidate_id", null: false
+    t.datetime "approved_at"
+    t.bigint "business_id", null: false
+    t.text "changed_files"
+    t.text "codex_output"
+    t.datetime "created_at", null: false
+    t.text "error_message"
+    t.text "execution_prompt"
+    t.datetime "finished_at"
+    t.string "generated_by", default: "aicoo", null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.decimal "priority_score", precision: 12, scale: 2, default: "0.0", null: false
+    t.text "result_summary"
+    t.string "risk_level", default: "medium", null: false
+    t.datetime "started_at"
+    t.string "status", default: "draft", null: false
+    t.text "test_result"
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.index ["action_candidate_id"], name: "index_auto_revision_tasks_on_action_candidate_id"
+    t.index ["business_id"], name: "index_auto_revision_tasks_on_business_id"
+    t.index ["generated_by"], name: "index_auto_revision_tasks_on_generated_by"
+    t.index ["priority_score"], name: "index_auto_revision_tasks_on_priority_score"
+    t.index ["risk_level"], name: "index_auto_revision_tasks_on_risk_level"
+    t.index ["status"], name: "index_auto_revision_tasks_on_status"
+  end
+
   create_table "business_metric_dailies", force: :cascade do |t|
     t.integer "affiliate_clicks", default: 0, null: false
     t.bigint "business_id", null: false
@@ -719,6 +766,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_23_122100) do
     t.index ["business_id"], name: "index_meta_evaluation_snapshots_on_business_id"
     t.index ["recorded_on", "business_id", "evaluator_type"], name: "idx_meta_eval_snapshots_unique_date_business_type", unique: true
     t.index ["recorded_on", "evaluator_type"], name: "idx_meta_eval_snapshots_unique_global_type", unique: true, where: "(business_id IS NULL)"
+  end
+
+  create_table "owner_task_completion_logs", force: :cascade do |t|
+    t.string "action_label", null: false
+    t.string "action_result", null: false
+    t.datetime "completed_at", null: false
+    t.datetime "created_at", null: false
+    t.text "message"
+    t.jsonb "metadata", default: {}, null: false
+    t.integer "target_id"
+    t.string "target_type"
+    t.string "task_type", null: false
+    t.datetime "updated_at", null: false
+    t.index ["action_result"], name: "index_owner_task_completion_logs_on_action_result"
+    t.index ["completed_at"], name: "index_owner_task_completion_logs_on_completed_at"
+    t.index ["target_type", "target_id"], name: "index_owner_task_completion_logs_on_target_type_and_target_id"
+    t.index ["task_type"], name: "index_owner_task_completion_logs_on_task_type"
   end
 
   create_table "proxy_score_weight_adjustment_logs", force: :cascade do |t|
@@ -832,6 +896,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_23_122100) do
   add_foreign_key "analytics_fetch_runs", "analytics_source_settings"
   add_foreign_key "analytics_source_settings", "aicoo_analytics_sites"
   add_foreign_key "analytics_source_settings", "aicoo_google_credentials", column: "google_credential_id"
+  add_foreign_key "auto_revision_tasks", "action_candidates"
+  add_foreign_key "auto_revision_tasks", "businesses"
   add_foreign_key "business_metric_dailies", "businesses"
   add_foreign_key "data_imports", "aicoo_analytics_sites"
   add_foreign_key "data_imports", "data_sources"

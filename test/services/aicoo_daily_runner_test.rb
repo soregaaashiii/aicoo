@@ -30,6 +30,7 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
       assert_equal true, run.calibration_ran
       assert_equal 2, run.updated_calibration_count
       assert_equal 2, run.calibration_log_count
+      assert_equal 0, run.pending_calibration_count
       assert_match "Daily Run finished", run.run_log
       assert_match "Analytics fetched success=1 failed=0", run.run_log
       assert_match "DataHub collected snapshots count=4", run.run_log
@@ -44,6 +45,7 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
       assert_match "Most trusted evaluator: gsc", run.run_log
       assert_match "GSC average confidence=82.0", run.run_log
       assert_match "Calibration finished updated_calibration_count=2", run.run_log
+      assert_match "pending_calibration_count=0", run.run_log
       assert_equal %i[analytics datahub import adjust_all generate insight evaluate snapshot queue meta_snapshot calibration], order
     end
   end

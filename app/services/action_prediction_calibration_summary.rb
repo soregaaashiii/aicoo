@@ -5,7 +5,18 @@ class ActionPredictionCalibrationSummary
     :calibrated_action_type_count,
     :most_overestimated,
     :most_underestimated,
-    :last_calculated_at
+    :last_calculated_at,
+    :danger_count,
+    :warning_count,
+    :low_confidence_count,
+    :high_confidence_count,
+    :most_changed,
+    :pending_count,
+    :auto_applied_count,
+    :approved_count,
+    :rejected_count,
+    :danger_pending_count,
+    :latest_pending
   )
 
   def call
@@ -16,7 +27,18 @@ class ActionPredictionCalibrationSummary
       calibrated_action_type_count: calibrated_action_type_count(calibrations),
       most_overestimated: calibrations.min_by { |calibration| calibration.profit_calibration_factor.to_d },
       most_underestimated: calibrations.max_by { |calibration| calibration.profit_calibration_factor.to_d },
-      last_calculated_at: calibrations.filter_map(&:last_calculated_at).max
+      last_calculated_at: calibrations.filter_map(&:last_calculated_at).max,
+      danger_count: calibrations.count { |calibration| calibration.warning_level == "danger" },
+      warning_count: calibrations.count { |calibration| calibration.warning_level == "warning" },
+      low_confidence_count: calibrations.count { |calibration| calibration.confidence_level == "low" },
+      high_confidence_count: calibrations.count { |calibration| calibration.confidence_level == "high" },
+      most_changed: most_changed(calibrations),
+      pending_count: calibrations.count { |calibration| calibration.approval_status == "pending" },
+      auto_applied_count: calibrations.count { |calibration| calibration.approval_status == "auto_applied" },
+      approved_count: calibrations.count { |calibration| calibration.approval_status == "approved" },
+      rejected_count: calibrations.count { |calibration| calibration.approval_status == "rejected" },
+      danger_pending_count: calibrations.count { |calibration| calibration.approval_status == "pending" && calibration.warning_level == "danger" },
+      latest_pending: calibrations.select { |calibration| calibration.approval_status == "pending" }.max_by(&:approval_requested_at)
     )
   end
 
@@ -39,6 +61,14 @@ class ActionPredictionCalibrationSummary
       calibration.sample_count.to_i >= ActionPredictionCalibration::MIN_SAMPLE_SIZE &&
         (calibration.profit_calibration_factor.to_d != 1.to_d ||
          calibration.probability_calibration_factor.to_d != 1.to_d)
+    end
+  end
+
+  def most_changed(calibrations)
+    calibrations.max_by do |calibration|
+      previous = calibration.previous_profit_calibration_factor.to_d
+      current = calibration.profit_calibration_factor.to_d
+      previous.zero? ? 0.to_d : (current - previous).abs / previous
     end
   end
 end

@@ -30,15 +30,38 @@ module Aicoo
     end
 
     test "calculates factors when enough samples exist" do
-      create_results(action_type: "market_research", count: 10, predicted_profit: 1_000, actual_profit: 500, predicted_probability: 0.5)
+      create_results(action_type: "market_research", count: 10, predicted_profit: 1_000, actual_profit: 900, predicted_probability: 0.9)
 
       CalibrationEngine.run!
       calibration = ActionPredictionCalibration.find_by!(action_type: "market_research")
 
       assert_equal 10, calibration.sample_count
-      assert_equal 0.5.to_d, calibration.profit_calibration_factor
-      assert_equal 2.to_d, calibration.probability_calibration_factor
+      assert_equal 0.9.to_d, calibration.profit_calibration_factor
+      assert_in_delta 1.111, calibration.probability_calibration_factor.to_f, 0.001
+      assert_equal "auto_applied", calibration.approval_status
       assert_equal 1, ActionPredictionCalibrationLog.where(action_type: "market_research").count
+    end
+
+    test "sets confidence and warning metadata" do
+      ActionPredictionCalibration.create!(
+        action_type: "seo_article",
+        sample_count: 10,
+        profit_calibration_factor: 1.0,
+        probability_calibration_factor: 1.0
+      )
+      create_results(action_type: "seo_article", count: 10, predicted_profit: 1_000, actual_profit: 2_000)
+
+      CalibrationEngine.run!
+      calibration = ActionPredictionCalibration.find_by!(action_type: "seo_article")
+
+      assert_equal "medium", calibration.confidence_level
+      assert_equal "warning", calibration.warning_level
+      assert_includes calibration.warning_reason, "前回比50%以上"
+      assert_equal 1.to_d, calibration.previous_profit_calibration_factor
+      assert_equal "pending", calibration.approval_status
+      assert_equal 2.to_d, calibration.pending_profit_calibration_factor
+      assert_equal 1.to_d, calibration.profit_calibration_factor
+      assert calibration.factor_changed_at.present?
     end
 
     test "clips factors between point one and three" do
@@ -47,9 +70,58 @@ module Aicoo
 
       CalibrationEngine.run!
 
-      assert_equal 3.to_d, ActionPredictionCalibration.find_by!(action_type: "automation").profit_calibration_factor
-      assert_equal 3.to_d, ActionPredictionCalibration.find_by!(action_type: "automation").probability_calibration_factor
-      assert_equal 0.1.to_d, ActionPredictionCalibration.find_by!(action_type: "outsourcing").profit_calibration_factor
+      automation = ActionPredictionCalibration.find_by!(action_type: "automation")
+      assert_equal 1.to_d, automation.profit_calibration_factor
+      assert_equal 3.to_d, automation.pending_profit_calibration_factor
+      assert_equal 3.to_d, automation.pending_probability_calibration_factor
+      assert_equal "danger", automation.warning_level
+      assert_equal "pending", automation.approval_status
+      assert_equal 1.to_d, ActionPredictionCalibration.find_by!(action_type: "outsourcing").profit_calibration_factor
+      assert_equal 0.1.to_d, ActionPredictionCalibration.find_by!(action_type: "outsourcing").pending_profit_calibration_factor
+    end
+
+    test "low confidence calibration goes to approval queue" do
+      create_results(action_type: "sales", count: 3, predicted_profit: 1_000, actual_profit: 900)
+
+      CalibrationEngine.run!
+      calibration = ActionPredictionCalibration.find_by!(action_type: "sales")
+
+      assert_equal "low", calibration.confidence_level
+      assert_equal "pending", calibration.approval_status
+      assert_equal 1.to_d, calibration.profit_calibration_factor
+      assert_equal 1.to_d, calibration.pending_profit_calibration_factor
+      assert_includes calibration.warning_reason, "信頼度がlow"
+    end
+
+    test "approval applies pending factors and rejection keeps active factors" do
+      calibration = ActionPredictionCalibration.create!(
+        action_type: "build_mvp",
+        sample_count: 10,
+        profit_calibration_factor: 1.0,
+        probability_calibration_factor: 1.0,
+        pending_profit_calibration_factor: 0.5,
+        pending_probability_calibration_factor: 0.8,
+        approval_status: "pending",
+        approval_requested_at: Time.current
+      )
+
+      calibration.approve!(note: "looks good")
+      assert_equal "approved", calibration.approval_status
+      assert_equal 0.5.to_d, calibration.profit_calibration_factor
+      assert_nil calibration.pending_profit_calibration_factor
+      assert_equal "approval", ActionPredictionCalibrationLog.last.source
+
+      calibration.update!(
+        pending_profit_calibration_factor: 0.2,
+        pending_probability_calibration_factor: 0.7,
+        approval_status: "pending",
+        approval_requested_at: Time.current
+      )
+      calibration.reject!(note: "too aggressive")
+      assert_equal "rejected", calibration.approval_status
+      assert_equal 0.5.to_d, calibration.profit_calibration_factor
+      assert_nil calibration.pending_profit_calibration_factor
+      assert_equal "rejected", ActionPredictionCalibrationLog.last.source
     end
 
     test "does not crash on zero division" do

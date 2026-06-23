@@ -3,6 +3,15 @@ require "test_helper"
 class DashboardControllerTest < ActionDispatch::IntegrationTest
   test "shows AICOO Lab metric summary" do
     experiment = AicooLabExperiment.create!(title: "Dashboard metric test", experiment_type: "lp", acquisition_channel: "sns")
+    AutoRevisionTask.create!(
+      action_candidate: action_candidates(:nagazakicho_article),
+      business: businesses(:suelog),
+      title: "Dashboard completed auto revision",
+      execution_prompt: "文言を改善する",
+      status: "partial_succeeded",
+      risk_level: "low",
+      finished_at: Time.current
+    )
     experiment.update!(current_pv: 1_000, sample_pv_threshold: 1_000)
     landing_page = experiment.create_aicoo_lab_landing_page!(
       headline: "Dashboard headline",
@@ -22,6 +31,12 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "CEO MODEへ"
     assert_includes response.body, "CEOダッシュボードへ戻る"
     assert_includes response.body, "AICOO TODAY"
+    assert_includes response.body, "今日の確認タスク"
+    assert_includes response.body, "今日の確認ダイジェスト"
+    assert_includes response.body, "確認タスク一覧へ"
+    assert_includes response.body, "Auto Revision Tasks"
+    assert_includes response.body, "partial_succeeded"
+    assert_includes response.body, "最近完了"
     assert_includes response.body, "AICOO完成段階"
     assert_includes response.body, "Lv1 事業管理"
     assert_includes response.body, "Lv2 データ分析"
@@ -69,6 +84,11 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "最近補正された候補"
     assert_includes response.body, "評価関数精度"
     assert_includes response.body, "補正係数を見る"
+    assert_includes response.body, "warning中"
+    assert_includes response.body, "danger中"
+    assert_includes response.body, "ランキング変動候補"
+    assert_includes response.body, "承認待ち補正"
+    assert_includes response.body, "danger承認待ち"
     assert_includes response.body, "aicoo-card-grid"
     assert_includes response.body, "table-wrap"
     assert_includes response.body, "今日やるべきこと TOP10"

@@ -34,6 +34,7 @@
       <div class="metric-card"><span>評価関数補正</span><strong><%= @daily_run.calibration_ran? ? "実行済み" : "未実行" %></strong></div>
       <div class="metric-card"><span>補正更新</span><strong><%= @daily_run.updated_calibration_count %></strong></div>
       <div class="metric-card"><span>補正ログ</span><strong><%= @daily_run.calibration_log_count %></strong></div>
+      <div class="metric-card"><span>承認待ち補正</span><strong><%= @daily_run.pending_calibration_count %></strong></div>
     </div>
   </section>
 
@@ -69,6 +70,46 @@
   <%= render "shared/learning_loop_action_center",
              action_center: @learning_loop_action_center,
              compact: true %>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>自動改修タスク候補</h2>
+      <p>このDaily Run対象日に生成され、Codex投入用タスク化できるActionCandidateです。</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>タイトル</th>
+            <th>事業</th>
+            <th>action_type</th>
+            <th>score</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @auto_revision_candidates.each do |candidate| %>
+            <tr>
+              <td><%= link_to candidate.title, candidate %></td>
+              <td><%= candidate.business.name %></td>
+              <td><%= candidate.action_type %></td>
+              <td class="number"><%= number_with_precision(candidate.final_score, precision: 1) %></td>
+              <td>
+                <% if (task = candidate.auto_revision_tasks.active.first) %>
+                  <%= link_to "タスクを見る", task, class: "button secondary" %>
+                <% else %>
+                  <%= button_to "自動改修タスク化", auto_revision_tasks_path(action_candidate_id: candidate.id), method: :post, class: "button secondary" %>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+          <% if @auto_revision_candidates.empty? %>
+            <tr><td colspan="5">この対象日の自動改修タスク候補はありません。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
 
   <%= render "shared/execution_feasibility_insight",
              execution_feasibility: @execution_feasibility_insight %>

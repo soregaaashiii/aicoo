@@ -10,6 +10,7 @@ class AicooDailyRun < ApplicationRecord
             numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   validates :updated_calibration_count, :calibration_log_count,
             numericality: { only_integer: true, greater_than_or_equal_to: 0 }
+  validates :pending_calibration_count, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
 
   has_many :meta_evaluation_snapshots, dependent: :nullify
 

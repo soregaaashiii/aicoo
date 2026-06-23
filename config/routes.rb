@@ -7,6 +7,9 @@ Rails.application.routes.draw do
   root "dashboard#show"
   get "owner", to: "owner/dashboard#show", as: :owner_dashboard
   get "owner/dashboard", to: "owner/dashboard#show"
+  get "owner/tasks", to: "owner/tasks#index", as: :owner_tasks
+  patch "owner/calibrations/:id/approve", to: "owner/calibrations#approve", as: :approve_owner_calibration
+  patch "owner/calibrations/:id/reject", to: "owner/calibrations#reject", as: :reject_owner_calibration
   get "owner/evaluator_trends", to: "owner/evaluator_trends#index", as: :owner_evaluator_trends
   get "owner/approved_queue", to: "owner/approved_queue#index", as: :owner_approved_queue
   post "owner/approved_queue/queue_selected", to: "owner/approved_queue#queue_selected", as: :queue_selected_owner_approved_queue
@@ -26,6 +29,7 @@ Rails.application.routes.draw do
 
   resources :action_candidates do
     patch :approve, on: :member
+    patch :reject, on: :member
     post :reevaluate_ai, on: :member
     post :send_to_executor, on: :member
   end
@@ -34,6 +38,10 @@ Rails.application.routes.draw do
     post :evaluate, on: :member
   end
   resources :action_execution_logs, only: %i[show new create edit update]
+  resources :auto_revision_tasks, only: %i[index show create] do
+    patch :approve, on: :member
+    patch :record_result, on: :member
+  end
 
   resources :revenue_events
   resources :business_metric_dailies
@@ -95,6 +103,8 @@ Rails.application.routes.draw do
     get "aicoo_judge/action_predictions", to: "aicoo_judge#action_predictions", as: :aicoo_judge_action_predictions
     get "aicoo/calibration", to: "aicoo_calibration#index", as: :aicoo_calibration
     post "aicoo/calibration/recalculate", to: "aicoo_calibration#recalculate", as: :aicoo_calibration_recalculate
+    patch "aicoo/calibration/:id/approve", to: "aicoo_calibration#approve", as: :aicoo_calibration_approve
+    patch "aicoo/calibration/:id/reject", to: "aicoo_calibration#reject", as: :aicoo_calibration_reject
     get "aicoo_insights", to: "aicoo_insights#index", as: :aicoo_insights
     post "aicoo_insights/generate", to: "aicoo_insights#generate", as: :aicoo_insights_generate
     resource :aicoo_daily_run_settings, only: %i[show update]

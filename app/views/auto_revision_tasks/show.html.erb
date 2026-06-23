@@ -1,0 +1,116 @@
+<% content_for :title, @auto_revision_task.title %>
+
+<% header_actions = capture do %>
+  <%= link_to "一覧", auto_revision_tasks_path, class: "button secondary" %>
+  <%= link_to "ActionCandidate", @auto_revision_task.action_candidate, class: "button secondary" %>
+  <% if %w[draft waiting_approval].include?(@auto_revision_task.status) %>
+    <%= button_to "承認", approve_auto_revision_task_path(@auto_revision_task), method: :patch, class: "button", data: { turbo_confirm: "#{@auto_revision_task.risk_level} riskの改修タスクを承認しますか？" } %>
+  <% end %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: @auto_revision_task.title,
+             description: "Codexへ渡す前の改修タスクです。まだ自動実行はしません。",
+             active_main: :dashboard,
+             actions: header_actions %>
+
+  <section class="dashboard-section">
+    <div class="metric-grid">
+      <div class="metric-card"><span>status</span><strong><%= @auto_revision_task.status %></strong></div>
+      <div class="metric-card"><span>risk</span><strong><%= @auto_revision_task.risk_level %></strong></div>
+      <div class="metric-card"><span>優先度</span><strong><%= number_with_precision(@auto_revision_task.priority_score, precision: 1) %></strong></div>
+      <div class="metric-card"><span>generated_by</span><strong><%= @auto_revision_task.generated_by %></strong></div>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Codex用プロンプト</h2>
+      <p>この内容をCodexに貼って、承認済みタスクとして実行できます。</p>
+    </div>
+    <div class="field">
+      <textarea readonly rows="26" class="code-textarea"><%= @auto_revision_task.codex_prompt %></textarea>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>実装結果を登録</h2>
+      <p>Codexで実装した結果を戻し、ActionExecutionLogやActionResultへつなげます。</p>
+    </div>
+
+    <%= form_with model: @auto_revision_task, url: record_result_auto_revision_task_path(@auto_revision_task), method: :patch, class: "aicoo-form" do |form| %>
+      <div class="field">
+        <%= form.label :status, "status" %>
+        <%= form.select :status, options_for_select(%w[succeeded partial_succeeded failed canceled], @auto_revision_task.status) %>
+      </div>
+      <div class="field">
+        <%= form.label :result_summary, "result_summary" %>
+        <%= form.text_area :result_summary, rows: 4 %>
+      </div>
+      <div class="field">
+        <%= form.label :error_message, "error_message" %>
+        <%= form.text_area :error_message, rows: 3 %>
+      </div>
+      <div class="field">
+        <%= form.label :changed_files, "changed_files" %>
+        <%= form.text_area :changed_files, rows: 4, placeholder: "app/models/example.rb\napp/views/example.html.erb" %>
+      </div>
+      <div class="field">
+        <%= form.label :test_result, "test_result" %>
+        <%= form.text_area :test_result, rows: 4 %>
+      </div>
+      <div class="field">
+        <%= form.label :codex_output, "codex_output" %>
+        <%= form.text_area :codex_output, rows: 6 %>
+      </div>
+      <div class="field">
+        <%= form.label :finished_at, "finished_at" %>
+        <%= form.datetime_field :finished_at, value: (@auto_revision_task.finished_at || Time.current).strftime("%Y-%m-%dT%H:%M") %>
+      </div>
+      <label class="checkbox">
+        <%= check_box_tag :create_action_execution_log, "1", true %>
+        ActionExecutionLogを作成する
+      </label>
+      <%= form.submit "実装結果を登録", class: "button" %>
+    <% end %>
+  </section>
+
+  <% if @auto_revision_task.successful_result? %>
+    <section class="dashboard-section">
+      <div class="section-heading">
+        <h2>次の学習登録</h2>
+        <p>成功または部分成功した改修は、ActionResultへつなげて予測精度を学習できます。</p>
+      </div>
+      <div class="actions compact-actions">
+        <%= link_to "ActionResultを登録", new_action_result_path(action_result: { action_candidate_id: @auto_revision_task.action_candidate_id }), class: "button" %>
+      </div>
+    </section>
+  <% end %>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>元データ</h2>
+      <p>ActionCandidateからコピーした内容です。</p>
+    </div>
+    <dl class="detail-list">
+      <dt>事業</dt>
+      <dd><%= @auto_revision_task.business.name %></dd>
+      <dt>ActionCandidate</dt>
+      <dd><%= link_to @auto_revision_task.action_candidate.title, @auto_revision_task.action_candidate %></dd>
+      <dt>execution_prompt</dt>
+      <dd><%= simple_format(@auto_revision_task.execution_prompt.presence || "-") %></dd>
+      <dt>result_summary</dt>
+      <dd><%= simple_format(@auto_revision_task.result_summary.presence || "-") %></dd>
+      <dt>error_message</dt>
+      <dd><%= simple_format(@auto_revision_task.error_message.presence || "-") %></dd>
+      <dt>changed_files</dt>
+      <dd><%= simple_format(@auto_revision_task.changed_files.presence || "-") %></dd>
+      <dt>test_result</dt>
+      <dd><%= simple_format(@auto_revision_task.test_result.presence || "-") %></dd>
+      <dt>codex_output</dt>
+      <dd><%= simple_format(@auto_revision_task.codex_output.presence || "-") %></dd>
+    </dl>
+  </section>
+</div>

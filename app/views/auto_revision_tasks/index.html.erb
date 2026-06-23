@@ -1,0 +1,45 @@
+<% content_for :title, "Auto Revision Tasks" %>
+
+<% header_actions = capture do %>
+  <%= link_to "操作盤に戻る", dashboard_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "Auto Revision Tasks",
+             description: "ActionCandidateをCodexへ渡せる改修タスクとして管理します。",
+             active_main: :dashboard,
+             actions: header_actions %>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>タイトル</th>
+          <th>事業</th>
+          <th>risk</th>
+          <th>status</th>
+          <th>優先度</th>
+          <th>作成</th>
+          <th>詳細</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @auto_revision_tasks.each do |task| %>
+          <tr>
+            <td><%= task.title %></td>
+            <td><%= task.business.name %></td>
+            <td><span class="pill"><%= task.risk_level %></span></td>
+            <td><span class="pill"><%= task.status %></span></td>
+            <td class="number"><%= number_with_precision(task.priority_score, precision: 1) %></td>
+            <td><%= l(task.created_at, format: :short) %></td>
+            <td><%= link_to "詳細", task, class: "button secondary" %></td>
+          </tr>
+        <% end %>
+        <% if @auto_revision_tasks.empty? %>
+          <tr><td colspan="7">まだAuto Revision Taskはありません。</td></tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</div>

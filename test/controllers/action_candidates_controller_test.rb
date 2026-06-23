@@ -128,6 +128,7 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Judge補正スコア履歴"
     assert_includes response.body, "Judge補正で順位低下"
     assert_includes response.body, "部門"
+    assert_includes response.body, "自動改修タスク化"
   end
 
   test "normal action candidate does not show direct executor button" do
@@ -196,6 +197,33 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_redirected_to action_candidates_url
+  end
+
+  test "approves action candidate from quick action" do
+    @action_candidate.update!(status: "idea")
+
+    assert_difference("OwnerTaskCompletionLog.count", 1) do
+      patch approve_action_candidate_url(@action_candidate), headers: { "HTTP_REFERER" => owner_tasks_url }
+    end
+
+    assert_redirected_to owner_tasks_url
+    assert_equal "approved", @action_candidate.reload.status
+    assert_not_nil @action_candidate.approved_at
+    assert_equal "ActionCandidate『#{@action_candidate.title}』を承認しました。承認待ちタスクから削除されました。", flash[:notice]
+    assert_equal "承認", OwnerTaskCompletionLog.last.action_label
+  end
+
+  test "rejects action candidate from quick action" do
+    @action_candidate.update!(status: "idea")
+
+    assert_difference("OwnerTaskCompletionLog.count", 1) do
+      patch reject_action_candidate_url(@action_candidate), headers: { "HTTP_REFERER" => owner_tasks_url }
+    end
+
+    assert_redirected_to owner_tasks_url
+    assert_equal "rejected", @action_candidate.reload.status
+    assert_equal "ActionCandidate『#{@action_candidate.title}』を却下しました。承認待ちタスクから削除されました。", flash[:notice]
+    assert_equal "却下", OwnerTaskCompletionLog.last.action_label
   end
 
   private

@@ -16,6 +16,16 @@ module Admin
         profit_calibration_factor: 0.8,
         probability_calibration_factor: 1.1,
         avg_profit_error_rate: 0.2,
+        confidence_level: "medium",
+        warning_level: "warning",
+        warning_reason: "利益補正係数が前回比50%以上変化しました",
+        approval_status: "pending",
+        pending_profit_calibration_factor: 0.7,
+        pending_probability_calibration_factor: 0.9,
+        approval_requested_at: Time.current,
+        previous_profit_calibration_factor: 1.0,
+        previous_probability_calibration_factor: 1.0,
+        factor_changed_at: Time.current,
         last_calculated_at: Time.current
       )
       ActionPredictionCalibrationLog.create!(
@@ -33,6 +43,15 @@ module Admin
       assert_includes response.body, "最終自動実行日時"
       assert_includes response.body, "最終手動実行日時"
       assert_includes response.body, "Daily Run"
+      assert_includes response.body, "confidence"
+      assert_includes response.body, "warning_reason"
+      assert_includes response.body, "approval_status"
+      assert_includes response.body, "承認待ち件数"
+      assert_includes response.body, "承認待ちだけ見る"
+      assert_includes response.body, "承認"
+      assert_includes response.body, "却下"
+      assert_includes response.body, "補正によるランキング影響"
+      assert_includes response.body, "action_type別 平均スコア変化"
       assert_includes response.body, "再計算"
     end
 
@@ -47,7 +66,46 @@ module Admin
       assert_match(/評価関数補正を/, flash[:notice])
     end
 
+    test "approve applies pending calibration" do
+      calibration = pending_calibration
+
+      patch admin_aicoo_calibration_approve_url(calibration)
+
+      assert_redirected_to admin_aicoo_calibration_url
+      calibration.reload
+      assert_equal "approved", calibration.approval_status
+      assert_equal 0.7.to_d, calibration.profit_calibration_factor
+      assert_nil calibration.pending_profit_calibration_factor
+      assert_equal "approval", ActionPredictionCalibrationLog.last.source
+    end
+
+    test "reject keeps active calibration" do
+      calibration = pending_calibration
+
+      patch admin_aicoo_calibration_reject_url(calibration)
+
+      assert_redirected_to admin_aicoo_calibration_url
+      calibration.reload
+      assert_equal "rejected", calibration.approval_status
+      assert_equal 1.to_d, calibration.profit_calibration_factor
+      assert_nil calibration.pending_profit_calibration_factor
+      assert_equal "rejected", ActionPredictionCalibrationLog.last.source
+    end
+
     private
+
+    def pending_calibration
+      ActionPredictionCalibration.create!(
+        action_type: "build_lp",
+        sample_count: 10,
+        profit_calibration_factor: 1.0,
+        probability_calibration_factor: 1.0,
+        pending_profit_calibration_factor: 0.7,
+        pending_probability_calibration_factor: 0.9,
+        approval_status: "pending",
+        approval_requested_at: Time.current
+      )
+    end
 
     def create_result
       candidate = ActionCandidate.create!(

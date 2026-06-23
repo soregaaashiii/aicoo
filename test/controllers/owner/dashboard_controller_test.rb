@@ -17,6 +17,9 @@ module Owner
       assert_includes response.body, "SYSTEM MODEへ"
       assert_order high_total.title, low_total.title
       assert_includes response.body, "今日やること TOP10"
+      assert_includes response.body, "今日の確認タスク"
+      assert_includes response.body, "今日の確認ダイジェスト"
+      assert_includes response.body, "確認タスク一覧へ"
       assert_includes response.body, "期待値"
     end
 
@@ -61,6 +64,7 @@ module Owner
       assert_includes response.body, "危険アラート"
       assert_includes response.body, "承認待ち"
       assert_includes response.body, "承認済み"
+      assert_includes response.body, "確認タスクを見る"
       assert_includes response.body, "今日承認"
       assert_includes response.body, "今日実行指示へ送信"
       assert_includes response.body, "実行承認待ち"
@@ -117,7 +121,8 @@ module Owner
     end
 
     def assert_order(first_text, second_text)
-      assert_operator response.body.index(first_text), :<, response.body.index(second_text)
+      today_tasks_section = response.body.split("今日やること TOP10").last
+      assert_operator today_tasks_section.index(first_text), :<, today_tasks_section.index(second_text)
     end
   end
 end

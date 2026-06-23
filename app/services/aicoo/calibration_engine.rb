@@ -8,6 +8,10 @@ module Aicoo
       def calibration_count
         calibrations.size
       end
+
+      def pending_count
+        calibrations.count { |calibration| calibration.respond_to?(:pending?) && calibration.pending? }
+      end
     end
 
     def self.run!(source: "manual", aicoo_daily_run: nil)
@@ -32,25 +36,54 @@ module Aicoo
 
         profit_factor = stats.sample_count >= MIN_SAMPLE_SIZE ? safe_factor(stats.avg_actual_profit_yen, stats.avg_predicted_profit_yen) : 1.to_d
         probability_factor = stats.sample_count >= MIN_SAMPLE_SIZE ? safe_factor(stats.actual_success_rate, stats.avg_predicted_success_probability) : 1.to_d
+        confidence_level = ActionPredictionCalibration.confidence_level_for(stats.sample_count)
+        warning_level, warning_reason = ActionPredictionCalibration.warning_for(
+          sample_count: stats.sample_count,
+          old_profit_factor:,
+          new_profit_factor: profit_factor
+        )
+        safe = safe_calibration?(confidence_level:, warning_level:, profit_factor:)
+        effective_profit_factor = safe ? profit_factor : old_profit_factor
+        effective_probability_factor = safe ? probability_factor : old_probability_factor
+        factor_changed_at =
+          if factor_changed?(old_profit_factor, profit_factor, old_probability_factor, probability_factor)
+            calculated_at
+          else
+            calibration.factor_changed_at
+          end
+        approval_status = safe ? "auto_applied" : "pending"
+        approval_reason = approval_reason(confidence_level:, warning_level:, warning_reason:)
 
         calibration.update!(
           sample_count: stats.sample_count,
           avg_predicted_profit_yen: stats.avg_predicted_profit_yen,
           avg_actual_profit_yen: stats.avg_actual_profit_yen,
-          profit_calibration_factor: profit_factor,
+          previous_profit_calibration_factor: old_profit_factor,
+          profit_calibration_factor: effective_profit_factor,
           avg_predicted_success_probability: stats.avg_predicted_success_probability,
           actual_success_rate: stats.actual_success_rate,
-          probability_calibration_factor: probability_factor,
+          previous_probability_calibration_factor: old_probability_factor,
+          probability_calibration_factor: effective_probability_factor,
+          pending_profit_calibration_factor: safe ? nil : profit_factor,
+          pending_probability_calibration_factor: safe ? nil : probability_factor,
+          approval_status:,
+          approval_requested_at: safe ? nil : calculated_at,
+          approved_at: nil,
+          rejected_at: nil,
           avg_profit_error_rate: stats.avg_profit_error_rate,
-          last_calculated_at: calculated_at
+          last_calculated_at: calculated_at,
+          confidence_level:,
+          warning_level:,
+          warning_reason: approval_reason,
+          factor_changed_at:
         )
 
         log = ActionPredictionCalibrationLog.create!(
           action_type:,
           old_profit_calibration_factor: old_profit_factor,
-          new_profit_calibration_factor: calibration.profit_calibration_factor,
+          new_profit_calibration_factor: profit_factor,
           old_probability_calibration_factor: old_probability_factor,
-          new_probability_calibration_factor: calibration.probability_calibration_factor,
+          new_probability_calibration_factor: probability_factor,
           sample_count: stats.sample_count,
           avg_predicted_profit_yen: stats.avg_predicted_profit_yen,
           avg_actual_profit_yen: stats.avg_actual_profit_yen,
@@ -139,6 +172,25 @@ module Aicoo
 
     def clip(value)
       [ [ value, MIN_FACTOR ].max, MAX_FACTOR ].min
+    end
+
+    def factor_changed?(old_profit_factor, profit_factor, old_probability_factor, probability_factor)
+      old_profit_factor.to_d != profit_factor.to_d ||
+        old_probability_factor.to_d != probability_factor.to_d
+    end
+
+    def safe_calibration?(confidence_level:, warning_level:, profit_factor:)
+      warning_level == "none" &&
+        confidence_level != "low" &&
+        profit_factor.to_d > 0.2.to_d &&
+        profit_factor.to_d < 2.5.to_d
+    end
+
+    def approval_reason(confidence_level:, warning_level:, warning_reason:)
+      reasons = []
+      reasons << "信頼度がlowのため承認待ちです" if confidence_level == "low"
+      reasons << warning_reason if warning_reason.present?
+      reasons.presence&.join(" / ")
     end
   end
 end

@@ -1,0 +1,195 @@
+<% limit ||= nil %>
+<% show_filters ||= false %>
+<% tasks = local_assigns.fetch(:tasks, owner_task_inbox.tasks) %>
+<% visible_tasks = limit ? tasks.first(limit) : tasks %>
+<% compact_quick_actions = limit.present? && !show_filters %>
+<% completion_logs = local_assigns.fetch(:completion_logs, @owner_task_completion_logs || OwnerTaskCompletionLog.recent.limit(show_filters ? 10 : 3)) %>
+<% digest = local_assigns.fetch(:owner_task_digest, @owner_task_digest || Aicoo::OwnerTaskDigest.new(owner_task_inbox: owner_task_inbox).call) %>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>今日の確認タスク</h2>
+    <p>承認・警告・失敗対応をここに集約します。</p>
+  </div>
+
+  <div class="aicoo-card aicoo-card-compact">
+    <div class="section-heading">
+      <h3>今日の確認ダイジェスト</h3>
+      <p><%= digest.summary_message %></p>
+    </div>
+
+    <div class="metric-grid aicoo-owner-secondary">
+      <div class="metric-card"><span>Critical</span><strong><%= digest.critical_count %>件</strong></div>
+      <div class="metric-card"><span>High</span><strong><%= digest.high_count %>件</strong></div>
+      <div class="metric-card"><span>今日処理済み</span><strong><%= digest.completed_today_count %>件</strong></div>
+      <div class="metric-card"><span>昨日処理済み</span><strong><%= digest.completed_yesterday_count %>件</strong></div>
+      <div class="metric-card"><span>昨日から増加</span><strong><%= digest.new_since_yesterday_count %>件</strong></div>
+    </div>
+
+    <% if digest.top_priority_task %>
+      <div class="aicoo-card-grid aicoo-grid-2">
+        <div class="aicoo-card aicoo-card-compact">
+          <h4>最優先タスク</h4>
+          <p><strong><%= digest.top_priority_task.title %></strong></p>
+          <p><span class="pill"><%= digest.top_priority_task.priority %></span> <%= digest.top_priority_task.task_type_label %></p>
+          <small><%= truncate(digest.top_priority_task.reason.to_s, length: 100) %></small>
+        </div>
+        <div class="aicoo-card aicoo-card-compact">
+          <h4>推奨アクション</h4>
+          <% if digest.recommended_next_action %>
+            <% action = digest.recommended_next_action %>
+            <% button_class = ["button", ("secondary" if action.style == "secondary"), ("danger" if action.style == "danger")].compact.join(" ") %>
+            <% data = action.confirm_message.present? ? { turbo_confirm: action.confirm_message } : {} %>
+            <% if action.method.to_s == "get" %>
+              <%= link_to action.label, action.path, class: button_class, data: %>
+            <% else %>
+              <%= button_to action.label, action.path, method: action.method, class: button_class, data: %>
+            <% end %>
+          <% else %>
+            <p class="aicoo-empty-state">推奨アクションはありません。</p>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+
+    <% if digest.warnings.any? %>
+      <div class="aicoo-card aicoo-card-compact">
+        <h4>警告</h4>
+        <ul>
+          <% digest.warnings.each do |warning| %>
+            <li><%= warning %></li>
+          <% end %>
+        </ul>
+      </div>
+    <% end %>
+  </div>
+
+  <div class="metric-grid aicoo-owner-secondary">
+    <% owner_task_inbox.counts_by_priority.each do |priority, count| %>
+      <div class="metric-card"><span><%= priority %></span><strong><%= count %>件</strong></div>
+    <% end %>
+  </div>
+
+  <% if show_filters %>
+    <%= form_with url: owner_tasks_path, method: :get, class: "filters" do |form| %>
+      <div class="field compact-field">
+        <%= form.label :priority, "優先度" %>
+        <%= form.select :priority, options_for_select([["すべて", ""]] + Aicoo::OwnerTaskInbox::PRIORITY_ORDER.keys.map { |priority| [priority, priority] }, params[:priority]) %>
+      </div>
+      <div class="field compact-field">
+        <%= form.label :task_type, "種別" %>
+        <%= form.select :task_type, options_for_select([["すべて", ""]] + Aicoo::OwnerTaskInbox::TASK_TYPE_LABELS.map { |key, label| [label, key] }, params[:task_type]) %>
+      </div>
+      <%= form.submit "絞り込む", class: "button secondary" %>
+    <% end %>
+  <% end %>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>優先度</th>
+          <th>種別</th>
+          <th>タイトル</th>
+          <th>理由</th>
+          <th>対象</th>
+          <th>操作</th>
+          <th>作成日時</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% visible_tasks.each.with_index do |task, index| %>
+          <% quick_actions = compact_quick_actions && index >= 3 ? task.quick_actions.select { |action| action.method.to_s == "get" }.first(1) : task.quick_actions %>
+          <tr>
+            <td><span class="pill"><%= task.priority %></span></td>
+            <td><%= task.task_type_label %></td>
+            <td><%= task.title %><br><small><%= task.description %></small></td>
+            <td><%= truncate(task.reason.to_s, length: 80) %></td>
+            <td><%= link_to task.target_label, task.target_path, class: "button secondary" %></td>
+            <td>
+              <div class="actions compact-actions">
+                <% quick_actions.each do |action| %>
+                  <% button_class = ["button", ("secondary" if action.style == "secondary"), ("danger" if action.style == "danger")].compact.join(" ") %>
+                  <% data = action.confirm_message.present? ? { turbo_confirm: action.confirm_message } : {} %>
+                  <% if action.method.to_s == "get" %>
+                    <%= link_to action.label, action.path, class: button_class, data: %>
+                  <% else %>
+                    <%= button_to action.label, action.path, method: action.method, class: button_class, data: %>
+                  <% end %>
+                <% end %>
+              </div>
+            </td>
+            <td><%= task.created_at ? l(task.created_at, format: :short) : "-" %></td>
+          </tr>
+        <% end %>
+        <% if visible_tasks.empty? %>
+          <tr>
+            <td colspan="7">
+              今すぐ確認が必要なタスクはありません。承認・却下・再実行済みの内容は下の「直近処理済み」で確認できます。
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="aicoo-card aicoo-card-compact">
+    <div class="section-heading">
+      <h3>直近処理済み</h3>
+      <p>承認・却下・再実行でInboxから消えた内容を確認できます。</p>
+    </div>
+
+    <% if completion_logs.any? %>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>処理日時</th>
+              <th>種別</th>
+              <th>操作</th>
+              <th>結果</th>
+              <th>内容</th>
+              <th>対象</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% completion_logs.each do |log| %>
+              <tr>
+                <td><%= l(log.completed_at, format: :short) %></td>
+                <td><%= Aicoo::OwnerTaskInbox::TASK_TYPE_LABELS.fetch(log.task_type, log.task_type) %></td>
+                <td><%= log.action_label %></td>
+                <td><span class="pill"><%= log.action_result %></span></td>
+                <td><%= truncate(log.message.to_s, length: 120) %></td>
+                <td>
+                  <% if (target_path = owner_task_completion_log_target_path(log)) %>
+                    <%= link_to owner_task_completion_log_target_label(log), target_path, class: "button secondary" %>
+                  <% else %>
+                    <%= owner_task_completion_log_target_label(log) %>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% else %>
+      <p class="aicoo-empty-state">まだ処理済みの確認タスクはありません。</p>
+    <% end %>
+
+    <% unless show_filters %>
+      <div class="actions compact-actions">
+        <%= link_to "処理履歴を見る", owner_tasks_path, class: "button secondary" %>
+      </div>
+    <% end %>
+  </div>
+
+  <% if limit && tasks.size > limit %>
+    <div class="actions compact-actions">
+      <%= link_to "すべての確認タスクを見る", owner_tasks_path, class: "button secondary" %>
+    </div>
+  <% elsif !show_filters %>
+    <div class="actions compact-actions">
+      <%= link_to "確認タスク一覧へ", owner_tasks_path, class: "button secondary" %>
+    </div>
+  <% end %>
+</section>

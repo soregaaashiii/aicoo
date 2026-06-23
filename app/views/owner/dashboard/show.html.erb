@@ -21,6 +21,10 @@
     </script>
   </section>
 
+  <%= render "shared/owner_task_inbox",
+             owner_task_inbox: @owner_task_inbox,
+             limit: 10 %>
+
   <section class="dashboard-section">
     <div class="section-heading">
       <h2>今日やること TOP10</h2>
@@ -121,6 +125,9 @@
       <div class="metric-card"><span>今日実行指示へ送信</span><strong><%= approval.today_executor_queued_count %>件</strong></div>
       <div class="metric-card"><span>実行承認待ち</span><strong><%= approval.executor_task_count %>件</strong></div>
       <div class="metric-card"><span>学習準備</span><strong><%= approval.data_preparation_count %>件</strong></div>
+    </div>
+    <div class="actions compact-actions">
+      <%= link_to "確認タスクを見る", owner_tasks_path, class: "button secondary" %>
     </div>
   </section>
 
