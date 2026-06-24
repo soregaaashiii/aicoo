@@ -139,19 +139,43 @@ module Aicoo
         finished_at: 1.minute.ago,
         duration_seconds: 60,
         error_message: "calibration boom",
-        recovery_attempt_count: 1,
+        recovery_attempt_count: 3,
         last_recovery_at: Time.current,
         last_recovery_status: "failed",
         last_recovery_message: "still broken"
       )
+      run.aicoo_daily_run_steps.create!(
+        step_name: "score_snapshot",
+        status: "failed",
+        started_at: 2.minutes.ago,
+        finished_at: 1.minute.ago,
+        duration_seconds: 60,
+        recovery_locked: true,
+        recovery_locked_at: Time.current
+      )
+      run.aicoo_daily_run_steps.create!(
+        step_name: "owner_task_digest",
+        status: "failed",
+        started_at: 2.minutes.ago,
+        finished_at: 1.minute.ago,
+        duration_seconds: 60,
+        recovery_attempt_count: 1,
+        last_recovery_at: 1.minute.ago,
+        last_recovery_status: "failed"
+      )
 
       summary = DailyRunHealthSummary.new.call
 
-      assert_equal 1, summary.recoverable_failed_steps_count
+      assert_equal 3, summary.recoverable_failed_steps_count
       assert summary.last_recovery_at.present?
-      assert_equal 1, summary.recovery_failures_count
-      assert_includes summary.warnings, "1件の復旧可能な失敗ステップがあります。"
+      assert_equal 2, summary.recovery_failures_count
+      assert_equal 1, summary.locked_recovery_count
+      assert_equal 2, summary.cooldown_recovery_count
+      assert_equal 1, summary.recovery_limit_reached_count
+      assert_includes summary.warnings, "3件の復旧可能な失敗ステップがあります。"
       assert_includes summary.warnings, "Daily Run step recoveryに失敗があります。"
+      assert_includes summary.warnings, "1 steps reached recovery limit"
+      assert_includes summary.warnings, "1 step is currently locked"
     end
 
     private

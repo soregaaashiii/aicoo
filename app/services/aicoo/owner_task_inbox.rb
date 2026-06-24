@@ -13,6 +13,7 @@ module Aicoo
       "daily_run_partial_failed" => "Daily Run一部失敗",
       "daily_run_step_failure" => "Daily Runステップ失敗",
       "daily_run_step_recovery" => "Daily Runステップ復旧",
+      "daily_run_recovery_attention" => "Daily Run復旧注意",
       "calibration_danger" => "評価式危険",
       "calibration_warning" => "評価式警告"
     }.freeze
@@ -47,6 +48,7 @@ module Aicoo
         action_candidate_approval_tasks +
         calibration_approval_tasks +
         daily_run_step_recovery_tasks +
+        daily_run_recovery_attention_tasks +
         daily_run_step_failure_tasks +
         daily_run_tasks +
         calibration_warning_tasks
@@ -137,7 +139,7 @@ module Aicoo
       AicooDailyRunStep.includes(:aicoo_daily_run)
                        .where(status: %w[failed skipped])
                        .where(created_at: 7.days.ago..)
-                       .select(&:recovery_needed?)
+                       .select(&:recovery_available?)
                        .map do |step|
         run = step.aicoo_daily_run
         Task.new(
@@ -150,6 +152,29 @@ module Aicoo
           reason: step.error_message.presence || "Recovery Actionを実行してください。",
           created_at: step.finished_at || step.started_at || step.created_at,
           quick_actions: daily_run_step_recovery_quick_actions(run, step)
+        )
+      end
+    end
+
+    def daily_run_recovery_attention_tasks
+      AicooDailyRunStep.includes(:aicoo_daily_run)
+                       .where(status: %w[failed skipped])
+                       .where(created_at: 7.days.ago..)
+                       .select { |step| step.recovery_needed? && !step.recovery_available? }
+                       .map do |step|
+        run = step.aicoo_daily_run
+        Task.new(
+          priority: "high",
+          task_type: "daily_run_recovery_attention",
+          title: "Daily Run #{run.target_date} の #{step.step_name} は復旧待機中",
+          description: "Recovery Safety Guardにより今は再実行できません。",
+          target_label: run.target_date.to_s,
+          target_path: routes.aicoo_daily_run_path(run, anchor: "step-breakdown"),
+          reason: step.recovery_unavailable_reason.presence || "Recovery unavailable",
+          created_at: step.finished_at || step.started_at || step.created_at,
+          quick_actions: [
+            quick_action("Step Breakdownを見る", :get, routes.aicoo_daily_run_path(run, anchor: "step-breakdown"), style: "secondary")
+          ]
         )
       end
     end

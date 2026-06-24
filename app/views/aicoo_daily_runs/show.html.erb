@@ -117,7 +117,12 @@
               <td><%= truncate(step.metadata.to_h.map { |key, value| "#{key}=#{value}" }.join(", ").presence || "-", length: 120) %></td>
               <td>
                 <% if step.recovery_needed? %>
-                  <%= button_to "Recovery", recover_aicoo_daily_run_step_path(@daily_run, step), method: :post, class: "button secondary", data: { turbo_confirm: "#{step.step_name} stepを再実行しますか？" } %>
+                  <% if step.recovery_available? %>
+                    <%= button_to "Recovery", recover_aicoo_daily_run_step_path(@daily_run, step), method: :post, class: "button secondary", data: { turbo_confirm: "#{step.step_name} stepを再実行しますか？" } %>
+                  <% else %>
+                    <span class="pill"><%= step.recovery_state_label %></span>
+                    <br><small><%= step.recovery_unavailable_reason %></small>
+                  <% end %>
                 <% elsif step.recoverable? %>
                   <span class="pill">再実行可能</span>
                 <% else %>
@@ -125,6 +130,12 @@
                 <% end %>
                 <% if step.last_recovery_at %>
                   <br><small><%= step.last_recovery_status %> / <%= l(step.last_recovery_at, format: :short) %></small>
+                <% end %>
+                <% if step.recovery_attempt_count.positive? %>
+                  <br><small>attempts: <%= step.recovery_attempt_count %></small>
+                <% end %>
+                <% if step.last_recovery_message.present? %>
+                  <br><small><%= truncate(step.last_recovery_message, length: 80) %></small>
                 <% end %>
               </td>
             </tr>

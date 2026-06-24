@@ -41,6 +41,17 @@ class AicooDailyRunsControllerTest < ActionDispatch::IntegrationTest
       duration_seconds: 60,
       error_message: "analytics boom"
     )
+    daily_run.aicoo_daily_run_steps.create!(
+      step_name: "owner_task_digest",
+      status: "failed",
+      started_at: 2.minutes.ago,
+      finished_at: 1.minute.ago,
+      duration_seconds: 60,
+      error_message: "digest boom",
+      recovery_attempt_count: 1,
+      last_recovery_at: 1.minute.ago,
+      last_recovery_status: "failed"
+    )
     ActionCandidate.create!(
       business: businesses(:suelog),
       title: "Daily Run auto revision candidate",
@@ -86,6 +97,8 @@ class AicooDailyRunsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "calibration boom"
     assert_includes response.body, "Recovery"
     assert_includes response.body, "再実行不可"
+    assert_includes response.body, "Cooldown"
+    assert_includes response.body, "Recovery cooldown active"
     assert_includes response.body, "自動改修タスク候補"
     assert_includes response.body, "Daily Run auto revision candidate"
     assert_includes response.body, "最近作成されたAuto Revision Task"

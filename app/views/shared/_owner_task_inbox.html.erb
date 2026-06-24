@@ -41,6 +41,9 @@
         <div class="metric-card"><span>failed step</span><strong><%= digest.daily_run_health.failed_step_count %>件</strong></div>
         <div class="metric-card"><span>slow step</span><strong><%= digest.daily_run_health.slow_steps.size %>件</strong></div>
         <div class="metric-card"><span>Recoverable Failed Steps</span><strong><%= digest.daily_run_health.recoverable_failed_steps_count %>件</strong></div>
+        <div class="metric-card"><span>Locked Recoveries</span><strong><%= digest.daily_run_health.locked_recovery_count %>件</strong></div>
+        <div class="metric-card"><span>Cooldown Recoveries</span><strong><%= digest.daily_run_health.cooldown_recovery_count %>件</strong></div>
+        <div class="metric-card"><span>Recovery Limit Reached</span><strong><%= digest.daily_run_health.recovery_limit_reached_count %>件</strong></div>
         <div class="metric-card"><span>最新Recovery</span><strong><%= digest.daily_run_health.last_recovery_at ? l(digest.daily_run_health.last_recovery_at, format: :short) : "-" %></strong></div>
       </div>
       <% if digest.daily_run_health.failed_steps.any? %>

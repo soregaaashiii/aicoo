@@ -33,6 +33,9 @@ module Aicoo
       :recoverable_failed_steps_count,
       :last_recovery_at,
       :recovery_failures_count,
+      :locked_recovery_count,
+      :cooldown_recovery_count,
+      :recovery_limit_reached_count,
       :health_status,
       :health_message,
       :warnings,
@@ -76,6 +79,9 @@ module Aicoo
         recoverable_failed_steps_count: recoverable_failed_steps.size,
         last_recovery_at: latest_steps.filter_map(&:last_recovery_at).max,
         recovery_failures_count: latest_steps.count { |step| step.last_recovery_status == "failed" },
+        locked_recovery_count: latest_steps.count(&:recovery_locked?),
+        cooldown_recovery_count: latest_steps.count(&:recovery_cooldown_active?),
+        recovery_limit_reached_count: latest_steps.count(&:recovery_limit_reached?),
         health_status:,
         health_message:,
         warnings: warnings,
@@ -204,6 +210,8 @@ module Aicoo
         items << "Daily Runの一部ステップが失敗しています。" if failed_steps.any?
         items << "#{recoverable_failed_steps.size}件の復旧可能な失敗ステップがあります。" if recoverable_failed_steps.any?
         items << "Daily Run step recoveryに失敗があります。" if latest_steps.any? { |step| step.last_recovery_status == "failed" }
+        items << "#{latest_steps.count(&:recovery_limit_reached?)} steps reached recovery limit" if latest_steps.any?(&:recovery_limit_reached?)
+        items << "#{latest_steps.count(&:recovery_locked?)} step is currently locked" if latest_steps.any?(&:recovery_locked?)
         items << "Daily Runに遅いステップがあります。" if slow_steps.any?
         items << "今日のActionCandidate生成数が0です。" if today_action_candidates.count.zero?
         items << "今日Daily Runが未実行です。" if today_runs.count.zero?

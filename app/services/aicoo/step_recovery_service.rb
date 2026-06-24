@@ -13,8 +13,11 @@ module Aicoo
 
     def run!
       started_at = Time.current
+      step = recovery_step
       return skipped_result(started_at, "#{step_name} step は再実行不可です") unless recoverable?
+      return guarded_result(started_at, step.recovery_unavailable_reason) unless step.recovery_available?
 
+      lock_recovery!(step)
       result_message = perform_recovery!
       finished_at = Time.current
       update_step!("success", result_message, finished_at)
@@ -38,6 +41,8 @@ module Aicoo
         duration_seconds: duration_seconds(started_at, finished_at),
         error_message:
       )
+    ensure
+      unlock_recovery!(step) if @lock_acquired && step
     end
 
     private
@@ -50,6 +55,10 @@ module Aicoo
 
     def latest_step
       @latest_step ||= daily_run.aicoo_daily_run_steps.where(step_name:).recent.first
+    end
+
+    def recovery_step
+      latest_step || daily_run.aicoo_daily_run_steps.create!(step_name:, status: "skipped")
     end
 
     def perform_recovery!
@@ -95,14 +104,36 @@ module Aicoo
       )
     end
 
+    def guarded_result(started_at, message)
+      finished_at = Time.current
+      Result.new(
+        success: false,
+        message:,
+        started_at:,
+        finished_at:,
+        duration_seconds: duration_seconds(started_at, finished_at),
+        error_message: nil
+      )
+    end
+
     def update_step!(status, message, finished_at)
-      step = latest_step || daily_run.aicoo_daily_run_steps.create!(step_name:, status: "skipped")
+      step = recovery_step
       step.update!(
         recovery_attempt_count: step.recovery_attempt_count + 1,
         last_recovery_at: finished_at,
         last_recovery_status: status,
         last_recovery_message: message
       )
+    end
+
+    def lock_recovery!(step)
+      step.update!(recovery_locked: true, recovery_locked_at: Time.current)
+      @lock_acquired = true
+    end
+
+    def unlock_recovery!(step)
+      step.update!(recovery_locked: false)
+      @lock_acquired = false
     end
 
     def duration_seconds(started_at, finished_at)

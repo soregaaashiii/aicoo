@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_24_102000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_24_103000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -270,12 +270,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_24_102000) do
     t.string "last_recovery_status"
     t.jsonb "metadata", default: {}, null: false
     t.integer "recovery_attempt_count", default: 0, null: false
+    t.boolean "recovery_locked", default: false, null: false
+    t.datetime "recovery_locked_at"
     t.datetime "started_at"
     t.string "status", default: "pending", null: false
     t.string "step_name", null: false
     t.datetime "updated_at", null: false
     t.index ["aicoo_daily_run_id"], name: "index_aicoo_daily_run_steps_on_aicoo_daily_run_id"
     t.index ["last_recovery_status"], name: "index_aicoo_daily_run_steps_on_last_recovery_status"
+    t.index ["recovery_locked"], name: "index_aicoo_daily_run_steps_on_recovery_locked"
     t.index ["status"], name: "index_aicoo_daily_run_steps_on_status"
     t.index ["step_name"], name: "index_aicoo_daily_run_steps_on_step_name"
   end

@@ -4,6 +4,8 @@ class AicooDailyRunStep < ApplicationRecord
   RECOVERABLE_STEP_NAMES = %w[calibration owner_task_digest action_result_evaluation score_snapshot].freeze
   RECOVERY_STATUSES = %w[success failed skipped].freeze
   SLOW_THRESHOLD_SECONDS = 60
+  MAX_RECOVERY_ATTEMPTS = 3
+  RECOVERY_COOLDOWN = 5.minutes
 
   belongs_to :aicoo_daily_run
 
@@ -26,6 +28,35 @@ class AicooDailyRunStep < ApplicationRecord
 
   def recovery_needed?
     recoverable? && status.in?(%w[failed skipped])
+  end
+
+  def recovery_available?
+    recovery_needed? && !recovery_locked? && !recovery_cooldown_active? && !recovery_limit_reached?
+  end
+
+  def recovery_cooldown_active?
+    last_recovery_at.present? && last_recovery_at > RECOVERY_COOLDOWN.ago
+  end
+
+  def recovery_limit_reached?
+    recovery_attempt_count >= MAX_RECOVERY_ATTEMPTS && last_recovery_status == "failed"
+  end
+
+  def recovery_state_label
+    return "再実行不可" unless recoverable?
+    return "Locked" if recovery_locked?
+    return "Limit Reached" if recovery_limit_reached?
+    return "Cooldown" if recovery_cooldown_active?
+    return "Available" if recovery_needed?
+
+    "再実行可能"
+  end
+
+  def recovery_unavailable_reason
+    return "Recovery is already running" if recovery_locked?
+    return "Recovery limit reached" if recovery_limit_reached?
+    return "Recovery cooldown active" if recovery_cooldown_active?
+    "#{step_name} step は再実行不可です" unless recoverable?
   end
 
   def slow?(average_duration: nil)

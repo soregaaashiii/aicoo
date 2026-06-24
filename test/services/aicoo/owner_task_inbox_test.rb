@@ -120,6 +120,35 @@ module Aicoo
       assert_equal Rails.application.routes.url_helpers.recover_aicoo_daily_run_step_path(run, step), task.quick_actions.first.path
     end
 
+    test "returns recovery attention when recoverable step is unavailable" do
+      run = AicooDailyRun.create!(
+        target_date: Date.yesterday,
+        status: "partial_failed",
+        source: "manual",
+        started_at: Time.current,
+        finished_at: Time.current
+      )
+      run.aicoo_daily_run_steps.create!(
+        step_name: "calibration",
+        status: "failed",
+        started_at: 2.minutes.ago,
+        finished_at: 1.minute.ago,
+        duration_seconds: 60,
+        error_message: "calibration boom",
+        recovery_attempt_count: 1,
+        last_recovery_at: 1.minute.ago,
+        last_recovery_status: "failed"
+      )
+
+      tasks = OwnerTaskInbox.new.call.tasks
+      attention = tasks.find { |item| item.task_type == "daily_run_recovery_attention" }
+
+      assert attention
+      assert_equal "high", attention.priority
+      assert_match "Recovery cooldown active", attention.reason
+      assert_not tasks.any? { |item| item.task_type == "daily_run_step_recovery" }
+    end
+
     test "returns non pending calibration warnings without duplicating pending action type" do
       ActionPredictionCalibration.create!(
         action_type: "seo_article",

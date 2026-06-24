@@ -28,6 +28,7 @@ module Aicoo
         step.reload
         assert_equal 1, step.recovery_attempt_count
         assert_equal "success", step.last_recovery_status
+        assert_not step.recovery_locked?
         assert step.last_recovery_at.present?
         assert_equal true, @daily_run.reload.calibration_ran
         assert_equal 1, @daily_run.updated_calibration_count
@@ -46,8 +47,52 @@ module Aicoo
         step.reload
         assert_equal 1, step.recovery_attempt_count
         assert_equal "failed", step.last_recovery_status
+        assert_not step.recovery_locked?
         assert_match "RuntimeError: calibration boom", step.last_recovery_message
       end
+    end
+
+    test "locked step does not run recovery" do
+      step = create_step("calibration")
+      step.update!(recovery_locked: true, recovery_locked_at: Time.current)
+
+      result = StepRecoveryService.run!(daily_run: @daily_run, step_name: "calibration")
+
+      assert_not result.success
+      assert_equal "Recovery is already running", result.message
+      step.reload
+      assert step.recovery_locked?
+      assert_equal 0, step.recovery_attempt_count
+    end
+
+    test "cooldown step does not run recovery" do
+      step = create_step("calibration")
+      step.update!(
+        recovery_attempt_count: 1,
+        last_recovery_at: 1.minute.ago,
+        last_recovery_status: "failed"
+      )
+
+      result = StepRecoveryService.run!(daily_run: @daily_run, step_name: "calibration")
+
+      assert_not result.success
+      assert_equal "Recovery cooldown active", result.message
+      assert_equal 1, step.reload.recovery_attempt_count
+    end
+
+    test "recovery limit prevents execution" do
+      step = create_step("calibration")
+      step.update!(
+        recovery_attempt_count: 3,
+        last_recovery_at: 10.minutes.ago,
+        last_recovery_status: "failed"
+      )
+
+      result = StepRecoveryService.run!(daily_run: @daily_run, step_name: "calibration")
+
+      assert_not result.success
+      assert_equal "Recovery limit reached", result.message
+      assert_equal 3, step.reload.recovery_attempt_count
     end
 
     test "non recoverable step is skipped" do
