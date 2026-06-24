@@ -1,9 +1,23 @@
 class OpportunityDiscoveryItem < ApplicationRecord
-  SOURCE_TYPES = %w[owner_discovery learning_report gsc ga4 serp trend].freeze
+  SOURCE_TYPES = %w[
+    owner_discovery
+    learning_report
+    gsc
+    ga4
+    serp
+    trend
+    google_trends
+    clarity
+    reddit
+    youtube
+    x
+    google_business_profile
+  ].freeze
   STATUSES = %w[new reviewed converted rejected].freeze
 
   belongs_to :business, optional: true
   belongs_to :action_candidate, optional: true
+  has_many :explore_observations, dependent: :nullify
 
   before_validation :set_defaults
 

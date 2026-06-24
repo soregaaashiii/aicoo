@@ -17,12 +17,19 @@ module Owner
       get owner_focus_url
 
       assert_response :success
-      assert_includes response.body, "Owner Focus Home"
-      assert_includes response.body, "次にやるべき1件"
+      assert_includes response.body, "Owner Home"
+      assert_includes response.body, "次にやる1件"
       assert_includes response.body, "Focus page execution"
       assert_includes response.body, "実行開始"
-      assert_includes response.body, "スキップ"
-      assert_includes response.body, "すべてのタスクを見る"
+      assert_includes response.body, "今日の処理状況"
+      assert_includes response.body, "Execution Ready"
+      assert_includes response.body, "Result Registration"
+      assert_includes response.body, "Calibration Pending"
+      assert_includes response.body, "Explore Review"
+      assert_includes response.body, "システム状態"
+      assert_includes response.body, "Daily Run"
+      assert_includes response.body, "Learning"
+      assert_includes response.body, "詳細画面"
     end
 
     test "shows empty state" do
@@ -31,6 +38,7 @@ module Owner
       ActionPredictionCalibration.delete_all
       AicooDailyRun.delete_all
       OpportunityDiscoveryItem.delete_all
+      ExploreImportLog.create!(source_type: "google_trends", import_format: "csv", imported_count: 1)
 
       get owner_focus_url
 

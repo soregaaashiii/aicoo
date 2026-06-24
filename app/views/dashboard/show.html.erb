@@ -766,6 +766,61 @@
 
 <section class="dashboard-section">
   <div class="section-heading">
+    <h2>Explore Signals</h2>
+    <p>外部シグナルから、まだ起きていない機会を探します。</p>
+  </div>
+  <div class="metric-grid">
+    <div class="metric-card"><span>新規観測</span><strong><%= @explore_summary.new_observation_count %>件</strong></div>
+    <div class="metric-card"><span>Opportunity変換</span><strong><%= @explore_summary.converted_opportunity_count %>件</strong></div>
+    <div class="metric-card"><span>今日のImport</span><strong><%= @explore_summary.imported_today_count %>件</strong></div>
+    <div class="metric-card"><span>今週のImport</span><strong><%= @explore_summary.imported_this_week_count %>件</strong></div>
+    <div class="metric-card"><span>New Observations</span><strong><%= @explore_summary.new_status_observation_count %>件</strong></div>
+    <div class="metric-card"><span>High Score Observations</span><strong><%= @explore_summary.high_score_observation_count %>件</strong></div>
+    <div class="metric-card"><span>On Hold Observations</span><strong><%= @explore_summary.on_hold_observation_count %>件</strong></div>
+    <% @explore_summary.source_counts.each do |source_type, count| %>
+      <div class="metric-card"><span><%= source_type %></span><strong><%= count %>件</strong></div>
+    <% end %>
+  </div>
+  <div class="aicoo-card aicoo-card-compact">
+    <h3>Explore Daily Routine</h3>
+    <p><span class="pill"><%= @explore_daily_routine.routine_status %></span> <%= @explore_daily_routine.import_message %></p>
+    <p><%= @explore_daily_routine.recommended_next_step.reason %></p>
+    <div class="actions compact-actions">
+      <%= link_to @explore_daily_routine.recommended_next_step.label, @explore_daily_routine.recommended_next_step.path, class: "button secondary" %>
+    </div>
+  </div>
+  <div class="aicoo-card aicoo-card-compact">
+    <h3>Source別Import</h3>
+    <ul class="compact-list">
+      <% @explore_summary.import_counts_by_source.each do |source_type, count| %>
+        <% next if count.zero? %>
+        <li><%= source_type %> / <%= count %>件</li>
+      <% end %>
+      <% if @explore_summary.import_counts_by_source.values.all?(&:zero?) %>
+        <li>今日のImportはまだありません。</li>
+      <% end %>
+    </ul>
+  </div>
+  <div class="aicoo-card aicoo-card-compact">
+    <h3>Top Explore Signals</h3>
+    <ul class="compact-list">
+      <% @explore_summary.top_opportunities.each do |observation| %>
+        <li><%= observation.title %> / score <%= observation.score.to_i %> / <%= observation.explore_data_source.source_type %></li>
+      <% end %>
+      <% if @explore_summary.top_opportunities.empty? %>
+        <li>Explore Signalはまだありません。</li>
+      <% end %>
+    </ul>
+  </div>
+  <div class="actions compact-actions">
+    <%= link_to "Observation Focus", admin_explore_observations_focus_path, class: "button secondary" %>
+    <%= link_to "Explore Data Hubを見る", admin_explore_path, class: "button secondary" %>
+    <%= link_to "ExploreをImport", admin_explore_import_path, class: "button secondary" %>
+  </div>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
     <h2>Learning Loop Quality</h2>
     <p>予測がどれだけ実績に近づいているかを確認します。</p>
   </div>

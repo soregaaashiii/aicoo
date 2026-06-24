@@ -1,0 +1,156 @@
+<% content_for :title, "Explore Data Hub" %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "Explore Data Hub",
+             description: "まだ起きていない機会を見つけるための外部シグナル管理です。",
+             active_main: :scoreboard %>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Explore Signals</h2>
+      <p>観測データとOpportunity変換状況です。</p>
+    </div>
+    <div class="aicoo-card aicoo-card-compact">
+      <h3>Daily Routine Summary</h3>
+      <p><span class="pill"><%= @explore_daily_routine.routine_status %></span> <%= @explore_daily_routine.import_message %></p>
+      <p><%= @explore_daily_routine.recommended_next_step.reason %></p>
+      <div class="actions compact-actions">
+        <%= link_to @explore_daily_routine.recommended_next_step.label, @explore_daily_routine.recommended_next_step.path, class: "button" %>
+      </div>
+    </div>
+    <div class="metric-grid">
+      <div class="metric-card"><span>新規観測</span><strong><%= @explore_summary.new_observation_count %>件</strong></div>
+      <div class="metric-card"><span>Opportunity変換</span><strong><%= @explore_summary.converted_opportunity_count %>件</strong></div>
+      <div class="metric-card"><span>今日のImport</span><strong><%= @explore_summary.imported_today_count %>件</strong></div>
+      <div class="metric-card"><span>今週のImport</span><strong><%= @explore_summary.imported_this_week_count %>件</strong></div>
+      <div class="metric-card"><span>New Observations</span><strong><%= @explore_summary.new_status_observation_count %>件</strong></div>
+      <div class="metric-card"><span>High Score Observations</span><strong><%= @explore_summary.high_score_observation_count %>件</strong></div>
+      <div class="metric-card"><span>On Hold Observations</span><strong><%= @explore_summary.on_hold_observation_count %>件</strong></div>
+      <% @explore_summary.source_counts.each do |source_type, count| %>
+        <div class="metric-card"><span><%= source_type %></span><strong><%= count %>件</strong></div>
+      <% end %>
+    </div>
+    <div class="actions compact-actions">
+      <%= link_to "Observation Focus", admin_explore_observations_focus_path, class: "button" %>
+      <%= link_to "Manual Import", admin_explore_import_path, class: "button" %>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Data Sources</h2>
+      <p>Explore用データソースの状態です。</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>名前</th>
+            <th>source_type</th>
+            <th>enabled</th>
+            <th>status</th>
+            <th>最新同期</th>
+            <th>最終成功</th>
+            <th>観測数</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @data_sources.each do |source| %>
+            <tr>
+              <td><%= source.name %></td>
+              <td><span class="pill"><%= source.source_type %></span></td>
+              <td><%= source.enabled? ? "ON" : "OFF" %></td>
+              <td><span class="pill"><%= source.status %></span></td>
+              <td><%= source.last_sync_at ? l(source.last_sync_at, format: :short) : "-" %></td>
+              <td><%= source.last_success_at ? l(source.last_success_at, format: :short) : "-" %></td>
+              <td><%= source.explore_observations.size %>件</td>
+            </tr>
+          <% end %>
+          <% if @data_sources.empty? %>
+            <tr><td colspan="7">Explore Data Sourceはまだありません。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Observations</h2>
+      <p>外部シグナルから見つかった観測です。</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>タイトル</th>
+            <th>source</th>
+            <th>type</th>
+            <th>status</th>
+            <th>score</th>
+            <th>observed</th>
+            <th>Opportunity</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @observations.each do |observation| %>
+            <tr>
+              <td><%= observation.title %></td>
+              <td><span class="pill"><%= observation.explore_data_source.source_type %></span></td>
+              <td><%= observation.observation_type %></td>
+              <td><span class="pill"><%= observation.status %></span></td>
+              <td><%= observation.score.to_i %></td>
+              <td><%= observation.observed_at ? l(observation.observed_at, format: :short) : "-" %></td>
+              <td>
+                <% if observation.opportunity_discovery_item %>
+                  <%= link_to "Opportunity", owner_opportunity_path(observation.opportunity_discovery_item), class: "button secondary" %>
+                <% else %>
+                  <%= button_to "Convert to Opportunity",
+                                admin_explore_observation_convert_to_opportunity_path(observation),
+                                method: :post,
+                                class: "button" %>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+          <% if @observations.empty? %>
+            <tr><td colspan="7">Observationはまだありません。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Import History</h2>
+      <p>CSV・JSON・テキスト貼り付けによる手動取り込み履歴です。</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>日時</th>
+            <th>source_type</th>
+            <th>format</th>
+            <th>件数</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @import_logs.each do |log| %>
+            <tr>
+              <td><%= l(log.created_at, format: :short) %></td>
+              <td><span class="pill"><%= log.source_type %></span></td>
+              <td><%= log.import_format %></td>
+              <td><%= log.imported_count %>件</td>
+            </tr>
+          <% end %>
+          <% if @import_logs.empty? %>
+            <tr><td colspan="4">Import履歴はまだありません。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>

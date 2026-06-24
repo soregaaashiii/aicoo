@@ -188,6 +188,44 @@
 
   <section class="dashboard-section">
     <div class="section-heading">
+      <h2>Top Explore Signals</h2>
+      <p>外部の兆しから見つかった新しい機会です。</p>
+    </div>
+    <div class="aicoo-card aicoo-card-compact">
+      <h3>Explore Daily Routine</h3>
+      <p><span class="pill"><%= @explore_daily_routine.routine_status %></span> <%= @explore_daily_routine.import_message %></p>
+      <p><%= @explore_daily_routine.recommended_next_step.reason %></p>
+      <div class="actions compact-actions">
+        <%= link_to @explore_daily_routine.recommended_next_step.label, @explore_daily_routine.recommended_next_step.path, class: "button" %>
+      </div>
+    </div>
+    <div class="metric-grid aicoo-owner-secondary">
+      <div class="metric-card"><span>新規観測</span><strong><%= @explore_summary.new_observation_count %>件</strong></div>
+      <div class="metric-card"><span>Opportunity変換</span><strong><%= @explore_summary.converted_opportunity_count %>件</strong></div>
+      <div class="metric-card"><span>新規Import</span><strong><%= @explore_summary.imported_today_count %>件</strong></div>
+      <div class="metric-card"><span>Focus待ち</span><strong><%= @explore_summary.new_status_observation_count %>件</strong></div>
+      <div class="metric-card"><span>高score</span><strong><%= @explore_summary.high_score_observation_count %>件</strong></div>
+      <div class="metric-card"><span>高優先Opportunity</span><strong><%= @explore_daily_routine.high_priority_opportunity_count %>件</strong></div>
+    </div>
+    <div class="aicoo-card aicoo-card-compact">
+      <ul class="compact-list">
+        <% @explore_summary.top_opportunities.each do |observation| %>
+          <li><%= observation.title %> / score <%= observation.score.to_i %> / <%= observation.explore_data_source.source_type %></li>
+        <% end %>
+        <% if @explore_summary.top_opportunities.empty? %>
+          <li>Explore Signalはまだありません。</li>
+        <% end %>
+      </ul>
+    </div>
+    <div class="actions compact-actions">
+      <%= link_to "Observation Focus", admin_explore_observations_focus_path, class: "button secondary" %>
+      <%= link_to "Explore Data Hubを見る", admin_explore_path, class: "button secondary" %>
+      <%= link_to "ExploreをImport", admin_explore_import_path, class: "button secondary" %>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
       <h2>承認済み</h2>
       <p>経営者が止めずに流すべき判断待ちです。</p>
     </div>

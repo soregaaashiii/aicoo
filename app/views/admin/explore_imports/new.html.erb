@@ -1,0 +1,180 @@
+<% content_for :title, "Explore Manual Import" %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "Explore Manual Import",
+             description: "API連携前でも、CSV・JSON・テキスト貼り付けからExplore Observationを登録します。",
+             active_main: :scoreboard %>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Import</h2>
+      <p>Google Trends、Reddit、YouTube、X、Clarity、Google Business Profileなどの観測を貼り付けて取り込みます。</p>
+    </div>
+
+    <% if @preview_result&.errors&.any? %>
+      <div class="aicoo-card aicoo-card-compact">
+        <h3>Import Error</h3>
+        <ul class="compact-list">
+          <% @preview_result.errors.each do |error| %>
+            <li><%= error %></li>
+          <% end %>
+        </ul>
+      </div>
+    <% end %>
+
+    <%= form_with scope: :explore_import, url: admin_explore_import_path, method: :post, local: true, class: "aicoo-form" do |form| %>
+      <div class="aicoo-card">
+        <div class="form-grid">
+          <div class="field">
+            <%= form.label :source_type, "source_type" %>
+            <%= form.select :source_type,
+                            ExploreDataSource::SOURCE_TYPES.map { |source_type| [source_type, source_type] },
+                            { selected: @source_type },
+                            class: "input",
+                            data: { explore_template_select: true } %>
+          </div>
+
+          <div class="field">
+            <%= form.label :import_format, "format" %>
+            <%= form.select :import_format,
+                            ExploreImportLog::IMPORT_FORMATS.map { |format| [format, format] },
+                            { selected: @import_format },
+                            class: "input" %>
+          </div>
+        </div>
+
+        <div class="aicoo-card aicoo-card-compact" data-explore-template-wrapper>
+          <h3>貼り付けテンプレート</h3>
+          <div class="actions compact-actions">
+            <code id="explore-csv-header"><%= @csv_header %></code>
+            <%= button_tag "CSVヘッダーをコピー",
+                           type: "button",
+                           class: "button secondary",
+                           data: { copy_text: @csv_header } %>
+          </div>
+          <p>observation_type候補: <%= ExploreObservation::OBSERVATION_TYPES.join(" / ") %></p>
+
+          <% @import_templates.each_value do |template| %>
+            <div class="aicoo-card aicoo-card-compact"
+                 data-explore-template="<%= template.source_type %>"
+                 <%= "hidden" unless template.source_type == @source_type %>>
+              <h4><%= template.title %></h4>
+              <p>推奨format: <strong><%= template.recommended_format %></strong></p>
+              <div class="field">
+                <label>CSV貼り付け例</label>
+                <pre class="aicoo-code-block"><%= template.csv_example %></pre>
+              </div>
+              <div class="field">
+                <label>Text形式の入力例</label>
+                <pre class="aicoo-code-block"><%= template.text_example %></pre>
+              </div>
+              <div class="aicoo-grid aicoo-grid-2">
+                <div>
+                  <strong>score基準</strong>
+                  <ul class="compact-list">
+                    <% template.score_guide.each do |guide| %>
+                      <li><%= guide %></li>
+                    <% end %>
+                  </ul>
+                </div>
+                <div>
+                  <strong>入力時の注意</strong>
+                  <ul class="compact-list">
+                    <% template.notes.each do |note| %>
+                      <li><%= note %></li>
+                    <% end %>
+                    <li>score未入力は50、observation_type未入力はopportunityとして扱います。</li>
+                    <li>score 80以上はOwner Taskに乗る可能性があります。</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          <% end %>
+        </div>
+
+        <div class="field">
+          <%= form.label :raw_text, "貼り付けデータ" %>
+          <%= form.text_area :raw_text,
+                             value: @raw_text,
+                             rows: 14,
+                             class: "input",
+                             placeholder: "CSV例: title,description,score\nシーシャ需要増加,検索量増加,80\n\nJSON例: [{\"title\":\"AI副業需要\",\"description\":\"急増中\",\"score\":90}]\n\nText例: シーシャ需要増加" %>
+        </div>
+
+        <div class="actions compact-actions">
+          <%= submit_tag "Preview",
+                         formaction: admin_explore_import_preview_path,
+                         class: "button secondary" %>
+          <%= submit_tag "Import", class: "button" %>
+          <%= link_to "Explore Data Hubへ戻る", admin_explore_path, class: "button secondary" %>
+        </div>
+      </div>
+    <% end %>
+  </section>
+
+  <% if @preview_result %>
+    <section class="dashboard-section">
+      <div class="section-heading">
+        <h2>Preview</h2>
+        <p>Import前に生成予定のObservationを確認します。</p>
+      </div>
+      <div class="metric-grid">
+        <div class="metric-card"><span>生成予定</span><strong><%= @preview_result.observations.size %>件</strong></div>
+      </div>
+      <div class="aicoo-card aicoo-card-compact">
+        <p>score未入力は50、observation_type未入力はopportunityとしてPreviewしています。</p>
+        <p>score 80以上のObservationは、Owner Task InboxのExplore Signal確認に表示される可能性があります。</p>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>タイトル</th>
+              <th>説明</th>
+              <th>score</th>
+              <th>type</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @preview_result.observations.first(50).each do |observation| %>
+              <tr>
+                <td><%= observation.title %></td>
+                <td><%= observation.description.presence || "-" %></td>
+                <td><%= observation.score.to_i %></td>
+                <td><%= observation.observation_type %></td>
+              </tr>
+            <% end %>
+            <% if @preview_result.observations.empty? %>
+              <tr><td colspan="4">生成予定のObservationはありません。</td></tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  <% end %>
+</div>
+
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const select = document.querySelector("[data-explore-template-select]");
+    const templates = document.querySelectorAll("[data-explore-template]");
+
+    const showTemplate = () => {
+      templates.forEach((template) => {
+        template.hidden = template.dataset.exploreTemplate !== select.value;
+      });
+    };
+
+    if (select) {
+      select.addEventListener("change", showTemplate);
+      showTemplate();
+    }
+
+    document.querySelectorAll("[data-copy-text]").forEach((button) => {
+      button.addEventListener("click", () => {
+        navigator.clipboard.writeText(button.dataset.copyText);
+      });
+    });
+  });
+</script>

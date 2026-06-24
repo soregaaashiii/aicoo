@@ -1,0 +1,82 @@
+module Aicoo
+  class OwnerHomeSummary
+    Result = Data.define(
+      :next_action,
+      :execution_ready_count,
+      :result_registration_count,
+      :pending_calibration_count,
+      :explore_review_count,
+      :daily_run_status,
+      :learning_status,
+      :summary_message
+    )
+
+    def initialize(owner_focus_home: nil, daily_run_health: nil, learning_report: nil, explore_daily_routine: nil)
+      @owner_focus_home = owner_focus_home
+      @daily_run_health = daily_run_health
+      @learning_report = learning_report
+      @explore_daily_routine = explore_daily_routine
+    end
+
+    def call
+      Result.new(
+        next_action: owner_focus_home.top_task,
+        execution_ready_count: ActionExecution.ready.count,
+        result_registration_count: ActionExecution.completed_without_result.count,
+        pending_calibration_count: ActionPredictionCalibration.where(approval_status: "pending").count,
+        explore_review_count: explore_review_count,
+        daily_run_status: daily_run_status,
+        learning_status: learning_status,
+        summary_message: summary_message
+      )
+    end
+
+    private
+
+    attr_reader :owner_focus_home
+
+    def daily_run_health
+      @daily_run_health ||= DailyRunHealthSummary.new.call
+    end
+
+    def learning_report
+      @learning_report ||= LearningLoopQualityReport.new.call
+    end
+
+    def explore_daily_routine
+      @explore_daily_routine ||= ExploreDailyRoutine.new.call
+    end
+
+    def daily_run_status
+      case daily_run_health.health_status
+      when "healthy"
+        "Healthy"
+      when "attention", "warning"
+        "Warning"
+      else
+        "Critical"
+      end
+    end
+
+    def learning_status
+      case learning_report.learning_trend
+      when "improving"
+        "Improving"
+      when "declining"
+        "Declining"
+      else
+        "Stable"
+      end
+    end
+
+    def explore_review_count
+      explore_daily_routine.new_observation_count + explore_daily_routine.opportunity_review_count
+    end
+
+    def summary_message
+      return "今はこの1件だけ処理してください。" if owner_focus_home.top_task
+
+      "今すぐ処理すべきタスクはありません。"
+    end
+  end
+end

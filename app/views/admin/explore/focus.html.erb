@@ -1,0 +1,67 @@
+<% content_for :title, "Explore Observation Focus" %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "Explore Observation Focus",
+             description: "scoreが高いExplore Observationから1件ずつOpportunity化・却下・保留します。",
+             active_main: :scoreboard %>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Focus Queue</h2>
+      <p>new状態のObservationをscore順に処理します。</p>
+    </div>
+    <div class="metric-grid">
+      <div class="metric-card"><span>New Observations</span><strong><%= @focus_queue.total_count %>件</strong></div>
+      <div class="metric-card"><span>High Score Observations</span><strong><%= @focus_queue.high_priority_count %>件</strong></div>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <% if @observation %>
+      <div class="aicoo-card">
+        <p><span class="pill"><%= @observation.explore_data_source.source_type %></span> <span class="pill"><%= @observation.observation_type %></span></p>
+        <h2><%= @observation.title %></h2>
+        <p><%= @observation.description.presence || "説明はありません。" %></p>
+
+        <div class="metric-grid">
+          <div class="metric-card"><span>score</span><strong><%= @observation.score.to_i %></strong></div>
+          <div class="metric-card"><span>observed_at</span><strong><%= @observation.observed_at ? l(@observation.observed_at, format: :short) : "-" %></strong></div>
+          <div class="metric-card"><span>status</span><strong><%= @observation.status %></strong></div>
+        </div>
+
+        <div class="aicoo-card aicoo-card-compact">
+          <h3>metadata</h3>
+          <pre class="aicoo-code-block"><%= JSON.pretty_generate(@observation.metadata.to_h) %></pre>
+        </div>
+
+        <div class="actions compact-actions">
+          <%= button_to "Convert to Opportunity",
+                        admin_explore_observation_convert_to_opportunity_path(@observation),
+                        method: :post,
+                        class: "button" %>
+          <%= button_to "Mark Reviewed",
+                        admin_explore_observation_review_path(@observation),
+                        method: :patch,
+                        class: "button secondary" %>
+          <%= button_to "Reject",
+                        admin_explore_observation_reject_path(@observation),
+                        method: :patch,
+                        class: "button danger",
+                        form: { data: { turbo_confirm: "このObservationを却下しますか？" } } %>
+          <%= button_to "Hold",
+                        admin_explore_observation_hold_path(@observation),
+                        method: :patch,
+                        class: "button secondary" %>
+          <%= link_to "一覧へ戻る", admin_explore_path, class: "button secondary" %>
+        </div>
+      </div>
+    <% else %>
+      <div class="aicoo-card aicoo-empty-state">
+        <h2>処理待ちObservationはありません。</h2>
+        <p>Explore Importで新しい観測を追加すると、score順にここへ表示されます。</p>
+        <%= link_to "Explore Importへ", admin_explore_import_path, class: "button" %>
+      </div>
+    <% end %>
+  </section>
+</div>

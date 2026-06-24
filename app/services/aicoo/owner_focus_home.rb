@@ -5,6 +5,7 @@ module Aicoo
       action_execution_ready
       calibration_approval
       opportunity_review
+      explore_daily_routine
       daily_run_failure
       daily_run_step_recovery
       learning_recommendation
@@ -56,8 +57,9 @@ module Aicoo
       return 2 if task.task_type == "calibration_approval" && task.priority == "critical"
       return 3 if task.task_type == "action_execution_ready"
       return 4 if task.task_type == "opportunity_review" && task.priority == "high"
-      return 5 if task.task_type == "learning_recommendation"
-      return 6 if task.task_type == "daily_run_step_recovery"
+      return 5 if task.task_type == "explore_daily_routine"
+      return 6 if task.task_type == "learning_recommendation"
+      return 7 if task.task_type == "daily_run_step_recovery"
 
       10 + OwnerTaskInbox::PRIORITY_ORDER.fetch(task.priority, 99)
     end

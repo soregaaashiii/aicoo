@@ -104,6 +104,15 @@ Rails.application.routes.draw do
   end
 
   namespace :admin do
+    get "explore", to: "explore#index", as: :explore
+    get "explore/import", to: "explore_imports#new", as: :explore_import
+    post "explore/import", to: "explore_imports#create"
+    post "explore/import/preview", to: "explore_imports#preview", as: :explore_import_preview
+    get "explore/observations/focus", to: "explore#focus", as: :explore_observations_focus
+    post "explore/observations/:id/convert_to_opportunity", to: "explore#convert_to_opportunity", as: :explore_observation_convert_to_opportunity
+    patch "explore/observations/:id/review", to: "explore#review_observation", as: :explore_observation_review
+    patch "explore/observations/:id/reject", to: "explore#reject_observation", as: :explore_observation_reject
+    patch "explore/observations/:id/hold", to: "explore#hold_observation", as: :explore_observation_hold
     resources :business_execution_profiles, except: %i[show destroy]
     resources :google_credentials, except: %i[show destroy] do
       get :connect, on: :member

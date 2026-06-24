@@ -12,6 +12,8 @@ module Owner
       @opportunity_discovery_summary = Aicoo::OpportunityDiscoverySummary.new.call
       @discovery_source_performance_report = Aicoo::DiscoverySourcePerformanceReport.new.call
       @opportunity_focus_queue = Aicoo::OpportunityFocusQueue.new.call
+      @explore_summary = Aicoo::ExploreSummary.new.call
+      @explore_daily_routine = Aicoo::ExploreDailyRoutine.new.call
     end
   end
 end

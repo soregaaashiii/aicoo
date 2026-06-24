@@ -15,6 +15,8 @@ class DashboardController < ApplicationController
     @opportunity_discovery_summary = Aicoo::OpportunityDiscoverySummary.new.call
     @discovery_source_performance_report = Aicoo::DiscoverySourcePerformanceReport.new.call
     @opportunity_focus_queue = Aicoo::OpportunityFocusQueue.new.call
+    @explore_summary = Aicoo::ExploreSummary.new.call
+    @explore_daily_routine = Aicoo::ExploreDailyRoutine.new.call
     @action_result_registration_health = Aicoo::ActionResultRegistrationHealth.new.call
     @learning_loop_health_summary = Aicoo::LearningLoopHealthSummary.new.call
     @owner_task_inbox = Aicoo::OwnerTaskInbox.new.call

@@ -14,6 +14,8 @@ module Aicoo
       "learning_loop_warning" => "学習品質警告",
       "learning_recommendation" => "学習改善提案",
       "opportunity_review" => "Opportunity確認",
+      "explore_signal_review" => "Explore Signal確認",
+      "explore_daily_routine" => "Explore日次確認",
       "discovery_source_warning" => "発見源警告",
       "calibration_approval" => "評価式承認",
       "daily_run_failure" => "Daily Run失敗",
@@ -59,6 +61,8 @@ module Aicoo
         learning_loop_warning_tasks +
         learning_recommendation_tasks +
         opportunity_review_tasks +
+        explore_daily_routine_tasks +
+        explore_signal_review_tasks +
         discovery_source_warning_tasks +
         calibration_approval_tasks +
         daily_run_step_recovery_tasks +
@@ -250,6 +254,55 @@ module Aicoo
           ]
         )
       end
+    end
+
+    def explore_signal_review_tasks
+      Aicoo::ExploreObservationFocusQueue.new.call.observations.select { |observation| observation.score.to_d >= 80.to_d }.first(10).map do |observation|
+        Task.new(
+          priority: observation.score.to_d >= 90.to_d ? "high" : "medium",
+          task_type: "explore_signal_review",
+          title: observation.title,
+          description: "高スコアのExplore Signalです。Opportunity化を確認してください。",
+          target_label: observation.explore_data_source.source_type,
+          target_path: routes.admin_explore_observations_focus_path,
+          reason: "score #{observation.score.to_i} / #{observation.observation_type}",
+          created_at: observation.observed_at || observation.created_at,
+          quick_actions: [
+            quick_action("Observation Focusで処理", :get, routes.admin_explore_observations_focus_path, style: "secondary")
+          ]
+        )
+      end
+    end
+
+    def explore_daily_routine_tasks
+      routine = ExploreDailyRoutine.new.call
+      return [] if routine.routine_status == "clear"
+
+      [
+        Task.new(
+          priority: explore_daily_routine_priority(routine),
+          task_type: "explore_daily_routine",
+          title: "Explore Daily Routine: #{routine.recommended_next_step.label}",
+          description: "Exploreの今日やる作業を確認してください。",
+          target_label: routine.routine_status,
+          target_path: routine.recommended_next_step.path,
+          reason: routine.recommended_next_step.reason,
+          created_at: routine.generated_at,
+          quick_actions: [
+            quick_action(routine.recommended_next_step.label, :get, routine.recommended_next_step.path, style: "primary"),
+            quick_action("Owner Focusを見る", :get, routes.owner_focus_path, style: "secondary")
+          ]
+        )
+      ]
+    end
+
+    def explore_daily_routine_priority(routine)
+      return "high" if routine.routine_status == "overloaded"
+      return "high" if routine.high_score_observation_count.positive?
+      return "high" if routine.high_priority_opportunity_count.positive?
+      return "medium" if routine.import_needed
+
+      "medium"
     end
 
     def daily_run_tasks

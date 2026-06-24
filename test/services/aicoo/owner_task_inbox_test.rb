@@ -269,6 +269,33 @@ module Aicoo
       assert_equal [ "Discovery Reportを見る" ], task.quick_actions.map(&:label)
     end
 
+    test "returns high score explore signals" do
+      Aicoo::ExploreImportService.run!(
+        source_type: "youtube",
+        format: "csv",
+        raw_text: "title,description,score\nHigh score explore signal,imported signal,92"
+      )
+      observation = ExploreObservation.find_by!(title: "High score explore signal")
+
+      task = OwnerTaskInbox.new.call.tasks.find { |item| item.task_type == "explore_signal_review" && item.title == observation.title }
+
+      assert task
+      assert_equal "high", task.priority
+      assert_equal Rails.application.routes.url_helpers.admin_explore_observations_focus_path, task.target_path
+      assert_equal [ "Observation Focusで処理" ], task.quick_actions.map(&:label)
+    end
+
+    test "returns explore daily routine task" do
+      ExploreImportLog.delete_all
+
+      task = OwnerTaskInbox.new.call.tasks.find { |item| item.task_type == "explore_daily_routine" }
+
+      assert task
+      assert_equal "medium", task.priority
+      assert_equal Rails.application.routes.url_helpers.admin_explore_import_path, task.target_path
+      assert_equal [ "Explore Importへ", "Owner Focusを見る" ], task.quick_actions.map(&:label)
+    end
+
     test "returns non pending calibration warnings without duplicating pending action type" do
       ActionPredictionCalibration.create!(
         action_type: "seo_article",

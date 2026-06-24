@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_24_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_24_123000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -879,6 +879,52 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_24_120000) do
     t.index ["business_id"], name: "index_data_sources_on_business_id"
   end
 
+  create_table "explore_data_sources", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.boolean "enabled", default: true, null: false
+    t.datetime "last_success_at"
+    t.datetime "last_sync_at"
+    t.jsonb "metadata", default: {}, null: false
+    t.string "name", null: false
+    t.string "source_type", null: false
+    t.string "status", default: "inactive", null: false
+    t.datetime "updated_at", null: false
+    t.index ["enabled"], name: "index_explore_data_sources_on_enabled"
+    t.index ["source_type"], name: "index_explore_data_sources_on_source_type"
+    t.index ["status"], name: "index_explore_data_sources_on_status"
+  end
+
+  create_table "explore_import_logs", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "import_format", null: false
+    t.integer "imported_count", default: 0, null: false
+    t.string "source_type", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_at"], name: "index_explore_import_logs_on_created_at"
+    t.index ["import_format"], name: "index_explore_import_logs_on_import_format"
+    t.index ["source_type"], name: "index_explore_import_logs_on_source_type"
+  end
+
+  create_table "explore_observations", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.text "description"
+    t.bigint "explore_data_source_id", null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.string "observation_type", null: false
+    t.datetime "observed_at"
+    t.bigint "opportunity_discovery_item_id"
+    t.decimal "score"
+    t.string "status", default: "new", null: false
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.index ["explore_data_source_id"], name: "index_explore_observations_on_explore_data_source_id"
+    t.index ["observation_type"], name: "index_explore_observations_on_observation_type"
+    t.index ["observed_at"], name: "index_explore_observations_on_observed_at"
+    t.index ["opportunity_discovery_item_id"], name: "index_explore_observations_on_opportunity_discovery_item_id"
+    t.index ["score"], name: "index_explore_observations_on_score"
+    t.index ["status"], name: "index_explore_observations_on_status"
+  end
+
   create_table "meta_evaluation_snapshots", force: :cascade do |t|
     t.bigint "aicoo_daily_run_id"
     t.decimal "average_confidence_score", default: "0.0", null: false
@@ -1057,6 +1103,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_24_120000) do
   add_foreign_key "data_imports", "aicoo_analytics_sites"
   add_foreign_key "data_imports", "data_sources"
   add_foreign_key "data_sources", "businesses"
+  add_foreign_key "explore_observations", "explore_data_sources"
+  add_foreign_key "explore_observations", "opportunity_discovery_items"
   add_foreign_key "meta_evaluation_snapshots", "aicoo_daily_runs"
   add_foreign_key "meta_evaluation_snapshots", "businesses"
   add_foreign_key "opportunity_discovery_items", "action_candidates"

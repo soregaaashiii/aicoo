@@ -1,80 +1,88 @@
-<% content_for :title, "Owner Focus Home" %>
+<% content_for :title, "Owner Home" %>
 
 <% header_actions = capture do %>
-  <%= link_to "オーナーモードへ戻る", owner_dashboard_path, class: "button secondary" %>
-  <%= link_to "すべてのタスクを見る", owner_tasks_path, class: "button secondary" %>
+  <%= link_to "Tasks", owner_tasks_path, class: "button secondary" %>
+  <%= link_to "Dashboard", dashboard_path, class: "button secondary" %>
 <% end %>
 
 <div class="aicoo-page">
   <%= render "shared/aicoo_header",
-             title: "Owner Focus Home",
-             description: "次に押すべき1件だけを処理します。",
+             title: "Owner Home",
+             description: "次に何をするかだけを表示します。",
              active_main: :revenue,
              actions: header_actions %>
 
   <section class="dashboard-section">
     <div class="section-heading">
-      <h2>Focus Summary</h2>
-      <p><%= @owner_focus_home.summary_message %></p>
+      <h2>次にやる1件</h2>
+      <p><%= @owner_home_summary.summary_message %></p>
+    </div>
+
+    <% if @owner_home_summary.next_action %>
+      <% task = @owner_home_summary.next_action %>
+      <div class="aicoo-card">
+        <p>
+          <span class="pill"><%= task.priority %></span>
+          <span class="pill"><%= task.task_type_label %></span>
+        </p>
+        <h2><%= task.title %></h2>
+        <p><%= task.reason %></p>
+
+        <div class="actions compact-actions">
+          <% task.quick_actions.each do |action| %>
+            <% button_class = ["button", ("secondary" if action.style == "secondary"), ("danger" if action.style == "danger")].compact.join(" ") %>
+            <% data = action.confirm_message.present? ? { turbo_confirm: action.confirm_message } : {} %>
+            <% if action.method.to_s == "get" %>
+              <%= link_to action.label, action.path, class: button_class, data: %>
+            <% else %>
+              <%= button_to action.label, action.path, method: action.method, class: button_class, data: %>
+            <% end %>
+          <% end %>
+          <%= link_to "詳細を見る", task.target_path, class: "button secondary" %>
+        </div>
+      </div>
+    <% else %>
+      <div class="aicoo-card aicoo-empty-state">
+        <h2>今すぐ処理すべきタスクはありません。</h2>
+        <p>実行・結果登録・承認・異常対応が必要になるとここに出ます。</p>
+      </div>
+    <% end %>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>今日の処理状況</h2>
+      <p>見るべき数字だけを表示します。</p>
     </div>
     <div class="metric-grid aicoo-owner-secondary">
-      <div class="metric-card"><span>Focus Tasks</span><strong><%= @owner_focus_home.total_count %>件</strong></div>
-      <div class="metric-card"><span>Critical</span><strong><%= @owner_focus_home.critical_count %>件</strong></div>
-      <div class="metric-card"><span>High</span><strong><%= @owner_focus_home.high_count %>件</strong></div>
-      <div class="metric-card"><span>Generated</span><strong><%= l(@owner_focus_home.generated_at, format: :short) %></strong></div>
+      <div class="metric-card"><span>Execution Ready</span><strong><%= @owner_home_summary.execution_ready_count %>件</strong></div>
+      <div class="metric-card"><span>Result Registration</span><strong><%= @owner_home_summary.result_registration_count %>件</strong></div>
+      <div class="metric-card"><span>Calibration Pending</span><strong><%= @owner_home_summary.pending_calibration_count %>件</strong></div>
+      <div class="metric-card"><span>Explore Review</span><strong><%= @owner_home_summary.explore_review_count %>件</strong></div>
     </div>
   </section>
 
-  <% if @top_task %>
-    <section class="dashboard-section">
-      <div class="section-heading">
-        <h2>次にやるべき1件</h2>
-        <p>分析ではなく、この1件を処理するための画面です。</p>
-      </div>
-      <div class="aicoo-card">
-        <p>
-          <span class="pill"><%= @top_task.priority %></span>
-          <span class="pill"><%= @top_task.task_type_label %></span>
-        </p>
-        <h3><%= @top_task.title %></h3>
-        <dl class="detail-list">
-          <dt>何をするか</dt>
-          <dd><%= @top_task.description %></dd>
-          <dt>なぜ今やるか</dt>
-          <dd><%= @top_task.reason %></dd>
-          <dt>対象</dt>
-          <dd><%= link_to @top_task.target_label, @top_task.target_path %></dd>
-        </dl>
-      </div>
-    </section>
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>システム状態</h2>
+      <p>異常があるかだけ確認します。</p>
+    </div>
+    <div class="metric-grid aicoo-owner-secondary">
+      <div class="metric-card"><span>Daily Run</span><strong><%= @owner_home_summary.daily_run_status %></strong></div>
+      <div class="metric-card"><span>Learning</span><strong><%= @owner_home_summary.learning_status %></strong></div>
+    </div>
+  </section>
 
-    <section class="dashboard-section">
-      <div class="section-heading">
-        <h2>推奨アクション</h2>
-        <p>まずは一番左のボタンを押してください。</p>
-      </div>
-      <div class="actions compact-actions">
-        <% @top_task.quick_actions.each do |action| %>
-          <% button_class = ["button", ("secondary" if action.style == "secondary"), ("danger" if action.style == "danger")].compact.join(" ") %>
-          <% data = action.confirm_message.present? ? { turbo_confirm: action.confirm_message } : {} %>
-          <% if action.method.to_s == "get" %>
-            <%= link_to action.label, action.path, class: button_class, data: %>
-          <% else %>
-            <%= button_to action.label, action.path, method: action.method, class: button_class, data: %>
-          <% end %>
-        <% end %>
-        <%= link_to "スキップ", owner_focus_path, class: "button secondary" %>
-        <%= link_to "詳細を見る", @top_task.target_path, class: "button secondary" %>
-        <%= link_to "すべてのタスクを見る", owner_tasks_path, class: "button secondary" %>
-      </div>
-    </section>
-  <% else %>
-    <section class="dashboard-section">
-      <div class="aicoo-card aicoo-empty-state">
-        <h2>今すぐ処理すべきタスクはありません。</h2>
-        <p>承認・実行・結果登録・異常対応が必要になるとここに表示されます。</p>
-        <%= link_to "オーナーモードへ戻る", owner_dashboard_path, class: "button" %>
-      </div>
-    </section>
-  <% end %>
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>詳細画面</h2>
+      <p>必要な時だけ開きます。</p>
+    </div>
+    <div class="actions compact-actions">
+      <%= link_to "Tasks", owner_tasks_path, class: "button secondary" %>
+      <%= link_to "Learning", owner_learning_report_path, class: "button secondary" %>
+      <%= link_to "Explore", admin_explore_path, class: "button secondary" %>
+      <%= link_to "Dashboard", dashboard_path, class: "button secondary" %>
+    </div>
+  </section>
 </div>

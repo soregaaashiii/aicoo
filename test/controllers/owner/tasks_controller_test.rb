@@ -117,6 +117,7 @@ module Owner
       ActionCandidate.update_all(status: "done")
       ActionPredictionCalibration.delete_all
       AicooDailyRun.delete_all
+      ExploreImportLog.create!(source_type: "google_trends", import_format: "csv", imported_count: 1)
 
       get owner_tasks_url
 

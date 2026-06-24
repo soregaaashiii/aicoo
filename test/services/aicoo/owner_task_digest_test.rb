@@ -11,6 +11,7 @@ module Aicoo
       OwnerTaskCompletionLog.delete_all
       create_healthy_daily_run
       create_done_today_candidate
+      ExploreImportLog.create!(source_type: "google_trends", import_format: "csv", imported_count: 1)
     end
 
     test "critical task sets critical summary message" do

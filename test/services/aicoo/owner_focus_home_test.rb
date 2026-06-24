@@ -8,6 +8,7 @@ module Aicoo
       ActionPredictionCalibration.delete_all
       AicooDailyRun.delete_all
       OpportunityDiscoveryItem.delete_all
+      ExploreImportLog.create!(source_type: "google_trends", import_format: "csv", imported_count: 1)
       ActionCandidate.update_all(status: "done")
     end
 
@@ -51,6 +52,7 @@ module Aicoo
 
     test "execution ready is prioritized over high opportunity" do
       execution = create_ready_execution
+      ExploreImportLog.create!(source_type: "google_trends", import_format: "csv", imported_count: 1)
       OpportunityDiscoveryItem.create!(
         title: "High focus opportunity",
         business: businesses(:suelog),
@@ -61,6 +63,14 @@ module Aicoo
 
       assert_equal "action_execution_ready", result.top_task.task_type
       assert_includes result.top_task.title, execution.action_candidate.title
+    end
+
+    test "includes explore daily routine task" do
+      ExploreImportLog.delete_all
+
+      result = OwnerFocusHome.new.call
+
+      assert result.focus_tasks.any? { |task| task.task_type == "explore_daily_routine" }
     end
 
     private
