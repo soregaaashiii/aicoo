@@ -51,6 +51,7 @@ Rails.application.routes.draw do
     patch :start_implementation, on: :member
     patch :update_codex_tracking, on: :member
     patch :record_result, on: :member
+    get :export_codex_prompt, on: :member
   end
 
   resources :revenue_events

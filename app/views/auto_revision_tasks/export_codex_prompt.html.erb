@@ -1,0 +1,74 @@
+<% content_for :title, "Codex Prompt Export" %>
+
+<% header_actions = capture do %>
+  <%= link_to "AutoRevisionTask詳細", @auto_revision_task, class: "button secondary" %>
+  <%= link_to "Codex Queue", codex_queue_auto_revision_tasks_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "Codex Prompt Export",
+             description: "Codexへ貼り付けるMarkdownと、AICOOへ結果を戻すテンプレートです。",
+             active_main: :dashboard,
+             actions: header_actions %>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Target Validation</h2>
+      <p>invalidの場合はExportできません。Execution Profileを修正してください。</p>
+    </div>
+    <div class="metric-grid">
+      <div class="metric-card"><span>status</span><strong><%= @target_validation.target_status %></strong></div>
+      <div class="metric-card"><span>Business</span><strong><%= @target_validation.target_business&.name || "-" %></strong></div>
+      <div class="metric-card"><span>Repository</span><strong><%= @target_validation.target_repository_name.presence || "-" %></strong></div>
+      <div class="metric-card"><span>missing</span><strong><%= @target_validation.missing_items.size %>件</strong></div>
+    </div>
+
+    <% if @target_validation.errors.any? %>
+      <h3>errors</h3>
+      <ul>
+        <% @target_validation.errors.each do |message| %>
+          <li><%= message %></li>
+        <% end %>
+      </ul>
+      <div class="actions compact-actions">
+        <% if @auto_revision_task.business.business_execution_profile %>
+          <%= link_to "Execution Profileを修正", edit_admin_business_execution_profile_path(@auto_revision_task.business.business_execution_profile), class: "button" %>
+        <% else %>
+          <%= link_to "Execution Profileを作成", new_admin_business_execution_profile_path(business_id: @auto_revision_task.business_id), class: "button" %>
+        <% end %>
+      </div>
+    <% end %>
+
+    <% if @target_validation.warnings.any? %>
+      <h3>warnings</h3>
+      <ul>
+        <% @target_validation.warnings.each do |message| %>
+          <li><%= message %></li>
+        <% end %>
+      </ul>
+    <% end %>
+  </section>
+
+  <% unless @target_validation.invalid? %>
+    <section class="dashboard-section">
+      <div class="section-heading">
+        <h2>Markdown Export</h2>
+        <p>Codexへ貼る内容です。結果登録テンプレートも末尾に含みます。</p>
+      </div>
+      <div class="actions compact-actions">
+        <%= link_to "Markdownをダウンロード",
+                    export_codex_prompt_auto_revision_task_path(@auto_revision_task, download: "1"),
+                    class: "button" %>
+        <button type="button"
+                class="button secondary"
+                onclick="navigator.clipboard.writeText(document.getElementById('codex-prompt-markdown').value)">
+          クリップボードにコピー
+        </button>
+      </div>
+      <div class="field">
+        <textarea id="codex-prompt-markdown" readonly rows="36" class="code-textarea"><%= @markdown %></textarea>
+      </div>
+    </section>
+  <% end %>
+</div>

@@ -7,6 +7,10 @@ class AutoRevisionTaskSummary
     :running_count,
     :stale_codex_task_count,
     :old_codex_check_count,
+    :target_validation_counts,
+    :exported_codex_prompt_count,
+    :unexported_codex_prompt_count,
+    :invalid_export_blocked_count,
     :quality_result_counts,
     :quality_approval_counts,
     :pending_quality_gate_count,
@@ -34,6 +38,7 @@ class AutoRevisionTaskSummary
     approval_queue_tasks = AutoRevisionTask.includes(:business, :action_candidate).where(status: "waiting_approval").by_priority.limit(5)
     setting = AicooAutoRevisionSetting.current
     latest_queue_run = AutoRevisionQueueRun.recent.first
+    target_validation_counts = calculate_target_validation_counts
     Result.new(
       waiting_approval_count: AutoRevisionTask.where(status: "waiting_approval").count,
       approved_count: AutoRevisionTask.where(status: "approved").count,
@@ -42,6 +47,10 @@ class AutoRevisionTaskSummary
       running_count: AutoRevisionTask.where(status: "running").count,
       stale_codex_task_count: AutoRevisionTask.stale_codex.count,
       old_codex_check_count: AutoRevisionTask.codex_check_overdue.count,
+      target_validation_counts:,
+      exported_codex_prompt_count: exported_codex_prompt_count,
+      unexported_codex_prompt_count: unexported_codex_prompt_count,
+      invalid_export_blocked_count: target_validation_counts["invalid"],
       quality_result_counts: CodexQualityCheck::RESULTS.index_with { |result| CodexQualityCheck.where(result:).count },
       quality_approval_counts: CodexQualityCheck::APPROVAL_STATUSES.index_with { |status| CodexQualityCheck.where(approval_status: status).count },
       pending_quality_gate_count: CodexQualityCheck.pending_review.count,
@@ -67,6 +76,26 @@ class AutoRevisionTaskSummary
   end
 
   private
+
+  def calculate_target_validation_counts
+    counts = { "valid" => 0, "warning" => 0, "invalid" => 0 }
+    AutoRevisionTask.includes(:business).where(status: AutoRevisionTask::CODEX_QUEUE_STATUSES).find_each do |task|
+      counts[task.codex_prompt_target_validation.target_status] += 1
+    end
+    counts
+  end
+
+  def exported_codex_prompt_count
+    AutoRevisionTask.where(status: AutoRevisionTask::CODEX_QUEUE_STATUSES).count do |task|
+      task.metadata.to_h["last_exported_at"].present?
+    end
+  end
+
+  def unexported_codex_prompt_count
+    AutoRevisionTask.where(status: AutoRevisionTask::CODEX_QUEUE_STATUSES).count do |task|
+      task.metadata.to_h["last_exported_at"].blank?
+    end
+  end
 
   def high_risk_candidate_count
     setting = AicooAutoRevisionSetting.current

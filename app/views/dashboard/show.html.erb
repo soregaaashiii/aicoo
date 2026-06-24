@@ -130,6 +130,12 @@
     <div class="metric-card"><span>running</span><strong><%= @auto_revision_task_summary.running_count %>件</strong></div>
     <div class="metric-card"><span>7日以上放置</span><strong><%= @auto_revision_task_summary.stale_codex_task_count %>件</strong></div>
     <div class="metric-card"><span>最終確認が古い</span><strong><%= @auto_revision_task_summary.old_codex_check_count %>件</strong></div>
+    <div class="metric-card"><span>target valid</span><strong><%= @auto_revision_task_summary.target_validation_counts["valid"] %>件</strong></div>
+    <div class="metric-card"><span>target warning</span><strong><%= @auto_revision_task_summary.target_validation_counts["warning"] %>件</strong></div>
+    <div class="metric-card"><span>target invalid</span><strong><%= @auto_revision_task_summary.target_validation_counts["invalid"] %>件</strong></div>
+    <div class="metric-card"><span>export済み</span><strong><%= @auto_revision_task_summary.exported_codex_prompt_count %>件</strong></div>
+    <div class="metric-card"><span>未export</span><strong><%= @auto_revision_task_summary.unexported_codex_prompt_count %>件</strong></div>
+    <div class="metric-card"><span>export不可</span><strong><%= @auto_revision_task_summary.invalid_export_blocked_count %>件</strong></div>
     <div class="metric-card"><span>failed</span><strong><%= @auto_revision_task_summary.failed_count %>件</strong></div>
     <% @auto_revision_task_summary.quality_result_counts.each do |result, count| %>
       <div class="metric-card"><span>quality <%= result %></span><strong><%= count %>件</strong></div>
@@ -143,6 +149,9 @@
   <% end %>
   <% if @auto_revision_task_summary.pending_quality_gate_count >= 5 %>
     <p class="aicoo-empty-state">Quality Gate未処理タスクがあります。品質確認後にLearning Loopへ反映してください。</p>
+  <% end %>
+  <% if @auto_revision_task_summary.target_validation_counts["invalid"].positive? %>
+    <p class="aicoo-empty-state">Codex投入前に対象Repository設定が不完全なタスクがあります。Execution Profileを確認してください。</p>
   <% end %>
   <div class="actions compact-actions">
     <%= link_to "Quality Gateを見る", codex_quality_checks_path, class: "button secondary" %>

@@ -7,6 +7,7 @@ class AutoRevisionTasksController < ApplicationController
     start_implementation
     update_codex_tracking
     record_result
+    export_codex_prompt
   ]
 
   def index
@@ -41,6 +42,9 @@ class AutoRevisionTasksController < ApplicationController
   def mark_sent_to_codex
     @auto_revision_task.mark_sent_to_codex!
     redirect_back fallback_location: codex_queue_auto_revision_tasks_path, notice: "Codex投入済みにしました。"
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_back fallback_location: codex_queue_auto_revision_tasks_path,
+                  alert: "Codex投入前のTarget Validationに失敗しました: #{e.record.errors.full_messages.to_sentence}"
   end
 
   def start_implementation
@@ -62,6 +66,23 @@ class AutoRevisionTasksController < ApplicationController
     notice = execution_log ? "実装結果を登録し、ActionExecutionLogを作成しました。" : "実装結果を登録しました。"
 
     redirect_to @auto_revision_task, notice:
+  end
+
+  def export_codex_prompt
+    @target_validation = @auto_revision_task.codex_prompt_target_validation
+    if @target_validation.invalid?
+      render :export_codex_prompt, status: :unprocessable_content
+      return
+    end
+
+    @auto_revision_task.record_codex_prompt_export!
+    @markdown = @auto_revision_task.codex_prompt_markdown
+    return unless params[:download] == "1"
+
+    send_data @markdown,
+              filename: @auto_revision_task.codex_prompt_export_filename,
+              type: "text/markdown; charset=utf-8",
+              disposition: "attachment"
   end
 
   private

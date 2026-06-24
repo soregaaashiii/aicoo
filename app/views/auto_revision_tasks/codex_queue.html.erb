@@ -49,6 +49,7 @@
         </thead>
         <tbody>
           <% @auto_revision_tasks.each do |task| %>
+            <% target_validation = task.codex_prompt_target_validation %>
             <tr>
               <td><%= link_to task.title, task %></td>
               <td><%= task.business.name %></td>
@@ -58,6 +59,13 @@
                 <span class="pill"><%= task.repository_target_status_label %></span>
                 <% if task.repository_target_warning? %>
                   <small>不足: <%= task.repository_target_missing_fields_label %></small>
+                <% end %>
+                <br>
+                <span class="pill"><%= target_validation.target_status %></span>
+                <% if target_validation.invalid? %>
+                  <small><%= target_validation.missing_items.join(", ") %></small>
+                <% elsif target_validation.warning? %>
+                  <small>warning</small>
                 <% end %>
               </td>
               <td><span class="pill"><%= task.risk_level %></span></td>
@@ -84,11 +92,27 @@
                   <button type="button"
                           class="button secondary"
                           onclick="navigator.clipboard.writeText(this.dataset.prompt)"
-                          data-prompt="<%= h(task.codex_prompt) %>">
-                    Codexプロンプトをコピー
+                          data-prompt="<%= h(task.codex_prompt_markdown) %>"
+                          <%= "disabled" if target_validation.invalid? %>>
+                    Copy
                   </button>
+                  <% if target_validation.invalid? %>
+                    <button class="button secondary" disabled>Export不可</button>
+                  <% else %>
+                    <%= link_to "Export", export_codex_prompt_auto_revision_task_path(task), class: "button secondary" %>
+                  <% end %>
+                  <%= link_to "詳細", task, class: "button secondary" %>
                   <% if task.status == "ready_for_codex" %>
-                    <%= button_to "Codex投入済みにする", mark_sent_to_codex_auto_revision_task_path(task), method: :patch, class: "button" %>
+                    <% if target_validation.invalid? %>
+                      <button class="button" disabled>Codex投入不可</button>
+                      <% if task.business.business_execution_profile %>
+                        <%= link_to "Execution Profileを修正", edit_admin_business_execution_profile_path(task.business.business_execution_profile), class: "button secondary" %>
+                      <% else %>
+                        <%= link_to "Execution Profileを作成", new_admin_business_execution_profile_path(business_id: task.business_id), class: "button secondary" %>
+                      <% end %>
+                    <% else %>
+                      <%= button_to "Codex投入済みにする", mark_sent_to_codex_auto_revision_task_path(task), method: :patch, class: "button" %>
+                    <% end %>
                   <% elsif task.status == "sent_to_codex" %>
                     <%= button_to "実装開始", start_implementation_auto_revision_task_path(task), method: :patch, class: "button" %>
                   <% elsif task.status == "running" %>

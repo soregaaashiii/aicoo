@@ -54,6 +54,16 @@ class AutoRevisionTaskTest < ActiveSupport::TestCase
   end
 
   test "can move through codex execution states" do
+    BusinessExecutionProfile.create!(
+      business: businesses(:suelog),
+      repository_name: "suelog",
+      repository_type: "rails",
+      repository_path: "/apps/suelog",
+      github_repository: "kawamura/suelog",
+      test_command: "bin/rails test",
+      lint_command: "bundle exec rubocop",
+      deploy_command: "bin/deploy"
+    )
     task = AutoRevisionTask.from_action_candidate(action_candidates(:nagazakicho_article))
     task.approve!
 
@@ -140,6 +150,47 @@ class AutoRevisionTaskTest < ActiveSupport::TestCase
     assert_includes prompt, "bin/rails test:system"
     assert_includes prompt, "bundle exec standardrb"
     assert_includes prompt, "destroy_all"
+  end
+
+  test "codex prompt markdown includes export metadata and result intake template" do
+    BusinessExecutionProfile.create!(
+      business: businesses(:suelog),
+      repository_name: "suelog",
+      repository_type: "rails",
+      repository_path: "/apps/suelog",
+      github_repository: "kawamura/suelog",
+      default_branch: "main",
+      test_command: "bin/rails test",
+      lint_command: "bundle exec rubocop",
+      deploy_command: "bin/deploy",
+      codex_instructions: "吸えログ固有の注意事項",
+      forbidden_patterns: "db:drop\ndestroy_all"
+    )
+    task = AutoRevisionTask.from_action_candidate(action_candidates(:nagazakicho_article))
+
+    markdown = task.codex_prompt_markdown
+
+    assert_includes markdown, "AutoRevisionTask ##{task.id}"
+    assert_includes markdown, "Target Repository Name: suelog"
+    assert_includes markdown, "Target Repository Type: rails"
+    assert_includes markdown, "GitHub Repository: kawamura/suelog"
+    assert_includes markdown, "Repository Path: /apps/suelog"
+    assert_includes markdown, "Default Branch: main"
+    assert_includes markdown, "吸えログ固有の注意事項"
+    assert_includes markdown, "destroy_all"
+    assert_includes markdown, "AICOO Result Intake Template"
+    assert_includes markdown, "Changed Files:"
+    assert_includes markdown, "Test Result:"
+  end
+
+  test "records codex prompt export history" do
+    task = AutoRevisionTask.from_action_candidate(action_candidates(:nagazakicho_article))
+
+    task.record_codex_prompt_export!
+    task.record_codex_prompt_export!
+
+    assert_equal 2, task.metadata["export_count"]
+    assert task.metadata["last_exported_at"].present?
   end
 
   test "records succeeded result with finished_at" do

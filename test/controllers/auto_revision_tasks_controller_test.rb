@@ -65,6 +65,47 @@ class AutoRevisionTasksControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, "Execution Profileがmissing"
   end
 
+  test "exports codex prompt for valid task" do
+    create_configured_profile
+    task = AutoRevisionTask.from_action_candidate(action_candidates(:nagazakicho_article))
+
+    assert_changes -> { task.reload.metadata["export_count"].to_i }, from: 0, to: 1 do
+      get export_codex_prompt_auto_revision_task_url(task)
+    end
+
+    assert_response :success
+    assert_includes response.body, "Codex Prompt Export"
+    assert_includes response.body, "Markdown Export"
+    assert_includes response.body, "AutoRevisionTask ##{task.id}"
+    assert_includes response.body, "Target Repository Name: suelog"
+    assert_includes response.body, "AICOO Result Intake Template"
+  end
+
+  test "downloads codex prompt markdown for valid task" do
+    create_configured_profile
+    task = AutoRevisionTask.from_action_candidate(action_candidates(:nagazakicho_article))
+
+    get export_codex_prompt_auto_revision_task_url(task, download: "1")
+
+    assert_response :success
+    assert_equal "text/markdown", response.media_type
+    assert_includes response.body, "AutoRevisionTask ##{task.id}"
+    assert_includes response.body, "Changed Files:"
+  end
+
+  test "does not export codex prompt for invalid task" do
+    task = AutoRevisionTask.from_action_candidate(action_candidates(:nagazakicho_article))
+
+    assert_no_changes -> { task.reload.metadata["export_count"].to_i } do
+      get export_codex_prompt_auto_revision_task_url(task)
+    end
+
+    assert_response :unprocessable_content
+    assert_includes response.body, "Target Validation"
+    assert_includes response.body, "BusinessExecutionProfile"
+    assert_includes response.body, "Execution Profileを作成"
+  end
+
   test "approves auto revision task" do
     task = AutoRevisionTask.from_action_candidate(action_candidates(:nagazakicho_article))
 
@@ -76,6 +117,7 @@ class AutoRevisionTasksControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "marks auto revision task as sent to codex" do
+    create_configured_profile
     task = AutoRevisionTask.from_action_candidate(action_candidates(:nagazakicho_article))
     task.approve!
 
@@ -84,6 +126,17 @@ class AutoRevisionTasksControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to codex_queue_auto_revision_tasks_url
     assert_equal "sent_to_codex", task.reload.status
     assert_not_nil task.sent_to_codex_at
+  end
+
+  test "does not mark invalid target task as sent to codex" do
+    task = AutoRevisionTask.from_action_candidate(action_candidates(:nagazakicho_article))
+    task.approve!
+
+    patch mark_sent_to_codex_auto_revision_task_url(task)
+
+    assert_redirected_to codex_queue_auto_revision_tasks_url
+    assert_equal "ready_for_codex", task.reload.status
+    assert_match(/Target Validationに失敗/, flash[:alert])
   end
 
   test "starts implementation" do
@@ -200,6 +253,7 @@ class AutoRevisionTasksControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "codex queue shows only executable queue statuses" do
+    create_configured_profile
     ready = AutoRevisionTask.from_action_candidate(action_candidates(:nagazakicho_article))
     ready.approve!
     sent = create_task(title: "Codex投入済みタスク", status: "sent_to_codex")
@@ -219,7 +273,10 @@ class AutoRevisionTasksControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "最終確認"
     assert_includes response.body, "Codexスレッド"
     assert_includes response.body, "Target"
-    assert_includes response.body, "missing"
+    assert_includes response.body, "valid"
+    assert_includes response.body, "Export"
+    assert_includes response.body, "Copy"
+    assert_includes response.body, "詳細"
     assert_includes response.body, "Codex投入済みにする"
     assert_includes response.body, "実装開始"
     assert_includes response.body, "結果登録"
@@ -240,6 +297,19 @@ class AutoRevisionTasksControllerTest < ActionDispatch::IntegrationTest
   end
 
   private
+
+  def create_configured_profile
+    BusinessExecutionProfile.create!(
+      business: businesses(:suelog),
+      repository_name: "suelog",
+      repository_type: "rails",
+      repository_path: "/apps/suelog",
+      github_repository: "kawamura/suelog",
+      test_command: "bin/rails test",
+      lint_command: "bundle exec rubocop",
+      deploy_command: "bin/deploy"
+    )
+  end
 
   def create_task(title:, status:)
     candidate = ActionCandidate.create!(

@@ -81,6 +81,12 @@ class AutoRevisionTask < ApplicationRecord
   end
 
   def mark_sent_to_codex!
+    validation = codex_prompt_target_validation
+    if validation.invalid?
+      errors.add(:base, validation.errors.to_sentence)
+      raise ActiveRecord::RecordInvalid, self
+    end
+
     update!(status: "sent_to_codex", sent_to_codex_at: sent_to_codex_at || Time.current)
   end
 
@@ -248,6 +254,100 @@ class AutoRevisionTask < ApplicationRecord
     profile.missing_required_fields.join(", ")
   end
 
+  def codex_prompt_target_validation
+    AicooCodexPromptTargetValidationService.new(self).call
+  end
+
+  def codex_prompt_markdown
+    profile = execution_profile
+    <<~MARKDOWN
+      # AutoRevisionTask ##{id}: #{title}
+
+      ## Target
+
+      - AutoRevisionTask ID: #{id}
+      - Title: #{title}
+      - Business: #{business.name}
+      - Target Repository Name: #{target_repository_name.presence || "-"}
+      - Target Repository Type: #{target_repository_type.presence || "-"}
+      - GitHub Repository: #{profile&.github_repository.presence || "-"}
+      - Repository Path: #{profile&.repository_path.presence || "-"}
+      - Default Branch: #{profile&.default_branch.presence || "-"}
+      - Risk Level: #{risk_level}
+      - Priority Score: #{priority_score}
+
+      ## Execution Prompt
+
+      #{execution_prompt.presence || "ActionCandidate詳細を確認し、目的に沿って必要最小限の改修を行ってください。"}
+
+      ## Business Codex Instructions
+
+      #{profile&.codex_instructions.presence || "特記事項はありません。"}
+
+      ## Repository Commands
+
+      - Test Command: #{profile&.test_command.presence || "bin/rails test"}
+      - Lint Command: #{profile&.lint_command.presence || "RUBOCOP_CACHE_ROOT=tmp/rubocop_cache bundle exec rubocop"}
+      - Deploy Command: #{profile&.deploy_command.presence || "-"}
+
+      ## Forbidden Patterns
+
+      #{markdown_list(profile&.forbidden_pattern_lines.presence || BusinessExecutionProfile::DEFAULT_FORBIDDEN_PATTERNS)}
+
+      ## Safety Rules
+
+      - db:drop / db:reset / drop database は絶対に実行しない
+      - 既存機能を壊さない
+      - 本番secretやtokenを表示しない
+      - 高リスク変更は勝手に広げない
+
+      ## Confirmation Commands
+
+      #{confirmation_command_prompt}
+      #{migration_confirmation_commands}
+
+      ## AICOO Result Intake Template
+
+      ```text
+      AICOO Result Intake Template
+
+      AutoRevisionTask ID:
+      #{id}
+
+      Status:
+      - succeeded
+      - partial_succeeded
+      - failed
+      - canceled
+
+      Result Summary:
+
+      Changed Files:
+
+      Test Result:
+
+      Codex Output:
+
+      Error Message:
+      ```
+    MARKDOWN
+  end
+
+  def codex_prompt_export_filename
+    "auto_revision_task_#{id}_codex_prompt.md"
+  end
+
+  def record_codex_prompt_export!
+    current_metadata = metadata.to_h
+    export_count = current_metadata["export_count"].to_i + 1
+    update!(
+      metadata: current_metadata.merge(
+        "last_exported_at" => Time.current.iso8601,
+        "export_count" => export_count
+      )
+    )
+  end
+
   private
 
   def set_defaults
@@ -279,6 +379,10 @@ class AutoRevisionTask < ApplicationRecord
     ].uniq
 
     commands.map { |command| "- #{command}" }.join("\n")
+  end
+
+  def markdown_list(items)
+    Array(items).map { |item| "- #{item}" }.join("\n")
   end
 
   def migration_confirmation_commands

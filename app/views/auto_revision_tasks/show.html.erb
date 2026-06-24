@@ -81,6 +81,39 @@
 
   <section class="dashboard-section">
     <div class="section-heading">
+      <h2>Codex Prompt Target Validation</h2>
+      <p>Codexへ投入する前に、対象Repositoryとプロンプトの安全性を確認します。</p>
+    </div>
+    <% target_validation = @auto_revision_task.codex_prompt_target_validation %>
+    <div class="metric-grid">
+      <div class="metric-card"><span>target_status</span><strong><%= target_validation.target_status %></strong></div>
+      <div class="metric-card"><span>対象Business</span><strong><%= target_validation.target_business&.name || "-" %></strong></div>
+      <div class="metric-card"><span>対象Repository</span><strong><%= target_validation.target_repository_name.presence || "-" %></strong></div>
+      <div class="metric-card"><span>missing_items</span><strong><%= target_validation.missing_items.size %>件</strong></div>
+    </div>
+    <% if target_validation.errors.any? %>
+      <h3>errors</h3>
+      <ul>
+        <% target_validation.errors.each do |message| %>
+          <li><%= message %></li>
+        <% end %>
+      </ul>
+    <% end %>
+    <% if target_validation.warnings.any? %>
+      <h3>warnings</h3>
+      <ul>
+        <% target_validation.warnings.each do |message| %>
+          <li><%= message %></li>
+        <% end %>
+      </ul>
+    <% end %>
+    <% if target_validation.missing_items.any? %>
+      <p>missing_items: <%= target_validation.missing_items.join(", ") %></p>
+    <% end %>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
       <h2>Codex Execution Tracking</h2>
       <p>Codexへ投入した日時、実行スレッド、最終確認日時を記録します。</p>
     </div>
