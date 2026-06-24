@@ -86,6 +86,57 @@
              action_center: @learning_loop_action_center,
              compact: true %>
 
+  <section class="dashboard-section" id="step-breakdown">
+    <div class="section-heading">
+      <h2>Step Breakdown</h2>
+      <p>Daily Runのどのステップが成功・失敗・遅延したかを確認します。</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>step_name</th>
+            <th>status</th>
+            <th>started_at</th>
+            <th>finished_at</th>
+            <th>duration</th>
+            <th>error</th>
+            <th>metadata</th>
+            <th>recovery</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @daily_run_steps.each do |step| %>
+            <tr>
+              <td><%= step.step_name %></td>
+              <td><span class="pill"><%= step.status %></span></td>
+              <td><%= step.started_at ? l(step.started_at, format: :short) : "-" %></td>
+              <td><%= step.finished_at ? l(step.finished_at, format: :short) : "-" %></td>
+              <td class="number"><%= step.duration_seconds ? "#{number_with_precision(step.duration_seconds, precision: 2)}秒" : "-" %></td>
+              <td><%= truncate(step.error_message.to_s.presence || "-", length: 80) %></td>
+              <td><%= truncate(step.metadata.to_h.map { |key, value| "#{key}=#{value}" }.join(", ").presence || "-", length: 120) %></td>
+              <td>
+                <% if step.recovery_needed? %>
+                  <%= button_to "Recovery", recover_aicoo_daily_run_step_path(@daily_run, step), method: :post, class: "button secondary", data: { turbo_confirm: "#{step.step_name} stepを再実行しますか？" } %>
+                <% elsif step.recoverable? %>
+                  <span class="pill">再実行可能</span>
+                <% else %>
+                  <span class="pill">再実行不可</span>
+                <% end %>
+                <% if step.last_recovery_at %>
+                  <br><small><%= step.last_recovery_status %> / <%= l(step.last_recovery_at, format: :short) %></small>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+          <% if @daily_run_steps.empty? %>
+            <tr><td colspan="8">このDaily RunにはStep Breakdownがまだありません。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
   <section class="dashboard-section">
     <div class="section-heading">
       <h2>自動改修タスク候補</h2>

@@ -1,5 +1,5 @@
 class ActionPredictionCalibrationLog < ApplicationRecord
-  SOURCES = %w[manual daily_run approval rejected].freeze
+  SOURCES = %w[manual daily_run step_recovery approval rejected].freeze
 
   belongs_to :aicoo_daily_run, optional: true
 

@@ -54,6 +54,23 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
       assert_match "Calibration finished updated_calibration_count=2", run.run_log
       assert_match "pending_calibration_count=0", run.run_log
       assert_match "AutoRevisionQueue skipped reason=disabled", run.run_log
+      assert_equal 13, run.aicoo_daily_run_steps.count
+      assert_equal %w[
+        analytics_fetch
+        datahub_collect
+        business_metrics_import
+        proxy_weight_adjustment
+        action_generation
+        insight_generation
+        action_result_evaluation
+        score_snapshot
+        data_preparation_queue
+        meta_evaluation_snapshot
+        calibration
+        owner_task_digest
+        auto_revision_queue
+      ], run.aicoo_daily_run_steps.order(:created_at).pluck(:step_name)
+      assert_equal %w[skipped success], run.aicoo_daily_run_steps.distinct.pluck(:status).sort
       assert_equal 0, AutoRevisionQueueRun.count
       assert_equal %i[analytics datahub import adjust_all generate insight evaluate snapshot queue meta_snapshot calibration], order
     end
@@ -91,6 +108,9 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
       assert_equal "cron", run.source
       assert_equal 0, run.analytics_fetch_count
       assert_match "Analytics fetched success=0 failed=1", run.run_log
+      analytics_step = run.aicoo_daily_run_steps.find_by!(step_name: "analytics_fetch")
+      assert_equal "failed", analytics_step.status
+      assert_match "analytics_failed=1", analytics_step.error_message
     end
   end
 
@@ -113,6 +133,9 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
       assert_equal false, run.calibration_ran
       assert_match "RuntimeError: calibration boom", run.calibration_error
       assert_match "Calibration failed", run.run_log
+      calibration_step = run.aicoo_daily_run_steps.find_by!(step_name: "calibration")
+      assert_equal "failed", calibration_step.status
+      assert_match "RuntimeError: calibration boom", calibration_step.error_message
     end
   end
 
@@ -129,6 +152,9 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
     assert_equal "failed", run.status
     assert_match "RuntimeError: boom", run.error_message
     assert_match "Daily Run failed", run.run_log
+    step = run.aicoo_daily_run_steps.find_by!(step_name: "business_metrics_import")
+    assert_equal "failed", step.status
+    assert_match "RuntimeError: boom", step.error_message
   end
 
   test "does not start duplicate running daily run for same target date" do

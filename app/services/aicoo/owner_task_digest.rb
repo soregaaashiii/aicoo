@@ -13,7 +13,8 @@ module Aicoo
       :top_priority_task,
       :recommended_next_action,
       :summary_message,
-      :warnings
+      :warnings,
+      :daily_run_health
     )
 
     def initialize(owner_task_inbox: nil)
@@ -25,6 +26,7 @@ module Aicoo
       tasks = inbox.tasks
       counts = inbox.counts_by_priority
       top_task = top_priority_task(tasks)
+      daily_run_health = DailyRunHealthSummary.new.call
 
       Result.new(
         generated_at: Time.current,
@@ -38,8 +40,9 @@ module Aicoo
         new_since_yesterday_count: new_since_yesterday_count(tasks),
         top_priority_task: top_task,
         recommended_next_action: recommended_next_action(top_task),
-        summary_message: summary_message(tasks, counts),
-        warnings: warnings(tasks, counts)
+        summary_message: summary_message(tasks, counts, daily_run_health),
+        warnings: warnings(tasks, counts, daily_run_health),
+        daily_run_health:
       )
     end
 
@@ -64,7 +67,9 @@ module Aicoo
         task.quick_actions.first
     end
 
-    def summary_message(tasks, counts)
+    def summary_message(tasks, counts, daily_run_health)
+      return "Daily Runに重大な問題があります。最優先で確認してください。" if daily_run_health.health_status == "critical"
+      return "Daily Runに一部問題があります。" if daily_run_health.health_status == "warning"
       return "現在、確認が必要なタスクはありません。" if tasks.empty?
       return "Criticalタスクがあります。最優先で確認してください。" if counts.fetch("critical", 0).positive?
       return "評価関数補正の承認待ちがあります。" if tasks.any? { |task| task.task_type == "calibration_approval" }
@@ -73,8 +78,9 @@ module Aicoo
       "確認タスクがあります。空き時間で処理してください。"
     end
 
-    def warnings(tasks, counts)
+    def warnings(tasks, counts, daily_run_health)
       [].tap do |items|
+        items.concat(daily_run_health.warnings)
         if tasks.any? { |task| task.task_type == "calibration_approval" && task.priority == "critical" }
           items << "危険度の高い評価式補正が承認待ちです。"
         end

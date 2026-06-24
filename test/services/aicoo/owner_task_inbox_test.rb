@@ -68,6 +68,58 @@ module Aicoo
       assert_equal [ "再実行", "詳細を見る" ], task.quick_actions.map(&:label)
     end
 
+    test "returns daily run step failures as tasks" do
+      run = AicooDailyRun.create!(
+        target_date: Date.yesterday,
+        status: "success",
+        source: "manual",
+        started_at: Time.current,
+        finished_at: Time.current
+      )
+      run.aicoo_daily_run_steps.create!(
+        step_name: "action_generation",
+        status: "failed",
+        started_at: 2.minutes.ago,
+        finished_at: 1.minute.ago,
+        duration_seconds: 60,
+        error_message: "generation boom"
+      )
+
+      task = OwnerTaskInbox.new.call.tasks.find { |item| item.task_type == "daily_run_step_failure" }
+
+      assert task
+      assert_equal "critical", task.priority
+      assert_match "action_generation", task.title
+      assert_match "generation boom", task.reason
+      assert_equal Rails.application.routes.url_helpers.aicoo_daily_run_path(run), task.target_path
+    end
+
+    test "returns recoverable daily run steps as recovery tasks" do
+      run = AicooDailyRun.create!(
+        target_date: Date.yesterday,
+        status: "partial_failed",
+        source: "manual",
+        started_at: Time.current,
+        finished_at: Time.current
+      )
+      step = run.aicoo_daily_run_steps.create!(
+        step_name: "calibration",
+        status: "failed",
+        started_at: 2.minutes.ago,
+        finished_at: 1.minute.ago,
+        duration_seconds: 60,
+        error_message: "calibration boom"
+      )
+
+      task = OwnerTaskInbox.new.call.tasks.find { |item| item.task_type == "daily_run_step_recovery" }
+
+      assert task
+      assert_equal "high", task.priority
+      assert_match "calibration", task.title
+      assert_equal [ "復旧する", "Step Breakdownを見る" ], task.quick_actions.map(&:label)
+      assert_equal Rails.application.routes.url_helpers.recover_aicoo_daily_run_step_path(run, step), task.quick_actions.first.path
+    end
+
     test "returns non pending calibration warnings without duplicating pending action type" do
       ActionPredictionCalibration.create!(
         action_type: "seo_article",

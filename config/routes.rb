@@ -57,7 +57,11 @@ Rails.application.routes.draw do
   resources :revenue_events
   resources :business_metric_dailies
   resource :aicoo_setting, only: %i[show update]
-  resources :aicoo_daily_runs, only: %i[index show create]
+  resources :aicoo_daily_runs, only: %i[index show create] do
+    resources :steps, only: [], controller: "aicoo_daily_run_steps" do
+      post :recover, on: :member
+    end
+  end
   get "judge", to: "admin/aicoo_judge#show", as: :judge
   get "judge/action_predictions", to: "admin/aicoo_judge#action_predictions", as: :judge_action_predictions
 

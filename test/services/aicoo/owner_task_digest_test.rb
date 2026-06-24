@@ -7,6 +7,8 @@ module Aicoo
       ActionPredictionCalibration.delete_all
       AicooDailyRun.delete_all
       OwnerTaskCompletionLog.delete_all
+      create_healthy_daily_run
+      create_done_today_candidate
     end
 
     test "critical task sets critical summary message" do
@@ -29,13 +31,15 @@ module Aicoo
     end
 
     test "selects highest priority task before newer lower priority task" do
+      AicooDailyRun.delete_all
       run = AicooDailyRun.create!(
         target_date: Date.yesterday,
         status: "failed",
         source: "manual",
         error_message: "boom",
-        created_at: 2.days.ago,
-        finished_at: 2.days.ago
+        started_at: Time.current,
+        created_at: Time.current,
+        finished_at: Time.current
       )
       ActionCandidate.create!(
         business: businesses(:suelog),
@@ -94,6 +98,28 @@ module Aicoo
         warning_level: "danger",
         warning_reason: "利益補正係数が極端です",
         approval_requested_at: Time.current
+      )
+    end
+
+    def create_healthy_daily_run
+      AicooDailyRun.create!(
+        target_date: Date.current,
+        status: "success",
+        source: "manual",
+        started_at: 10.minutes.ago,
+        finished_at: 5.minutes.ago
+      )
+    end
+
+    def create_done_today_candidate
+      ActionCandidate.create!(
+        business: businesses(:suelog),
+        title: "Today completed health baseline",
+        status: "done",
+        action_type: "other",
+        immediate_value_yen: 1_000,
+        success_probability: 1,
+        expected_hours: 1
       )
     end
   end

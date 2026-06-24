@@ -5,6 +5,7 @@ class AicooDailyRunsController < ApplicationController
 
   def show
     @daily_run = AicooDailyRun.find(params[:id])
+    @daily_run_steps = @daily_run.aicoo_daily_run_steps.order(:started_at, :created_at)
     @correction_readiness = AicooCorrectionReadinessService.new.call
     @execution_feasibility_insight = AicooExecutionFeasibilityInsightService.new.call
     @execution_feasibility_correction_overview = AicooExecutionFeasibilityCorrectionOverviewService.new.call

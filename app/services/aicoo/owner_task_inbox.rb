@@ -11,6 +11,8 @@ module Aicoo
       "calibration_approval" => "評価式承認",
       "daily_run_failure" => "Daily Run失敗",
       "daily_run_partial_failed" => "Daily Run一部失敗",
+      "daily_run_step_failure" => "Daily Runステップ失敗",
+      "daily_run_step_recovery" => "Daily Runステップ復旧",
       "calibration_danger" => "評価式危険",
       "calibration_warning" => "評価式警告"
     }.freeze
@@ -44,6 +46,8 @@ module Aicoo
       (
         action_candidate_approval_tasks +
         calibration_approval_tasks +
+        daily_run_step_recovery_tasks +
+        daily_run_step_failure_tasks +
         daily_run_tasks +
         calibration_warning_tasks
       ).sort_by { |task| [ PRIORITY_ORDER.fetch(task.priority), task.created_at || Time.zone.at(0), task.title ] }
@@ -106,6 +110,50 @@ module Aicoo
       end
     end
 
+    def daily_run_step_failure_tasks
+      AicooDailyRunStep.includes(:aicoo_daily_run)
+                       .failed
+                       .where(created_at: 7.days.ago..)
+                       .recent
+                       .reject(&:recovery_needed?)
+                       .first(10)
+                       .map do |step|
+        run = step.aicoo_daily_run
+        Task.new(
+          priority: step.primary? ? "critical" : "high",
+          task_type: "daily_run_step_failure",
+          title: "Daily Run #{run.target_date} の #{step.step_name} が失敗",
+          description: "日次処理の詰まり箇所を確認してください。",
+          target_label: run.target_date.to_s,
+          target_path: routes.aicoo_daily_run_path(run),
+          reason: step.error_message.presence || "Step Breakdownを確認してください。",
+          created_at: step.finished_at || step.started_at || step.created_at,
+          quick_actions: daily_run_quick_actions(run)
+        )
+      end
+    end
+
+    def daily_run_step_recovery_tasks
+      AicooDailyRunStep.includes(:aicoo_daily_run)
+                       .where(status: %w[failed skipped])
+                       .where(created_at: 7.days.ago..)
+                       .select(&:recovery_needed?)
+                       .map do |step|
+        run = step.aicoo_daily_run
+        Task.new(
+          priority: step.step_name == "calibration" ? "high" : "medium",
+          task_type: "daily_run_step_recovery",
+          title: "Daily Run #{run.target_date} の #{step.step_name} を復旧",
+          description: "安全な補助ステップだけ個別再実行できます。",
+          target_label: run.target_date.to_s,
+          target_path: routes.aicoo_daily_run_path(run, anchor: "step-breakdown"),
+          reason: step.error_message.presence || "Recovery Actionを実行してください。",
+          created_at: step.finished_at || step.started_at || step.created_at,
+          quick_actions: daily_run_step_recovery_quick_actions(run, step)
+        )
+      end
+    end
+
     def calibration_warning_tasks
       pending_action_types = pending_calibrations.map(&:action_type)
       ActionPredictionCalibration.where(warning_level: %w[danger warning])
@@ -152,6 +200,13 @@ module Aicoo
       [
         quick_action("再実行", :post, routes.aicoo_daily_runs_path(aicoo_daily_run: { target_date: run.target_date.to_s }), confirm_message: "#{run.target_date} のDaily Runを再実行しますか？", style: "primary"),
         quick_action("詳細を見る", :get, routes.aicoo_daily_run_path(run), style: "secondary")
+      ]
+    end
+
+    def daily_run_step_recovery_quick_actions(run, step)
+      [
+        quick_action("復旧する", :post, routes.recover_aicoo_daily_run_step_path(run, step), confirm_message: "#{step.step_name} stepを再実行しますか？", style: "primary"),
+        quick_action("Step Breakdownを見る", :get, routes.aicoo_daily_run_path(run, anchor: "step-breakdown"), style: "secondary")
       ]
     end
 

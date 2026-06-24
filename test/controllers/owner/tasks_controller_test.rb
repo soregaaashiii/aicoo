@@ -3,6 +3,8 @@ require "test_helper"
 module Owner
   class TasksControllerTest < ActionDispatch::IntegrationTest
     test "shows owner task inbox" do
+      create_healthy_daily_run
+      create_done_today_candidate
       ActionCandidate.create!(
         business: businesses(:suelog),
         title: "Owner tasks page candidate",
@@ -18,6 +20,9 @@ module Owner
       assert_response :success
       assert_includes response.body, "今日の確認タスク"
       assert_includes response.body, "今日の確認ダイジェスト"
+      assert_includes response.body, "Daily Run Health"
+      assert_includes response.body, "今日の提案"
+      assert_includes response.body, "pending補正"
       assert_includes response.body, "Owner tasks page candidate"
       assert_includes response.body, "優先度"
       assert_includes response.body, "種別"
@@ -64,6 +69,8 @@ module Owner
     end
 
     test "shows digest warning for critical tasks" do
+      create_healthy_daily_run
+      create_done_today_candidate
       ActionPredictionCalibration.create!(
         action_type: "danger_digest",
         sample_count: 10,
@@ -111,6 +118,30 @@ module Owner
 
       assert_response :success
       assert_includes response.body, "今すぐ確認が必要なタスクはありません。承認・却下・再実行済みの内容は下の「直近処理済み」で確認できます。"
+    end
+
+    private
+
+    def create_healthy_daily_run
+      AicooDailyRun.create!(
+        target_date: Date.current,
+        status: "success",
+        source: "manual",
+        started_at: 10.minutes.ago,
+        finished_at: 5.minutes.ago
+      )
+    end
+
+    def create_done_today_candidate
+      ActionCandidate.create!(
+        business: businesses(:suelog),
+        title: "Today completed health baseline",
+        status: "done",
+        action_type: "other",
+        immediate_value_yen: 1_000,
+        success_probability: 1,
+        expected_hours: 1
+      )
     end
   end
 end

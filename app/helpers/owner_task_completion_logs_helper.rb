@@ -7,6 +7,8 @@ module OwnerTaskCompletionLogsHelper
       "補正係数"
     when "AicooDailyRun"
       "Daily Run ##{log.target_id}"
+    when "AicooDailyRunStep"
+      "Daily Run Step ##{log.target_id}"
     else
       log.target_type.presence || "-"
     end
@@ -20,6 +22,9 @@ module OwnerTaskCompletionLogsHelper
       admin_aicoo_calibration_path
     when "AicooDailyRun"
       aicoo_daily_run_path(log.target_id)
+    when "AicooDailyRunStep"
+      step = AicooDailyRunStep.find_by(id: log.target_id)
+      aicoo_daily_run_path(step.aicoo_daily_run, anchor: "step-breakdown") if step
     end
   end
 end

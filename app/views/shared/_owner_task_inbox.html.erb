@@ -21,9 +21,46 @@
     <div class="metric-grid aicoo-owner-secondary">
       <div class="metric-card"><span>Critical</span><strong><%= digest.critical_count %>件</strong></div>
       <div class="metric-card"><span>High</span><strong><%= digest.high_count %>件</strong></div>
+      <div class="metric-card"><span>Daily Run</span><strong><%= digest.daily_run_health.health_status %></strong></div>
+      <div class="metric-card"><span>今日の提案</span><strong><%= digest.daily_run_health.today_generated_action_candidates_count %>件</strong></div>
+      <div class="metric-card"><span>pending補正</span><strong><%= digest.daily_run_health.today_pending_calibration_count %>件</strong></div>
       <div class="metric-card"><span>今日処理済み</span><strong><%= digest.completed_today_count %>件</strong></div>
       <div class="metric-card"><span>昨日処理済み</span><strong><%= digest.completed_yesterday_count %>件</strong></div>
       <div class="metric-card"><span>昨日から増加</span><strong><%= digest.new_since_yesterday_count %>件</strong></div>
+    </div>
+
+    <div class="aicoo-card aicoo-card-compact">
+      <h4>Daily Run Health</h4>
+      <p><strong><%= digest.daily_run_health.health_status %></strong> - <%= digest.daily_run_health.health_message %></p>
+      <div class="metric-grid aicoo-owner-secondary">
+        <div class="metric-card"><span>最新Run</span><strong><%= digest.daily_run_health.latest_status.presence || "-" %></strong></div>
+        <div class="metric-card"><span>最終成功</span><strong><%= digest.daily_run_health.last_success_at ? l(digest.daily_run_health.last_success_at, format: :short) : "-" %></strong></div>
+        <div class="metric-card"><span>今日Run</span><strong><%= digest.daily_run_health.today_run_count %>件</strong></div>
+        <div class="metric-card"><span>今日補正ログ</span><strong><%= digest.daily_run_health.today_calibration_log_count %>件</strong></div>
+        <div class="metric-card"><span>補正更新</span><strong><%= digest.daily_run_health.today_calibration_updated_count %>件</strong></div>
+        <div class="metric-card"><span>failed step</span><strong><%= digest.daily_run_health.failed_step_count %>件</strong></div>
+        <div class="metric-card"><span>slow step</span><strong><%= digest.daily_run_health.slow_steps.size %>件</strong></div>
+        <div class="metric-card"><span>Recoverable Failed Steps</span><strong><%= digest.daily_run_health.recoverable_failed_steps_count %>件</strong></div>
+        <div class="metric-card"><span>最新Recovery</span><strong><%= digest.daily_run_health.last_recovery_at ? l(digest.daily_run_health.last_recovery_at, format: :short) : "-" %></strong></div>
+      </div>
+      <% if digest.daily_run_health.failed_steps.any? %>
+        <p>最新失敗step: <strong><%= digest.daily_run_health.failed_steps.first.step_name %></strong></p>
+      <% end %>
+      <% if digest.daily_run_health.warnings.any? %>
+        <ul>
+          <% digest.daily_run_health.warnings.each do |warning| %>
+            <li><%= warning %></li>
+          <% end %>
+        </ul>
+      <% end %>
+      <p>推奨: <%= digest.daily_run_health.recommended_action %></p>
+      <div class="actions compact-actions">
+        <% if digest.daily_run_health.latest_run %>
+          <%= link_to "失敗ステップを復旧", aicoo_daily_run_path(digest.daily_run_health.latest_run, anchor: "step-breakdown"), class: "button secondary" %>
+        <% end %>
+        <%= link_to "Daily Run一覧", aicoo_daily_runs_path, class: "button secondary" %>
+        <%= link_to "Calibration承認待ち", admin_aicoo_calibration_path(filter: "pending"), class: "button secondary" %>
+      </div>
     </div>
 
     <% if digest.top_priority_task %>

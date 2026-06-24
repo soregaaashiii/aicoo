@@ -43,40 +43,67 @@ class AicooDailyRunner
   def execute_steps!(run)
     log!("Daily Run started target_date=#{target_date}")
 
+    analytics_step = start_step!(run, "analytics_fetch")
     analytics_runs = fetch_analytics!
     analytics_success_count = analytics_runs.count { |analytics_run| analytics_run.status == "success" }
     analytics_failed_count = analytics_runs.count { |analytics_run| analytics_run.status == "failed" }
     run.update!(analytics_fetch_count: analytics_success_count)
     partial_failures << "analytics_failed=#{analytics_failed_count}" if analytics_failed_count.positive?
+    if analytics_failed_count.positive?
+      fail_step!(
+        analytics_step,
+        "analytics_failed=#{analytics_failed_count}",
+        metadata: { success_count: analytics_success_count, failed_count: analytics_failed_count }
+      )
+    else
+      finish_step!(
+        analytics_step,
+        metadata: { success_count: analytics_success_count, failed_count: analytics_failed_count }
+      )
+    end
     log!("Analytics fetched success=#{analytics_success_count} failed=#{analytics_failed_count}")
 
-    datahub_run = AicooDataHub::DailyCollector.new.call
+    datahub_run = record_step!(run, "datahub_collect") do
+      AicooDataHub::DailyCollector.new.call
+    end
     run.update!(snapshot_count: datahub_run.snapshot_count)
     log!("DataHub collected snapshots count=#{datahub_run.snapshot_count}")
 
-    imported_results = BusinessMetricDailyImporter.import_all!(date: target_date)
+    imported_results = record_step!(run, "business_metrics_import") do
+      BusinessMetricDailyImporter.import_all!(date: target_date)
+    end
     run.update!(business_metrics_imported_count: imported_results.size)
     log!("BusinessMetricDaily imported count=#{imported_results.size}")
 
-    adjustment_logs = adjust_proxy_weights
+    adjustment_logs = record_step!(run, "proxy_weight_adjustment") do
+      adjust_proxy_weights
+    end
     run.update!(proxy_weights_adjusted_count: adjustment_logs.size)
     log!("proxy_score weights checked count=#{adjustment_logs.size}")
 
-    generation_results = MetricActionCandidateGenerator.generate_all!
+    generation_results = record_step!(run, "action_generation") do
+      MetricActionCandidateGenerator.generate_all!
+    end
     generated_count = generation_results.sum(&:created_count)
     run.update!(action_candidates_generated_count: generated_count)
     log!("ActionCandidate generated count=#{generated_count}")
 
-    insight_result = AicooInsight::Generator.generate_all!(source: "daily_run")
+    insight_result = record_step!(run, "insight_generation") do
+      AicooInsight::Generator.generate_all!(source: "daily_run")
+    end
     run.update!(insight_generated_count: insight_result.created_count)
     log!("Insight generated count=#{insight_result.created_count}")
     log!("Insight skipped count=#{insight_result.skipped_count}")
 
-    evaluated_results = ActionResultEvaluator.evaluate_pending!
+    evaluated_results = record_step!(run, "action_result_evaluation") do
+      ActionResultEvaluator.evaluate_pending!
+    end
     run.update!(action_results_evaluated_count: evaluated_results.size)
     log!("ActionResult evaluated_or_skipped count=#{evaluated_results.size}")
 
-    snapshot_result = ActionCandidateScoreSnapshotter.new.snapshot_top_candidates!(date: target_date)
+    snapshot_result = record_step!(run, "score_snapshot") do
+      ActionCandidateScoreSnapshotter.new.snapshot_top_candidates!(date: target_date)
+    end
     run.update!(
       score_snapshots_created_count: snapshot_result.created_count,
       score_snapshot_rank_up_count: snapshot_result.rank_up_count,
@@ -90,7 +117,9 @@ class AicooDailyRunner
       "no_adjustment=#{snapshot_result.no_adjustment_count}"
     )
 
-    queue_result = DataPreparationExecutorQueuer.new.call
+    queue_result = record_step!(run, "data_preparation_queue") do
+      DataPreparationExecutorQueuer.new.call
+    end
     run.update!(
       data_preparation_candidates_count: queue_result.candidate_count,
       data_preparation_auto_queued_count: queue_result.queued_count
@@ -100,7 +129,9 @@ class AicooDailyRunner
     log!("Skipped: #{queue_result.skipped_count}")
     log!("Reason: #{queue_result.skipped_reasons.map { |reason, count| "#{reason}=#{count}" }.join(', ')}")
 
-    meta_snapshot_result = MetaEvaluationSnapshotter.new.snapshot!(date: target_date, aicoo_daily_run: run)
+    meta_snapshot_result = record_step!(run, "meta_evaluation_snapshot") do
+      MetaEvaluationSnapshotter.new.snapshot!(date: target_date, aicoo_daily_run: run)
+    end
     log!("MetaEvaluationSnapshot created count=#{meta_snapshot_result.created_count}")
     log!("Most trusted evaluator: #{meta_snapshot_result.top_evaluator || 'none'}")
     MetaEvaluationSnapshot::EVALUATOR_TYPES.each do |evaluator_type|
@@ -109,6 +140,10 @@ class AicooDailyRunner
     end
 
     run_calibration!(run)
+
+    record_step!(run, "owner_task_digest") do
+      Aicoo::OwnerTaskDigest.new.call
+    end
 
     log!("Daily Run finished target_date=#{target_date}")
   end
@@ -134,6 +169,7 @@ class AicooDailyRunner
 
   def run_calibration!(run)
     started_at = Time.current
+    step = start_step!(run, "calibration")
     run.update!(calibration_started_at: started_at, calibration_error: nil)
     log!("Calibration started")
     result = Aicoo::CalibrationEngine.run!(source: "daily_run", aicoo_daily_run: run)
@@ -144,6 +180,14 @@ class AicooDailyRunner
       updated_calibration_count: result.calibration_count,
       calibration_log_count: result.logs.size,
       pending_calibration_count: result.pending_count
+    )
+    finish_step!(
+      step,
+      metadata: {
+        updated_calibration_count: result.calibration_count,
+        calibration_log_count: result.logs.size,
+        pending_calibration_count: result.pending_count
+      }
     )
     log!(
       "Calibration finished updated_calibration_count=#{result.calibration_count} " \
@@ -160,28 +204,42 @@ class AicooDailyRunner
       calibration_finished_at: finished_at,
       calibration_error: error_message
     )
+    fail_step!(step, error_message) if step
     log!("Calibration failed: #{error_message}")
   end
 
   def run_auto_revision_queue!(run)
+    step = start_step!(run, "auto_revision_queue")
     result = AicooAutoRevisionDailyRunQueuer.new.call(daily_run: run)
     case result.reason
     when "created"
+      finish_step!(
+        step,
+        metadata: {
+          generated_tasks_count: result.queue_run.generated_tasks_count,
+          skipped_candidates_count: result.queue_run.skipped_candidates_count,
+          high_risk_candidates_count: result.queue_run.high_risk_candidates_count
+        }
+      )
       log!(
         "AutoRevisionQueue generated=#{result.queue_run.generated_tasks_count} " \
         "skipped=#{result.queue_run.skipped_candidates_count} " \
         "high_risk=#{result.queue_run.high_risk_candidates_count}"
       )
     when "already_run"
+      skip_step!(step, metadata: { reason: "already_run" })
       log!("AutoRevisionQueue skipped reason=already_run")
     when "disabled"
+      skip_step!(step, metadata: { reason: "disabled" })
       log!("AutoRevisionQueue skipped reason=disabled")
     else
+      skip_step!(step, metadata: { reason: result.reason })
       log!("AutoRevisionQueue skipped reason=#{result.reason}")
     end
   rescue StandardError => e
     error_message = "#{e.class}: #{e.message}"
     Rails.logger.error("AICOO Daily Run auto revision queue failed: #{error_message}")
+    fail_step!(step, error_message) if step
     log!("AutoRevisionQueue failed: #{error_message}")
   end
 
@@ -201,6 +259,61 @@ class AicooDailyRunner
 
   def log_text
     log_lines.join("\n")
+  end
+
+  def record_step!(run, step_name)
+    step = start_step!(run, step_name)
+    result = yield
+    finish_step!(step)
+    result
+  rescue StandardError => e
+    fail_step!(step, "#{e.class}: #{e.message}") if step
+    raise
+  end
+
+  def start_step!(run, step_name)
+    run.aicoo_daily_run_steps.create!(
+      step_name:,
+      status: "running",
+      started_at: Time.current
+    )
+  end
+
+  def finish_step!(step, metadata: {})
+    finished_at = Time.current
+    step.update!(
+      status: "success",
+      finished_at:,
+      duration_seconds: step_duration(step, finished_at),
+      metadata: metadata
+    )
+  end
+
+  def fail_step!(step, error_message, metadata: {})
+    finished_at = Time.current
+    step.update!(
+      status: "failed",
+      finished_at:,
+      duration_seconds: step_duration(step, finished_at),
+      error_message:,
+      metadata: metadata
+    )
+  end
+
+  def skip_step!(step, metadata: {})
+    finished_at = Time.current
+    step.update!(
+      status: "skipped",
+      finished_at:,
+      duration_seconds: step_duration(step, finished_at),
+      metadata: metadata
+    )
+  end
+
+  def step_duration(step, finished_at)
+    return unless step.started_at
+
+    finished_at - step.started_at
   end
 
   def retry_count_for_today

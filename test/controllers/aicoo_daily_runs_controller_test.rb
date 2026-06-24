@@ -16,6 +16,31 @@ class AicooDailyRunsControllerTest < ActionDispatch::IntegrationTest
 
   test "shows daily run detail" do
     daily_run = AicooDailyRun.create!(target_date: Date.yesterday, status: "success", source: "manual", run_log: "done")
+    daily_run.aicoo_daily_run_steps.create!(
+      step_name: "action_generation",
+      status: "failed",
+      started_at: 2.minutes.ago,
+      finished_at: 1.minute.ago,
+      duration_seconds: 60,
+      error_message: "generation boom",
+      metadata: { generated_count: 0 }
+    )
+    daily_run.aicoo_daily_run_steps.create!(
+      step_name: "calibration",
+      status: "failed",
+      started_at: 2.minutes.ago,
+      finished_at: 1.minute.ago,
+      duration_seconds: 60,
+      error_message: "calibration boom"
+    )
+    daily_run.aicoo_daily_run_steps.create!(
+      step_name: "analytics_fetch",
+      status: "failed",
+      started_at: 2.minutes.ago,
+      finished_at: 1.minute.ago,
+      duration_seconds: 60,
+      error_message: "analytics boom"
+    )
     ActionCandidate.create!(
       business: businesses(:suelog),
       title: "Daily Run auto revision candidate",
@@ -55,6 +80,12 @@ class AicooDailyRunsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "実行ログ待ち"
     assert_includes response.body, "結果登録待ち"
     assert_includes response.body, "売上登録待ち"
+    assert_includes response.body, "Step Breakdown"
+    assert_includes response.body, "action_generation"
+    assert_includes response.body, "generation boom"
+    assert_includes response.body, "calibration boom"
+    assert_includes response.body, "Recovery"
+    assert_includes response.body, "再実行不可"
     assert_includes response.body, "自動改修タスク候補"
     assert_includes response.body, "Daily Run auto revision candidate"
     assert_includes response.body, "最近作成されたAuto Revision Task"
@@ -80,6 +111,26 @@ class AicooDailyRunsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to aicoo_daily_run_url(daily_run)
     assert_equal "Daily Runを再実行しました。結果はDaily Run詳細で確認してください。", flash[:notice]
     assert_equal "再実行", OwnerTaskCompletionLog.last.action_label
+  end
+
+  test "recovers daily run step and records completion log" do
+    daily_run = AicooDailyRun.create!(target_date: Date.yesterday, status: "partial_failed", source: "manual")
+    step = daily_run.aicoo_daily_run_steps.create!(
+      step_name: "owner_task_digest",
+      status: "failed",
+      started_at: 2.minutes.ago,
+      finished_at: 1.minute.ago,
+      error_message: "digest boom"
+    )
+
+    assert_difference("OwnerTaskCompletionLog.count", 1) do
+      post recover_aicoo_daily_run_step_url(daily_run, step)
+    end
+
+    assert_redirected_to aicoo_daily_run_url(daily_run, anchor: "step-breakdown")
+    assert_equal "owner_task_digest step を再実行しました。", flash[:notice]
+    assert_equal "success", step.reload.last_recovery_status
+    assert_equal "daily_run_step_recovery", OwnerTaskCompletionLog.last.task_type
   end
 
   private

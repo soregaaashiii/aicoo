@@ -19,6 +19,9 @@ module Owner
       assert_includes response.body, "今日やること TOP10"
       assert_includes response.body, "今日の確認タスク"
       assert_includes response.body, "今日の確認ダイジェスト"
+      assert_includes response.body, "Daily Run Health"
+      assert_includes response.body, "今日の提案"
+      assert_includes response.body, "pending補正"
       assert_includes response.body, "確認タスク一覧へ"
       assert_includes response.body, "期待値"
     end
