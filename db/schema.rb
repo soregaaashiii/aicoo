@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_24_105000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_24_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -897,6 +897,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_24_105000) do
     t.index ["recorded_on", "evaluator_type"], name: "idx_meta_eval_snapshots_unique_global_type", unique: true, where: "(business_id IS NULL)"
   end
 
+  create_table "opportunity_discovery_items", force: :cascade do |t|
+    t.bigint "action_candidate_id"
+    t.bigint "business_id"
+    t.datetime "created_at", null: false
+    t.text "description"
+    t.datetime "discovered_at"
+    t.jsonb "metadata", default: {}, null: false
+    t.decimal "opportunity_score"
+    t.string "source_type", null: false
+    t.string "status", null: false
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.index ["action_candidate_id"], name: "index_opportunity_discovery_items_on_action_candidate_id"
+    t.index ["business_id"], name: "index_opportunity_discovery_items_on_business_id"
+    t.index ["discovered_at"], name: "index_opportunity_discovery_items_on_discovered_at"
+    t.index ["source_type"], name: "index_opportunity_discovery_items_on_source_type"
+    t.index ["status"], name: "index_opportunity_discovery_items_on_status"
+  end
+
   create_table "owner_task_completion_logs", force: :cascade do |t|
     t.string "action_label", null: false
     t.string "action_result", null: false
@@ -1040,6 +1059,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_24_105000) do
   add_foreign_key "data_sources", "businesses"
   add_foreign_key "meta_evaluation_snapshots", "aicoo_daily_runs"
   add_foreign_key "meta_evaluation_snapshots", "businesses"
+  add_foreign_key "opportunity_discovery_items", "action_candidates"
+  add_foreign_key "opportunity_discovery_items", "businesses"
   add_foreign_key "proxy_score_weight_adjustment_logs", "businesses"
   add_foreign_key "proxy_score_weight_adjustment_logs", "proxy_score_weights"
   add_foreign_key "proxy_score_weights", "businesses"

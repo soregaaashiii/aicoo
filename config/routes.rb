@@ -7,8 +7,21 @@ Rails.application.routes.draw do
   root "dashboard#show"
   get "owner", to: "owner/dashboard#show", as: :owner_dashboard
   get "owner/dashboard", to: "owner/dashboard#show"
+  get "owner/focus", to: "owner/focus#show", as: :owner_focus
   get "owner/tasks", to: "owner/tasks#index", as: :owner_tasks
   get "owner/learning_report", to: "owner/learning_reports#show", as: :owner_learning_report
+  get "owner/discovery_report", to: "owner/discovery_reports#show", as: :owner_discovery_report
+  post "owner/learning_recommendations/action_candidate", to: "owner/learning_recommendations#create_action_candidate", as: :create_action_candidate_owner_learning_recommendation
+  post "owner/learning_recommendations/opportunity", to: "owner/learning_recommendations#create_opportunity", as: :create_opportunity_owner_learning_recommendation
+  resources :opportunities, controller: "owner/opportunities", path: "owner/opportunities", as: :owner_opportunities, only: %i[index show new create] do
+    get :focus, on: :collection
+    patch :review, on: :member
+    patch :reject, on: :member
+    post :convert_to_candidate, on: :member
+    patch :focus_review, on: :member
+    patch :focus_reject, on: :member
+    post :focus_convert_to_candidate, on: :member
+  end
   patch "owner/calibrations/:id/approve", to: "owner/calibrations#approve", as: :approve_owner_calibration
   patch "owner/calibrations/:id/reject", to: "owner/calibrations#reject", as: :reject_owner_calibration
   get "owner/evaluator_trends", to: "owner/evaluator_trends#index", as: :owner_evaluator_trends

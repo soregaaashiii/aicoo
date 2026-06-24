@@ -707,6 +707,65 @@
 
 <section class="dashboard-section">
   <div class="section-heading">
+    <h2>Opportunity Discovery</h2>
+    <p>Owner DiscoveryからActionCandidate、Execution、Resultへ進んだ件数です。</p>
+  </div>
+  <div class="metric-grid">
+    <% @opportunity_discovery_summary.status_counts.each do |status, count| %>
+      <div class="metric-card"><span><%= status %></span><strong><%= count %>件</strong></div>
+    <% end %>
+  </div>
+  <h3>Discovery Funnel</h3>
+  <div class="metric-grid">
+    <div class="metric-card"><span>Opportunity</span><strong><%= @opportunity_discovery_summary.funnel.opportunity_count %>件</strong></div>
+    <div class="metric-card"><span>Candidate</span><strong><%= @opportunity_discovery_summary.funnel.candidate_count %>件</strong></div>
+    <div class="metric-card"><span>Execution</span><strong><%= @opportunity_discovery_summary.funnel.execution_count %>件</strong></div>
+    <div class="metric-card"><span>Result</span><strong><%= @opportunity_discovery_summary.funnel.result_count %>件</strong></div>
+    <div class="metric-card"><span>Focus Queue</span><strong><%= @opportunity_focus_queue.total_count %>件</strong></div>
+    <div class="metric-card"><span>High Priority</span><strong><%= @opportunity_focus_queue.high_priority_count %>件</strong></div>
+  </div>
+  <div class="aicoo-card aicoo-card-compact">
+    <h3>Top Opportunities</h3>
+    <ul class="compact-list">
+      <% @opportunity_discovery_summary.top_opportunities.each do |opportunity| %>
+        <li><%= link_to opportunity.title, owner_opportunity_path(opportunity) %> / score <%= opportunity.opportunity_score.to_i %></li>
+      <% end %>
+      <% if @opportunity_discovery_summary.top_opportunities.empty? %>
+        <li>Opportunityはまだありません。</li>
+      <% end %>
+    </ul>
+  </div>
+  <div class="aicoo-card aicoo-card-compact">
+    <h3>Focus Queue</h3>
+    <% if @opportunity_focus_queue.top_item %>
+      <p><%= link_to @opportunity_focus_queue.top_item.opportunity.title, owner_opportunity_path(@opportunity_focus_queue.top_item.opportunity) %></p>
+      <p>focus score <%= @opportunity_focus_queue.top_item.focus_score.to_i %> / <%= @opportunity_focus_queue.top_item.reason %></p>
+    <% else %>
+      <p>レビュー待ちOpportunityはありません。</p>
+    <% end %>
+  </div>
+  <div class="aicoo-card aicoo-card-compact">
+    <h3>Discovery Sources</h3>
+    <% strongest_source = @discovery_source_performance_report.strongest_sources.first %>
+    <% weakest_source = @discovery_source_performance_report.weakest_sources.first %>
+    <% best_conversion_source = @discovery_source_performance_report.conversion_funnel.max_by(&:opportunity_to_candidate_rate) %>
+    <% worst_conversion_source = @discovery_source_performance_report.conversion_funnel.select { |source| source.opportunities_count.positive? }.min_by(&:opportunity_to_candidate_rate) %>
+    <ul class="compact-list">
+      <li><strong>strongest</strong> <%= strongest_source&.source_type || "データ不足" %></li>
+      <li><strong>weakest</strong> <%= weakest_source&.source_type || "データ不足" %></li>
+      <li><strong>best conversion</strong> <%= best_conversion_source&.source_type || "データ不足" %></li>
+      <li><strong>worst conversion</strong> <%= worst_conversion_source&.source_type || "データ不足" %></li>
+    </ul>
+  </div>
+  <div class="actions compact-actions">
+    <%= link_to "Opportunitiesを見る", owner_opportunities_path, class: "button secondary" %>
+    <%= link_to "Focusで処理", focus_owner_opportunities_path, class: "button secondary" %>
+    <%= link_to "Discovery Reportを見る", owner_discovery_report_path, class: "button secondary" %>
+  </div>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
     <h2>Learning Loop Quality</h2>
     <p>予測がどれだけ実績に近づいているかを確認します。</p>
   </div>
@@ -716,8 +775,16 @@
     <div class="metric-card"><span>Learning Trend</span><strong><%= @learning_loop_quality_report.learning_trend %></strong></div>
     <div class="metric-card"><span>Evaluated Count</span><strong><%= @learning_loop_quality_report.total_evaluated %>件</strong></div>
   </div>
+  <% if @learning_report_recommendations.recommendations.first %>
+    <% recommendation = @learning_report_recommendations.recommendations.first %>
+    <div class="aicoo-card aicoo-card-compact">
+      <p><span class="pill"><%= recommendation.priority %></span> 最重要Recommendation</p>
+      <strong><%= recommendation.title %></strong>
+      <p><%= recommendation.reason %></p>
+    </div>
+  <% end %>
   <div class="actions compact-actions">
-    <%= link_to "学習品質レポートを見る", owner_learning_report_path, class: "button secondary" %>
+    <%= link_to "改善提案を見る", owner_learning_report_path, class: "button secondary" %>
   </div>
 </section>
 

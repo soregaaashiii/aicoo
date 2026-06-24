@@ -227,6 +227,22 @@ module Aicoo
       assert_includes summary.warnings, "Learning Trend declining"
     end
 
+    test "discovery source performance is reflected" do
+      create_daily_run(status: "success")
+      create_action_candidate
+      create_opportunity_result(source_type: "owner_discovery", actual: 10_000)
+      create_opportunity_result(source_type: "owner_discovery", actual: 12_000)
+      create_opportunity_result(source_type: "trend", actual: 0)
+      create_opportunity_result(source_type: "trend", actual: -1_000)
+
+      summary = DailyRunHealthSummary.new.call
+
+      assert_equal "owner_discovery", summary.strongest_discovery_source
+      assert_equal "trend", summary.weakest_discovery_source
+      assert_operator summary.discovery_source_warning_count, :>=, 1
+      assert_includes summary.warnings, "trend の成功率が低下しています。"
+    end
+
     private
 
     def create_daily_run(attributes = {})
@@ -277,6 +293,27 @@ module Aicoo
         evaluated_on:,
         evaluation_status: "evaluated",
         predicted_expected_profit_yen: predicted,
+        predicted_success_probability: 0.8,
+        actual_profit_yen: actual,
+        actual_revenue_yen: actual
+      )
+    end
+
+    def create_opportunity_result(source_type:, actual:)
+      opportunity = OpportunityDiscoveryItem.create!(
+        title: "#{source_type} health opportunity #{SecureRandom.hex(4)}",
+        source_type:,
+        business: businesses(:suelog)
+      )
+      candidate = opportunity.convert_to_action_candidate!
+      candidate.create_action_execution!(status: "completed", execution_type: "manual", completed_at: Time.current)
+      ActionResult.create!(
+        action_candidate: candidate,
+        business: candidate.business,
+        executed_on: Date.current,
+        evaluated_on: Date.current,
+        evaluation_status: "evaluated",
+        predicted_expected_profit_yen: 10_000,
         predicted_success_probability: 0.8,
         actual_profit_yen: actual,
         actual_revenue_yen: actual

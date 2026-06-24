@@ -41,6 +41,9 @@ module Aicoo
       :learning_loop_health,
       :learning_accuracy_score,
       :learning_trend,
+      :strongest_discovery_source,
+      :weakest_discovery_source,
+      :discovery_source_warning_count,
       :health_status,
       :health_message,
       :warnings,
@@ -92,6 +95,9 @@ module Aicoo
         learning_loop_health:,
         learning_accuracy_score: learning_loop_quality_report.prediction_accuracy_score,
         learning_trend: learning_loop_quality_report.learning_trend,
+        strongest_discovery_source: discovery_source_report.strongest_sources.first&.source_type,
+        weakest_discovery_source: discovery_source_report.weakest_sources.first&.source_type,
+        discovery_source_warning_count: discovery_source_warnings.size,
         health_status:,
         health_message:,
         warnings: warnings,
@@ -236,6 +242,7 @@ module Aicoo
         end
         items << learning_loop_health.health_message if learning_loop_health.health_status.in?(%w[warning critical])
         items << "Learning Trend declining" if learning_loop_quality_report.learning_trend == "declining"
+        discovery_source_warnings.each { |warning| items << warning }
         items << "今日のActionCandidate生成数が0です。" if today_action_candidates.count.zero?
         items << "今日Daily Runが未実行です。" if today_runs.count.zero?
         items << "最終成功から2日以上経過しています。" if days_since_last_success.to_i >= 2
@@ -268,6 +275,7 @@ module Aicoo
         result_registration_health.health_status == "warning" ||
         learning_loop_health.health_status == "warning" ||
         learning_loop_quality_report.learning_trend == "declining" ||
+        discovery_source_warnings.any? ||
         pending_calibrations.count > MANY_PENDING_THRESHOLD ||
         today_runs.count.zero? ||
         (days_since_last_success.present? && days_since_last_success >= 1)
@@ -291,6 +299,14 @@ module Aicoo
 
     def learning_loop_quality_report
       @learning_loop_quality_report ||= LearningLoopQualityReport.new.call
+    end
+
+    def discovery_source_report
+      @discovery_source_report ||= DiscoverySourcePerformanceReport.new.call
+    end
+
+    def discovery_source_warnings
+      @discovery_source_warnings ||= discovery_source_report.warnings.reject { |warning| warning.include?("不足") }
     end
 
     def today_range

@@ -1,0 +1,46 @@
+<%= form_with model: opportunity, url: opportunity.persisted? ? owner_opportunity_path(opportunity) : owner_opportunities_path, class: "form" do |form| %>
+  <% if opportunity.errors.any? %>
+    <div class="errors">
+      <h2><%= pluralize(opportunity.errors.count, "error") %> prohibited this opportunity from being saved:</h2>
+      <ul>
+        <% opportunity.errors.each do |error| %>
+          <li><%= error.full_message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <section>
+    <h2>Owner Discovery</h2>
+    <div class="field">
+      <%= form.label :title, "タイトル" %>
+      <%= form.text_field :title, placeholder: "例: 表示回数が多い記事を伸ばす方が儲かるかもしれない" %>
+    </div>
+    <div class="field">
+      <%= form.label :description, "内容 / 期待する仮説 / 自由メモ" %>
+      <%= form.textarea :description, rows: 6 %>
+    </div>
+    <div class="grid">
+      <div class="field">
+        <%= form.label :business_id, "事業" %>
+        <%= form.collection_select :business_id, Business.order(:name), :id, :name, include_blank: "未指定" %>
+      </div>
+      <div class="field">
+        <%= form.label :source_type, "source_type" %>
+        <%= form.select :source_type, OpportunityDiscoveryItem::SOURCE_TYPES.map { |source| [source.humanize, source] } %>
+      </div>
+      <div class="field">
+        <%= form.label :opportunity_score, "Opportunity Score" %>
+        <%= form.number_field :opportunity_score, step: 1, min: 0, max: 100 %>
+      </div>
+      <div class="field">
+        <%= form.label :status, "状態" %>
+        <%= form.select :status, OpportunityDiscoveryItem::STATUSES.map { |status| [status.humanize, status] } %>
+      </div>
+    </div>
+  </section>
+
+  <div class="actions">
+    <%= form.submit "保存", class: "button" %>
+  </div>
+<% end %>

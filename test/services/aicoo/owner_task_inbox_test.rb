@@ -231,6 +231,44 @@ module Aicoo
       assert_equal [ "学習品質レポートを見る" ], task.quick_actions.map(&:label)
     end
 
+    test "returns learning recommendation tasks" do
+      create_evaluated_result(predicted: 10_000, actual: 1_000)
+
+      task = OwnerTaskInbox.new.call.tasks.find { |item| item.task_type == "learning_recommendation" }
+
+      assert task
+      assert_includes %w[critical high medium low], task.priority
+      assert_equal Rails.application.routes.url_helpers.owner_learning_report_path, task.quick_actions.first.path
+    end
+
+    test "returns opportunity review tasks" do
+      opportunity = OpportunityDiscoveryItem.create!(
+        title: "Owner discovered opportunity",
+        business: businesses(:suelog),
+        opportunity_score: 85
+      )
+
+      task = OwnerTaskInbox.new.call.tasks.find { |item| item.task_type == "opportunity_review" && item.title == opportunity.title }
+
+      assert task
+      assert_equal "high", task.priority
+      assert_equal Rails.application.routes.url_helpers.focus_owner_opportunities_path, task.target_path
+      assert_includes task.reason, "Focus Score"
+      assert_equal [ "Focusで処理", "Opportunityを見る" ], task.quick_actions.map(&:label)
+    end
+
+    test "returns discovery source warnings" do
+      create_opportunity_result(source_type: "trend", actual: 0)
+      create_opportunity_result(source_type: "trend", actual: -1_000)
+
+      task = OwnerTaskInbox.new.call.tasks.find { |item| item.task_type == "discovery_source_warning" }
+
+      assert task
+      assert_equal "high", task.priority
+      assert_equal Rails.application.routes.url_helpers.owner_discovery_report_path, task.target_path
+      assert_equal [ "Discovery Reportを見る" ], task.quick_actions.map(&:label)
+    end
+
     test "returns non pending calibration warnings without duplicating pending action type" do
       ActionPredictionCalibration.create!(
         action_type: "seo_article",
@@ -278,6 +316,27 @@ module Aicoo
         evaluated_on: Date.current,
         evaluation_status: "evaluated",
         predicted_expected_profit_yen: predicted,
+        predicted_success_probability: 0.8,
+        actual_profit_yen: actual,
+        actual_revenue_yen: actual
+      )
+    end
+
+    def create_opportunity_result(source_type:, actual:)
+      opportunity = OpportunityDiscoveryItem.create!(
+        title: "#{source_type} warning opportunity #{SecureRandom.hex(4)}",
+        source_type:,
+        business: businesses(:suelog)
+      )
+      candidate = opportunity.convert_to_action_candidate!
+      candidate.create_action_execution!(status: "completed", execution_type: "manual", completed_at: Time.current)
+      ActionResult.create!(
+        action_candidate: candidate,
+        business: candidate.business,
+        executed_on: Date.current,
+        evaluated_on: Date.current,
+        evaluation_status: "evaluated",
+        predicted_expected_profit_yen: 10_000,
         predicted_success_probability: 0.8,
         actual_profit_yen: actual,
         actual_revenue_yen: actual

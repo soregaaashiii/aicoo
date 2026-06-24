@@ -1,0 +1,80 @@
+<% content_for :title, "Owner Focus Home" %>
+
+<% header_actions = capture do %>
+  <%= link_to "オーナーモードへ戻る", owner_dashboard_path, class: "button secondary" %>
+  <%= link_to "すべてのタスクを見る", owner_tasks_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "Owner Focus Home",
+             description: "次に押すべき1件だけを処理します。",
+             active_main: :revenue,
+             actions: header_actions %>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Focus Summary</h2>
+      <p><%= @owner_focus_home.summary_message %></p>
+    </div>
+    <div class="metric-grid aicoo-owner-secondary">
+      <div class="metric-card"><span>Focus Tasks</span><strong><%= @owner_focus_home.total_count %>件</strong></div>
+      <div class="metric-card"><span>Critical</span><strong><%= @owner_focus_home.critical_count %>件</strong></div>
+      <div class="metric-card"><span>High</span><strong><%= @owner_focus_home.high_count %>件</strong></div>
+      <div class="metric-card"><span>Generated</span><strong><%= l(@owner_focus_home.generated_at, format: :short) %></strong></div>
+    </div>
+  </section>
+
+  <% if @top_task %>
+    <section class="dashboard-section">
+      <div class="section-heading">
+        <h2>次にやるべき1件</h2>
+        <p>分析ではなく、この1件を処理するための画面です。</p>
+      </div>
+      <div class="aicoo-card">
+        <p>
+          <span class="pill"><%= @top_task.priority %></span>
+          <span class="pill"><%= @top_task.task_type_label %></span>
+        </p>
+        <h3><%= @top_task.title %></h3>
+        <dl class="detail-list">
+          <dt>何をするか</dt>
+          <dd><%= @top_task.description %></dd>
+          <dt>なぜ今やるか</dt>
+          <dd><%= @top_task.reason %></dd>
+          <dt>対象</dt>
+          <dd><%= link_to @top_task.target_label, @top_task.target_path %></dd>
+        </dl>
+      </div>
+    </section>
+
+    <section class="dashboard-section">
+      <div class="section-heading">
+        <h2>推奨アクション</h2>
+        <p>まずは一番左のボタンを押してください。</p>
+      </div>
+      <div class="actions compact-actions">
+        <% @top_task.quick_actions.each do |action| %>
+          <% button_class = ["button", ("secondary" if action.style == "secondary"), ("danger" if action.style == "danger")].compact.join(" ") %>
+          <% data = action.confirm_message.present? ? { turbo_confirm: action.confirm_message } : {} %>
+          <% if action.method.to_s == "get" %>
+            <%= link_to action.label, action.path, class: button_class, data: %>
+          <% else %>
+            <%= button_to action.label, action.path, method: action.method, class: button_class, data: %>
+          <% end %>
+        <% end %>
+        <%= link_to "スキップ", owner_focus_path, class: "button secondary" %>
+        <%= link_to "詳細を見る", @top_task.target_path, class: "button secondary" %>
+        <%= link_to "すべてのタスクを見る", owner_tasks_path, class: "button secondary" %>
+      </div>
+    </section>
+  <% else %>
+    <section class="dashboard-section">
+      <div class="aicoo-card aicoo-empty-state">
+        <h2>今すぐ処理すべきタスクはありません。</h2>
+        <p>承認・実行・結果登録・異常対応が必要になるとここに表示されます。</p>
+        <%= link_to "オーナーモードへ戻る", owner_dashboard_path, class: "button" %>
+      </div>
+    </section>
+  <% end %>
+</div>

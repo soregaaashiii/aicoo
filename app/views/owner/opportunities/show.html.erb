@@ -1,0 +1,84 @@
+<% content_for :title, @opportunity.title %>
+
+<% candidate = @opportunity.action_candidate %>
+<% execution = candidate&.action_execution %>
+<% result = candidate&.action_result %>
+
+<% header_actions = capture do %>
+  <%= link_to "Opportunity一覧", owner_opportunities_path, class: "button secondary" %>
+  <% unless candidate %>
+    <%= button_to "Convert to Candidate", convert_to_candidate_owner_opportunity_path(@opportunity), method: :post, class: "button" %>
+  <% end %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: @opportunity.title,
+             description: "OpportunityからActionCandidate、Execution、Resultまで追跡します。",
+             actions: header_actions %>
+
+  <section class="dashboard-section">
+    <div class="metric-grid aicoo-owner-secondary">
+      <div class="metric-card"><span>source</span><strong><%= @opportunity.source_type %></strong></div>
+      <div class="metric-card"><span>status</span><strong><%= @opportunity.status %></strong></div>
+      <div class="metric-card"><span>score</span><strong><%= @opportunity.opportunity_score.to_i %></strong></div>
+      <div class="metric-card"><span>discovered</span><strong><%= @opportunity.discovered_at ? l(@opportunity.discovered_at, format: :short) : "-" %></strong></div>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>内容</h2>
+    </div>
+    <div class="aicoo-card aicoo-card-compact">
+      <%= simple_format(@opportunity.description.presence || "-") %>
+    </div>
+    <div class="actions compact-actions">
+      <% if @opportunity.status == "new" %>
+        <%= button_to "Reviewedにする", review_owner_opportunity_path(@opportunity), method: :patch, class: "button secondary" %>
+      <% end %>
+      <% unless @opportunity.status == "rejected" %>
+        <%= button_to "Reject", reject_owner_opportunity_path(@opportunity), method: :patch, class: "button danger", data: { turbo_confirm: "このOpportunityを却下しますか？" } %>
+      <% end %>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Opportunity Learning</h2>
+      <p>このOpportunityから発生した実行と結果です。</p>
+    </div>
+    <div class="metric-grid aicoo-owner-secondary">
+      <div class="metric-card"><span>Candidate</span><strong><%= candidate ? 1 : 0 %>件</strong></div>
+      <div class="metric-card"><span>Execution</span><strong><%= @opportunity.execution_count %>件</strong></div>
+      <div class="metric-card"><span>Result</span><strong><%= @opportunity.result_count %>件</strong></div>
+      <div class="metric-card"><span>Success</span><strong><%= @opportunity.success_count %>件</strong></div>
+      <div class="metric-card"><span>Failure</span><strong><%= @opportunity.failure_count %>件</strong></div>
+    </div>
+    <dl class="detail-list">
+      <dt>ActionCandidate</dt>
+      <dd><%= candidate ? link_to(candidate.title, candidate) : "-" %></dd>
+      <dt>ActionExecution</dt>
+      <dd><%= execution ? link_to("Execution ##{execution.id}", execution) : "-" %></dd>
+      <dt>ActionResult</dt>
+      <dd><%= result ? link_to("Result ##{result.id}", result) : "-" %></dd>
+    </dl>
+  </section>
+
+  <% if @discovery_source_summary %>
+    <section class="dashboard-section">
+      <div class="section-heading">
+        <h2>Source Performance</h2>
+        <p>この発見源の過去実績です。</p>
+      </div>
+      <div class="metric-grid aicoo-owner-secondary">
+        <div class="metric-card"><span>Opportunity</span><strong><%= @discovery_source_summary.opportunities_count %>件</strong></div>
+        <div class="metric-card"><span>Candidate</span><strong><%= @discovery_source_summary.candidates_count %>件</strong></div>
+        <div class="metric-card"><span>Execution</span><strong><%= @discovery_source_summary.executions_count %>件</strong></div>
+        <div class="metric-card"><span>Result</span><strong><%= @discovery_source_summary.results_count %>件</strong></div>
+        <div class="metric-card"><span>Success Rate</span><strong><%= number_to_percentage(@discovery_source_summary.overall_success_rate * 100, precision: 1) %></strong></div>
+        <div class="metric-card"><span>Actual Profit</span><strong><%= number_to_currency(@discovery_source_summary.total_actual_profit, unit: "¥", precision: 0) %></strong></div>
+      </div>
+    </section>
+  <% end %>
+</div>

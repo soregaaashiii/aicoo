@@ -12,6 +12,9 @@ module Aicoo
       "action_result_registration" => "実行結果登録",
       "learning_loop_health" => "学習ループ警告",
       "learning_loop_warning" => "学習品質警告",
+      "learning_recommendation" => "学習改善提案",
+      "opportunity_review" => "Opportunity確認",
+      "discovery_source_warning" => "発見源警告",
       "calibration_approval" => "評価式承認",
       "daily_run_failure" => "Daily Run失敗",
       "daily_run_partial_failed" => "Daily Run一部失敗",
@@ -54,6 +57,9 @@ module Aicoo
         action_result_registration_tasks +
         learning_loop_health_tasks +
         learning_loop_warning_tasks +
+        learning_recommendation_tasks +
+        opportunity_review_tasks +
+        discovery_source_warning_tasks +
         calibration_approval_tasks +
         daily_run_step_recovery_tasks +
         daily_run_recovery_attention_tasks +
@@ -186,6 +192,64 @@ module Aicoo
           ]
         )
       ]
+    end
+
+    def learning_recommendation_tasks
+      result = LearningReportRecommendation.new.call
+      result.recommendations.reject { |recommendation| recommendation.priority == "low" }.first(3).map do |recommendation|
+        Task.new(
+          priority: recommendation.priority,
+          task_type: "learning_recommendation",
+          title: recommendation.title,
+          description: "Learning Reportからの改善提案です。",
+          target_label: recommendation.category,
+          target_path: recommendation.target_path.presence || routes.owner_learning_report_path,
+          reason: recommendation.reason,
+          created_at: result.generated_at,
+          quick_actions: [
+            quick_action("改善提案を見る", :get, routes.owner_learning_report_path, style: "secondary")
+          ]
+        )
+      end
+    end
+
+    def opportunity_review_tasks
+      OpportunityFocusQueue.new.call.items.first(10).map do |focus_item|
+        opportunity = focus_item.opportunity
+        Task.new(
+          priority: focus_item.priority,
+          task_type: "opportunity_review",
+          title: opportunity.title,
+          description: "Focus Queueで優先されたOpportunityです。",
+          target_label: opportunity.business&.name || opportunity.source_type,
+          target_path: routes.focus_owner_opportunities_path,
+          reason: "Focus Score #{focus_item.focus_score.to_i}: #{focus_item.reason}",
+          created_at: opportunity.discovered_at || opportunity.created_at,
+          quick_actions: [
+            quick_action("Focusで処理", :get, routes.focus_owner_opportunities_path, style: "primary"),
+            quick_action("Opportunityを見る", :get, routes.owner_opportunity_path(opportunity), style: "secondary")
+          ]
+        )
+      end
+    end
+
+    def discovery_source_warning_tasks
+      report = DiscoverySourcePerformanceReport.new.call
+      report.weakest_sources.select { |summary| discovery_source_warning?(summary) }.first(5).map do |summary|
+        Task.new(
+          priority: summary.total_actual_profit.to_i.negative? ? "high" : "medium",
+          task_type: "discovery_source_warning",
+          title: "#{summary.source_type} の発見源成績を確認",
+          description: "Discovery Source Performanceで成功率または実績利益に警告があります。",
+          target_label: summary.source_type,
+          target_path: routes.owner_discovery_report_path,
+          reason: "成功率 #{(summary.overall_success_rate * 100).round(1)}% / 実績利益 #{summary.total_actual_profit.to_i.to_fs(:delimited)}円",
+          created_at: report.generated_at,
+          quick_actions: [
+            quick_action("Discovery Reportを見る", :get, routes.owner_discovery_report_path, style: "secondary")
+          ]
+        )
+      end
     end
 
     def daily_run_tasks
@@ -342,6 +406,11 @@ module Aicoo
       return "Accuracy Score #{report.prediction_accuracy_score}" if report.prediction_accuracy_score.to_i < 50
 
       "Calibration Effectiveness #{report.calibration_effectiveness_score}"
+    end
+
+    def discovery_source_warning?(summary)
+      summary.results_count >= DiscoverySourcePerformanceReport::MIN_SAMPLE_SIZE &&
+        (summary.overall_success_rate.to_d < 0.4.to_d || summary.total_actual_profit.to_i.negative?)
     end
 
     def calibration_warning_quick_actions

@@ -12,6 +12,8 @@ module Owner
       assert_includes response.body, "AICOO CEO MODE"
       assert_includes response.body, "aicoo-owner-secondary"
       assert_includes response.body, "table-wrap"
+      assert_includes response.body, "Focus Home"
+      assert_includes response.body, "Focusで処理"
       assert_includes response.body, "現在"
       assert_includes response.body, "CEO MODE"
       assert_includes response.body, "SYSTEM MODEへ"
@@ -28,6 +30,14 @@ module Owner
       assert_includes response.body, "Accuracy Score"
       assert_includes response.body, "今週改善"
       assert_includes response.body, "学習品質レポートを見る"
+      assert_includes response.body, "Top Opportunities"
+      assert_includes response.body, "Top Discovery Sources"
+      assert_includes response.body, "Focus Queue"
+      assert_includes response.body, "最優先Opportunity"
+      assert_includes response.body, "Opportunityを追加"
+      assert_includes response.body, "Opportunitiesを見る"
+      assert_includes response.body, "Focusで処理"
+      assert_includes response.body, "Discovery Reportを見る"
     end
 
     test "revenue mode orders by revenue value" do

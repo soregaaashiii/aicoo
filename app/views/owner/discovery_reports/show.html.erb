@@ -1,0 +1,137 @@
+<% content_for :title, "Discovery Source Performance" %>
+
+<% report = @discovery_source_performance_report %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "Discovery Source Performance",
+             description: "どの発見源が実行・結果・利益につながっているかを確認します。",
+             active_main: :scoreboard %>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Summary</h2>
+      <p>発見源ごとの当たりやすさです。</p>
+    </div>
+    <div class="aicoo-grid aicoo-grid-2">
+      <div class="aicoo-card aicoo-card-compact">
+        <h3>Strongest Sources</h3>
+        <ul class="compact-list">
+          <% report.strongest_sources.each do |source| %>
+            <li>
+              <strong><%= source.source_type %></strong>
+              / 実績 <%= number_to_currency(source.total_actual_profit, unit: "¥", precision: 0) %>
+              / 成功率 <%= number_to_percentage(source.overall_success_rate * 100, precision: 1) %>
+            </li>
+          <% end %>
+          <% if report.strongest_sources.empty? %>
+            <li>データ不足</li>
+          <% end %>
+        </ul>
+      </div>
+      <div class="aicoo-card aicoo-card-compact">
+        <h3>Weakest Sources</h3>
+        <ul class="compact-list">
+          <% report.weakest_sources.each do |source| %>
+            <li>
+              <strong><%= source.source_type %></strong>
+              / 実績 <%= number_to_currency(source.total_actual_profit, unit: "¥", precision: 0) %>
+              / 成功率 <%= number_to_percentage(source.overall_success_rate * 100, precision: 1) %>
+            </li>
+          <% end %>
+          <% if report.weakest_sources.empty? %>
+            <li>データ不足</li>
+          <% end %>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Conversion Funnel</h2>
+      <p>OpportunityからResultまでの変換率です。</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>source</th>
+            <th>Opportunity</th>
+            <th>Candidate</th>
+            <th>Execution</th>
+            <th>Result</th>
+            <th>O→C</th>
+            <th>C→E</th>
+            <th>E→R</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% report.conversion_funnel.each do |source| %>
+            <tr>
+              <td><span class="pill"><%= source.source_type %></span></td>
+              <td><%= source.opportunities_count %></td>
+              <td><%= source.candidates_count %></td>
+              <td><%= source.executions_count %></td>
+              <td><%= source.results_count %></td>
+              <td><%= number_to_percentage(source.opportunity_to_candidate_rate * 100, precision: 1) %></td>
+              <td><%= number_to_percentage(source.candidate_to_execution_rate * 100, precision: 1) %></td>
+              <td><%= number_to_percentage(source.execution_to_result_rate * 100, precision: 1) %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Accuracy</h2>
+      <p>予測利益と実績利益のズレです。</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>source</th>
+            <th>予測利益</th>
+            <th>実績利益</th>
+            <th>平均実績</th>
+            <th>平均誤差</th>
+            <th>成功率</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% report.source_summaries.each do |source| %>
+            <tr>
+              <td><span class="pill"><%= source.source_type %></span></td>
+              <td><%= number_to_currency(source.total_predicted_profit, unit: "¥", precision: 0) %></td>
+              <td><%= number_to_currency(source.total_actual_profit, unit: "¥", precision: 0) %></td>
+              <td><%= number_to_currency(source.average_actual_profit, unit: "¥", precision: 0) %></td>
+              <td><%= source.average_prediction_error ? number_to_percentage(source.average_prediction_error * 100, precision: 1) : "N/A" %></td>
+              <td><%= number_to_percentage(source.overall_success_rate * 100, precision: 1) %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Warnings</h2>
+      <p>Explore能力を改善するための注意点です。</p>
+    </div>
+    <div class="aicoo-card aicoo-card-compact">
+      <% if report.warnings.any? %>
+        <ul class="compact-list">
+          <% report.warnings.each do |warning| %>
+            <li><%= warning %></li>
+          <% end %>
+        </ul>
+      <% else %>
+        <p>大きな警告はありません。</p>
+      <% end %>
+    </div>
+  </section>
+</div>

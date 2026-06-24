@@ -1,0 +1,107 @@
+<% content_for :title, "Opportunities" %>
+
+<% header_actions = capture do %>
+  <%= link_to "Opportunityを追加", new_owner_opportunity_path, class: "button" %>
+  <%= link_to "次にレビューすべきOpportunityを見る", focus_owner_opportunities_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "Opportunities",
+             description: "Owner Discoveryから見つけた仮説・違和感・発見をActionCandidateへ流します。",
+             actions: header_actions %>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Discovery Funnel</h2>
+      <p>OpportunityからCandidate、Execution、Resultまでの流れです。</p>
+    </div>
+    <div class="metric-grid aicoo-owner-secondary">
+      <div class="metric-card"><span>Opportunity</span><strong><%= @opportunity_summary.funnel.opportunity_count %>件</strong></div>
+      <div class="metric-card"><span>Candidate</span><strong><%= @opportunity_summary.funnel.candidate_count %>件</strong></div>
+      <div class="metric-card"><span>Execution</span><strong><%= @opportunity_summary.funnel.execution_count %>件</strong></div>
+      <div class="metric-card"><span>Result</span><strong><%= @opportunity_summary.funnel.result_count %>件</strong></div>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Opportunity Focus Queue</h2>
+      <p>期待値が高い順に1件ずつレビューします。</p>
+    </div>
+    <div class="metric-grid aicoo-owner-secondary">
+      <div class="metric-card"><span>Focus Queue</span><strong><%= @opportunity_focus_queue.total_count %>件</strong></div>
+      <div class="metric-card"><span>High Priority</span><strong><%= @opportunity_focus_queue.high_priority_count %>件</strong></div>
+      <div class="metric-card"><span>Top Score</span><strong><%= @opportunity_focus_queue.top_item&.focus_score&.to_i || 0 %></strong></div>
+    </div>
+    <% if @opportunity_focus_queue.top_item %>
+      <div class="aicoo-card aicoo-card-compact">
+        <h3>最優先Opportunity</h3>
+        <p><%= link_to @opportunity_focus_queue.top_item.opportunity.title, owner_opportunity_path(@opportunity_focus_queue.top_item.opportunity) %></p>
+        <p><%= @opportunity_focus_queue.top_item.reason %></p>
+      </div>
+    <% end %>
+    <div class="actions compact-actions">
+      <%= link_to "Focusで処理", focus_owner_opportunities_path, class: "button" %>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Opportunity Discovery</h2>
+      <p>新着、確認済み、変換済み、却下を管理します。</p>
+    </div>
+    <div class="metric-grid aicoo-owner-secondary">
+      <% @opportunity_summary.status_counts.each do |status, count| %>
+        <div class="metric-card"><span><%= status %></span><strong><%= count %>件</strong></div>
+      <% end %>
+    </div>
+    <div class="metric-grid aicoo-owner-secondary">
+      <% @opportunity_summary.source_type_counts.each do |source_type, count| %>
+        <div class="metric-card"><span><%= source_type %></span><strong><%= count %>件</strong></div>
+      <% end %>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Top Opportunities</h2>
+      <p>Scoreが高い順に表示します。</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>タイトル</th>
+            <th>事業</th>
+            <th>source</th>
+            <th>score</th>
+            <th>状態</th>
+            <th>Candidate</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @opportunities.each do |opportunity| %>
+            <tr>
+              <td><%= link_to opportunity.title, owner_opportunity_path(opportunity) %></td>
+              <td><%= opportunity.business&.name || "-" %></td>
+              <td><span class="pill"><%= opportunity.source_type %></span></td>
+              <td><%= opportunity.opportunity_score.to_i %></td>
+              <td><span class="pill"><%= opportunity.status %></span></td>
+              <td>
+                <% if opportunity.action_candidate %>
+                  <%= link_to "Candidate", opportunity.action_candidate, class: "button secondary" %>
+                <% else %>
+                  <%= button_to "Convert to Candidate", convert_to_candidate_owner_opportunity_path(opportunity), method: :post, class: "button" %>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+          <% if @opportunities.empty? %>
+            <tr><td colspan="6">Opportunityはまだありません。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>

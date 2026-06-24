@@ -21,6 +21,26 @@
     </script>
   </section>
 
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Focus Home</h2>
+      <p>迷ったら、次に押すべき1件だけを処理します。</p>
+    </div>
+    <div class="aicoo-card aicoo-card-compact">
+      <% if @owner_focus_home.top_task %>
+        <p><span class="pill"><%= @owner_focus_home.top_task.priority %></span> <%= @owner_focus_home.top_task.task_type_label %></p>
+        <h3><%= @owner_focus_home.top_task.title %></h3>
+        <p><%= @owner_focus_home.top_task.reason %></p>
+      <% else %>
+        <p>今すぐ処理すべきタスクはありません。</p>
+      <% end %>
+      <div class="actions compact-actions">
+        <%= link_to "Focusで処理", owner_focus_path, class: "button" %>
+        <%= link_to "すべてのタスクを見る", owner_tasks_path, class: "button secondary" %>
+      </div>
+    </div>
+  </section>
+
   <%= render "shared/owner_task_inbox",
              owner_task_inbox: @owner_task_inbox,
              limit: 10 %>
@@ -112,6 +132,62 @@
 
   <section class="dashboard-section">
     <div class="section-heading">
+      <h2>Top Opportunities</h2>
+      <p>日々の気づきから、まだActionCandidate化できる可能性です。</p>
+    </div>
+    <div class="metric-grid aicoo-owner-secondary">
+      <div class="metric-card"><span>New</span><strong><%= @opportunity_discovery_summary.status_counts.fetch("new") %>件</strong></div>
+      <div class="metric-card"><span>Reviewed</span><strong><%= @opportunity_discovery_summary.status_counts.fetch("reviewed") %>件</strong></div>
+      <div class="metric-card"><span>Converted</span><strong><%= @opportunity_discovery_summary.status_counts.fetch("converted") %>件</strong></div>
+      <div class="metric-card"><span>Rejected</span><strong><%= @opportunity_discovery_summary.status_counts.fetch("rejected") %>件</strong></div>
+      <div class="metric-card"><span>Focus Queue</span><strong><%= @opportunity_focus_queue.total_count %>件</strong></div>
+      <div class="metric-card"><span>High Priority</span><strong><%= @opportunity_focus_queue.high_priority_count %>件</strong></div>
+    </div>
+    <div class="aicoo-card aicoo-card-compact">
+      <h3>最優先Opportunity</h3>
+      <% if @opportunity_focus_queue.top_item %>
+        <p><%= link_to @opportunity_focus_queue.top_item.opportunity.title, owner_opportunity_path(@opportunity_focus_queue.top_item.opportunity) %></p>
+        <p>focus score <%= @opportunity_focus_queue.top_item.focus_score.to_i %> / <%= @opportunity_focus_queue.top_item.priority %></p>
+      <% else %>
+        <p>レビュー待ちOpportunityはありません。</p>
+      <% end %>
+    </div>
+    <div class="aicoo-card aicoo-card-compact">
+      <h3>新着Opportunity</h3>
+      <ul class="compact-list">
+        <% @opportunity_discovery_summary.unconverted_opportunities.each do |opportunity| %>
+          <li><%= link_to opportunity.title, owner_opportunity_path(opportunity) %> / score <%= opportunity.opportunity_score.to_i %></li>
+        <% end %>
+        <% if @opportunity_discovery_summary.unconverted_opportunities.empty? %>
+          <li>未変換Opportunityはありません。</li>
+        <% end %>
+      </ul>
+    </div>
+    <div class="aicoo-card aicoo-card-compact">
+      <h3>Top Discovery Sources</h3>
+      <ul class="compact-list">
+        <% @discovery_source_performance_report.strongest_sources.first(5).each do |source| %>
+          <li>
+            <strong><%= source.source_type %></strong>
+            / 実績 <%= number_to_currency(source.total_actual_profit, unit: "¥", precision: 0) %>
+            / 成功率 <%= number_to_percentage(source.overall_success_rate * 100, precision: 1) %>
+          </li>
+        <% end %>
+        <% if @discovery_source_performance_report.strongest_sources.empty? %>
+          <li>データ不足</li>
+        <% end %>
+      </ul>
+    </div>
+    <div class="actions compact-actions">
+      <%= link_to "Opportunityを追加", new_owner_opportunity_path, class: "button" %>
+      <%= link_to "Opportunitiesを見る", owner_opportunities_path, class: "button secondary" %>
+      <%= link_to "Focusで処理", focus_owner_opportunities_path, class: "button" %>
+      <%= link_to "Discovery Reportを見る", owner_discovery_report_path, class: "button secondary" %>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
       <h2>承認済み</h2>
       <p>経営者が止めずに流すべき判断待ちです。</p>
     </div>
@@ -182,6 +258,14 @@
             <li><%= warning %></li>
           <% end %>
         </ul>
+      </div>
+    <% end %>
+    <% if @learning_report_recommendations.recommendations.first %>
+      <% recommendation = @learning_report_recommendations.recommendations.first %>
+      <div class="aicoo-card aicoo-card-compact">
+        <p><span class="pill"><%= recommendation.priority %></span> 改善提案</p>
+        <strong><%= recommendation.title %></strong>
+        <p><%= recommendation.recommended_action %></p>
       </div>
     <% end %>
     <div class="actions compact-actions">

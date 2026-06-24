@@ -8,9 +8,12 @@ module Owner
       assert_response :success
       assert_includes response.body, "学習品質レポート"
       assert_includes response.body, "Summary"
+      assert_includes response.body, "Recommendations"
+      assert_includes response.body, "ActionCandidate化"
       assert_includes response.body, "Accuracy"
       assert_includes response.body, "Calibration"
       assert_includes response.body, "Action Types"
+      assert_includes response.body, "Discovery Source Recommendations"
       assert_includes response.body, "Overestimated"
       assert_includes response.body, "Underestimated"
       assert_includes response.body, "Warnings"

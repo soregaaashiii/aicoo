@@ -1,0 +1,94 @@
+<% content_for :title, "Opportunity Focus Queue" %>
+
+<% header_actions = capture do %>
+  <%= link_to "Opportunity一覧", owner_opportunities_path, class: "button secondary" %>
+  <%= link_to "Opportunityを追加", new_owner_opportunity_path, class: "button" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "Opportunity Focus Queue",
+             description: "次にレビューすべきOpportunityを1件ずつ処理します。",
+             actions: header_actions %>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Focus Summary</h2>
+      <p>未レビューOpportunityの優先度です。</p>
+    </div>
+    <div class="metric-grid aicoo-owner-secondary">
+      <div class="metric-card"><span>Focus Queue</span><strong><%= @opportunity_focus_queue.total_count %>件</strong></div>
+      <div class="metric-card"><span>High Priority</span><strong><%= @opportunity_focus_queue.high_priority_count %>件</strong></div>
+      <div class="metric-card"><span>Generated</span><strong><%= l(@opportunity_focus_queue.generated_at, format: :short) %></strong></div>
+    </div>
+  </section>
+
+  <% if @focus_item %>
+    <% opportunity = @focus_item.opportunity %>
+    <% source = @focus_item.source_performance_summary %>
+    <section class="dashboard-section">
+      <div class="section-heading">
+        <h2>最優先Opportunity</h2>
+        <p>Focus Scoreが最も高い1件です。</p>
+      </div>
+      <div class="aicoo-card">
+        <p>
+          <span class="pill"><%= @focus_item.priority %></span>
+          <span class="pill"><%= opportunity.source_type %></span>
+        </p>
+        <h3><%= opportunity.title %></h3>
+        <div class="metric-grid aicoo-owner-secondary">
+          <div class="metric-card"><span>Focus Score</span><strong><%= @focus_item.focus_score.to_i %></strong></div>
+          <div class="metric-card"><span>Opportunity Score</span><strong><%= opportunity.opportunity_score.to_i %></strong></div>
+          <div class="metric-card"><span>Business</span><strong><%= opportunity.business&.name || "-" %></strong></div>
+          <div class="metric-card"><span>Created</span><strong><%= l(opportunity.created_at, format: :short) %></strong></div>
+        </div>
+        <dl class="detail-list">
+          <dt>reason</dt>
+          <dd><%= @focus_item.reason %></dd>
+          <dt>recommended_action</dt>
+          <dd><%= @focus_item.recommended_action %></dd>
+          <dt>description</dt>
+          <dd><%= simple_format(opportunity.description.presence || "-") %></dd>
+        </dl>
+      </div>
+    </section>
+
+    <section class="dashboard-section">
+      <div class="section-heading">
+        <h2>Source Performance</h2>
+        <p>このsource_typeの過去実績です。</p>
+      </div>
+      <% if source %>
+        <div class="metric-grid aicoo-owner-secondary">
+          <div class="metric-card"><span>Opportunity</span><strong><%= source.opportunities_count %>件</strong></div>
+          <div class="metric-card"><span>Candidate</span><strong><%= source.candidates_count %>件</strong></div>
+          <div class="metric-card"><span>Execution</span><strong><%= source.executions_count %>件</strong></div>
+          <div class="metric-card"><span>Result</span><strong><%= source.results_count %>件</strong></div>
+          <div class="metric-card"><span>Actual Profit</span><strong><%= number_to_currency(source.total_actual_profit, unit: "¥", precision: 0) %></strong></div>
+          <div class="metric-card"><span>Success Rate</span><strong><%= number_to_percentage(source.overall_success_rate * 100, precision: 1) %></strong></div>
+        </div>
+      <% else %>
+        <div class="aicoo-card aicoo-card-compact"><p>source実績はまだありません。</p></div>
+      <% end %>
+    </section>
+
+    <section class="dashboard-section">
+      <div class="actions compact-actions">
+        <%= button_to "Convert to Candidate", focus_convert_to_candidate_owner_opportunity_path(opportunity), method: :post, class: "button" %>
+        <%= button_to "Mark Reviewed", focus_review_owner_opportunity_path(opportunity), method: :patch, class: "button secondary" %>
+        <%= button_to "Reject", focus_reject_owner_opportunity_path(opportunity), method: :patch, class: "button danger", data: { turbo_confirm: "このOpportunityを却下しますか？" } %>
+        <%= link_to "詳細を見る", owner_opportunity_path(opportunity), class: "button secondary" %>
+        <%= link_to "一覧を見る", owner_opportunities_path, class: "button secondary" %>
+      </div>
+    </section>
+  <% else %>
+    <section class="dashboard-section">
+      <div class="aicoo-card aicoo-empty-state">
+        <h2>レビュー待ちOpportunityはありません。</h2>
+        <p>新しい気づきを追加するとFocus Queueに表示されます。</p>
+        <%= link_to "Opportunityを追加", new_owner_opportunity_path, class: "button" %>
+      </div>
+    </section>
+  <% end %>
+</div>

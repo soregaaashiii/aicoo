@@ -16,12 +16,14 @@ class ActionCandidate < ApplicationRecord
     sell
     data_preparation
     evaluation_tuning
+    learning_improvement
+    opportunity_validation
     other
   ].freeze
 
   STATUSES = %w[idea pending approved executor_queued in_progress done rejected archived].freeze
   INACTIVE_STATUSES = %w[archived rejected done].freeze
-  GENERATION_SOURCES = %w[manual seed ai_business ai_cross_business ai_reevaluation ai_insight].freeze
+  GENERATION_SOURCES = %w[manual seed ai_business ai_cross_business ai_reevaluation ai_insight learning_report opportunity_discovery].freeze
   DEPARTMENTS = %w[general revenue lab new_business].freeze
 
   belongs_to :business
@@ -31,6 +33,7 @@ class ActionCandidate < ApplicationRecord
   has_many :revenue_events, dependent: :nullify
   has_many :action_candidate_score_snapshots, dependent: :destroy
   has_many :auto_revision_tasks, dependent: :destroy
+  has_many :opportunity_discovery_items, dependent: :nullify
 
   def department=(value)
     @department_explicitly_assigned = true if value.present?

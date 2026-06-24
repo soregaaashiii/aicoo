@@ -12,6 +12,21 @@
              active_main: :revenue,
              actions: header_actions %>
 
+  <section class="dashboard-section">
+    <div class="aicoo-card aicoo-card-compact">
+      <div class="section-heading">
+        <h2>迷ったらFocusで1件ずつ処理</h2>
+        <p><%= @owner_focus_home.summary_message %></p>
+      </div>
+      <% if @owner_focus_home.top_task %>
+        <p><span class="pill"><%= @owner_focus_home.top_task.priority %></span> <%= @owner_focus_home.top_task.title %></p>
+      <% end %>
+      <div class="actions compact-actions">
+        <%= link_to "Focusで処理", owner_focus_path, class: "button" %>
+      </div>
+    </div>
+  </section>
+
   <%= render "shared/owner_task_inbox",
              owner_task_inbox: @owner_task_inbox,
              tasks: @tasks,

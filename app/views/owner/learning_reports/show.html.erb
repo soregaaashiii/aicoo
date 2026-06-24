@@ -25,6 +25,55 @@
 
   <section class="dashboard-section">
     <div class="section-heading">
+      <h2>Recommendations</h2>
+      <p>予測精度を上げるための次アクションです。</p>
+    </div>
+    <div class="aicoo-card-grid">
+      <% @learning_report_recommendations.recommendations.first(5).each do |recommendation| %>
+        <div class="aicoo-card aicoo-card-compact">
+          <p><span class="pill"><%= recommendation.priority %></span> <%= recommendation.category %></p>
+          <h3><%= recommendation.title %></h3>
+          <p><%= recommendation.reason %></p>
+          <p><strong>次アクション:</strong> <%= recommendation.recommended_action %></p>
+          <div class="actions compact-actions">
+            <% if recommendation.target_path.present? %>
+              <%= link_to "対象を見る", recommendation.target_path, class: "button secondary" %>
+            <% end %>
+            <%= button_to "ActionCandidate化",
+                          create_action_candidate_owner_learning_recommendation_path,
+                          method: :post,
+                          params: {
+                            title: recommendation.title,
+                            reason: recommendation.reason,
+                            recommended_action: recommendation.recommended_action,
+                            category: recommendation.category,
+                            priority: recommendation.priority
+                          },
+                          class: "button" %>
+            <%= button_to "Create Opportunity",
+                          create_opportunity_owner_learning_recommendation_path,
+                          method: :post,
+                          params: {
+                            title: recommendation.title,
+                            reason: recommendation.reason,
+                            recommended_action: recommendation.recommended_action,
+                            category: recommendation.category,
+                            priority: recommendation.priority
+                          },
+                          class: "button secondary" %>
+          </div>
+        </div>
+      <% end %>
+      <% if @learning_report_recommendations.recommendations.empty? %>
+        <div class="aicoo-card aicoo-card-compact">
+          <p>現時点で追加の改善提案はありません。</p>
+        </div>
+      <% end %>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
       <h2>Action Types</h2>
       <p>得意な行動タイプと、外れやすい行動タイプです。</p>
     </div>
@@ -51,6 +100,40 @@
           <% end %>
         </ul>
       </div>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Discovery Source Recommendations</h2>
+      <p>どの発見源を増やすべきか、見直すべきかを確認します。</p>
+    </div>
+    <div class="aicoo-grid aicoo-grid-2">
+      <div class="aicoo-card aicoo-card-compact">
+        <h3>Strongest Sources</h3>
+        <ul class="compact-list">
+          <% @discovery_source_performance_report.strongest_sources.each do |source| %>
+            <li><strong><%= source.source_type %></strong> / 実績 <%= number_to_currency(source.total_actual_profit, unit: "¥", precision: 0) %> / 成功率 <%= number_to_percentage(source.overall_success_rate * 100, precision: 1) %></li>
+          <% end %>
+          <% if @discovery_source_performance_report.strongest_sources.empty? %>
+            <li>データ不足</li>
+          <% end %>
+        </ul>
+      </div>
+      <div class="aicoo-card aicoo-card-compact">
+        <h3>Weakest Sources</h3>
+        <ul class="compact-list">
+          <% @discovery_source_performance_report.weakest_sources.each do |source| %>
+            <li><strong><%= source.source_type %></strong> / 実績 <%= number_to_currency(source.total_actual_profit, unit: "¥", precision: 0) %> / 成功率 <%= number_to_percentage(source.overall_success_rate * 100, precision: 1) %></li>
+          <% end %>
+          <% if @discovery_source_performance_report.weakest_sources.empty? %>
+            <li>データ不足</li>
+          <% end %>
+        </ul>
+      </div>
+    </div>
+    <div class="actions compact-actions">
+      <%= link_to "Discovery Reportを見る", owner_discovery_report_path, class: "button secondary" %>
     </div>
   </section>
 

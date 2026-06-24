@@ -19,6 +19,8 @@ module Owner
 
       assert_response :success
       assert_includes response.body, "今日の確認タスク"
+      assert_includes response.body, "迷ったらFocusで1件ずつ処理"
+      assert_includes response.body, "Focusで処理"
       assert_includes response.body, "今日の確認ダイジェスト"
       assert_includes response.body, "Daily Run Health"
       assert_includes response.body, "今日の提案"

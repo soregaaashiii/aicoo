@@ -11,6 +11,10 @@ class DashboardController < ApplicationController
     @learning_loop_summary = AicooLearningLoopSummaryService.new.call
     @learning_loop_action_center = AicooLearningLoopActionCenterService.new.call
     @learning_loop_quality_report = Aicoo::LearningLoopQualityReport.new.call
+    @learning_report_recommendations = Aicoo::LearningReportRecommendation.new.call
+    @opportunity_discovery_summary = Aicoo::OpportunityDiscoverySummary.new.call
+    @discovery_source_performance_report = Aicoo::DiscoverySourcePerformanceReport.new.call
+    @opportunity_focus_queue = Aicoo::OpportunityFocusQueue.new.call
     @action_result_registration_health = Aicoo::ActionResultRegistrationHealth.new.call
     @learning_loop_health_summary = Aicoo::LearningLoopHealthSummary.new.call
     @owner_task_inbox = Aicoo::OwnerTaskInbox.new.call
