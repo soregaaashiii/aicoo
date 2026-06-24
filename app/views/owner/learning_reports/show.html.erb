@@ -1,0 +1,128 @@
+<% content_for :title, "Learning Loop Quality Report" %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "学習品質レポート",
+             description: "AICOOの予測がどれだけ実績に近づいているかを確認します。",
+             active_main: :scoreboard %>
+
+  <% report = @learning_loop_quality_report %>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Summary</h2>
+      <p>予測、実績、補正の全体状態です。</p>
+    </div>
+    <div class="metric-grid">
+      <div class="metric-card"><span>Accuracy Score</span><strong><%= report.prediction_accuracy_score || "N/A" %></strong></div>
+      <div class="metric-card"><span>Evaluated Count</span><strong><%= report.total_evaluated %>件</strong></div>
+      <div class="metric-card"><span>Profit Error</span><strong><%= report.profit_error_rate ? number_to_percentage(report.profit_error_rate * 100, precision: 1) : "N/A" %></strong></div>
+      <div class="metric-card"><span>Success Probability Error</span><strong><%= report.success_probability_error ? number_to_percentage(report.success_probability_error * 100, precision: 1) : "N/A" %></strong></div>
+      <div class="metric-card"><span>Calibration Effectiveness</span><strong><%= report.calibration_effectiveness_score %></strong></div>
+      <div class="metric-card"><span>Learning Trend</span><strong><%= report.learning_trend %></strong></div>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Action Types</h2>
+      <p>得意な行動タイプと、外れやすい行動タイプです。</p>
+    </div>
+    <div class="aicoo-grid aicoo-grid-2">
+      <div class="aicoo-card">
+        <h3>Strongest</h3>
+        <ul class="compact-list">
+          <% report.strongest_action_types.each do |summary| %>
+            <li><strong><%= summary.action_type %></strong> / <%= summary.sample_count %>件 / 誤差 <%= number_to_percentage(summary.avg_error_rate * 100, precision: 1) %></li>
+          <% end %>
+          <% if report.strongest_action_types.empty? %>
+            <li>データ不足</li>
+          <% end %>
+        </ul>
+      </div>
+      <div class="aicoo-card">
+        <h3>Weakest</h3>
+        <ul class="compact-list">
+          <% report.weakest_action_types.each do |summary| %>
+            <li><strong><%= summary.action_type %></strong> / <%= summary.sample_count %>件 / 誤差 <%= number_to_percentage(summary.avg_error_rate * 100, precision: 1) %></li>
+          <% end %>
+          <% if report.weakest_action_types.empty? %>
+            <li>データ不足</li>
+          <% end %>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Overestimated</h2>
+      <p>予測より実績が低かった行動です。</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>タイトル</th><th>予測利益</th><th>実績利益</th><th>誤差率</th></tr>
+        </thead>
+        <tbody>
+          <% report.most_overestimated_actions.each do |item| %>
+            <tr>
+              <td><%= link_to item.title, action_result_path(item.action_result) %></td>
+              <td><%= number_to_currency(item.predicted_profit, unit: "¥", precision: 0) %></td>
+              <td><%= number_to_currency(item.actual_profit, unit: "¥", precision: 0) %></td>
+              <td><%= number_to_percentage(item.error_rate * 100, precision: 1) %></td>
+            </tr>
+          <% end %>
+          <% if report.most_overestimated_actions.empty? %>
+            <tr><td colspan="4">データ不足</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Underestimated</h2>
+      <p>予測より実績が高かった行動です。</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>タイトル</th><th>予測利益</th><th>実績利益</th><th>誤差率</th></tr>
+        </thead>
+        <tbody>
+          <% report.most_underestimated_actions.each do |item| %>
+            <tr>
+              <td><%= link_to item.title, action_result_path(item.action_result) %></td>
+              <td><%= number_to_currency(item.predicted_profit, unit: "¥", precision: 0) %></td>
+              <td><%= number_to_currency(item.actual_profit, unit: "¥", precision: 0) %></td>
+              <td><%= number_to_percentage(item.error_rate * 100, precision: 1) %></td>
+            </tr>
+          <% end %>
+          <% if report.most_underestimated_actions.empty? %>
+            <tr><td colspan="4">データ不足</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Warnings</h2>
+      <p>精度改善のために確認すべきことです。</p>
+    </div>
+    <div class="aicoo-card aicoo-card-compact">
+      <% if report.warnings.any? %>
+        <ul class="compact-list">
+          <% report.warnings.each do |warning| %>
+            <li><%= warning %></li>
+          <% end %>
+        </ul>
+      <% else %>
+        <p>大きな警告はありません。</p>
+      <% end %>
+    </div>
+  </section>
+</div>

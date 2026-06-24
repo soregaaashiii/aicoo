@@ -27,6 +27,9 @@
       <div class="metric-card"><span>今日処理済み</span><strong><%= digest.completed_today_count %>件</strong></div>
       <div class="metric-card"><span>昨日処理済み</span><strong><%= digest.completed_yesterday_count %>件</strong></div>
       <div class="metric-card"><span>昨日から増加</span><strong><%= digest.new_since_yesterday_count %>件</strong></div>
+      <div class="metric-card"><span>結果登録待ち</span><strong><%= digest.result_registration_health.pending_count %>件</strong></div>
+      <div class="metric-card"><span>最古登録待ち</span><strong><%= digest.result_registration_health.oldest_pending_hours ? "#{digest.result_registration_health.oldest_pending_hours}h" : "-" %></strong></div>
+      <div class="metric-card"><span>Learning Loop</span><strong><%= digest.learning_loop_health.registration_rate ? number_to_percentage(digest.learning_loop_health.registration_rate * 100, precision: 1) : "-" %></strong></div>
     </div>
 
     <div class="aicoo-card aicoo-card-compact">
@@ -44,6 +47,11 @@
         <div class="metric-card"><span>Locked Recoveries</span><strong><%= digest.daily_run_health.locked_recovery_count %>件</strong></div>
         <div class="metric-card"><span>Cooldown Recoveries</span><strong><%= digest.daily_run_health.cooldown_recovery_count %>件</strong></div>
         <div class="metric-card"><span>Recovery Limit Reached</span><strong><%= digest.daily_run_health.recovery_limit_reached_count %>件</strong></div>
+        <div class="metric-card"><span>Execution Result未登録</span><strong><%= digest.daily_run_health.completed_without_result_count %>件</strong></div>
+        <div class="metric-card"><span>Result Warning</span><strong><%= digest.daily_run_health.result_registration_health.warning_count %>件</strong></div>
+        <div class="metric-card"><span>Result Critical</span><strong><%= digest.daily_run_health.result_registration_health.critical_count %>件</strong></div>
+        <div class="metric-card"><span>Learning Accuracy</span><strong><%= digest.daily_run_health.learning_accuracy_score || "N/A" %></strong></div>
+        <div class="metric-card"><span>Learning Trend</span><strong><%= digest.daily_run_health.learning_trend %></strong></div>
         <div class="metric-card"><span>最新Recovery</span><strong><%= digest.daily_run_health.last_recovery_at ? l(digest.daily_run_health.last_recovery_at, format: :short) : "-" %></strong></div>
       </div>
       <% if digest.daily_run_health.failed_steps.any? %>

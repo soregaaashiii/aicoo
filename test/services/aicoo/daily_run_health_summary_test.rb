@@ -4,6 +4,8 @@ module Aicoo
   class DailyRunHealthSummaryTest < ActiveSupport::TestCase
     setup do
       ActionCandidate.update_all(created_at: 10.days.ago, status: "done")
+      ActionResult.delete_all
+      ActionExecution.delete_all
       AicooDailyRun.delete_all
       ActionPredictionCalibration.delete_all
       ActionPredictionCalibrationLog.delete_all
@@ -178,6 +180,53 @@ module Aicoo
       assert_includes summary.warnings, "1 step is currently locked"
     end
 
+    test "completed execution without result is included in health summary" do
+      create_daily_run(status: "success")
+      candidate = create_action_candidate
+      candidate.create_action_execution!(
+        status: "completed",
+        execution_type: "manual",
+        completed_at: Time.current,
+        result_summary: "完了"
+      )
+
+      summary = DailyRunHealthSummary.new.call
+
+      assert_equal 1, summary.completed_without_result_count
+      assert_equal "attention", summary.result_registration_health.health_status
+      assert_includes summary.warnings, "1 completed executions have no ActionResult"
+    end
+
+    test "critical result registration health is reflected" do
+      create_daily_run(status: "success")
+      candidate = create_action_candidate
+      candidate.create_action_execution!(
+        status: "completed",
+        execution_type: "manual",
+        completed_at: 96.hours.ago,
+        result_summary: "完了"
+      )
+
+      summary = DailyRunHealthSummary.new.call
+
+      assert_equal "critical", summary.health_status
+      assert_equal 1, summary.result_registration_health.critical_count
+      assert_includes summary.warnings, "1 execution result is overdue by #{summary.result_registration_health.oldest_pending_hours} hours"
+      assert_equal "ActionResult登録待ちを確認してください", summary.recommended_action
+    end
+
+    test "learning trend declining is reflected" do
+      create_daily_run(status: "success")
+      create_action_candidate
+      create_evaluated_result(predicted: 10_000, actual: 9_000, evaluated_on: 45.days.ago.to_date)
+      create_evaluated_result(predicted: 10_000, actual: 1_000, evaluated_on: Date.current)
+
+      summary = DailyRunHealthSummary.new.call
+
+      assert_equal "declining", summary.learning_trend
+      assert_includes summary.warnings, "Learning Trend declining"
+    end
+
     private
 
     def create_daily_run(attributes = {})
@@ -212,6 +261,25 @@ module Aicoo
           expected_hours: 1,
           final_score: 1_500
         }.merge(attributes)
+      )
+    end
+
+    def create_evaluated_result(predicted:, actual:, evaluated_on:)
+      candidate = create_action_candidate(
+        title: "Learning trend candidate #{SecureRandom.hex(4)}",
+        immediate_value_yen: predicted,
+        status: "done"
+      )
+      ActionResult.create!(
+        action_candidate: candidate,
+        business: candidate.business,
+        executed_on: evaluated_on,
+        evaluated_on:,
+        evaluation_status: "evaluated",
+        predicted_expected_profit_yen: predicted,
+        predicted_success_probability: 0.8,
+        actual_profit_yen: actual,
+        actual_revenue_yen: actual
       )
     end
   end

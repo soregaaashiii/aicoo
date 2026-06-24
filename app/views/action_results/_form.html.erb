@@ -11,7 +11,25 @@
   <% end %>
 
   <%= form.hidden_field :action_candidate_id %>
+  <%= form.hidden_field :action_execution_id %>
   <%= form.hidden_field :business_id %>
+
+  <% if action_result.action_execution %>
+    <% execution = action_result.action_execution %>
+    <div class="aicoo-card aicoo-card-compact">
+      <h3>Execution Draft</h3>
+      <div class="metric-grid">
+        <div class="metric-card"><span>予測利益</span><strong><%= number_to_currency(execution.predicted_profit_yen_snapshot.to_i, unit: "¥", precision: 0) %></strong></div>
+        <div class="metric-card"><span>予測成功率</span><strong><%= number_to_percentage(execution.predicted_success_probability_snapshot.to_d * 100, precision: 1) %></strong></div>
+        <div class="metric-card"><span>予測時間</span><strong><%= execution.predicted_hours_snapshot || "-" %>h</strong></div>
+        <div class="metric-card"><span>実績時間</span><strong><%= execution.actual_hours || "-" %>h</strong></div>
+        <div class="metric-card"><span>予測コスト</span><strong><%= number_to_currency(execution.predicted_cost_yen_snapshot.to_i, unit: "¥", precision: 0) %></strong></div>
+        <div class="metric-card"><span>実績コスト</span><strong><%= number_to_currency(execution.actual_cost_yen.to_d, unit: "¥", precision: 0) %></strong></div>
+        <div class="metric-card"><span>score</span><strong><%= number_with_precision(execution.action_score_snapshot.to_d, precision: 1) %></strong></div>
+      </div>
+      <p><strong>Execution結果:</strong> <%= execution.result_summary.presence || "-" %></p>
+    </div>
+  <% end %>
 
   <div class="grid">
     <div class="field">

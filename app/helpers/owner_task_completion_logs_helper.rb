@@ -9,6 +9,8 @@ module OwnerTaskCompletionLogsHelper
       "Daily Run ##{log.target_id}"
     when "AicooDailyRunStep"
       "Daily Run Step ##{log.target_id}"
+    when "ActionExecution"
+      "ActionExecution ##{log.target_id}"
     else
       log.target_type.presence || "-"
     end
@@ -25,6 +27,8 @@ module OwnerTaskCompletionLogsHelper
     when "AicooDailyRunStep"
       step = AicooDailyRunStep.find_by(id: log.target_id)
       aicoo_daily_run_path(step.aicoo_daily_run, anchor: "step-breakdown") if step
+    when "ActionExecution"
+      action_execution_path(log.target_id)
     end
   end
 end

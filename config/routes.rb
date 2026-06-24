@@ -8,6 +8,7 @@ Rails.application.routes.draw do
   get "owner", to: "owner/dashboard#show", as: :owner_dashboard
   get "owner/dashboard", to: "owner/dashboard#show"
   get "owner/tasks", to: "owner/tasks#index", as: :owner_tasks
+  get "owner/learning_report", to: "owner/learning_reports#show", as: :owner_learning_report
   patch "owner/calibrations/:id/approve", to: "owner/calibrations#approve", as: :approve_owner_calibration
   patch "owner/calibrations/:id/reject", to: "owner/calibrations#reject", as: :reject_owner_calibration
   get "owner/evaluator_trends", to: "owner/evaluator_trends#index", as: :owner_evaluator_trends
@@ -37,6 +38,12 @@ Rails.application.routes.draw do
 
   resources :action_results, only: %i[index show new create edit update] do
     post :evaluate, on: :member
+  end
+  resources :action_executions, only: :show do
+    patch :start, on: :member
+    patch :complete, on: :member
+    patch :fail, on: :member
+    patch :cancel, on: :member
   end
   resources :action_execution_logs, only: %i[show new create edit update]
   resources :codex_quality_checks, only: %i[index show] do

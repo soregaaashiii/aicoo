@@ -8,6 +8,10 @@ module Aicoo
     }.freeze
     TASK_TYPE_LABELS = {
       "action_candidate_approval" => "行動候補承認",
+      "action_execution_ready" => "実行準備完了",
+      "action_result_registration" => "実行結果登録",
+      "learning_loop_health" => "学習ループ警告",
+      "learning_loop_warning" => "学習品質警告",
       "calibration_approval" => "評価式承認",
       "daily_run_failure" => "Daily Run失敗",
       "daily_run_partial_failed" => "Daily Run一部失敗",
@@ -46,6 +50,10 @@ module Aicoo
     def sorted_tasks
       (
         action_candidate_approval_tasks +
+        action_execution_ready_tasks +
+        action_result_registration_tasks +
+        learning_loop_health_tasks +
+        learning_loop_warning_tasks +
         calibration_approval_tasks +
         daily_run_step_recovery_tasks +
         daily_run_recovery_attention_tasks +
@@ -90,6 +98,94 @@ module Aicoo
           quick_actions: calibration_pending_quick_actions(calibration)
         )
       end
+    end
+
+    def action_execution_ready_tasks
+      ActionExecution.includes(action_candidate: :business)
+                     .ready
+                     .recent
+                     .limit(20)
+                     .map do |execution|
+        candidate = execution.action_candidate
+        Task.new(
+          priority: candidate.final_score.to_d >= 10_000.to_d ? "high" : "medium",
+          task_type: "action_execution_ready",
+          title: "#{candidate.title} を実行開始",
+          description: "承認済みActionCandidateの実行準備が完了しています。",
+          target_label: candidate.business.name,
+          target_path: routes.action_execution_path(execution),
+          reason: "score #{candidate.final_score.to_d.round(1)} / 期待利益 #{candidate.expected_profit_yen.to_i.to_fs(:delimited)}円",
+          created_at: execution.updated_at || execution.created_at,
+          quick_actions: action_execution_quick_actions(execution)
+        )
+      end
+    end
+
+    def action_result_registration_tasks
+      ActionExecution.includes(action_candidate: :business)
+                     .completed_without_result
+                     .recent
+                     .limit(20)
+                     .map do |execution|
+        candidate = execution.action_candidate
+        delay_hours = result_registration_delay_hours(execution)
+        Task.new(
+          priority: action_result_registration_priority(delay_hours),
+          task_type: "action_result_registration",
+          title: "ActionResult登録待ち: #{candidate.title}",
+          description: "完了済みExecutionのActionResultが未登録です。",
+          target_label: candidate.business.name,
+          target_path: routes.action_execution_path(execution),
+          reason: "Execution completed #{delay_hours} hours ago. 学習データ欠損防止のため、実績利益とコメントを登録してください。",
+          created_at: execution.completed_at || execution.updated_at,
+          quick_actions: [
+            quick_action("結果登録へ進む", :get, routes.new_action_result_path(action_execution_id: execution.id), style: "primary"),
+            quick_action("詳細を見る", :get, routes.action_execution_path(execution), style: "secondary")
+          ]
+        )
+      end
+    end
+
+    def learning_loop_health_tasks
+      health = LearningLoopHealthSummary.new.call
+      return [] unless health.health_status.in?(%w[warning critical])
+
+      [
+        Task.new(
+          priority: health.health_status == "critical" ? "critical" : "high",
+          task_type: "learning_loop_health",
+          title: "Learning Loop Completion Rate低下",
+          description: "完了済みExecutionに対するActionResult登録率が低下しています。",
+          target_label: "Learning Loop",
+          target_path: routes.dashboard_path(anchor: "execution-summary"),
+          reason: "#{health.health_message} missing=#{health.missing_count}件",
+          created_at: Time.current,
+          quick_actions: [
+            quick_action("Execution Summaryを見る", :get, routes.dashboard_path(anchor: "execution-summary"), style: "secondary")
+          ]
+        )
+      ]
+    end
+
+    def learning_loop_warning_tasks
+      report = LearningLoopQualityReport.new.call
+      return [] unless learning_loop_warning?(report)
+
+      [
+        Task.new(
+          priority: "high",
+          task_type: "learning_loop_warning",
+          title: "Learning Loop Qualityを確認",
+          description: "予測精度や補正効果に確認が必要です。",
+          target_label: "Learning Report",
+          target_path: routes.owner_learning_report_path,
+          reason: learning_loop_warning_reason(report),
+          created_at: report.generated_at,
+          quick_actions: [
+            quick_action("学習品質レポートを見る", :get, routes.owner_learning_report_path, style: "secondary")
+          ]
+        )
+      ]
     end
 
     def daily_run_tasks
@@ -213,6 +309,39 @@ module Aicoo
         quick_action("却下", :patch, routes.reject_owner_calibration_path(calibration), confirm_message: "この補正係数を却下しますか？", style: "danger"),
         quick_action("補正詳細を見る", :get, routes.admin_aicoo_calibration_path(filter: "pending"), style: "secondary")
       ]
+    end
+
+    def action_execution_quick_actions(execution)
+      [
+        quick_action("実行開始", :patch, routes.start_action_execution_path(execution), style: "primary"),
+        quick_action("詳細を見る", :get, routes.action_execution_path(execution), style: "secondary")
+      ]
+    end
+
+    def result_registration_delay_hours(execution)
+      return 0 unless execution.completed_at
+
+      ((Time.current - execution.completed_at) / 1.hour).round(1)
+    end
+
+    def action_result_registration_priority(delay_hours)
+      return "critical" if delay_hours >= 72
+      return "high" if delay_hours >= 24
+
+      "medium"
+    end
+
+    def learning_loop_warning?(report)
+      report.learning_trend == "declining" ||
+        (report.prediction_accuracy_score.present? && report.prediction_accuracy_score < 50) ||
+        (report.calibration_effectiveness_score.is_a?(Numeric) && report.calibration_effectiveness_score < 40)
+    end
+
+    def learning_loop_warning_reason(report)
+      return "Learning Trend declining" if report.learning_trend == "declining"
+      return "Accuracy Score #{report.prediction_accuracy_score}" if report.prediction_accuracy_score.to_i < 50
+
+      "Calibration Effectiveness #{report.calibration_effectiveness_score}"
     end
 
     def calibration_warning_quick_actions

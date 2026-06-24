@@ -22,7 +22,7 @@
            owner_task_inbox: @owner_task_inbox,
            limit: 10 %>
 
-<section class="dashboard-section">
+<section class="dashboard-section" id="execution-summary">
   <div class="section-heading">
     <h2>Auto Revision Approval Queue</h2>
     <p>価値が高く、low/medium riskのActionCandidateをCodex投入前の承認待ちへ積みます。</p>
@@ -699,6 +699,71 @@
         <% end %>
         <% if @dashboard_summary.data_preparation_tasks.empty? %>
           <tr><td colspan="7">まだデータ整備タスクはありません。</td></tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>Learning Loop Quality</h2>
+    <p>予測がどれだけ実績に近づいているかを確認します。</p>
+  </div>
+  <div class="metric-grid">
+    <div class="metric-card"><span>Accuracy Score</span><strong><%= @learning_loop_quality_report.prediction_accuracy_score || "N/A" %></strong></div>
+    <div class="metric-card"><span>Calibration Effectiveness</span><strong><%= @learning_loop_quality_report.calibration_effectiveness_score %></strong></div>
+    <div class="metric-card"><span>Learning Trend</span><strong><%= @learning_loop_quality_report.learning_trend %></strong></div>
+    <div class="metric-card"><span>Evaluated Count</span><strong><%= @learning_loop_quality_report.total_evaluated %>件</strong></div>
+  </div>
+  <div class="actions compact-actions">
+    <%= link_to "学習品質レポートを見る", owner_learning_report_path, class: "button secondary" %>
+  </div>
+</section>
+
+<section class="dashboard-section" id="execution-summary">
+  <div class="section-heading">
+    <h2>Execution Summary</h2>
+    <p>承認後のActionCandidateが、実行準備・実行中・完了まで進んでいるかを確認します。</p>
+  </div>
+  <div class="metric-grid">
+    <div class="metric-card"><span>ready</span><strong><%= @action_execution_summary[:ready_count] %>件</strong></div>
+    <div class="metric-card"><span>running</span><strong><%= @action_execution_summary[:running_count] %>件</strong></div>
+    <div class="metric-card"><span>completed今日</span><strong><%= @action_execution_summary[:completed_today_count] %>件</strong></div>
+    <div class="metric-card"><span>failed今日</span><strong><%= @action_execution_summary[:failed_today_count] %>件</strong></div>
+    <div class="metric-card"><span>Result未登録 completed</span><strong><%= @action_execution_summary[:completed_without_result_count] %>件</strong></div>
+    <div class="metric-card"><span>Pending Results</span><strong><%= @action_execution_summary[:result_pending_count] %>件</strong></div>
+    <div class="metric-card"><span>Warning Results</span><strong><%= @action_execution_summary[:result_warning_count] %>件</strong></div>
+    <div class="metric-card"><span>Critical Results</span><strong><%= @action_execution_summary[:result_critical_count] %>件</strong></div>
+    <div class="metric-card"><span>Oldest Delay</span><strong><%= @action_execution_summary[:oldest_result_delay_hours] ? "#{@action_execution_summary[:oldest_result_delay_hours]}h" : "-" %></strong></div>
+    <div class="metric-card"><span>Result登録率</span><strong><%= @action_execution_summary[:result_registration_rate] ? number_to_percentage(@action_execution_summary[:result_registration_rate] * 100, precision: 1) : "-" %></strong></div>
+    <div class="metric-card"><span>平均登録遅延</span><strong><%= @action_execution_summary[:average_result_registration_delay_hours] ? "#{number_with_precision(@action_execution_summary[:average_result_registration_delay_hours], precision: 1)}h" : "-" %></strong></div>
+    <div class="metric-card"><span>Learning Loop Completion Rate</span><strong><%= @action_execution_summary[:learning_loop_registration_rate] ? number_to_percentage(@action_execution_summary[:learning_loop_registration_rate] * 100, precision: 1) : "-" %></strong></div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>タイトル</th>
+          <th>Business</th>
+          <th>状態</th>
+          <th>期待利益</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @action_execution_summary[:top_ready].each do |execution| %>
+          <% candidate = execution.action_candidate %>
+          <tr>
+            <td><%= candidate.title %></td>
+            <td><%= candidate.business.name %></td>
+            <td><span class="pill"><%= execution.status %></span></td>
+            <td class="number"><%= number_to_currency(candidate.expected_profit_yen, unit: "¥", precision: 0) %></td>
+            <td><%= link_to "実行管理へ", execution, class: "button secondary" %></td>
+          </tr>
+        <% end %>
+        <% if @action_execution_summary[:top_ready].empty? %>
+          <tr><td colspan="5">実行準備済みのActionExecutionはありません。</td></tr>
         <% end %>
       </tbody>
     </table>

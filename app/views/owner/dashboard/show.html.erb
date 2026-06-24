@@ -166,6 +166,31 @@
 
   <section class="dashboard-section">
     <div class="section-heading">
+      <h2>予測精度</h2>
+      <p>AICOOの提案が実績に近づいているかを確認します。</p>
+    </div>
+    <div class="metric-grid aicoo-owner-secondary">
+      <div class="metric-card"><span>Accuracy Score</span><strong><%= @learning_loop_quality_report.prediction_accuracy_score || "N/A" %></strong></div>
+      <div class="metric-card"><span>今週改善</span><strong><%= @learning_loop_quality_report.learning_trend %></strong></div>
+      <div class="metric-card"><span>得意</span><strong><%= @learning_loop_quality_report.strongest_action_types.first&.action_type || "データ不足" %></strong></div>
+      <div class="metric-card"><span>苦手</span><strong><%= @learning_loop_quality_report.weakest_action_types.first&.action_type || "データ不足" %></strong></div>
+    </div>
+    <% if @learning_loop_quality_report.warnings.any? %>
+      <div class="aicoo-card aicoo-card-compact">
+        <ul class="compact-list">
+          <% @learning_loop_quality_report.warnings.first(3).each do |warning| %>
+            <li><%= warning %></li>
+          <% end %>
+        </ul>
+      </div>
+    <% end %>
+    <div class="actions compact-actions">
+      <%= link_to "学習品質レポートを見る", owner_learning_report_path, class: "button secondary" %>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
       <h2>今日の数字</h2>
       <p>経営判断に必要な数字だけを表示します。</p>
     </div>

@@ -10,9 +10,13 @@ class DashboardController < ApplicationController
     @execution_feasibility_correction_overview = AicooExecutionFeasibilityCorrectionOverviewService.new.call
     @learning_loop_summary = AicooLearningLoopSummaryService.new.call
     @learning_loop_action_center = AicooLearningLoopActionCenterService.new.call
+    @learning_loop_quality_report = Aicoo::LearningLoopQualityReport.new.call
+    @action_result_registration_health = Aicoo::ActionResultRegistrationHealth.new.call
+    @learning_loop_health_summary = Aicoo::LearningLoopHealthSummary.new.call
     @owner_task_inbox = Aicoo::OwnerTaskInbox.new.call
     @owner_task_digest = Aicoo::OwnerTaskDigest.new(owner_task_inbox: @owner_task_inbox).call
     @owner_task_completion_logs = OwnerTaskCompletionLog.recent.limit(3)
+    @action_execution_summary = action_execution_summary
     @auto_revision_task_summary = AutoRevisionTaskSummary.new.call
     @repository_target_coverage = AicooRepositoryTargetCoverageService.new.call
     @action_prediction_calibration_summary = ActionPredictionCalibrationSummary.new.call
@@ -120,6 +124,40 @@ class DashboardController < ApplicationController
 
   def dashboard_ranking_scope
     ActionCandidate.active_for_ranking.where.not(action_type: "data_preparation")
+  end
+
+  def action_execution_summary
+    {
+      ready_count: ActionExecution.ready.count,
+      running_count: ActionExecution.running.count,
+      completed_today_count: ActionExecution.completed_today.count,
+      failed_today_count: ActionExecution.failed_today.count,
+      completed_without_result_count: ActionExecution.completed_without_result.count,
+      result_pending_count: @action_result_registration_health.pending_count,
+      result_warning_count: @action_result_registration_health.warning_count,
+      result_critical_count: @action_result_registration_health.critical_count,
+      oldest_result_delay_hours: @action_result_registration_health.oldest_pending_hours,
+      result_registration_rate: action_execution_result_registration_rate,
+      average_result_registration_delay_hours: average_action_execution_result_registration_delay_hours,
+      learning_loop_registration_rate: @learning_loop_health_summary.registration_rate,
+      top_ready: ActionExecution.includes(action_candidate: :business).ready.recent.limit(5)
+    }
+  end
+
+  def action_execution_result_registration_rate
+    completed_count = ActionExecution.where(status: "completed").count
+    return nil if completed_count.zero?
+
+    (completed_count - ActionExecution.completed_without_result.count).to_d / completed_count
+  end
+
+  def average_action_execution_result_registration_delay_hours
+    delays = ActionExecution.joins(:action_result).where.not(completed_at: nil).map do |execution|
+      (execution.action_result.created_at - execution.completed_at) / 1.hour
+    end
+    return nil if delays.empty?
+
+    delays.sum.to_d / delays.size
   end
 
   def run_daily_catch_up_if_due

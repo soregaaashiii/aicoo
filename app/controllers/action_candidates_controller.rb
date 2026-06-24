@@ -14,6 +14,7 @@ class ActionCandidatesController < ApplicationController
     @action_candidate_judge_score = AicooJudge::ActionCandidateScore.new.score_for(@action_candidate)
     @score_snapshots = @action_candidate.action_candidate_score_snapshots.recent.limit(10)
     @action_execution_logs = @action_candidate.action_execution_logs.recent.limit(10)
+    @action_execution = @action_candidate.action_execution
   end
 
   # GET /action_candidates/new

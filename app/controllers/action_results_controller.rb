@@ -9,13 +9,18 @@ class ActionResultsController < ApplicationController
   end
 
   def new
+    if params[:action_execution_id].present? || params.dig(:action_result, :action_execution_id).present?
+      action_execution = ActionExecution.find(params[:action_execution_id] || params.dig(:action_result, :action_execution_id))
+      if action_execution.action_result
+        redirect_to action_execution.action_result, notice: "このActionExecutionの結果は登録済みです。"
+      else
+        @action_result = Aicoo::ActionResultDraftBuilder.new(action_execution).call
+      end
+      return
+    end
+
     action_candidate = ActionCandidate.find(params.dig(:action_result, :action_candidate_id) || params[:action_candidate_id])
-    @action_result = ActionResult.new(
-      action_candidate:,
-      business: action_candidate.business,
-      executed_on: Date.current,
-      evaluated_on: Date.current
-    )
+    @action_result = ActionResult.new(action_candidate:, business: action_candidate.business, executed_on: Date.current, evaluated_on: Date.current)
   end
 
   def create
@@ -54,6 +59,7 @@ class ActionResultsController < ApplicationController
     params.expect(
       action_result: [
         :action_candidate_id,
+        :action_execution_id,
         :business_id,
         :executed_on,
         :evaluated_on,

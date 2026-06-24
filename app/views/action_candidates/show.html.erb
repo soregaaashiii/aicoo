@@ -25,6 +25,9 @@
     <% if @action_candidate.status == "approved" %>
       <%= link_to "承認済みキュー", owner_approved_queue_path, class: "button secondary" %>
     <% end %>
+    <% if @action_execution %>
+      <%= link_to "実行管理へ", @action_execution, class: "button" %>
+    <% end %>
     <%= link_to "Edit", edit_action_candidate_path(@action_candidate), class: "button secondary" %>
 <% end %>
 
@@ -37,6 +40,24 @@
   <%= render "shared/aicoo_execution_tabs", active: :today %>
 
 <%= render @action_candidate %>
+
+<% if @action_execution %>
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>実行管理</h2>
+      <p>承認後の実行準備・実行・結果登録を管理します。</p>
+    </div>
+    <div class="metric-grid">
+      <div class="metric-card"><span>状態</span><strong><%= @action_execution.status %></strong></div>
+      <div class="metric-card"><span>実行タイプ</span><strong><%= @action_execution.execution_type %></strong></div>
+      <div class="metric-card"><span>開始</span><strong><%= @action_execution.started_at ? l(@action_execution.started_at, format: :short) : "-" %></strong></div>
+      <div class="metric-card"><span>完了</span><strong><%= @action_execution.completed_at ? l(@action_execution.completed_at, format: :short) : "-" %></strong></div>
+    </div>
+    <div class="actions">
+      <%= link_to "実行管理へ", @action_execution, class: "button" %>
+    </div>
+  </section>
+<% end %>
 
 <section class="dashboard-section">
   <div class="section-heading">

@@ -12,6 +12,7 @@ class ActionResult < ApplicationRecord
 
   belongs_to :action_candidate
   belongs_to :business
+  belongs_to :action_execution, optional: true
   has_many :action_execution_logs, dependent: :nullify
   has_many :revenue_events, dependent: :nullify
 
@@ -24,6 +25,7 @@ class ActionResult < ApplicationRecord
   validates :evaluation_status, inclusion: { in: EVALUATION_STATUSES }
   validates :actual_revenue_yen, :actual_profit_yen, numericality: { only_integer: true }
   validates :predicted_success_probability, numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 1 }, allow_nil: true
+  validates :action_execution_id, uniqueness: true, allow_nil: true
 
   scope :pending, -> { where(evaluation_status: "pending") }
   scope :evaluated, -> { where(evaluation_status: "evaluated") }
@@ -33,13 +35,21 @@ class ActionResult < ApplicationRecord
 
   def copy_prediction_snapshot
     self.business ||= action_candidate&.business
+    self.action_candidate ||= action_execution&.action_candidate
+    self.business ||= action_execution&.business
     self.predicted_value_yen = action_candidate&.immediate_value_yen.to_i if predicted_value_yen.nil?
-    if predicted_success_probability.nil?
+    if predicted_success_probability.nil? && action_execution
+      self.predicted_success_probability = action_execution.predicted_success_probability_snapshot.to_d
+    elsif predicted_success_probability.nil?
       self.predicted_success_probability = action_candidate&.calibrated_success_probability.to_d
     end
     return unless predicted_expected_profit_yen.nil?
 
-    self.predicted_expected_profit_yen = action_candidate&.expected_profit_yen.to_i
+    self.predicted_expected_profit_yen = if action_execution
+      action_execution.predicted_profit_yen_snapshot.to_i
+    else
+      action_candidate&.expected_profit_yen.to_i
+    end
   end
 
   def set_default_status

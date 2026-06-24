@@ -1,0 +1,162 @@
+<% content_for :title, "Action Execution" %>
+
+<% action_candidate = @action_execution.action_candidate %>
+<% header_actions = capture do %>
+  <%= link_to "ActionCandidateへ", action_candidate, class: "button secondary" %>
+  <% if @action_execution.action_result %>
+    <%= link_to "結果登録済み", @action_execution.action_result, class: "button secondary" %>
+  <% elsif @action_execution.status == "completed" %>
+    <%= link_to "結果登録へ進む", new_action_result_path(action_execution_id: @action_execution.id), class: "button" %>
+  <% end %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "Action Execution",
+             description: "承認済みActionCandidateの実行準備・実行・結果登録を管理します。",
+             active_main: :revenue,
+             actions: header_actions %>
+  <%= render "shared/aicoo_execution_tabs", active: :today %>
+
+  <% if @action_execution.status == "completed" && @action_execution.action_result.blank? %>
+    <% elapsed_hours = @action_execution.completed_at ? ((Time.current - @action_execution.completed_at) / 1.hour).round(1) : nil %>
+    <section class="dashboard-section danger">
+      <div class="section-heading">
+        <h2>ActionResult未登録</h2>
+        <p>このExecutionは完了していますが、ActionResultが未登録です。</p>
+      </div>
+      <p>完了から <strong><%= elapsed_hours ? "#{elapsed_hours}時間" : "-" %></strong> 経過しています。予測と実績の補正に必要な学習データを登録してください。</p>
+      <div class="actions">
+        <%= link_to "結果登録へ進む", new_action_result_path(action_execution_id: @action_execution.id), class: "button" %>
+      </div>
+    </section>
+  <% end %>
+
+  <section class="dashboard-section">
+    <div class="metric-grid">
+      <div class="metric-card"><span>状態</span><strong><%= @action_execution.status %></strong></div>
+      <div class="metric-card"><span>execution_type</span><strong><%= @action_execution.execution_type %></strong></div>
+      <div class="metric-card"><span>期待利益</span><strong><%= number_to_currency(action_candidate.expected_profit_yen, unit: "¥", precision: 0) %></strong></div>
+      <div class="metric-card"><span>成功確率</span><strong><%= number_to_percentage(action_candidate.success_probability.to_d * 100, precision: 1) %></strong></div>
+      <div class="metric-card"><span>想定時間</span><strong><%= action_candidate.expected_hours || "-" %>h</strong></div>
+      <div class="metric-card"><span>実績時間</span><strong><%= @action_execution.actual_hours || "-" %>h</strong></div>
+      <div class="metric-card"><span>実績コスト</span><strong><%= number_to_currency(@action_execution.actual_cost_yen.to_d, unit: "¥", precision: 0) %></strong></div>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Prediction Snapshot</h2>
+      <p>ActionExecution生成時点の予測値です。ActionCandidateが後から変わっても保持します。</p>
+    </div>
+    <div class="metric-grid">
+      <div class="metric-card"><span>期待利益</span><strong><%= number_to_currency(@action_execution.predicted_profit_yen_snapshot.to_i, unit: "¥", precision: 0) %></strong></div>
+      <div class="metric-card"><span>成功確率</span><strong><%= number_to_percentage(@action_execution.predicted_success_probability_snapshot.to_d * 100, precision: 1) %></strong></div>
+      <div class="metric-card"><span>想定時間</span><strong><%= @action_execution.predicted_hours_snapshot || "-" %>h</strong></div>
+      <div class="metric-card"><span>想定コスト</span><strong><%= number_to_currency(@action_execution.predicted_cost_yen_snapshot.to_i, unit: "¥", precision: 0) %></strong></div>
+      <div class="metric-card"><span>スコア</span><strong><%= number_with_precision(@action_execution.action_score_snapshot.to_d, precision: 1) %></strong></div>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Execution Snapshot</h2>
+      <p>実行完了時に登録された実績です。</p>
+    </div>
+    <div class="metric-grid">
+      <div class="metric-card"><span>実績時間</span><strong><%= @action_execution.actual_hours || "-" %>h</strong></div>
+      <div class="metric-card"><span>実績コスト</span><strong><%= number_to_currency(@action_execution.actual_cost_yen.to_d, unit: "¥", precision: 0) %></strong></div>
+      <div class="metric-card"><span>完了日時</span><strong><%= @action_execution.completed_at ? l(@action_execution.completed_at, format: :short) : "-" %></strong></div>
+      <div class="metric-card"><span>ActionResult</span><strong><%= @action_execution.action_result ? "結果登録済み" : "未登録" %></strong></div>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>ActionCandidate情報</h2>
+      <p><%= link_to action_candidate.title, action_candidate %></p>
+    </div>
+    <dl class="detail-list">
+      <dt>Business</dt>
+      <dd><%= action_candidate.business.name %></dd>
+      <dt>action_type</dt>
+      <dd><%= action_candidate.action_type %></dd>
+      <dt>評価理由</dt>
+      <dd><%= simple_format(action_candidate.evaluation_reason.presence || "-") %></dd>
+    </dl>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>実行プロンプト</h2>
+      <p>Codexや人間に渡せる実行単位として整形しています。</p>
+    </div>
+    <pre><%= @action_execution.execution_prompt %></pre>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>操作</h2>
+      <p>実行状態を進め、完了後にActionResultへ接続します。</p>
+    </div>
+    <div class="actions compact-actions">
+      <% if @action_execution.status == "ready" %>
+        <%= button_to "実行開始", start_action_execution_path(@action_execution), method: :patch, class: "button" %>
+      <% end %>
+      <% if @action_execution.status.in?(%w[ready running]) %>
+        <%= button_to "キャンセル", cancel_action_execution_path(@action_execution), method: :patch, class: "button danger", data: { turbo_confirm: "この実行をキャンセルしますか？" } %>
+      <% end %>
+    </div>
+
+    <% if @action_execution.status.in?(%w[running ready]) %>
+      <%= form_with model: @action_execution, url: complete_action_execution_path(@action_execution), method: :patch, class: "form" do |form| %>
+        <div class="grid">
+          <div class="field">
+            <%= form.label :actual_hours, "実績時間" %>
+            <%= form.number_field :actual_hours, step: 0.1 %>
+          </div>
+          <div class="field">
+            <%= form.label :actual_cost_yen, "実績コスト" %>
+            <%= form.number_field :actual_cost_yen, step: 1 %>
+          </div>
+        </div>
+        <div class="field">
+          <%= form.label :result_summary, "結果サマリー" %>
+          <%= form.textarea :result_summary, rows: 4 %>
+        </div>
+        <%= form.submit "完了", class: "button" %>
+      <% end %>
+
+      <%= form_with model: @action_execution, url: fail_action_execution_path(@action_execution), method: :patch, class: "form" do |form| %>
+        <div class="field">
+          <%= form.label :result_summary, "失敗理由" %>
+          <%= form.textarea :result_summary, rows: 3 %>
+        </div>
+        <%= form.submit "失敗", class: "button danger" %>
+      <% end %>
+    <% end %>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>実行結果</h2>
+    </div>
+    <dl class="detail-list">
+      <dt>started_at</dt>
+      <dd><%= @action_execution.started_at ? l(@action_execution.started_at, format: :long) : "-" %></dd>
+      <dt>completed_at</dt>
+      <dd><%= @action_execution.completed_at ? l(@action_execution.completed_at, format: :long) : "-" %></dd>
+      <dt>result_summary</dt>
+      <dd><%= simple_format(@action_execution.result_summary.presence || "-") %></dd>
+    </dl>
+    <% if @action_execution.action_result %>
+      <div class="actions">
+        <%= link_to "結果登録済み", @action_execution.action_result, class: "button secondary" %>
+      </div>
+    <% elsif @action_execution.status == "completed" %>
+      <div class="actions">
+        <%= link_to "結果登録へ進む", new_action_result_path(action_execution_id: @action_execution.id), class: "button" %>
+      </div>
+    <% end %>
+  </section>
+</div>

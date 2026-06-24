@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_24_103000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_24_105000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -111,6 +111,30 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_24_103000) do
     t.index ["user_id"], name: "index_action_execution_logs_on_user_id"
   end
 
+  create_table "action_executions", force: :cascade do |t|
+    t.bigint "action_candidate_id", null: false
+    t.decimal "action_score_snapshot"
+    t.decimal "actual_cost_yen"
+    t.decimal "actual_hours"
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.text "execution_notes"
+    t.text "execution_prompt"
+    t.string "execution_type"
+    t.jsonb "metadata", default: {}, null: false
+    t.integer "predicted_cost_yen_snapshot"
+    t.decimal "predicted_hours_snapshot"
+    t.integer "predicted_profit_yen_snapshot"
+    t.decimal "predicted_success_probability_snapshot"
+    t.text "result_summary"
+    t.datetime "started_at"
+    t.string "status", null: false
+    t.datetime "updated_at", null: false
+    t.index ["action_candidate_id"], name: "index_action_executions_on_action_candidate_id"
+    t.index ["execution_type"], name: "index_action_executions_on_execution_type"
+    t.index ["status"], name: "index_action_executions_on_status"
+  end
+
   create_table "action_prediction_calibration_logs", force: :cascade do |t|
     t.string "action_type", null: false
     t.bigint "aicoo_daily_run_id"
@@ -168,6 +192,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_24_103000) do
 
   create_table "action_results", force: :cascade do |t|
     t.bigint "action_candidate_id", null: false
+    t.bigint "action_execution_id"
     t.integer "actual_affiliate_clicks_delta", default: 0, null: false
     t.integer "actual_clicks_delta", default: 0, null: false
     t.integer "actual_impressions_delta", default: 0, null: false
@@ -191,6 +216,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_24_103000) do
     t.integer "prediction_error_yen"
     t.datetime "updated_at", null: false
     t.index ["action_candidate_id"], name: "index_action_results_on_action_candidate_id", unique: true
+    t.index ["action_execution_id"], name: "index_action_results_on_action_execution_id", unique: true
     t.index ["business_id"], name: "index_action_results_on_business_id"
     t.index ["evaluated_on"], name: "index_action_results_on_evaluated_on"
     t.index ["evaluation_status"], name: "index_action_results_on_evaluation_status"
@@ -981,8 +1007,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_24_103000) do
   add_foreign_key "action_execution_logs", "action_results"
   add_foreign_key "action_execution_logs", "businesses"
   add_foreign_key "action_execution_logs", "revenue_events"
+  add_foreign_key "action_executions", "action_candidates"
   add_foreign_key "action_prediction_calibration_logs", "aicoo_daily_runs"
   add_foreign_key "action_results", "action_candidates"
+  add_foreign_key "action_results", "action_executions"
   add_foreign_key "action_results", "businesses"
   add_foreign_key "ai_evaluation_runs", "businesses"
   add_foreign_key "aicoo_analytics_sites", "businesses"

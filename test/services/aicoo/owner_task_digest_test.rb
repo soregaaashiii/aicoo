@@ -4,6 +4,8 @@ module Aicoo
   class OwnerTaskDigestTest < ActiveSupport::TestCase
     setup do
       ActionCandidate.update_all(status: "done")
+      ActionResult.delete_all
+      ActionExecution.delete_all
       ActionPredictionCalibration.delete_all
       AicooDailyRun.delete_all
       OwnerTaskCompletionLog.delete_all
@@ -82,6 +84,30 @@ module Aicoo
 
       assert_equal 1, digest.completed_today_count
       assert_equal 1, digest.completed_yesterday_count
+    end
+
+    test "includes result registration health in digest" do
+      candidate = ActionCandidate.create!(
+        business: businesses(:suelog),
+        title: "Digest result registration candidate",
+        status: "approved",
+        action_type: "seo_improvement",
+        immediate_value_yen: 10_000,
+        success_probability: 0.8,
+        expected_hours: 1
+      )
+      candidate.create_action_execution!(
+        status: "completed",
+        execution_type: "manual",
+        completed_at: 80.hours.ago,
+        result_summary: "done"
+      )
+
+      digest = OwnerTaskDigest.new.call
+
+      assert_equal 1, digest.result_registration_health.critical_count
+      assert_equal "結果登録が滞留しています。", digest.summary_message
+      assert_includes digest.warnings, "結果登録待ちが1件あります。"
     end
 
     private

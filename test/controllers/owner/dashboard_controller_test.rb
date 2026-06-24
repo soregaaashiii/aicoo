@@ -24,6 +24,10 @@ module Owner
       assert_includes response.body, "pending補正"
       assert_includes response.body, "確認タスク一覧へ"
       assert_includes response.body, "期待値"
+      assert_includes response.body, "予測精度"
+      assert_includes response.body, "Accuracy Score"
+      assert_includes response.body, "今週改善"
+      assert_includes response.body, "学習品質レポートを見る"
     end
 
     test "revenue mode orders by revenue value" do

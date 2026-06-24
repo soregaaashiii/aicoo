@@ -23,6 +23,8 @@ module Owner
       assert_includes response.body, "Daily Run Health"
       assert_includes response.body, "今日の提案"
       assert_includes response.body, "pending補正"
+      assert_includes response.body, "結果登録待ち"
+      assert_includes response.body, "最古登録待ち"
       assert_includes response.body, "Owner tasks page candidate"
       assert_includes response.body, "優先度"
       assert_includes response.body, "種別"

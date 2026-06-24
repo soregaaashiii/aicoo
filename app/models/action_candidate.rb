@@ -26,6 +26,7 @@ class ActionCandidate < ApplicationRecord
 
   belongs_to :business
   has_one :action_result, dependent: :destroy
+  has_one :action_execution, dependent: :destroy
   has_many :action_execution_logs, dependent: :destroy
   has_many :revenue_events, dependent: :nullify
   has_many :action_candidate_score_snapshots, dependent: :destroy
@@ -79,10 +80,19 @@ class ActionCandidate < ApplicationRecord
 
   def approve!(approved_by: nil)
     update!(status: "approved", approved_at: Time.current, approved_by:)
+    ensure_action_execution!
   end
 
   def mark_executor_queued!
     update!(status: "executor_queued", executor_queued_at: Time.current)
+  end
+
+  def ensure_action_execution!
+    action_execution || create_action_execution!(
+      status: "ready",
+      execution_type: "manual",
+      execution_prompt: Aicoo::ExecutionPromptBuilder.new(self).call
+    )
   end
 
   def revenue_ratio

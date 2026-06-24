@@ -36,6 +36,11 @@ module Aicoo
       :locked_recovery_count,
       :cooldown_recovery_count,
       :recovery_limit_reached_count,
+      :completed_without_result_count,
+      :result_registration_health,
+      :learning_loop_health,
+      :learning_accuracy_score,
+      :learning_trend,
       :health_status,
       :health_message,
       :warnings,
@@ -82,6 +87,11 @@ module Aicoo
         locked_recovery_count: latest_steps.count(&:recovery_locked?),
         cooldown_recovery_count: latest_steps.count(&:recovery_cooldown_active?),
         recovery_limit_reached_count: latest_steps.count(&:recovery_limit_reached?),
+        completed_without_result_count: result_registration_health.pending_count,
+        result_registration_health:,
+        learning_loop_health:,
+        learning_accuracy_score: learning_loop_quality_report.prediction_accuracy_score,
+        learning_trend: learning_loop_quality_report.learning_trend,
         health_status:,
         health_message:,
         warnings: warnings,
@@ -188,8 +198,13 @@ module Aicoo
     def health_message
       case health_status
       when "critical"
+        return result_registration_health.health_message if result_registration_health.health_status == "critical"
+        return learning_loop_health.health_message if learning_loop_health.health_status == "critical"
+
         "Daily Runに重大な問題があります。最優先で確認してください。"
       when "warning"
+        return result_registration_health.health_message if result_registration_health.health_status == "warning"
+        return learning_loop_health.health_message if learning_loop_health.health_status == "warning"
         return "#{recoverable_failed_steps.size}件の復旧可能な失敗ステップがあります。" if recoverable_failed_steps.any?
 
         failed_steps.any? ? "Daily Runの一部ステップが失敗しています。" : "Daily Runに一部問題があります。失敗箇所を確認してください。"
@@ -213,6 +228,14 @@ module Aicoo
         items << "#{latest_steps.count(&:recovery_limit_reached?)} steps reached recovery limit" if latest_steps.any?(&:recovery_limit_reached?)
         items << "#{latest_steps.count(&:recovery_locked?)} step is currently locked" if latest_steps.any?(&:recovery_locked?)
         items << "Daily Runに遅いステップがあります。" if slow_steps.any?
+        if result_registration_health.pending_count.positive?
+          items << "#{result_registration_health.pending_count} completed executions have no ActionResult"
+        end
+        if result_registration_health.critical_count.positive?
+          items << "#{result_registration_health.critical_count} execution result is overdue by #{result_registration_health.oldest_pending_hours} hours"
+        end
+        items << learning_loop_health.health_message if learning_loop_health.health_status.in?(%w[warning critical])
+        items << "Learning Trend declining" if learning_loop_quality_report.learning_trend == "declining"
         items << "今日のActionCandidate生成数が0です。" if today_action_candidates.count.zero?
         items << "今日Daily Runが未実行です。" if today_runs.count.zero?
         items << "最終成功から2日以上経過しています。" if days_since_last_success.to_i >= 2
@@ -222,6 +245,7 @@ module Aicoo
     def recommended_action
       return "Daily Run詳細を確認してください" if latest_run&.status.in?(%w[failed stuck])
       return "失敗ステップを確認してください" if latest_run&.status == "partial_failed"
+      return "ActionResult登録待ちを確認してください" if result_registration_health.health_status.in?(%w[warning critical])
       return "Calibration承認待ちを確認してください" if pending_calibrations.exists?
       return "Daily Runの生成ステップを確認してください" if today_action_candidates.count.zero?
 
@@ -231,6 +255,8 @@ module Aicoo
     def critical?
       latest_run&.status.in?(%w[failed stuck]) ||
         failed_steps.any?(&:primary?) ||
+        result_registration_health.health_status == "critical" ||
+        learning_loop_health.health_status == "critical" ||
         (today_success_count.zero? && today_failed_count.positive?) ||
         days_since_last_success.to_i >= 2
     end
@@ -239,6 +265,9 @@ module Aicoo
       latest_run&.status == "partial_failed" ||
         latest_run&.calibration_error.present? ||
         failed_steps.any? ||
+        result_registration_health.health_status == "warning" ||
+        learning_loop_health.health_status == "warning" ||
+        learning_loop_quality_report.learning_trend == "declining" ||
         pending_calibrations.count > MANY_PENDING_THRESHOLD ||
         today_runs.count.zero? ||
         (days_since_last_success.present? && days_since_last_success >= 1)
@@ -247,8 +276,21 @@ module Aicoo
     def attention?
       pending_calibrations.exists? ||
         pending_calibrations.where(warning_level: %w[danger warning]).exists? ||
+        result_registration_health.health_status == "attention" ||
         slow_steps.any? ||
         today_action_candidates.count.zero?
+    end
+
+    def result_registration_health
+      @result_registration_health ||= ActionResultRegistrationHealth.new.call
+    end
+
+    def learning_loop_health
+      @learning_loop_health ||= LearningLoopHealthSummary.new.call
+    end
+
+    def learning_loop_quality_report
+      @learning_loop_quality_report ||= LearningLoopQualityReport.new.call
     end
 
     def today_range

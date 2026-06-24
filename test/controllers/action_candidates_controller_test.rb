@@ -203,11 +203,16 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
     @action_candidate.update!(status: "idea")
 
     assert_difference("OwnerTaskCompletionLog.count", 1) do
-      patch approve_action_candidate_url(@action_candidate), headers: { "HTTP_REFERER" => owner_tasks_url }
+      assert_difference("ActionExecution.count", 1) do
+        patch approve_action_candidate_url(@action_candidate), headers: { "HTTP_REFERER" => owner_tasks_url }
+      end
     end
 
     assert_redirected_to owner_tasks_url
     assert_equal "approved", @action_candidate.reload.status
+    assert_equal "ready", @action_candidate.action_execution.status
+    assert_equal "manual", @action_candidate.action_execution.execution_type
+    assert_includes @action_candidate.action_execution.execution_prompt, @action_candidate.title
     assert_not_nil @action_candidate.approved_at
     assert_equal "ActionCandidate『#{@action_candidate.title}』を承認しました。承認待ちタスクから削除されました。", flash[:notice]
     assert_equal "承認", OwnerTaskCompletionLog.last.action_label

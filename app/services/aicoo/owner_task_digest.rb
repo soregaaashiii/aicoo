@@ -14,7 +14,9 @@ module Aicoo
       :recommended_next_action,
       :summary_message,
       :warnings,
-      :daily_run_health
+      :daily_run_health,
+      :result_registration_health,
+      :learning_loop_health
     )
 
     def initialize(owner_task_inbox: nil)
@@ -27,6 +29,8 @@ module Aicoo
       counts = inbox.counts_by_priority
       top_task = top_priority_task(tasks)
       daily_run_health = DailyRunHealthSummary.new.call
+      result_registration_health = daily_run_health.result_registration_health
+      learning_loop_health = daily_run_health.learning_loop_health
 
       Result.new(
         generated_at: Time.current,
@@ -40,9 +44,11 @@ module Aicoo
         new_since_yesterday_count: new_since_yesterday_count(tasks),
         top_priority_task: top_task,
         recommended_next_action: recommended_next_action(top_task),
-        summary_message: summary_message(tasks, counts, daily_run_health),
-        warnings: warnings(tasks, counts, daily_run_health),
-        daily_run_health:
+        summary_message: summary_message(tasks, counts, daily_run_health, result_registration_health),
+        warnings: warnings(tasks, counts, daily_run_health, result_registration_health, learning_loop_health),
+        daily_run_health:,
+        result_registration_health:,
+        learning_loop_health:
       )
     end
 
@@ -67,7 +73,9 @@ module Aicoo
         task.quick_actions.first
     end
 
-    def summary_message(tasks, counts, daily_run_health)
+    def summary_message(tasks, counts, daily_run_health, result_registration_health)
+      return "結果登録が滞留しています。" if result_registration_health.health_status == "critical"
+      return "結果登録待ちが#{result_registration_health.pending_count}件あります。" if result_registration_health.pending_count.positive?
       return "Daily Runに重大な問題があります。最優先で確認してください。" if daily_run_health.health_status == "critical"
       return "Daily Runに一部問題があります。" if daily_run_health.health_status == "warning"
       return "現在、確認が必要なタスクはありません。" if tasks.empty?
@@ -78,9 +86,14 @@ module Aicoo
       "確認タスクがあります。空き時間で処理してください。"
     end
 
-    def warnings(tasks, counts, daily_run_health)
+    def warnings(tasks, counts, daily_run_health, result_registration_health, learning_loop_health)
       [].tap do |items|
         items.concat(daily_run_health.warnings)
+        items << "結果登録待ちが#{result_registration_health.pending_count}件あります。" if result_registration_health.pending_count.positive?
+        if result_registration_health.oldest_pending_hours.present?
+          items << "最古の結果登録待ち: #{result_registration_health.oldest_pending_hours}時間"
+        end
+        items << learning_loop_health.health_message if learning_loop_health.health_status.in?(%w[warning critical])
         if tasks.any? { |task| task.task_type == "calibration_approval" && task.priority == "critical" }
           items << "危険度の高い評価式補正が承認待ちです。"
         end
