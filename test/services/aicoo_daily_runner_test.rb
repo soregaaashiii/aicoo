@@ -43,6 +43,7 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
       assert_match "DataHub collected snapshots count=4", run.run_log
       assert_match "Insight generated count=1", run.run_log
       assert_match "Insight skipped count=2", run.run_log
+      assert_match "Explore Opportunity generated count=0", run.run_log
       assert_match "ActionCandidate score snapshots created count=3", run.run_log
       assert_match "Data preparation candidates: 5", run.run_log
       assert_match "Auto queued: 3", run.run_log
@@ -53,8 +54,9 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
       assert_match "GSC average confidence=82.0", run.run_log
       assert_match "Calibration finished updated_calibration_count=2", run.run_log
       assert_match "pending_calibration_count=0", run.run_log
+      assert_match "OwnerExecutionQueue created count=2", run.run_log
       assert_match "AutoRevisionQueue skipped reason=disabled", run.run_log
-      assert_equal 13, run.aicoo_daily_run_steps.count
+      assert_equal 15, run.aicoo_daily_run_steps.count
       assert_equal %w[
         analytics_fetch
         datahub_collect
@@ -62,17 +64,19 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
         proxy_weight_adjustment
         action_generation
         insight_generation
+        explore_opportunity_generation
         action_result_evaluation
         score_snapshot
         data_preparation_queue
         meta_evaluation_snapshot
         calibration
         owner_task_digest
+        owner_execution_queue
         auto_revision_queue
       ], run.aicoo_daily_run_steps.order(:created_at).pluck(:step_name)
       assert_equal %w[skipped success], run.aicoo_daily_run_steps.distinct.pluck(:status).sort
       assert_equal 0, AutoRevisionQueueRun.count
-      assert_equal %i[analytics datahub import adjust_all generate insight evaluate snapshot queue meta_snapshot calibration], order
+      assert_equal %i[analytics datahub import adjust_all generate insight evaluate snapshot queue meta_snapshot calibration owner_queue], order
     end
   end
 
@@ -235,7 +239,11 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
                             logs: [ Object.new, Object.new ]
                           )
                         }) do
-                          yield
+                          with_singleton_stub(Aicoo::OwnerExecutionQueueBuilder, :new, ->(due_on:, generated_from:) {
+                            fake_owner_execution_queue_builder(order)
+                          }) do
+                            yield
+                          end
                         end
                       end
                     end
@@ -303,6 +311,19 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
             "revenue" => 0.to_d,
             "learning" => 40.to_d
           }
+        )
+      end
+    end
+  end
+
+  def fake_owner_execution_queue_builder(order)
+    Object.new.tap do |builder|
+      builder.define_singleton_method(:call) do
+        order << :owner_queue
+        Aicoo::OwnerExecutionQueueBuilder::Result.new(
+          created: [ Object.new, Object.new ],
+          skipped: [ Object.new ],
+          high_risk: []
         )
       end
     end

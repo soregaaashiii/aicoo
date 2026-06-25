@@ -22,6 +22,29 @@
            owner_task_inbox: @owner_task_inbox,
            limit: 10 %>
 
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>Strategic Alignment</h2>
+    <p>経営思想を主目的関数にし、Decision Logを補正として反映します。</p>
+  </div>
+  <div class="metric-grid">
+    <div class="metric-card"><span>思想一致率</span><strong><%= number_to_percentage(@strategic_learning_report.strategic_alignment_rate * 100, precision: 1) %></strong></div>
+    <div class="metric-card"><span>学習補正率</span><strong><%= number_to_percentage(@strategic_learning_report.learning_correction_rate * 100, precision: 1) %></strong></div>
+    <div class="metric-card"><span>Decision補正率</span><strong><%= number_to_percentage(@strategic_learning_report.decision_correction_rate * 100, precision: 1) %></strong></div>
+    <div class="metric-card"><span>逆方向判断</span><strong><%= @strategic_learning_report.contrary_decision_count %>件</strong></div>
+    <div class="metric-card"><span>Guardrail warning</span><strong><%= @strategic_learning_report.guardrail_warning_30_days_count %>件</strong></div>
+    <div class="metric-card"><span>最大補正率</span><strong><%= number_to_percentage(@strategic_learning_report.max_adjustment_rate * 100, precision: 1) %></strong></div>
+    <div class="metric-card"><span>補正弱化</span><strong><%= @strategic_learning_report.weakened_decision_log_count %>件</strong></div>
+  </div>
+  <% if @strategic_learning_report.guardrail_warning_30_days_count.positive? %>
+    <p class="aicoo-empty-state">補正が強すぎる可能性があります。Learning ReportでGuardrail warningを確認してください。</p>
+  <% end %>
+  <div class="actions compact-actions">
+    <%= link_to "Strategic Learningを見る", owner_learning_report_path, class: "button secondary" %>
+    <%= link_to "思想Weightを設定", aicoo_setting_path, class: "button secondary" %>
+  </div>
+</section>
+
 <section class="dashboard-section" id="execution-summary">
   <div class="section-heading">
     <h2>Auto Revision Approval Queue</h2>
@@ -777,6 +800,7 @@
     <div class="metric-card"><span>New Observations</span><strong><%= @explore_summary.new_status_observation_count %>件</strong></div>
     <div class="metric-card"><span>High Score Observations</span><strong><%= @explore_summary.high_score_observation_count %>件</strong></div>
     <div class="metric-card"><span>On Hold Observations</span><strong><%= @explore_summary.on_hold_observation_count %>件</strong></div>
+    <div class="metric-card"><span>Pending Opportunities</span><strong><%= @explore_summary.pending_opportunity_count %>件</strong></div>
     <% @explore_summary.source_counts.each do |source_type, count| %>
       <div class="metric-card"><span><%= source_type %></span><strong><%= count %>件</strong></div>
     <% end %>

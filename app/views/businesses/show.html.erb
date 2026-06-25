@@ -22,6 +22,18 @@
 
 <section class="dashboard-section">
   <div class="section-heading">
+    <h2>Codex対象プロジェクト</h2>
+    <p>ActionCandidateからCodex Prompt Draftを作る時に使うプロジェクト情報です。</p>
+  </div>
+  <div class="metric-grid">
+    <div class="metric-card"><span>project_key</span><strong><%= @business.codex_project_key.presence || "未設定" %></strong></div>
+    <div class="metric-card"><span>repository_name</span><strong><%= @business.codex_repository_name.presence || "未設定" %></strong></div>
+    <div class="metric-card"><span>local_project_path</span><strong><%= @business.codex_local_project_path.presence || "未設定" %></strong></div>
+  </div>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
     <h2>Execution Profile</h2>
     <p>AutoRevisionTaskを送る対象リポジトリ、テスト、デプロイ方法です。</p>
   </div>

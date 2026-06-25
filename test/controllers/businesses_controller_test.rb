@@ -66,6 +66,7 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "proxy_score重み"
     assert_includes response.body, "confidence_score"
     assert_includes response.body, "Execution Profile"
+    assert_includes response.body, "Codex対象プロジェクト"
   end
 
   test "should get edit" do
@@ -74,9 +75,22 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "should update business" do
-    patch business_url(@business), params: { business: { description: @business.description, gsc_site_url: "sc-domain:suelog.jp", name: @business.name, status: @business.status } }
+    patch business_url(@business), params: {
+      business: {
+        description: @business.description,
+        gsc_site_url: "sc-domain:suelog.jp",
+        name: @business.name,
+        status: @business.status,
+        project_key: "suelog",
+        local_project_path: "/Users/example/suelog",
+        repository_name: "suelog-app"
+      }
+    }
     assert_redirected_to business_url(@business)
     assert_equal "sc-domain:suelog.jp", @business.reload.gsc_site_url
+    assert_equal "suelog", @business.project_key
+    assert_equal "/Users/example/suelog", @business.local_project_path
+    assert_equal "suelog-app", @business.repository_name
   end
 
   test "should destroy business" do

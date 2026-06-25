@@ -95,6 +95,12 @@ class AicooDailyRunner
     log!("Insight generated count=#{insight_result.created_count}")
     log!("Insight skipped count=#{insight_result.skipped_count}")
 
+    explore_opportunity_result = record_step!(run, "explore_opportunity_generation") do
+      Aicoo::ExploreOpportunityGenerator.generate_all_pending!
+    end
+    log!("Explore Opportunity generated count=#{explore_opportunity_result.created.size}")
+    log!("Explore Opportunity skipped count=#{explore_opportunity_result.skipped.size}")
+
     evaluated_results = record_step!(run, "action_result_evaluation") do
       ActionResultEvaluator.evaluate_pending!
     end
@@ -144,6 +150,13 @@ class AicooDailyRunner
     record_step!(run, "owner_task_digest") do
       Aicoo::OwnerTaskDigest.new.call
     end
+
+    owner_queue_result = record_step!(run, "owner_execution_queue") do
+      Aicoo::OwnerExecutionQueueBuilder.new(due_on: Date.current, generated_from: "daily_run").call
+    end
+    log!("OwnerExecutionQueue created count=#{owner_queue_result.created.size}")
+    log!("OwnerExecutionQueue skipped count=#{owner_queue_result.skipped.size}")
+    log!("OwnerExecutionQueue high risk count=#{owner_queue_result.high_risk.size}")
 
     log!("Daily Run finished target_date=#{target_date}")
   end

@@ -31,4 +31,56 @@
              owner_task_inbox: @owner_task_inbox,
              tasks: @tasks,
              show_filters: true %>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>今日の実行キュー</h2>
+      <p>Daily Run後に生成された、今日処理しやすい低〜中リスクの候補です。</p>
+    </div>
+    <div class="metric-grid aicoo-owner-secondary">
+      <div class="metric-card"><span>Pending</span><strong><%= @owner_execution_queue_summary.pending_count %>件</strong></div>
+      <div class="metric-card"><span>Completed</span><strong><%= @owner_execution_queue_summary.completed_count %>件</strong></div>
+      <div class="metric-card"><span>Skipped</span><strong><%= @owner_execution_queue_summary.skipped_count %>件</strong></div>
+      <div class="metric-card"><span>今日のDecision Log</span><strong><%= @owner_decision_summary.today_count %>件</strong></div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>種別</th>
+            <th>タイトル</th>
+            <th>Business</th>
+            <th>Risk</th>
+            <th>期待値</th>
+            <th>Score</th>
+            <th>理由</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @owner_execution_queue_summary.items.each do |item| %>
+            <tr>
+              <td><%= item.item_type %></td>
+              <td><%= item.title %></td>
+              <td><%= item.business&.name || "-" %></td>
+              <td><span class="pill"><%= item.risk_level %></span></td>
+              <td class="number"><%= number_to_currency(item.expected_value_yen.to_i, unit: "¥", precision: 0) %></td>
+              <td class="number"><%= item.priority_score.to_d.round(1) %></td>
+              <td><%= truncate(item.reason.to_s, length: 72) %></td>
+              <td>
+                <div class="actions compact-actions">
+                  <%= link_to "対象", item.target_path, class: "button secondary" %>
+                  <%= button_to "Completed", complete_owner_execution_queue_item_path(item), method: :patch, class: "button secondary" %>
+                  <%= button_to "Skipped", skip_owner_execution_queue_item_path(item), method: :patch, class: "button secondary" %>
+                </div>
+              </td>
+            </tr>
+          <% end %>
+          <% if @owner_execution_queue_summary.items.empty? %>
+            <tr><td colspan="8">今日の実行キューはまだありません。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
 </div>

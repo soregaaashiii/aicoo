@@ -13,10 +13,11 @@ class OpportunityDiscoveryItem < ApplicationRecord
     x
     google_business_profile
   ].freeze
-  STATUSES = %w[new reviewed converted rejected].freeze
+  STATUSES = %w[new pending approved reviewed converted rejected].freeze
 
   belongs_to :business, optional: true
   belongs_to :action_candidate, optional: true
+  belongs_to :source_observation, class_name: "ExploreObservation", optional: true
   has_many :explore_observations, dependent: :nullify
 
   before_validation :set_defaults
@@ -25,32 +26,16 @@ class OpportunityDiscoveryItem < ApplicationRecord
   validates :source_type, inclusion: { in: SOURCE_TYPES }
   validates :status, inclusion: { in: STATUSES }
   validates :opportunity_score, numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 100 }, allow_nil: true
+  validates :long_term_profit_score, :learning_value_score, :automation_value_score, :exploration_value_score, :strategic_score,
+            numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 100 }, allow_nil: true
+  validates :decision_log_coefficient, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
 
   scope :recent, -> { order(discovered_at: :desc, created_at: :desc) }
-  scope :top_ranked, -> { order(Arel.sql("opportunity_score DESC NULLS LAST, discovered_at DESC NULLS LAST, created_at DESC")) }
+  scope :top_ranked, -> { order(Arel.sql("expected_value_yen DESC NULLS LAST, opportunity_score DESC NULLS LAST, discovered_at DESC NULLS LAST, created_at DESC")) }
+  scope :pending_review, -> { where(status: %w[new pending approved]) }
 
   def convert_to_action_candidate!
-    return action_candidate if action_candidate
-
-    candidate = ActionCandidate.create!(
-      business: business || Business.order(:name).first,
-      title: title,
-      description: description,
-      action_type: "opportunity_validation",
-      generation_source: "opportunity_discovery",
-      department: "lab",
-      status: "idea",
-      immediate_value_yen: conservative_value_yen,
-      success_probability: 0.3,
-      expected_hours: 1,
-      confidence_score: opportunity_score.to_i,
-      data_confidence_score: 30,
-      evaluation_reason: "Opportunity Discoveryから生成: #{source_type}",
-      execution_prompt: execution_prompt,
-      metadata: { "opportunity_id" => id, "opportunity_source_type" => source_type }.merge(metadata.to_h)
-    )
-    update!(action_candidate: candidate, status: "converted")
-    candidate
+    Aicoo::OpportunityActionCandidateConverter.new(self).call
   end
 
   def execution_count
@@ -77,7 +62,17 @@ class OpportunityDiscoveryItem < ApplicationRecord
     self.source_type = "owner_discovery" if source_type.blank?
     self.status = "new" if status.blank?
     self.opportunity_score = 50 if opportunity_score.nil?
+    self.summary = description if summary.blank? && description.present?
+    self.opportunity_type = "opportunity_validation" if opportunity_type.blank?
+    self.market_signal_score = opportunity_score if market_signal_score.nil?
+    self.urgency_score = 50 if urgency_score.nil?
+    self.monetization_score = 50 if monetization_score.nil?
+    self.feasibility_score = 50 if feasibility_score.nil?
+    self.competition_score = 30 if competition_score.nil?
+    self.expected_value_yen = conservative_value_yen if expected_value_yen.nil?
+    self.confidence = opportunity_score if confidence.nil?
     self.discovered_at ||= Time.current
+    apply_strategic_learning_defaults
   end
 
   def conservative_value_yen
@@ -98,5 +93,27 @@ class OpportunityDiscoveryItem < ApplicationRecord
       - 仮説が検証可能な小さい実行単位に落ちている
       - 実行後にActionResultへ結果を登録できる
     TEXT
+  end
+
+  def apply_strategic_learning_defaults
+    result = Aicoo::StrategicLearningScorer.new(self, base_score: opportunity_score.presence || 50).call
+    self.long_term_profit_score = result.components.fetch(:long_term_profit)
+    self.learning_value_score = result.components.fetch(:learning)
+    self.automation_value_score = result.components.fetch(:automation)
+    self.exploration_value_score = result.components.fetch(:exploration)
+    self.strategic_score = result.strategic_score
+    self.decision_log_coefficient = result.decision_log_coefficient
+    self.strategic_adjusted_score = result.final_score
+    self.metadata = metadata.to_h.merge(
+      "strategic_learning" => {
+        "base_score" => result.base_score.to_s,
+        "strategic_score" => result.strategic_score.to_s,
+        "decision_log_coefficient" => result.decision_log_coefficient.to_s,
+        "final_score" => result.final_score.to_s,
+        "components" => result.components.transform_values(&:to_s),
+        "decision_log_samples" => result.decision_log_samples,
+        "decision_dimension_coefficients" => result.decision_dimension_coefficients
+      }
+    ).merge("strategic_learning_guardrail" => result.guardrail)
   end
 end

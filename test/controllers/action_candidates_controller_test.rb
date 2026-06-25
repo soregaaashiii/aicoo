@@ -129,6 +129,27 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Judge補正で順位低下"
     assert_includes response.body, "部門"
     assert_includes response.body, "自動改修タスク化"
+    assert_includes response.body, "Codex Promptを生成"
+  end
+
+  test "show links to existing codex prompt draft" do
+    draft = CodexPromptDraft.from_action_candidate(@action_candidate)
+
+    get action_candidate_url(@action_candidate)
+
+    assert_response :success
+    assert_includes response.body, "Codex Promptを見る"
+    assert_includes response.body, owner_codex_prompt_draft_path(draft)
+  end
+
+  test "generates codex prompt draft" do
+    assert_difference("CodexPromptDraft.count", 1) do
+      post generate_codex_prompt_draft_action_candidate_url(@action_candidate)
+    end
+
+    draft = CodexPromptDraft.last
+    assert_redirected_to owner_codex_prompt_draft_url(draft)
+    assert_equal @action_candidate, draft.action_candidate
   end
 
   test "normal action candidate does not show direct executor button" do
@@ -203,8 +224,10 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
     @action_candidate.update!(status: "idea")
 
     assert_difference("OwnerTaskCompletionLog.count", 1) do
-      assert_difference("ActionExecution.count", 1) do
-        patch approve_action_candidate_url(@action_candidate), headers: { "HTTP_REFERER" => owner_tasks_url }
+      assert_difference("OwnerDecisionLog.count", 1) do
+        assert_difference("ActionExecution.count", 1) do
+          patch approve_action_candidate_url(@action_candidate), headers: { "HTTP_REFERER" => owner_tasks_url }
+        end
       end
     end
 
@@ -216,19 +239,24 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
     assert_not_nil @action_candidate.approved_at
     assert_equal "ActionCandidate『#{@action_candidate.title}』を承認しました。承認待ちタスクから削除されました。", flash[:notice]
     assert_equal "承認", OwnerTaskCompletionLog.last.action_label
+    assert_equal "approve", OwnerDecisionLog.last.decision_type
+    assert_equal "action_candidate_detail", OwnerDecisionLog.last.decision_source
   end
 
   test "rejects action candidate from quick action" do
     @action_candidate.update!(status: "idea")
 
     assert_difference("OwnerTaskCompletionLog.count", 1) do
-      patch reject_action_candidate_url(@action_candidate), headers: { "HTTP_REFERER" => owner_tasks_url }
+      assert_difference("OwnerDecisionLog.count", 1) do
+        patch reject_action_candidate_url(@action_candidate), headers: { "HTTP_REFERER" => owner_tasks_url }
+      end
     end
 
     assert_redirected_to owner_tasks_url
     assert_equal "rejected", @action_candidate.reload.status
     assert_equal "ActionCandidate『#{@action_candidate.title}』を却下しました。承認待ちタスクから削除されました。", flash[:notice]
     assert_equal "却下", OwnerTaskCompletionLog.last.action_label
+    assert_equal "reject", OwnerDecisionLog.last.decision_type
   end
 
   private

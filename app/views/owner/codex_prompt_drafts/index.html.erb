@@ -1,0 +1,61 @@
+<% content_for :title, "Codex Prompt Drafts" %>
+
+<% header_actions = capture do %>
+  <%= link_to "Owner Home", owner_focus_path, class: "button secondary" %>
+  <%= link_to "ActionCandidates", action_candidates_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "Codex Prompt Drafts",
+             description: "ActionCandidateから生成したCodex投入用プロンプトを確認します。",
+             active_main: :revenue,
+             actions: header_actions %>
+
+  <section class="dashboard-section">
+    <div class="actions compact-actions">
+      <%= link_to "All", owner_codex_prompt_drafts_path, class: "button secondary" %>
+      <% CodexPromptDraft::STATUSES.each do |status| %>
+        <%= link_to status, owner_codex_prompt_drafts_path(status:), class: "button secondary" %>
+      <% end %>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Draft一覧</h2>
+      <p>対象プロジェクトとリスクを確認してからCodexへ渡します。</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Title</th>
+            <th>Business</th>
+            <th>Project</th>
+            <th>Risk</th>
+            <th>Status</th>
+            <th>Created</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @codex_prompt_drafts.each do |draft| %>
+            <tr>
+              <td><%= draft.title %></td>
+              <td><%= draft.business&.name || "-" %></td>
+              <td><%= draft.project_key.presence || "未設定" %></td>
+              <td><span class="pill"><%= draft.risk_level %></span></td>
+              <td><span class="pill"><%= draft.status %></span></td>
+              <td><%= l(draft.created_at, format: :short) %></td>
+              <td><%= link_to "詳細", owner_codex_prompt_draft_path(draft), class: "button secondary" %></td>
+            </tr>
+          <% end %>
+          <% if @codex_prompt_drafts.empty? %>
+            <tr><td colspan="7">Codex Prompt Draftはまだありません。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>

@@ -27,6 +27,7 @@
       <div class="metric-card"><span>New Observations</span><strong><%= @explore_summary.new_status_observation_count %>件</strong></div>
       <div class="metric-card"><span>High Score Observations</span><strong><%= @explore_summary.high_score_observation_count %>件</strong></div>
       <div class="metric-card"><span>On Hold Observations</span><strong><%= @explore_summary.on_hold_observation_count %>件</strong></div>
+      <div class="metric-card"><span>Pending Opportunities</span><strong><%= @explore_summary.pending_opportunity_count %>件</strong></div>
       <% @explore_summary.source_counts.each do |source_type, count| %>
         <div class="metric-card"><span><%= source_type %></span><strong><%= count %>件</strong></div>
       <% end %>

@@ -6,6 +6,11 @@ module Aicoo
       :result_registration_count,
       :pending_calibration_count,
       :explore_review_count,
+      :pending_opportunities_count,
+      :top_pending_opportunity,
+      :today_queue_count,
+      :today_queue_completed_count,
+      :top_queue_item,
       :daily_run_status,
       :learning_status,
       :summary_message
@@ -20,11 +25,16 @@ module Aicoo
 
     def call
       Result.new(
-        next_action: owner_focus_home.top_task,
+        next_action: owner_focus_home.top_task || owner_execution_queue_summary.top_item,
         execution_ready_count: ActionExecution.ready.count,
         result_registration_count: ActionExecution.completed_without_result.count,
         pending_calibration_count: ActionPredictionCalibration.where(approval_status: "pending").count,
         explore_review_count: explore_review_count,
+        pending_opportunities_count: pending_opportunities_count,
+        top_pending_opportunity: top_pending_opportunity,
+        today_queue_count: owner_execution_queue_summary.pending_count,
+        today_queue_completed_count: owner_execution_queue_summary.completed_count,
+        top_queue_item: owner_execution_queue_summary.top_item,
         daily_run_status: daily_run_status,
         learning_status: learning_status,
         summary_message: summary_message
@@ -45,6 +55,10 @@ module Aicoo
 
     def explore_daily_routine
       @explore_daily_routine ||= ExploreDailyRoutine.new.call
+    end
+
+    def owner_execution_queue_summary
+      @owner_execution_queue_summary ||= OwnerExecutionQueueSummary.new.call
     end
 
     def daily_run_status
@@ -70,11 +84,21 @@ module Aicoo
     end
 
     def explore_review_count
-      explore_daily_routine.new_observation_count + explore_daily_routine.opportunity_review_count
+      explore_daily_routine.new_observation_count + pending_opportunities_count
+    end
+
+    def pending_opportunities_count
+      OpportunityDiscoveryItem.where(status: "pending").count
+    end
+
+    def top_pending_opportunity
+      @top_pending_opportunity ||= OpportunityDiscoveryItem.where(status: "pending").top_ranked.first
     end
 
     def summary_message
       return "今はこの1件だけ処理してください。" if owner_focus_home.top_task
+      return "今日の実行キューに#{owner_execution_queue_summary.pending_count}件あります。" if owner_execution_queue_summary.pending_count.positive?
+      return "Exploreで見つかったOpportunityの確認待ちがあります。" if pending_opportunities_count.positive?
 
       "今すぐ処理すべきタスクはありません。"
     end

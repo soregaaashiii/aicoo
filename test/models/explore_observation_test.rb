@@ -14,7 +14,11 @@ class ExploreObservationTest < ActiveSupport::TestCase
     assert_difference("OpportunityDiscoveryItem.count", 1) do
       opportunity = observation.convert_to_opportunity!
       assert_equal "reddit", opportunity.source_type
-      assert_equal 88, opportunity.opportunity_score
+      assert_equal "pending", opportunity.status
+      assert_equal observation, opportunity.source_observation
+      assert_equal 88, opportunity.market_signal_score
+      assert opportunity.expected_value_yen.positive?
+      assert opportunity.confidence.positive?
       assert_equal observation.id, opportunity.metadata.fetch("explore_observation_id")
     end
     assert observation.reload.opportunity_discovery_item
@@ -35,5 +39,17 @@ class ExploreObservationTest < ActiveSupport::TestCase
 
     observation.reject!
     assert_equal "rejected", observation.reload.status
+  end
+
+  test "manual conversion can create opportunity from weak observation" do
+    source = ExploreDataSource.create!(name: "Manual", source_type: "reddit")
+    observation = ExploreObservation.create!(explore_data_source: source, title: "弱いが確認したい仮説", score: 40)
+
+    assert_difference("OpportunityDiscoveryItem.count", 1) do
+      opportunity = observation.convert_to_opportunity!
+
+      assert_equal "pending", opportunity.status
+      assert_equal 40, opportunity.market_signal_score
+    end
   end
 end

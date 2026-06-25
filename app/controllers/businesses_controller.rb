@@ -89,7 +89,15 @@ class BusinessesController < ApplicationController
 
     # Only allow a list of trusted parameters through.
     def business_params
-      params.expect(business: [ :name, :description, :status, :gsc_site_url ])
+      params.expect(business: [
+        :name,
+        :description,
+        :status,
+        :gsc_site_url,
+        :project_key,
+        :local_project_path,
+        :repository_name
+      ])
     end
 
     def ai_action_count

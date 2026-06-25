@@ -72,6 +72,190 @@
     </div>
   </section>
 
+  <% decision_summary = @owner_decision_summary %>
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Decision Log Summary</h2>
+      <p>Ownerの承認・却下・変換・実行判断を学習データとして集計します。</p>
+    </div>
+    <div class="metric-grid">
+      <div class="metric-card"><span>Today</span><strong><%= decision_summary.today_count %>件</strong></div>
+      <div class="metric-card"><span>7 Days</span><strong><%= decision_summary.last_7_days_count %>件</strong></div>
+      <div class="metric-card"><span>30 Days</span><strong><%= decision_summary.last_30_days_count %>件</strong></div>
+    </div>
+
+    <div class="aicoo-grid aicoo-grid-2">
+      <div class="aicoo-card aicoo-card-compact">
+        <h3>Decision Types</h3>
+        <ul class="compact-list">
+          <% decision_summary.counts_by_decision_type.each do |decision_type, count| %>
+            <li><strong><%= decision_type %></strong> / <%= count %>件</li>
+          <% end %>
+        </ul>
+      </div>
+      <div class="aicoo-card aicoo-card-compact">
+        <h3>Risk Execution Rate</h3>
+        <ul class="compact-list">
+          <% decision_summary.risk_level_execution_rates.each do |summary| %>
+            <li><strong><%= summary.label %></strong> / <%= number_to_percentage(summary.rate * 100, precision: 1) %> / <%= summary.positive_count %>/<%= summary.total_count %>件</li>
+          <% end %>
+          <% if decision_summary.risk_level_execution_rates.empty? %>
+            <li>データ不足</li>
+          <% end %>
+        </ul>
+      </div>
+    </div>
+
+    <div class="aicoo-card aicoo-card-compact">
+      <h3>Action Type Adoption</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>action_type</th><th>採用率</th><th>採用系</th><th>総数</th></tr>
+          </thead>
+          <tbody>
+            <% decision_summary.action_type_adoption_rates.each do |summary| %>
+              <tr>
+                <td><%= summary.label %></td>
+                <td><%= number_to_percentage(summary.rate * 100, precision: 1) %></td>
+                <td><%= summary.positive_count %>件</td>
+                <td><%= summary.total_count %>件</td>
+              </tr>
+            <% end %>
+            <% if decision_summary.action_type_adoption_rates.empty? %>
+              <tr><td colspan="4">データ不足</td></tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="aicoo-card aicoo-card-compact">
+      <h3>Recent Decision Logs</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>日時</th><th>判断</th><th>対象</th><th>Business</th><th>期待値</th><th>Risk</th></tr>
+          </thead>
+          <tbody>
+            <% decision_summary.recent_logs.each do |log| %>
+              <tr>
+                <td><%= l(log.decided_at, format: :short) %></td>
+                <td><%= log.decision_type %></td>
+                <td><%= log.title %></td>
+                <td><%= log.business&.name || "-" %></td>
+                <td><%= number_to_currency(log.expected_value_yen.to_i, unit: "¥", precision: 0) %></td>
+                <td><%= log.risk_level.presence || "-" %></td>
+              </tr>
+            <% end %>
+            <% if decision_summary.recent_logs.empty? %>
+              <tr><td colspan="6">まだDecision Logはありません。</td></tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <% strategic_report = @strategic_learning_report %>
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Strategic Learning</h2>
+      <p>経営思想を主目的関数にし、Decision Logは補正として扱います。</p>
+    </div>
+    <div class="metric-grid">
+      <% strategic_report.philosophy_weights.each do |weight, value| %>
+        <div class="metric-card"><span><%= weight.to_s.sub("_weight", "").humanize %></span><strong><%= value %></strong></div>
+      <% end %>
+      <div class="metric-card"><span>思想一致率</span><strong><%= number_to_percentage(strategic_report.strategic_alignment_rate * 100, precision: 1) %></strong></div>
+      <div class="metric-card"><span>学習補正率</span><strong><%= number_to_percentage(strategic_report.learning_correction_rate * 100, precision: 1) %></strong></div>
+      <div class="metric-card"><span>Decision補正率</span><strong><%= number_to_percentage(strategic_report.decision_correction_rate * 100, precision: 1) %></strong></div>
+      <div class="metric-card"><span>逆方向判断</span><strong><%= strategic_report.contrary_decision_count %>件</strong></div>
+    </div>
+
+    <div class="aicoo-grid aicoo-grid-2">
+      <div class="aicoo-card aicoo-card-compact">
+        <h3>Top Approved ActionType</h3>
+        <ul class="compact-list">
+          <% strategic_report.top_approved_action_types.each do |action_type, count| %>
+            <li><strong><%= action_type %></strong> / <%= count %>件</li>
+          <% end %>
+          <% if strategic_report.top_approved_action_types.empty? %><li>データ不足</li><% end %>
+        </ul>
+      </div>
+      <div class="aicoo-card aicoo-card-compact">
+        <h3>Top Rejected / Skipped ActionType</h3>
+        <ul class="compact-list">
+          <% (strategic_report.top_rejected_action_types + strategic_report.top_skipped_action_types).first(5).each do |action_type, count| %>
+            <li><strong><%= action_type %></strong> / <%= count %>件</li>
+          <% end %>
+          <% if strategic_report.top_rejected_action_types.empty? && strategic_report.top_skipped_action_types.empty? %><li>データ不足</li><% end %>
+        </ul>
+      </div>
+    </div>
+
+    <div class="aicoo-card aicoo-card-compact">
+      <h3>Decision補正係数</h3>
+      <ul class="compact-list">
+        <% strategic_report.decision_coefficients.each do |coefficient| %>
+          <li><strong><%= coefficient.label %></strong> / coefficient <%= coefficient.coefficient %> / rate <%= number_to_percentage(coefficient.rate * 100, precision: 1) %> / <%= coefficient.count %>件</li>
+        <% end %>
+        <% if strategic_report.decision_coefficients.empty? %><li>データ不足</li><% end %>
+      </ul>
+    </div>
+
+    <div class="aicoo-card aicoo-card-compact">
+      <h3>高期待値なのにSkip/Reject</h3>
+      <ul class="compact-list">
+        <% strategic_report.high_value_skipped_logs.each do |log| %>
+          <li><%= log.title %> / <%= log.decision_type %> / <%= number_to_currency(log.expected_value_yen.to_i, unit: "¥", precision: 0) %></li>
+        <% end %>
+        <% if strategic_report.high_value_skipped_logs.empty? %><li>該当なし</li><% end %>
+      </ul>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Strategic Learning Guardrail</h2>
+      <p>補正が効きすぎていないかを確認します。</p>
+    </div>
+    <div class="metric-grid">
+      <div class="metric-card"><span>補正</span><strong><%= strategic_report.guardrail_settings.fetch(:enabled) ? "ON" : "OFF" %></strong></div>
+      <div class="metric-card"><span>最大Boost</span><strong><%= number_to_percentage(strategic_report.guardrail_settings.fetch(:max_boost_rate).to_d * 100, precision: 0) %></strong></div>
+      <div class="metric-card"><span>最大Penalty</span><strong><%= number_to_percentage(strategic_report.guardrail_settings.fetch(:max_penalty_rate).to_d * 100, precision: 0) %></strong></div>
+      <div class="metric-card"><span>Warning閾値</span><strong><%= number_to_percentage(strategic_report.guardrail_settings.fetch(:warning_threshold_rate).to_d * 100, precision: 0) %></strong></div>
+      <div class="metric-card"><span>Decision Log最小件数</span><strong><%= strategic_report.guardrail_settings.fetch(:decision_log_min_count) %>件</strong></div>
+      <div class="metric-card"><span>今日warning</span><strong><%= strategic_report.guardrail_warning_today_count %>件</strong></div>
+      <div class="metric-card"><span>7日warning</span><strong><%= strategic_report.guardrail_warning_7_days_count %>件</strong></div>
+      <div class="metric-card"><span>30日warning</span><strong><%= strategic_report.guardrail_warning_30_days_count %>件</strong></div>
+      <div class="metric-card"><span>最大補正率</span><strong><%= number_to_percentage(strategic_report.max_adjustment_rate * 100, precision: 1) %></strong></div>
+      <div class="metric-card"><span>補正弱化</span><strong><%= strategic_report.weakened_decision_log_count %>件</strong></div>
+    </div>
+
+    <div class="aicoo-grid aicoo-grid-2">
+      <div class="aicoo-card aicoo-card-compact">
+        <h3>補正率が大きい候補</h3>
+        <ul class="compact-list">
+          <% strategic_report.largest_adjustments.each do |candidate| %>
+            <% guardrail = candidate.metadata.to_h["strategic_learning_guardrail"].to_h %>
+            <li><%= link_to candidate.title, action_candidate_path(candidate) %> / <%= number_to_percentage(guardrail.fetch("adjustment_rate", 0).to_d * 100, precision: 1) %></li>
+          <% end %>
+          <% if strategic_report.largest_adjustments.empty? %><li>データ不足</li><% end %>
+        </ul>
+      </div>
+      <div class="aicoo-card aicoo-card-compact">
+        <h3>high riskなのにboost</h3>
+        <ul class="compact-list">
+          <% strategic_report.high_risk_boosted.each do |candidate| %>
+            <li><%= link_to candidate.title, action_candidate_path(candidate) %></li>
+          <% end %>
+          <% if strategic_report.high_risk_boosted.empty? %><li>該当なし</li><% end %>
+        </ul>
+      </div>
+    </div>
+  </section>
+
   <section class="dashboard-section">
     <div class="section-heading">
       <h2>Action Types</h2>

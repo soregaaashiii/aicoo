@@ -4,6 +4,7 @@ class Business < ApplicationRecord
   has_many :action_candidates, dependent: :destroy
   has_many :opportunity_discovery_items, dependent: :nullify
   has_many :auto_revision_tasks, dependent: :destroy
+  has_many :codex_prompt_drafts, dependent: :nullify
   has_many :action_results, dependent: :destroy
   has_many :action_candidate_score_snapshots, dependent: :destroy
   has_many :meta_evaluation_snapshots, dependent: :destroy
@@ -90,6 +91,24 @@ class Business < ApplicationRecord
     revenue_recorded? ? "profit" : "proxy_score"
   end
 
+  def codex_project_key
+    project_key.presence || business_execution_profile&.repository_name
+  end
+
+  def codex_local_project_path
+    local_project_path.presence || business_execution_profile&.repository_path
+  end
+
+  def codex_repository_name
+    repository_name.presence || business_execution_profile&.repository_name
+  end
+
+  def codex_verification_commands
+    Array(default_verification_commands).presence ||
+      business_execution_profile_commands ||
+      CodexPromptDraft::DEFAULT_VERIFICATION_COMMANDS
+  end
+
   def current_proxy_score_weight
     ProxyScoreWeight.for_business(self)
   end
@@ -116,6 +135,16 @@ class Business < ApplicationRecord
   def scoped_business_metric_dailies(range)
     scope = business_metric_dailies
     range ? scope.where(recorded_on: range) : scope
+  end
+
+  def business_execution_profile_commands
+    profile = business_execution_profile
+    return unless profile
+
+    [
+      profile.test_command,
+      profile.lint_command
+    ].compact_blank.presence
   end
 
   def metric_total(metric, range = nil)

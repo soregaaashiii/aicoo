@@ -9,6 +9,7 @@ module Owner
       @owner_task_completion_logs = OwnerTaskCompletionLog.recent.limit(3)
       @learning_loop_quality_report = Aicoo::LearningLoopQualityReport.new.call
       @learning_report_recommendations = Aicoo::LearningReportRecommendation.new.call
+      @strategic_learning_report = Aicoo::StrategicLearningReport.new.call
       @opportunity_discovery_summary = Aicoo::OpportunityDiscoverySummary.new.call
       @discovery_source_performance_report = Aicoo::DiscoverySourcePerformanceReport.new.call
       @opportunity_focus_queue = Aicoo::OpportunityFocusQueue.new.call

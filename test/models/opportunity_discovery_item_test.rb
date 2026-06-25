@@ -8,6 +8,8 @@ class OpportunityDiscoveryItemTest < ActiveSupport::TestCase
     assert_equal "new", item.status
     assert_equal 50, item.opportunity_score
     assert item.discovered_at.present?
+    assert item.strategic_score.present?
+    assert item.decision_log_coefficient.present?
   end
 
   test "converts to action candidate" do
@@ -25,5 +27,23 @@ class OpportunityDiscoveryItemTest < ActiveSupport::TestCase
       assert_equal "converted", item.reload.status
       assert_equal item.id, candidate.metadata["opportunity_id"]
     end
+  end
+
+  test "stores strategic learning scores" do
+    item = OpportunityDiscoveryItem.create!(
+      title: "外部シグナルからLP検証",
+      source_type: "google_trends",
+      opportunity_type: "lp_test",
+      opportunity_score: 90,
+      expected_value_yen: 80_000,
+      confidence: 85
+    )
+
+    assert item.long_term_profit_score.present?
+    assert item.learning_value_score.present?
+    assert item.exploration_value_score.present?
+    assert item.strategic_adjusted_score.present?
+    assert item.metadata.dig("strategic_learning", "strategic_score").present?
+    assert item.metadata.dig("strategic_learning_guardrail", "clamped_adjusted_score").present?
   end
 end

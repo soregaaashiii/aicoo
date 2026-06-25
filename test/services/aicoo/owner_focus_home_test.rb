@@ -40,14 +40,13 @@ module Aicoo
       assert_equal "daily_run_failure", result.top_task.task_type
     end
 
-    test "critical action result registration is prioritized over execution ready" do
+    test "execution ready is prioritized over critical action result registration" do
       create_completed_execution_without_result(completed_at: 80.hours.ago)
       create_ready_execution
 
       result = OwnerFocusHome.new.call
 
-      assert_equal "action_result_registration", result.top_task.task_type
-      assert_equal "critical", result.top_task.priority
+      assert_equal "action_execution_ready", result.top_task.task_type
     end
 
     test "execution ready is prioritized over high opportunity" do
@@ -63,6 +62,39 @@ module Aicoo
 
       assert_equal "action_execution_ready", result.top_task.task_type
       assert_includes result.top_task.title, execution.action_candidate.title
+    end
+
+    test "high value pending opportunity becomes focus task when execution is clear" do
+      OpportunityDiscoveryItem.create!(
+        title: "High value pending opportunity",
+        business: businesses(:suelog),
+        status: "pending",
+        opportunity_score: 95,
+        expected_value_yen: 150_000,
+        confidence: 90
+      )
+
+      result = OwnerFocusHome.new.call
+
+      assert_equal "opportunity_review", result.top_task.task_type
+      assert_equal "high", result.top_task.priority
+      assert_includes result.top_task.title, "High value pending opportunity"
+    end
+
+    test "codex prompt draft needed is included below opportunity review" do
+      ActionCandidate.create!(
+        business: businesses(:suelog),
+        title: "Approved candidate needs prompt",
+        status: "approved",
+        action_type: "seo_improvement",
+        immediate_value_yen: 20_000,
+        success_probability: 1,
+        expected_hours: 1
+      )
+
+      result = OwnerFocusHome.new.call
+
+      assert result.focus_tasks.any? { |task| task.task_type == "codex_prompt_draft_needed" }
     end
 
     test "includes explore daily routine task" do

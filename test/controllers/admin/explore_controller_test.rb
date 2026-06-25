@@ -26,6 +26,7 @@ module Admin
       assert_includes response.body, "New Observations"
       assert_includes response.body, "High Score Observations"
       assert_includes response.body, "On Hold Observations"
+      assert_includes response.body, "Pending Opportunities"
       assert_includes response.body, "status"
     end
 
@@ -45,6 +46,7 @@ module Admin
       assert_redirected_to admin_explore_observations_focus_url
       assert_equal OpportunityDiscoveryItem.last, observation.reload.opportunity_discovery_item
       assert_equal "converted", observation.status
+      assert_equal "pending", OpportunityDiscoveryItem.last.status
     end
 
     test "shows focus page and processes observation decisions" do

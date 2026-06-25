@@ -66,7 +66,7 @@
   <section class="dashboard-section">
     <div class="section-heading">
       <h2>Top Opportunities</h2>
-      <p>Scoreが高い順に表示します。</p>
+      <p>期待値が高い順に表示します。</p>
     </div>
     <div class="table-wrap">
       <table>
@@ -75,7 +75,10 @@
             <th>タイトル</th>
             <th>事業</th>
             <th>source</th>
+            <th>type</th>
             <th>score</th>
+            <th>期待値</th>
+            <th>confidence</th>
             <th>状態</th>
             <th>Candidate</th>
           </tr>
@@ -86,19 +89,27 @@
               <td><%= link_to opportunity.title, owner_opportunity_path(opportunity) %></td>
               <td><%= opportunity.business&.name || "-" %></td>
               <td><span class="pill"><%= opportunity.source_type %></span></td>
+              <td><%= opportunity.opportunity_type %></td>
               <td><%= opportunity.opportunity_score.to_i %></td>
+              <td><%= number_to_currency(opportunity.expected_value_yen.to_i, unit: "¥", precision: 0) %></td>
+              <td><%= opportunity.confidence.to_i %></td>
               <td><span class="pill"><%= opportunity.status %></span></td>
               <td>
                 <% if opportunity.action_candidate %>
                   <%= link_to "Candidate", opportunity.action_candidate, class: "button secondary" %>
                 <% else %>
-                  <%= button_to "Convert to Candidate", convert_to_candidate_owner_opportunity_path(opportunity), method: :post, class: "button" %>
+                  <div class="actions compact-actions">
+                    <% if opportunity.status == "pending" %>
+                      <%= button_to "Approve", approve_owner_opportunity_path(opportunity), method: :patch, class: "button secondary" %>
+                    <% end %>
+                    <%= button_to "Convert to Candidate", convert_to_candidate_owner_opportunity_path(opportunity), method: :post, class: "button" %>
+                  </div>
                 <% end %>
               </td>
             </tr>
           <% end %>
           <% if @opportunities.empty? %>
-            <tr><td colspan="6">Opportunityはまだありません。</td></tr>
+            <tr><td colspan="9">Opportunityはまだありません。</td></tr>
           <% end %>
         </tbody>
       </table>

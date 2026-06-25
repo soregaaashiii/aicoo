@@ -3,8 +3,10 @@ module Owner
     before_action :set_opportunity, only: %i[
       show
       review
+      approve
       reject
       convert_to_candidate
+      focus_approve
       focus_review
       focus_reject
       focus_convert_to_candidate
@@ -46,13 +48,29 @@ module Owner
       redirect_to owner_opportunity_path(@opportunity), notice: "Opportunityをreviewedにしました。"
     end
 
+    def approve
+      previous_status = @opportunity.status
+      @opportunity.update!(status: "approved")
+      record_decision!("approve", "opportunity_detail", previous_status:)
+      redirect_to owner_opportunity_path(@opportunity), notice: "Opportunityをapprovedにしました。"
+    end
+
     def reject
+      previous_status = @opportunity.status
       @opportunity.update!(status: "rejected")
+      record_decision!("reject", "opportunity_detail", previous_status:)
       redirect_to owner_opportunities_path, notice: "Opportunityを却下しました。"
     end
 
     def convert_to_candidate
+      previous_status = @opportunity.status
       candidate = @opportunity.convert_to_action_candidate!
+      record_decision!(
+        "convert",
+        "opportunity_detail",
+        previous_status:,
+        metadata: { action_candidate_id: candidate.id }
+      )
       redirect_to candidate, notice: "OpportunityをActionCandidateへ変換しました。"
     end
 
@@ -61,14 +79,30 @@ module Owner
       redirect_to focus_owner_opportunities_path, notice: "Opportunityをreviewedにしました。次のOpportunityを表示します。"
     end
 
+    def focus_approve
+      previous_status = @opportunity.status
+      @opportunity.update!(status: "approved")
+      record_decision!("approve", "owner_focus", previous_status:)
+      redirect_to owner_focus_path, notice: "Opportunityをapprovedにしました。"
+    end
+
     def focus_reject
+      previous_status = @opportunity.status
       @opportunity.update!(status: "rejected")
-      redirect_to focus_owner_opportunities_path, notice: "Opportunityを却下しました。次のOpportunityを表示します。"
+      record_decision!("reject", "owner_focus", previous_status:)
+      redirect_to owner_focus_path, notice: "Opportunityを却下しました。"
     end
 
     def focus_convert_to_candidate
-      @opportunity.convert_to_action_candidate!
-      redirect_to focus_owner_opportunities_path, notice: "OpportunityをActionCandidateへ変換しました。次のOpportunityを表示します。"
+      previous_status = @opportunity.status
+      candidate = @opportunity.convert_to_action_candidate!
+      record_decision!(
+        "convert",
+        "owner_focus",
+        previous_status:,
+        metadata: { action_candidate_id: candidate.id }
+      )
+      redirect_to candidate, notice: "OpportunityをActionCandidateへ変換しました。"
     end
 
     private
@@ -82,11 +116,25 @@ module Owner
         :title,
         :description,
         :source_type,
+        :opportunity_type,
         :opportunity_score,
+        :expected_value_yen,
+        :confidence,
         :status,
         :business_id,
         metadata: {}
       ])
+    end
+
+    def record_decision!(decision_type, decision_source, previous_status:, metadata: {})
+      OwnerDecisionLog.record!(
+        subject: @opportunity,
+        decision_type:,
+        decision_source:,
+        previous_status:,
+        new_status: @opportunity.status,
+        metadata:
+      )
     end
   end
 end

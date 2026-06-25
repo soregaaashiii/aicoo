@@ -18,33 +18,64 @@
       <p><%= @owner_home_summary.summary_message %></p>
     </div>
 
-    <% if @owner_home_summary.next_action %>
-      <% task = @owner_home_summary.next_action %>
+    <% if @top_task %>
+      <% task = @top_task %>
       <div class="aicoo-card">
         <p>
           <span class="pill"><%= task.priority %></span>
           <span class="pill"><%= task.task_type_label %></span>
         </p>
-        <h2><%= task.title %></h2>
-        <p><%= task.reason %></p>
+        <% if @opportunity_focus_item %>
+          <% opportunity = @opportunity_focus_item.opportunity %>
+          <h2><%= opportunity.title %></h2>
+          <p><%= opportunity.summary.presence || opportunity.description.presence || @opportunity_focus_item.reason %></p>
+          <div class="metric-grid aicoo-owner-secondary">
+            <div class="metric-card"><span>期待値</span><strong><%= number_to_currency(opportunity.expected_value_yen.to_i, unit: "¥", precision: 0) %></strong></div>
+            <div class="metric-card"><span>信頼度</span><strong><%= opportunity.confidence.to_i %></strong></div>
+            <div class="metric-card"><span>種類</span><strong><%= opportunity.opportunity_type %></strong></div>
+            <div class="metric-card"><span>発見源</span><strong><%= opportunity.source_type %></strong></div>
+          </div>
+          <p><%= @opportunity_focus_item.reason %></p>
+          <div class="actions compact-actions">
+            <%= button_to "Approve", focus_approve_owner_opportunity_path(opportunity), method: :patch, class: "button secondary" %>
+            <%= button_to "Reject", focus_reject_owner_opportunity_path(opportunity), method: :patch, class: "button danger", data: { turbo_confirm: "このOpportunityを却下しますか？" } %>
+            <%= button_to "Convert to ActionCandidate", focus_convert_to_candidate_owner_opportunity_path(opportunity), method: :post, class: "button" %>
+            <%= link_to "詳細を見る", owner_opportunity_path(opportunity), class: "button secondary" %>
+          </div>
+        <% else %>
+          <h2><%= task.title %></h2>
+          <p><%= task.reason %></p>
 
-        <div class="actions compact-actions">
-          <% task.quick_actions.each do |action| %>
-            <% button_class = ["button", ("secondary" if action.style == "secondary"), ("danger" if action.style == "danger")].compact.join(" ") %>
-            <% data = action.confirm_message.present? ? { turbo_confirm: action.confirm_message } : {} %>
-            <% if action.method.to_s == "get" %>
-              <%= link_to action.label, action.path, class: button_class, data: %>
-            <% else %>
-              <%= button_to action.label, action.path, method: action.method, class: button_class, data: %>
+          <div class="actions compact-actions">
+            <% task.quick_actions.each do |action| %>
+              <% button_class = ["button", ("secondary" if action.style == "secondary"), ("danger" if action.style == "danger")].compact.join(" ") %>
+              <% data = action.confirm_message.present? ? { turbo_confirm: action.confirm_message } : {} %>
+              <% if action.method.to_s == "get" %>
+                <%= link_to action.label, action.path, class: button_class, data: %>
+              <% else %>
+                <%= button_to action.label, action.path, method: action.method, class: button_class, data: %>
+              <% end %>
             <% end %>
-          <% end %>
-          <%= link_to "詳細を見る", task.target_path, class: "button secondary" %>
-        </div>
+            <%= link_to "詳細を見る", task.target_path, class: "button secondary" %>
+          </div>
+        <% end %>
       </div>
     <% else %>
       <div class="aicoo-card aicoo-empty-state">
-        <h2>今すぐ処理すべきタスクはありません。</h2>
-        <p>実行・結果登録・承認・異常対応が必要になるとここに出ます。</p>
+        <% if @owner_execution_queue_summary.top_item %>
+          <% queue_item = @owner_execution_queue_summary.top_item %>
+          <p><span class="pill"><%= queue_item.risk_level %></span> <span class="pill"><%= queue_item.item_type %></span></p>
+          <h2><%= queue_item.title %></h2>
+          <p><%= queue_item.reason %></p>
+          <div class="actions compact-actions">
+            <%= link_to "対象を見る", queue_item.target_path, class: "button" %>
+            <%= button_to "Completed", complete_owner_execution_queue_item_path(queue_item), method: :patch, class: "button secondary" %>
+            <%= button_to "Skipped", skip_owner_execution_queue_item_path(queue_item), method: :patch, class: "button secondary" %>
+          </div>
+        <% else %>
+          <h2>今すぐ処理すべきタスクはありません。</h2>
+          <p>実行・結果登録・承認・異常対応が必要になるとここに出ます。</p>
+        <% end %>
       </div>
     <% end %>
   </section>
@@ -58,7 +89,51 @@
       <div class="metric-card"><span>Execution Ready</span><strong><%= @owner_home_summary.execution_ready_count %>件</strong></div>
       <div class="metric-card"><span>Result Registration</span><strong><%= @owner_home_summary.result_registration_count %>件</strong></div>
       <div class="metric-card"><span>Calibration Pending</span><strong><%= @owner_home_summary.pending_calibration_count %>件</strong></div>
+      <div class="metric-card"><span>Pending Opportunities</span><strong><%= @owner_home_summary.pending_opportunities_count %>件</strong></div>
       <div class="metric-card"><span>Explore Review</span><strong><%= @owner_home_summary.explore_review_count %>件</strong></div>
+      <div class="metric-card"><span>今日の実行キュー</span><strong><%= @owner_home_summary.today_queue_count %>件</strong></div>
+      <div class="metric-card"><span>キュー処理済み</span><strong><%= @owner_home_summary.today_queue_completed_count %>件</strong></div>
+      <div class="metric-card"><span>今日のDecision Log</span><strong><%= @owner_decision_summary.today_count %>件</strong></div>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>今日の実行キュー</h2>
+      <p>低〜中リスクの処理候補だけを並べます。</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>種別</th>
+            <th>タイトル</th>
+            <th>Risk</th>
+            <th>Score</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @owner_execution_queue_summary.items.first(5).each do |item| %>
+            <tr>
+              <td><%= item.item_type %></td>
+              <td><%= item.title %></td>
+              <td><span class="pill"><%= item.risk_level %></span></td>
+              <td class="number"><%= item.priority_score.to_d.round(1) %></td>
+              <td>
+                <div class="actions compact-actions">
+                  <%= link_to "対象", item.target_path, class: "button secondary" %>
+                  <%= button_to "Done", complete_owner_execution_queue_item_path(item), method: :patch, class: "button secondary" %>
+                  <%= button_to "Skip", skip_owner_execution_queue_item_path(item), method: :patch, class: "button secondary" %>
+                </div>
+              </td>
+            </tr>
+          <% end %>
+          <% if @owner_execution_queue_summary.items.empty? %>
+            <tr><td colspan="5">今日の実行キューはまだありません。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
     </div>
   </section>
 

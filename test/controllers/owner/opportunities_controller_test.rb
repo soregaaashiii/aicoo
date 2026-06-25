@@ -40,11 +40,15 @@ module Owner
       )
 
       assert_difference("ActionCandidate.count", 1) do
-        post convert_to_candidate_owner_opportunity_url(opportunity)
+        assert_difference("OwnerDecisionLog.count", 1) do
+          post convert_to_candidate_owner_opportunity_url(opportunity)
+        end
       end
 
       assert_redirected_to action_candidate_url(ActionCandidate.last)
       assert_equal "converted", opportunity.reload.status
+      assert_equal "convert", OwnerDecisionLog.last.decision_type
+      assert_equal "opportunity_detail", OwnerDecisionLog.last.decision_source
     end
 
     test "show tracks candidate execution and result" do
@@ -97,24 +101,43 @@ module Owner
       assert_equal "reviewed", opportunity.reload.status
     end
 
+    test "focus approve marks opportunity approved and returns to owner focus" do
+      opportunity = OpportunityDiscoveryItem.create!(title: "Approve focus opportunity", business: businesses(:suelog), status: "pending")
+
+      assert_difference("OwnerDecisionLog.count", 1) do
+        patch focus_approve_owner_opportunity_url(opportunity)
+      end
+
+      assert_redirected_to owner_focus_url
+      assert_equal "approved", opportunity.reload.status
+      assert_equal "approve", OwnerDecisionLog.last.decision_type
+      assert_equal "owner_focus", OwnerDecisionLog.last.decision_source
+    end
+
     test "focus reject marks opportunity rejected and returns to focus" do
       opportunity = OpportunityDiscoveryItem.create!(title: "Reject focus opportunity", business: businesses(:suelog))
 
-      patch focus_reject_owner_opportunity_url(opportunity)
+      assert_difference("OwnerDecisionLog.count", 1) do
+        patch focus_reject_owner_opportunity_url(opportunity)
+      end
 
-      assert_redirected_to focus_owner_opportunities_url
+      assert_redirected_to owner_focus_url
       assert_equal "rejected", opportunity.reload.status
+      assert_equal "reject", OwnerDecisionLog.last.decision_type
     end
 
     test "focus convert creates candidate and returns to focus" do
       opportunity = OpportunityDiscoveryItem.create!(title: "Convert focus opportunity", business: businesses(:suelog))
 
       assert_difference("ActionCandidate.count", 1) do
-        post focus_convert_to_candidate_owner_opportunity_url(opportunity)
+        assert_difference("OwnerDecisionLog.count", 1) do
+          post focus_convert_to_candidate_owner_opportunity_url(opportunity)
+        end
       end
 
-      assert_redirected_to focus_owner_opportunities_url
+      assert_redirected_to action_candidate_url(ActionCandidate.last)
       assert_equal "converted", opportunity.reload.status
+      assert_equal "convert", OwnerDecisionLog.last.decision_type
     end
   end
 end

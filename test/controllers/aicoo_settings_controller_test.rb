@@ -9,6 +9,9 @@ class AicooSettingsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.body, "AICOO設定"
     assert_includes response.body, "データ整備タスク自動キュー投入"
+    assert_includes response.body, "Owner Execution Queue"
+    assert_includes response.body, "Strategic Philosophy"
+    assert_includes response.body, "Strategic Learning Guardrail"
     assert_includes response.body, "自動投入ON"
   end
 
@@ -32,5 +35,63 @@ class AicooSettingsControllerTest < ActionDispatch::IntegrationTest
 
     assert_redirected_to aicoo_setting_url
     assert_not AicooSetting.current.reload.auto_queue_data_preparation_tasks?
+  end
+
+  test "updates owner execution queue settings" do
+    patch aicoo_setting_url, params: {
+      aicoo_setting: {
+        daily_owner_queue_limit: "7",
+        auto_queue_low_risk_enabled: "1",
+        auto_queue_medium_risk_enabled: "0",
+        auto_queue_high_risk_enabled: "0"
+      }
+    }
+
+    setting = AicooSetting.current.reload
+    assert_redirected_to aicoo_setting_url
+    assert_equal 7, setting.daily_owner_queue_limit
+    assert setting.auto_queue_low_risk_enabled?
+    assert_not setting.auto_queue_medium_risk_enabled?
+    assert_not setting.auto_queue_high_risk_enabled?
+  end
+
+  test "updates strategic philosophy weights" do
+    patch aicoo_setting_url, params: {
+      aicoo_setting: {
+        long_term_profit_weight: "60",
+        short_term_profit_weight: "10",
+        learning_weight: "20",
+        automation_weight: "5",
+        exploration_weight: "5"
+      }
+    }
+
+    setting = AicooSetting.current.reload
+    assert_redirected_to aicoo_setting_url
+    assert_equal 60, setting.long_term_profit_weight
+    assert_equal 10, setting.short_term_profit_weight
+    assert_equal 20, setting.learning_weight
+    assert_equal 5, setting.automation_weight
+    assert_equal 5, setting.exploration_weight
+  end
+
+  test "updates strategic learning guardrail settings" do
+    patch aicoo_setting_url, params: {
+      aicoo_setting: {
+        strategic_learning_enabled: "1",
+        strategic_learning_max_boost_rate: "0.2",
+        strategic_learning_max_penalty_rate: "0.1",
+        strategic_learning_warning_threshold_rate: "0.05",
+        strategic_learning_decision_log_min_count: "5"
+      }
+    }
+
+    setting = AicooSetting.current.reload
+    assert_redirected_to aicoo_setting_url
+    assert setting.strategic_learning_enabled?
+    assert_equal 0.2.to_d, setting.strategic_learning_max_boost_rate
+    assert_equal 0.1.to_d, setting.strategic_learning_max_penalty_rate
+    assert_equal 0.05.to_d, setting.strategic_learning_warning_threshold_rate
+    assert_equal 5, setting.strategic_learning_decision_log_min_count
   end
 end

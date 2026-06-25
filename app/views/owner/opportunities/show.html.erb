@@ -7,6 +7,9 @@
 <% header_actions = capture do %>
   <%= link_to "Opportunity一覧", owner_opportunities_path, class: "button secondary" %>
   <% unless candidate %>
+    <% if @opportunity.status == "pending" %>
+      <%= button_to "Approve", approve_owner_opportunity_path(@opportunity), method: :patch, class: "button secondary" %>
+    <% end %>
     <%= button_to "Convert to Candidate", convert_to_candidate_owner_opportunity_path(@opportunity), method: :post, class: "button" %>
   <% end %>
 <% end %>
@@ -22,7 +25,24 @@
       <div class="metric-card"><span>source</span><strong><%= @opportunity.source_type %></strong></div>
       <div class="metric-card"><span>status</span><strong><%= @opportunity.status %></strong></div>
       <div class="metric-card"><span>score</span><strong><%= @opportunity.opportunity_score.to_i %></strong></div>
+      <div class="metric-card"><span>expected value</span><strong><%= number_to_currency(@opportunity.expected_value_yen.to_i, unit: "¥", precision: 0) %></strong></div>
+      <div class="metric-card"><span>confidence</span><strong><%= @opportunity.confidence.to_i %></strong></div>
+      <div class="metric-card"><span>type</span><strong><%= @opportunity.opportunity_type %></strong></div>
       <div class="metric-card"><span>discovered</span><strong><%= @opportunity.discovered_at ? l(@opportunity.discovered_at, format: :short) : "-" %></strong></div>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>評価スコア</h2>
+      <p>Explore ObservationをOpportunityとして評価した内訳です。</p>
+    </div>
+    <div class="metric-grid aicoo-owner-secondary">
+      <div class="metric-card"><span>market signal</span><strong><%= @opportunity.market_signal_score.to_i %></strong></div>
+      <div class="metric-card"><span>urgency</span><strong><%= @opportunity.urgency_score.to_i %></strong></div>
+      <div class="metric-card"><span>monetization</span><strong><%= @opportunity.monetization_score.to_i %></strong></div>
+      <div class="metric-card"><span>feasibility</span><strong><%= @opportunity.feasibility_score.to_i %></strong></div>
+      <div class="metric-card"><span>competition</span><strong><%= @opportunity.competition_score.to_i %></strong></div>
     </div>
   </section>
 
@@ -36,6 +56,9 @@
     <div class="actions compact-actions">
       <% if @opportunity.status == "new" %>
         <%= button_to "Reviewedにする", review_owner_opportunity_path(@opportunity), method: :patch, class: "button secondary" %>
+      <% end %>
+      <% if @opportunity.status == "pending" %>
+        <%= button_to "Approve", approve_owner_opportunity_path(@opportunity), method: :patch, class: "button secondary" %>
       <% end %>
       <% unless @opportunity.status == "rejected" %>
         <%= button_to "Reject", reject_owner_opportunity_path(@opportunity), method: :patch, class: "button danger", data: { turbo_confirm: "このOpportunityを却下しますか？" } %>

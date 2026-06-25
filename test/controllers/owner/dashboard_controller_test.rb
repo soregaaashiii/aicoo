@@ -36,6 +36,7 @@ module Owner
       assert_includes response.body, "Explore Data Hubを見る"
       assert_includes response.body, "新規Import"
       assert_includes response.body, "ExploreをImport"
+      assert_includes response.body, "Explore Opportunity pending"
       assert_includes response.body, "Focus待ち"
       assert_includes response.body, "高score"
       assert_includes response.body, "Observation Focus"

@@ -55,18 +55,21 @@ module Admin
     test "imports pasted csv and redirects to explore dashboard" do
       assert_difference("ExploreObservation.count", 1) do
         assert_difference("ExploreImportLog.count", 1) do
-          post admin_explore_import_url, params: {
-            explore_import: {
-              source_type: "google_trends",
-              import_format: "csv",
-              raw_text: "title,description,score\nシーシャ需要増加,検索量増加,80"
+          assert_difference("OpportunityDiscoveryItem.count", 1) do
+            post admin_explore_import_url, params: {
+              explore_import: {
+                source_type: "google_trends",
+                import_format: "csv",
+                raw_text: "title,description,score\nシーシャ需要増加,検索量増加,80"
+              }
             }
-          }
+          end
         end
       end
 
       assert_redirected_to admin_explore_url
       assert_equal "シーシャ需要増加", ExploreObservation.last.title
+      assert_equal "pending", OpportunityDiscoveryItem.last.status
     end
   end
 end

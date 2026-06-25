@@ -1,0 +1,45 @@
+<% content_for :title, @codex_prompt_draft.title %>
+
+<% header_actions = capture do %>
+  <%= link_to "一覧", owner_codex_prompt_drafts_path, class: "button secondary" %>
+  <%= link_to "ActionCandidate", @codex_prompt_draft.action_candidate, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: @codex_prompt_draft.title,
+             description: "Codexへ渡す前に、対象プロジェクト・安全条件・確認コマンドを確認します。",
+             active_main: :revenue,
+             actions: header_actions %>
+
+  <section class="dashboard-section">
+    <div class="metric-grid aicoo-owner-secondary">
+      <div class="metric-card"><span>Status</span><strong><%= @codex_prompt_draft.status %></strong></div>
+      <div class="metric-card"><span>Risk</span><strong><%= @codex_prompt_draft.risk_level %></strong></div>
+      <div class="metric-card"><span>Project</span><strong><%= @codex_prompt_draft.project_key.presence || "未設定" %></strong></div>
+      <div class="metric-card"><span>Business</span><strong><%= @codex_prompt_draft.business&.name || "-" %></strong></div>
+    </div>
+    <dl class="detail-list">
+      <dt>local_project_path</dt>
+      <dd><%= @codex_prompt_draft.local_project_path.presence || "未設定" %></dd>
+      <dt>generated_from</dt>
+      <dd><%= @codex_prompt_draft.generated_from %></dd>
+      <dt>verification_commands</dt>
+      <dd><%= @codex_prompt_draft.verification_commands.join(" / ") %></dd>
+    </dl>
+    <div class="actions compact-actions">
+      <%= button_to "Approve", approve_owner_codex_prompt_draft_path(@codex_prompt_draft), method: :patch, class: "button secondary" %>
+      <%= button_to "Reject", reject_owner_codex_prompt_draft_path(@codex_prompt_draft), method: :patch, class: "button danger", data: { turbo_confirm: "このDraftを却下しますか？" } %>
+      <%= button_to "Mark copied", mark_copied_owner_codex_prompt_draft_path(@codex_prompt_draft), method: :patch, class: "button secondary" %>
+      <%= button_to "Mark executed", mark_executed_owner_codex_prompt_draft_path(@codex_prompt_draft), method: :patch, class: "button secondary" %>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Codex用プロンプト</h2>
+      <p>この内容をCodexへ貼り付けます。</p>
+    </div>
+    <textarea readonly rows="32" class="code-textarea"><%= @codex_prompt_draft.prompt_body %></textarea>
+  </section>
+</div>

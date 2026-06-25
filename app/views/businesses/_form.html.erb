@@ -31,6 +31,22 @@
     <%= form.text_field :gsc_site_url, placeholder: "例: sc-domain:suelog.jp" %>
   </div>
 
+  <fieldset class="aicoo-card aicoo-card-compact">
+    <legend>Codex対象プロジェクト</legend>
+    <div class="field">
+      <%= form.label :project_key, "project_key" %>
+      <%= form.text_field :project_key, placeholder: "例: suelog" %>
+    </div>
+    <div class="field">
+      <%= form.label :local_project_path, "local_project_path" %>
+      <%= form.text_field :local_project_path, placeholder: "例: /Users/.../suelog" %>
+    </div>
+    <div class="field">
+      <%= form.label :repository_name, "repository_name" %>
+      <%= form.text_field :repository_name, placeholder: "例: suelog" %>
+    </div>
+  </fieldset>
+
   <div class="actions">
     <%= form.submit %>
   </div>

@@ -12,7 +12,8 @@ module Aicoo
       :import_counts_by_source,
       :new_status_observation_count,
       :high_score_observation_count,
-      :on_hold_observation_count
+      :on_hold_observation_count,
+      :pending_opportunity_count
     )
 
     def call
@@ -28,7 +29,8 @@ module Aicoo
         import_counts_by_source: import_counts_by_source,
         new_status_observation_count: ExploreObservation.new_status.count,
         high_score_observation_count: ExploreObservation.new_status.high_score.count,
-        on_hold_observation_count: ExploreObservation.where(status: "on_hold").count
+        on_hold_observation_count: ExploreObservation.where(status: "on_hold").count,
+        pending_opportunity_count: OpportunityDiscoveryItem.where(status: "pending").count
       )
     end
 

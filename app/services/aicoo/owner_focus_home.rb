@@ -4,6 +4,7 @@ module Aicoo
       action_result_registration
       action_execution_ready
       calibration_approval
+      codex_prompt_draft_needed
       opportunity_review
       explore_daily_routine
       daily_run_failure
@@ -53,13 +54,15 @@ module Aicoo
 
     def task_rank(task)
       return 0 if task.task_type == "daily_run_failure"
-      return 1 if task.task_type == "action_result_registration" && task.priority == "critical"
-      return 2 if task.task_type == "calibration_approval" && task.priority == "critical"
-      return 3 if task.task_type == "action_execution_ready"
+      return 1 if task.task_type == "action_execution_ready"
+      return 2 if task.task_type == "action_result_registration"
+      return 3 if task.task_type == "calibration_approval"
       return 4 if task.task_type == "opportunity_review" && task.priority == "high"
-      return 5 if task.task_type == "explore_daily_routine"
-      return 6 if task.task_type == "learning_recommendation"
-      return 7 if task.task_type == "daily_run_step_recovery"
+      return 5 if task.task_type == "opportunity_review"
+      return 6 if task.task_type == "codex_prompt_draft_needed"
+      return 7 if task.task_type == "explore_daily_routine"
+      return 8 if task.task_type == "learning_recommendation"
+      return 9 if task.task_type == "daily_run_step_recovery"
 
       10 + OwnerTaskInbox::PRIORITY_ORDER.fetch(task.priority, 99)
     end
@@ -68,6 +71,7 @@ module Aicoo
       return "今すぐ処理すべきタスクはありません。" if focus_tasks.empty?
       return "Daily Runに異常があります。最優先で確認してください。" if focus_tasks.first.task_type == "daily_run_failure"
       return "結果未登録が滞留しています。学習ループを止めないために登録してください。" if focus_tasks.first.task_type == "action_result_registration"
+      return "Exploreで見つかった事業機会を確認してください。" if focus_tasks.first.task_type == "opportunity_review"
 
       "次に押すべき1件を表示しています。"
     end

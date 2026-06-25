@@ -38,9 +38,51 @@ module Aicoo
       assert_equal 0, summary.result_registration_count
       assert_equal 1, summary.pending_calibration_count
       assert_equal 0, summary.explore_review_count
+      assert_equal 0, summary.pending_opportunities_count
+      assert_nil summary.top_pending_opportunity
+      assert_equal 0, summary.today_queue_count
+      assert_equal 0, summary.today_queue_completed_count
+      assert_nil summary.top_queue_item
       assert_includes %w[Healthy Warning Critical], summary.daily_run_status
       assert_includes %w[Improving Stable Declining], summary.learning_status
       assert_equal "今はこの1件だけ処理してください。", summary.summary_message
+    end
+
+    test "summarizes pending opportunities" do
+      opportunity = OpportunityDiscoveryItem.create!(
+        title: "Explore pending opportunity",
+        status: "pending",
+        expected_value_yen: 90_000,
+        confidence: 80,
+        opportunity_score: 85
+      )
+
+      summary = OwnerHomeSummary.new(owner_focus_home: OwnerFocusHome.new.call).call
+
+      assert_equal 1, summary.pending_opportunities_count
+      assert_equal 1, summary.explore_review_count
+      assert_equal opportunity, summary.top_pending_opportunity
+      assert_equal "opportunity_review", summary.next_action.task_type
+    end
+
+    test "uses queue item as next action when focus tasks are empty" do
+      ActionCandidate.update_all(status: "done")
+      item = OwnerExecutionQueueItem.create!(
+        item_type: "opportunity",
+        item_id: 1,
+        title: "Queue next action",
+        risk_level: "low",
+        status: "pending",
+        due_on: Date.current,
+        priority_score: 100
+      )
+
+      summary = OwnerHomeSummary.new(owner_focus_home: OwnerFocusHome.new.call).call
+
+      assert_equal 1, summary.today_queue_count
+      assert_equal item, summary.top_queue_item
+      assert_equal item, summary.next_action
+      assert_includes summary.summary_message, "今日の実行キュー"
     end
   end
 end

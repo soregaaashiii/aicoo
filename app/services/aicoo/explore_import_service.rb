@@ -35,7 +35,7 @@ module Aicoo
       observations = []
       ActiveRecord::Base.transaction do
         previews.each do |preview_observation|
-          observations << data_source.explore_observations.create!(
+          observation = data_source.explore_observations.create!(
             title: preview_observation.title,
             description: preview_observation.description,
             observation_type: preview_observation.observation_type,
@@ -43,6 +43,8 @@ module Aicoo
             observed_at: preview_observation.observed_at,
             metadata: preview_observation.metadata
           )
+          observations << observation
+          Aicoo::ExploreOpportunityGenerator.new.generate_from_observation!(observation)
         end
         ExploreImportLog.create!(
           source_type: source_type,

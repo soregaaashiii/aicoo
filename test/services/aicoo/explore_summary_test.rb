@@ -25,6 +25,7 @@ module Aicoo
       assert_equal 0, summary.new_status_observation_count
       assert_equal 0, summary.high_score_observation_count
       assert_equal 1, summary.on_hold_observation_count
+      assert_equal 1, summary.pending_opportunity_count
       assert_includes summary.newest_observations, observation
     end
   end

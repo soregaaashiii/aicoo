@@ -40,6 +40,8 @@
         <div class="metric-grid aicoo-owner-secondary">
           <div class="metric-card"><span>Focus Score</span><strong><%= @focus_item.focus_score.to_i %></strong></div>
           <div class="metric-card"><span>Opportunity Score</span><strong><%= opportunity.opportunity_score.to_i %></strong></div>
+          <div class="metric-card"><span>期待値</span><strong><%= number_to_currency(opportunity.expected_value_yen.to_i, unit: "¥", precision: 0) %></strong></div>
+          <div class="metric-card"><span>confidence</span><strong><%= opportunity.confidence.to_i %></strong></div>
           <div class="metric-card"><span>Business</span><strong><%= opportunity.business&.name || "-" %></strong></div>
           <div class="metric-card"><span>Created</span><strong><%= l(opportunity.created_at, format: :short) %></strong></div>
         </div>
@@ -75,6 +77,9 @@
 
     <section class="dashboard-section">
       <div class="actions compact-actions">
+        <% if opportunity.status == "pending" %>
+          <%= button_to "Approve", approve_owner_opportunity_path(opportunity), method: :patch, class: "button secondary" %>
+        <% end %>
         <%= button_to "Convert to Candidate", focus_convert_to_candidate_owner_opportunity_path(opportunity), method: :post, class: "button" %>
         <%= button_to "Mark Reviewed", focus_review_owner_opportunity_path(opportunity), method: :patch, class: "button secondary" %>
         <%= button_to "Reject", focus_reject_owner_opportunity_path(opportunity), method: :patch, class: "button danger", data: { turbo_confirm: "このOpportunityを却下しますか？" } %>

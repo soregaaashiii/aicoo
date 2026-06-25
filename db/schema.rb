@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_24_123000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_25_095000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -686,7 +686,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_24_123000) do
 
   create_table "aicoo_settings", force: :cascade do |t|
     t.boolean "auto_queue_data_preparation_tasks", default: false, null: false
+    t.boolean "auto_queue_high_risk_enabled", default: false, null: false
+    t.boolean "auto_queue_low_risk_enabled", default: true, null: false
+    t.boolean "auto_queue_medium_risk_enabled", default: true, null: false
+    t.integer "automation_weight", default: 10, null: false
     t.datetime "created_at", null: false
+    t.integer "daily_owner_queue_limit", default: 10, null: false
+    t.integer "exploration_weight", default: 5, null: false
+    t.integer "learning_weight", default: 15, null: false
+    t.integer "long_term_profit_weight", default: 45, null: false
+    t.integer "short_term_profit_weight", default: 25, null: false
+    t.integer "strategic_learning_decision_log_min_count", default: 10, null: false
+    t.boolean "strategic_learning_enabled", default: true, null: false
+    t.decimal "strategic_learning_max_boost_rate", default: "0.25", null: false
+    t.decimal "strategic_learning_max_penalty_rate", default: "0.2", null: false
+    t.decimal "strategic_learning_warning_threshold_rate", default: "0.15", null: false
     t.datetime "updated_at", null: false
   end
 
@@ -822,11 +836,39 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_24_123000) do
 
   create_table "businesses", force: :cascade do |t|
     t.datetime "created_at", null: false
+    t.jsonb "default_verification_commands", default: [], null: false
     t.text "description"
     t.string "gsc_site_url"
+    t.string "local_project_path"
     t.string "name"
+    t.string "project_key"
+    t.string "repository_name"
     t.string "status"
     t.datetime "updated_at", null: false
+    t.index ["project_key"], name: "index_businesses_on_project_key"
+  end
+
+  create_table "codex_prompt_drafts", force: :cascade do |t|
+    t.bigint "action_candidate_id", null: false
+    t.bigint "business_id"
+    t.datetime "created_at", null: false
+    t.string "generated_from"
+    t.string "local_project_path"
+    t.jsonb "metadata", default: {}, null: false
+    t.text "objective"
+    t.string "project_key"
+    t.text "prompt_body"
+    t.string "risk_level", default: "medium", null: false
+    t.text "safety_notes"
+    t.string "status", default: "draft", null: false
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.jsonb "verification_commands", default: [], null: false
+    t.index ["action_candidate_id"], name: "index_codex_prompt_drafts_on_action_candidate_id"
+    t.index ["business_id"], name: "index_codex_prompt_drafts_on_business_id"
+    t.index ["project_key"], name: "index_codex_prompt_drafts_on_project_key"
+    t.index ["risk_level"], name: "index_codex_prompt_drafts_on_risk_level"
+    t.index ["status"], name: "index_codex_prompt_drafts_on_status"
   end
 
   create_table "codex_quality_checks", force: :cascade do |t|
@@ -945,21 +987,96 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_24_123000) do
 
   create_table "opportunity_discovery_items", force: :cascade do |t|
     t.bigint "action_candidate_id"
+    t.decimal "automation_value_score"
     t.bigint "business_id"
+    t.decimal "competition_score"
+    t.decimal "confidence"
     t.datetime "created_at", null: false
+    t.decimal "decision_log_coefficient", default: "1.0", null: false
     t.text "description"
     t.datetime "discovered_at"
+    t.integer "expected_value_yen"
+    t.decimal "exploration_value_score"
+    t.decimal "feasibility_score"
+    t.decimal "learning_value_score"
+    t.decimal "long_term_profit_score"
+    t.decimal "market_signal_score"
     t.jsonb "metadata", default: {}, null: false
+    t.decimal "monetization_score"
     t.decimal "opportunity_score"
+    t.string "opportunity_type"
+    t.bigint "source_observation_id"
     t.string "source_type", null: false
     t.string "status", null: false
+    t.decimal "strategic_adjusted_score"
+    t.decimal "strategic_score"
+    t.text "summary"
     t.string "title", null: false
     t.datetime "updated_at", null: false
+    t.decimal "urgency_score"
     t.index ["action_candidate_id"], name: "index_opportunity_discovery_items_on_action_candidate_id"
     t.index ["business_id"], name: "index_opportunity_discovery_items_on_business_id"
+    t.index ["confidence"], name: "index_opportunity_discovery_items_on_confidence"
     t.index ["discovered_at"], name: "index_opportunity_discovery_items_on_discovered_at"
+    t.index ["expected_value_yen"], name: "index_opportunity_discovery_items_on_expected_value_yen"
+    t.index ["opportunity_type"], name: "index_opportunity_discovery_items_on_opportunity_type"
+    t.index ["source_observation_id"], name: "index_opportunity_discovery_items_on_source_observation_id"
     t.index ["source_type"], name: "index_opportunity_discovery_items_on_source_type"
     t.index ["status"], name: "index_opportunity_discovery_items_on_status"
+  end
+
+  create_table "owner_decision_logs", force: :cascade do |t|
+    t.string "action_type"
+    t.bigint "business_id"
+    t.decimal "confidence"
+    t.datetime "created_at", null: false
+    t.datetime "decided_at", null: false
+    t.string "decision_source", null: false
+    t.string "decision_type", null: false
+    t.integer "expected_value_yen"
+    t.string "generation_source"
+    t.jsonb "metadata", default: {}, null: false
+    t.string "new_status"
+    t.string "opportunity_type"
+    t.string "previous_status"
+    t.bigint "queue_item_id"
+    t.text "reason"
+    t.string "risk_level"
+    t.integer "subject_id", null: false
+    t.string "subject_type", null: false
+    t.string "title"
+    t.datetime "updated_at", null: false
+    t.index ["action_type"], name: "index_owner_decision_logs_on_action_type"
+    t.index ["business_id"], name: "index_owner_decision_logs_on_business_id"
+    t.index ["decided_at"], name: "index_owner_decision_logs_on_decided_at"
+    t.index ["decision_source"], name: "index_owner_decision_logs_on_decision_source"
+    t.index ["decision_type"], name: "index_owner_decision_logs_on_decision_type"
+    t.index ["generation_source"], name: "index_owner_decision_logs_on_generation_source"
+    t.index ["queue_item_id"], name: "index_owner_decision_logs_on_queue_item_id"
+    t.index ["risk_level"], name: "index_owner_decision_logs_on_risk_level"
+    t.index ["subject_type", "subject_id"], name: "index_owner_decision_logs_on_subject_type_and_subject_id"
+  end
+
+  create_table "owner_execution_queue_items", force: :cascade do |t|
+    t.bigint "business_id"
+    t.datetime "created_at", null: false
+    t.date "due_on", null: false
+    t.integer "expected_value_yen"
+    t.string "generated_from"
+    t.integer "item_id", null: false
+    t.string "item_type", null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.decimal "priority_score"
+    t.text "reason"
+    t.string "risk_level", default: "medium", null: false
+    t.string "status", default: "pending", null: false
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id"], name: "index_owner_execution_queue_items_on_business_id"
+    t.index ["due_on"], name: "index_owner_execution_queue_items_on_due_on"
+    t.index ["item_type", "item_id", "due_on"], name: "idx_on_item_type_item_id_due_on_73381d0049", unique: true
+    t.index ["risk_level"], name: "index_owner_execution_queue_items_on_risk_level"
+    t.index ["status"], name: "index_owner_execution_queue_items_on_status"
   end
 
   create_table "owner_task_completion_logs", force: :cascade do |t|
@@ -1099,6 +1216,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_24_123000) do
   add_foreign_key "auto_revision_tasks", "businesses", column: "target_business_id"
   add_foreign_key "business_execution_profiles", "businesses"
   add_foreign_key "business_metric_dailies", "businesses"
+  add_foreign_key "codex_prompt_drafts", "action_candidates"
+  add_foreign_key "codex_prompt_drafts", "businesses"
   add_foreign_key "codex_quality_checks", "auto_revision_tasks"
   add_foreign_key "data_imports", "aicoo_analytics_sites"
   add_foreign_key "data_imports", "data_sources"
@@ -1109,6 +1228,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_24_123000) do
   add_foreign_key "meta_evaluation_snapshots", "businesses"
   add_foreign_key "opportunity_discovery_items", "action_candidates"
   add_foreign_key "opportunity_discovery_items", "businesses"
+  add_foreign_key "opportunity_discovery_items", "explore_observations", column: "source_observation_id"
+  add_foreign_key "owner_decision_logs", "businesses"
+  add_foreign_key "owner_decision_logs", "owner_execution_queue_items", column: "queue_item_id"
+  add_foreign_key "owner_execution_queue_items", "businesses"
   add_foreign_key "proxy_score_weight_adjustment_logs", "businesses"
   add_foreign_key "proxy_score_weight_adjustment_logs", "proxy_score_weights"
   add_foreign_key "proxy_score_weights", "businesses"

@@ -29,22 +29,7 @@ class ExploreObservation < ApplicationRecord
   def convert_to_opportunity!
     return opportunity_discovery_item if opportunity_discovery_item
 
-    opportunity = OpportunityDiscoveryItem.create!(
-      title: title,
-      description: description,
-      source_type: explore_data_source.source_type,
-      opportunity_score: score || 50,
-      status: "new",
-      discovered_at: observed_at || Time.current,
-      metadata: {
-        "explore_observation_id" => id,
-        "explore_data_source_id" => explore_data_source_id,
-        "explore_source_type" => explore_data_source.source_type,
-        "observation_type" => observation_type
-      }.merge(metadata.to_h)
-    )
-    update!(opportunity_discovery_item: opportunity, status: "converted")
-    opportunity
+    Aicoo::ExploreOpportunityGenerator.new(observations: ExploreObservation.where(id:)).generate_from_observation!(self, force: true)
   end
 
   def mark_reviewed!

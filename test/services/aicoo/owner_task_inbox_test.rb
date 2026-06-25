@@ -254,7 +254,21 @@ module Aicoo
       assert_equal "high", task.priority
       assert_equal Rails.application.routes.url_helpers.focus_owner_opportunities_path, task.target_path
       assert_includes task.reason, "Focus Score"
-      assert_equal [ "Focusで処理", "Opportunityを見る" ], task.quick_actions.map(&:label)
+      assert_equal [ "Focusで処理", "Approve", "Convert", "Opportunityを見る" ], task.quick_actions.map(&:label)
+    end
+
+    test "returns codex prompt draft needed tasks" do
+      candidate = action_candidates(:nagazakicho_article)
+      candidate.update!(status: "approved")
+      candidate.action_execution&.destroy!
+      candidate.codex_prompt_drafts.destroy_all
+
+      task = OwnerTaskInbox.new.call.tasks.find { |item| item.task_type == "codex_prompt_draft_needed" && item.title.include?(candidate.title) }
+
+      assert task
+      assert_equal "medium", task.priority
+      assert_equal Rails.application.routes.url_helpers.action_candidate_path(candidate), task.target_path
+      assert_equal [ "Codex Promptを生成", "ActionCandidateを見る" ], task.quick_actions.map(&:label)
     end
 
     test "returns discovery source warnings" do
@@ -269,13 +283,29 @@ module Aicoo
       assert_equal [ "Discovery Reportを見る" ], task.quick_actions.map(&:label)
     end
 
-    test "returns high score explore signals" do
+    test "returns opportunity review task for auto generated explore opportunity" do
       Aicoo::ExploreImportService.run!(
         source_type: "youtube",
         format: "csv",
         raw_text: "title,description,score\nHigh score explore signal,imported signal,92"
       )
-      observation = ExploreObservation.find_by!(title: "High score explore signal")
+      opportunity = OpportunityDiscoveryItem.find_by!(title: "High score explore signal")
+
+      task = OwnerTaskInbox.new.call.tasks.find { |item| item.task_type == "opportunity_review" && item.title == opportunity.title }
+
+      assert task
+      assert_equal "high", task.priority
+      assert_equal Rails.application.routes.url_helpers.focus_owner_opportunities_path, task.target_path
+      assert_equal [ "Focusで処理", "Approve", "Convert", "Opportunityを見る" ], task.quick_actions.map(&:label)
+    end
+
+    test "returns high score explore signals that are not converted yet" do
+      source = ExploreDataSource.create!(name: "Manual signal source", source_type: "youtube")
+      observation = ExploreObservation.create!(
+        explore_data_source: source,
+        title: "Unconverted explore signal",
+        score: 92
+      )
 
       task = OwnerTaskInbox.new.call.tasks.find { |item| item.task_type == "explore_signal_review" && item.title == observation.title }
 

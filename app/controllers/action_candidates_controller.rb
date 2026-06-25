@@ -1,5 +1,15 @@
 class ActionCandidatesController < ApplicationController
-  before_action :set_action_candidate, only: %i[ show edit update destroy approve reject reevaluate_ai send_to_executor ]
+  before_action :set_action_candidate, only: %i[
+    show
+    edit
+    update
+    destroy
+    approve
+    reject
+    reevaluate_ai
+    send_to_executor
+    generate_codex_prompt_draft
+  ]
 
   # GET /action_candidates or /action_candidates.json
   def index
@@ -15,6 +25,7 @@ class ActionCandidatesController < ApplicationController
     @score_snapshots = @action_candidate.action_candidate_score_snapshots.recent.limit(10)
     @action_execution_logs = @action_candidate.action_execution_logs.recent.limit(10)
     @action_execution = @action_candidate.action_execution
+    @codex_prompt_draft = @action_candidate.codex_prompt_drafts.recent.first
   end
 
   # GET /action_candidates/new
@@ -65,7 +76,9 @@ class ActionCandidatesController < ApplicationController
   end
 
   def approve
+    previous_status = @action_candidate.status
     @action_candidate.approve!(approved_by: "owner")
+    record_owner_decision!("approve", previous_status:)
     message = "ActionCandidate『#{@action_candidate.title}』を承認しました。承認待ちタスクから削除されました。"
     OwnerTaskCompletionLog.record_success!(
       task_type: "action_candidate_approval",
@@ -78,7 +91,9 @@ class ActionCandidatesController < ApplicationController
   end
 
   def reject
+    previous_status = @action_candidate.status
     @action_candidate.update!(status: "rejected")
+    record_owner_decision!("reject", previous_status:)
     message = "ActionCandidate『#{@action_candidate.title}』を却下しました。承認待ちタスクから削除されました。"
     OwnerTaskCompletionLog.record_success!(
       task_type: "action_candidate_approval",
@@ -110,6 +125,11 @@ class ActionCandidatesController < ApplicationController
     redirect_to admin_aicoo_executor_task_path(task), notice: "ActionCandidateをExecutorへ送りました。"
   end
 
+  def generate_codex_prompt_draft
+    draft = CodexPromptDraft.from_action_candidate(@action_candidate)
+    redirect_to owner_codex_prompt_draft_path(draft), notice: "Codex Prompt Draftを生成しました。"
+  end
+
   private
     # Use callbacks to share common setup or constraints between actions.
     def set_action_candidate
@@ -139,5 +159,15 @@ class ActionCandidatesController < ApplicationController
 
     def executor_direct_sendable?
       @action_candidate.data_preparation? || @action_candidate.generation_source == "ai_insight"
+    end
+
+    def record_owner_decision!(decision_type, previous_status:)
+      OwnerDecisionLog.record!(
+        subject: @action_candidate,
+        decision_type:,
+        decision_source: "action_candidate_detail",
+        previous_status:,
+        new_status: @action_candidate.status
+      )
     end
 end

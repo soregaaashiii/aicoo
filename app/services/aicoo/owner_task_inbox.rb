@@ -13,6 +13,7 @@ module Aicoo
       "learning_loop_health" => "学習ループ警告",
       "learning_loop_warning" => "学習品質警告",
       "learning_recommendation" => "学習改善提案",
+      "codex_prompt_draft_needed" => "Codex Prompt生成",
       "opportunity_review" => "Opportunity確認",
       "explore_signal_review" => "Explore Signal確認",
       "explore_daily_routine" => "Explore日次確認",
@@ -60,6 +61,7 @@ module Aicoo
         learning_loop_health_tasks +
         learning_loop_warning_tasks +
         learning_recommendation_tasks +
+        codex_prompt_draft_needed_tasks +
         opportunity_review_tasks +
         explore_daily_routine_tasks +
         explore_signal_review_tasks +
@@ -217,6 +219,30 @@ module Aicoo
       end
     end
 
+    def codex_prompt_draft_needed_tasks
+      ActionCandidate.includes(:business, :codex_prompt_drafts)
+                     .where(status: "approved")
+                     .select { |candidate| candidate.codex_prompt_drafts.empty? }
+                     .sort_by { |candidate| [ -candidate.final_score.to_d, candidate.created_at ] }
+                     .first(10)
+                     .map do |candidate|
+        Task.new(
+          priority: candidate.final_score.to_d >= 10_000.to_d ? "medium" : "low",
+          task_type: "codex_prompt_draft_needed",
+          title: "#{candidate.title} のCodex Promptを生成",
+          description: "承認済みActionCandidateをCodexへ渡すためのプロンプト下書きが未生成です。",
+          target_label: candidate.business.name,
+          target_path: routes.action_candidate_path(candidate),
+          reason: "score #{candidate.final_score.to_d.round(1)} / #{candidate.action_type}",
+          created_at: candidate.approved_at || candidate.updated_at || candidate.created_at,
+          quick_actions: [
+            quick_action("Codex Promptを生成", :post, routes.generate_codex_prompt_draft_action_candidate_path(candidate), style: "primary"),
+            quick_action("ActionCandidateを見る", :get, routes.action_candidate_path(candidate), style: "secondary")
+          ]
+        )
+      end
+    end
+
     def opportunity_review_tasks
       OpportunityFocusQueue.new.call.items.first(10).map do |focus_item|
         opportunity = focus_item.opportunity
@@ -231,6 +257,8 @@ module Aicoo
           created_at: opportunity.discovered_at || opportunity.created_at,
           quick_actions: [
             quick_action("Focusで処理", :get, routes.focus_owner_opportunities_path, style: "primary"),
+            quick_action("Approve", :patch, routes.focus_approve_owner_opportunity_path(opportunity), style: "secondary"),
+            quick_action("Convert", :post, routes.focus_convert_to_candidate_owner_opportunity_path(opportunity), style: "secondary"),
             quick_action("Opportunityを見る", :get, routes.owner_opportunity_path(opportunity), style: "secondary")
           ]
         )

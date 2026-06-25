@@ -51,4 +51,126 @@
       <% end %>
     </div>
   </section>
+
+  <section class="dashboard-section">
+    <div class="aicoo-card">
+      <h2>Owner Execution Queue</h2>
+      <p class="aicoo-lab-help">
+        Daily Run後に、Ownerが今日処理しやすい低〜中リスクの確認キューを作ります。
+        Codex実行やデプロイは自動では行いません。
+      </p>
+
+      <%= form_with model: @aicoo_setting, url: aicoo_setting_path, method: :patch, class: "aicoo-form" do |form| %>
+        <div class="form-row">
+          <%= form.label :daily_owner_queue_limit, "1日の生成上限" %>
+          <%= form.number_field :daily_owner_queue_limit, min: 1, max: 50 %>
+        </div>
+        <div class="form-row">
+          <%= form.label :auto_queue_low_risk_enabled, "low riskをキューに入れる" %>
+          <%= form.check_box :auto_queue_low_risk_enabled %>
+        </div>
+        <div class="form-row">
+          <%= form.label :auto_queue_medium_risk_enabled, "medium riskをキューに入れる" %>
+          <%= form.check_box :auto_queue_medium_risk_enabled %>
+        </div>
+        <div class="form-row">
+          <%= form.label :auto_queue_high_risk_enabled, "high riskをキューに入れる" %>
+          <%= form.check_box :auto_queue_high_risk_enabled %>
+        </div>
+
+        <div class="actions compact-actions">
+          <%= form.submit "Owner Queue設定を保存", class: "button" %>
+        </div>
+      <% end %>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="aicoo-card">
+      <h2>Strategic Philosophy</h2>
+      <p class="aicoo-lab-help">
+        Decision Logだけで「よく承認される提案」に寄りすぎないよう、AICOOの経営思想を目的関数として設定します。
+        Decision Logはこの思想を補正する材料として使います。
+      </p>
+
+      <div class="metric-grid">
+        <div class="metric-card"><span>長期利益</span><strong><%= @aicoo_setting.long_term_profit_weight %></strong></div>
+        <div class="metric-card"><span>短期利益</span><strong><%= @aicoo_setting.short_term_profit_weight %></strong></div>
+        <div class="metric-card"><span>学習価値</span><strong><%= @aicoo_setting.learning_weight %></strong></div>
+        <div class="metric-card"><span>自動化価値</span><strong><%= @aicoo_setting.automation_weight %></strong></div>
+        <div class="metric-card"><span>探索価値</span><strong><%= @aicoo_setting.exploration_weight %></strong></div>
+      </div>
+
+      <%= form_with model: @aicoo_setting, url: aicoo_setting_path, method: :patch, class: "aicoo-form" do |form| %>
+        <div class="form-row">
+          <%= form.label :long_term_profit_weight, "長期利益重視" %>
+          <%= form.number_field :long_term_profit_weight, min: 0, max: 100 %>
+        </div>
+        <div class="form-row">
+          <%= form.label :short_term_profit_weight, "短期利益重視" %>
+          <%= form.number_field :short_term_profit_weight, min: 0, max: 100 %>
+        </div>
+        <div class="form-row">
+          <%= form.label :learning_weight, "学習価値重視" %>
+          <%= form.number_field :learning_weight, min: 0, max: 100 %>
+        </div>
+        <div class="form-row">
+          <%= form.label :automation_weight, "自動化価値重視" %>
+          <%= form.number_field :automation_weight, min: 0, max: 100 %>
+        </div>
+        <div class="form-row">
+          <%= form.label :exploration_weight, "探索価値重視" %>
+          <%= form.number_field :exploration_weight, min: 0, max: 100 %>
+        </div>
+
+        <div class="actions compact-actions">
+          <%= form.submit "Strategic Philosophyを保存", class: "button" %>
+        </div>
+      <% end %>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="aicoo-card">
+      <h2>Strategic Learning Guardrail</h2>
+      <p class="aicoo-lab-help">
+        思想補正とDecision Log補正が効きすぎないように、最大補正率と警告条件を管理します。
+      </p>
+
+      <div class="metric-grid">
+        <div class="metric-card"><span>補正</span><strong><%= @aicoo_setting.strategic_learning_enabled? ? "ON" : "OFF" %></strong></div>
+        <div class="metric-card"><span>最大Boost</span><strong><%= number_to_percentage(@aicoo_setting.strategic_learning_max_boost_rate.to_d * 100, precision: 0) %></strong></div>
+        <div class="metric-card"><span>最大Penalty</span><strong><%= number_to_percentage(@aicoo_setting.strategic_learning_max_penalty_rate.to_d * 100, precision: 0) %></strong></div>
+        <div class="metric-card"><span>Warning閾値</span><strong><%= number_to_percentage(@aicoo_setting.strategic_learning_warning_threshold_rate.to_d * 100, precision: 0) %></strong></div>
+        <div class="metric-card"><span>Decision Log最小件数</span><strong><%= @aicoo_setting.strategic_learning_decision_log_min_count %>件</strong></div>
+      </div>
+
+      <%= form_with model: @aicoo_setting, url: aicoo_setting_path, method: :patch, class: "aicoo-form" do |form| %>
+        <div class="form-row">
+          <%= form.label :strategic_learning_enabled, "Strategic Learning補正を有効にする" %>
+          <%= form.check_box :strategic_learning_enabled %>
+        </div>
+        <div class="form-row">
+          <%= form.label :strategic_learning_max_boost_rate, "最大Boost率" %>
+          <%= form.number_field :strategic_learning_max_boost_rate, min: 0, max: 1, step: 0.01 %>
+        </div>
+        <div class="form-row">
+          <%= form.label :strategic_learning_max_penalty_rate, "最大Penalty率" %>
+          <%= form.number_field :strategic_learning_max_penalty_rate, min: 0, max: 1, step: 0.01 %>
+        </div>
+        <div class="form-row">
+          <%= form.label :strategic_learning_warning_threshold_rate, "Warning閾値" %>
+          <%= form.number_field :strategic_learning_warning_threshold_rate, min: 0, max: 1, step: 0.01 %>
+        </div>
+        <div class="form-row">
+          <%= form.label :strategic_learning_decision_log_min_count, "Decision Log最小件数" %>
+          <%= form.number_field :strategic_learning_decision_log_min_count, min: 0, step: 1 %>
+        </div>
+
+        <div class="actions compact-actions">
+          <%= form.submit "Guardrail設定を保存", class: "button" %>
+        </div>
+      <% end %>
+    </div>
+  </section>
 </div>

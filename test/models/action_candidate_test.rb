@@ -20,7 +20,62 @@ class ActionCandidateTest < ActiveSupport::TestCase
     assert_equal 30_000, action_candidate.expected_profit_yen
     assert_equal 15_000, action_candidate.expected_hourly_value_yen
     assert_equal 3.to_d, action_candidate.roi
-    assert_equal 11_800.to_d, action_candidate.final_score
+    assert_equal "11800.0", action_candidate.metadata.dig("strategic_learning", "base_score")
+    assert action_candidate.final_score.positive?
+    assert action_candidate.metadata.dig("strategic_learning", "strategic_score").present?
+  end
+
+  test "strategic philosophy changes final score" do
+    setting = AicooSetting.current
+    setting.update!(
+      long_term_profit_weight: 45,
+      short_term_profit_weight: 25,
+      learning_weight: 15,
+      automation_weight: 10,
+      exploration_weight: 5
+    )
+    learning_candidate = ActionCandidate.create!(
+      business: businesses(:suelog),
+      title: "学習データを増やす",
+      action_type: "data_preparation",
+      immediate_value_yen: 1_000,
+      success_probability: 0.5,
+      expected_hours: 1
+    )
+    baseline_score = learning_candidate.final_score
+
+    setting.update!(
+      long_term_profit_weight: 0,
+      short_term_profit_weight: 0,
+      learning_weight: 100,
+      automation_weight: 0,
+      exploration_weight: 0
+    )
+    learning_candidate.update!(title: "学習データを増やす updated")
+
+    assert_operator learning_candidate.reload.final_score, :>, baseline_score
+  end
+
+  test "zero strategic weights do not break scoring" do
+    AicooSetting.current.update!(
+      long_term_profit_weight: 0,
+      short_term_profit_weight: 0,
+      learning_weight: 0,
+      automation_weight: 0,
+      exploration_weight: 0
+    )
+
+    action_candidate = ActionCandidate.create!(
+      business: businesses(:suelog),
+      title: "Weight zero candidate",
+      action_type: "other",
+      immediate_value_yen: 10_000,
+      success_probability: 0.5
+    )
+
+    assert action_candidate.final_score >= 0
+    assert_equal "50.0", action_candidate.metadata.dig("strategic_learning", "strategic_score")
+    assert action_candidate.metadata.dig("strategic_learning_guardrail", "base_score").present?
   end
 
   test "leaves hourly value and roi blank when denominators are blank or zero" do

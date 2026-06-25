@@ -27,7 +27,7 @@ module Aicoo
 
     def items
       @items ||= OpportunityDiscoveryItem.includes(:business)
-                                        .where(status: "new")
+                                        .pending_review
                                         .map { |opportunity| build_item(opportunity) }
                                         .sort_by { |item| [ -item.focus_score, item.opportunity.discovered_at || item.opportunity.created_at ] }
     end

@@ -96,6 +96,31 @@ module Owner
       assert_includes response.body, "推奨アクション"
     end
 
+    test "shows owner execution queue" do
+      item = OwnerExecutionQueueItem.create!(
+        item_type: "opportunity",
+        item_id: 1,
+        business: businesses(:suelog),
+        title: "Owner queue opportunity",
+        risk_level: "low",
+        status: "pending",
+        expected_value_yen: 50_000,
+        priority_score: 42_000,
+        due_on: Date.current,
+        reason: "今日処理する"
+      )
+
+      get owner_tasks_url
+
+      assert_response :success
+      assert_includes response.body, "今日の実行キュー"
+      assert_includes response.body, "Owner queue opportunity"
+      assert_includes response.body, "Pending"
+      assert_includes response.body, "今日のDecision Log"
+      assert_includes response.body, complete_owner_execution_queue_item_path(item)
+      assert_includes response.body, skip_owner_execution_queue_item_path(item)
+    end
+
     test "shows recent completion logs" do
       candidate = action_candidates(:nagazakicho_article)
       OwnerTaskCompletionLog.record_success!(

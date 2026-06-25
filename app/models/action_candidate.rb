@@ -33,6 +33,7 @@ class ActionCandidate < ApplicationRecord
   has_many :revenue_events, dependent: :nullify
   has_many :action_candidate_score_snapshots, dependent: :destroy
   has_many :auto_revision_tasks, dependent: :destroy
+  has_many :codex_prompt_drafts, dependent: :destroy
   has_many :opportunity_discovery_items, dependent: :nullify
 
   def department=(value)
@@ -154,6 +155,7 @@ class ActionCandidate < ApplicationRecord
     self.expected_learning_value_yen = LearningValueCalculator.new(self).value_yen
     self.expected_total_value_yen = expected_revenue_value_yen.to_i + expected_learning_value_yen.to_i
     apply_meta_evaluation
+    apply_strategic_learning
   end
 
   def calculate_expected_hourly_value
@@ -211,6 +213,22 @@ class ActionCandidate < ApplicationRecord
     self.final_expected_value_yen = result.final_expected_value_yen
     self.final_confidence_score = result.final_confidence_score
     self.metadata = metadata.to_h.merge("evaluator_breakdown" => result.evaluator_breakdown)
+  end
+
+  def apply_strategic_learning
+    result = Aicoo::StrategicLearningScorer.new(self, base_score: final_score).call
+    self.final_score = result.final_score
+    self.metadata = metadata.to_h.merge(
+      "strategic_learning" => {
+        "base_score" => result.base_score.to_s,
+        "strategic_score" => result.strategic_score.to_s,
+        "decision_log_coefficient" => result.decision_log_coefficient.to_s,
+        "final_score" => result.final_score.to_s,
+        "components" => result.components.transform_values(&:to_s),
+        "decision_log_samples" => result.decision_log_samples,
+        "decision_dimension_coefficients" => result.decision_dimension_coefficients
+      }
+    ).merge("strategic_learning_guardrail" => result.guardrail)
   end
 
   def prediction_calibration

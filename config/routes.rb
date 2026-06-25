@@ -9,15 +9,20 @@ Rails.application.routes.draw do
   get "owner/dashboard", to: "owner/dashboard#show"
   get "owner/focus", to: "owner/focus#show", as: :owner_focus
   get "owner/tasks", to: "owner/tasks#index", as: :owner_tasks
+  patch "owner/execution_queue_items/:id/complete", to: "owner/execution_queue_items#complete", as: :complete_owner_execution_queue_item
+  patch "owner/execution_queue_items/:id/skip", to: "owner/execution_queue_items#skip", as: :skip_owner_execution_queue_item
   get "owner/learning_report", to: "owner/learning_reports#show", as: :owner_learning_report
   get "owner/discovery_report", to: "owner/discovery_reports#show", as: :owner_discovery_report
+  get "owner/explore/opportunities", to: "owner/opportunities#index", as: :owner_explore_opportunities
   post "owner/learning_recommendations/action_candidate", to: "owner/learning_recommendations#create_action_candidate", as: :create_action_candidate_owner_learning_recommendation
   post "owner/learning_recommendations/opportunity", to: "owner/learning_recommendations#create_opportunity", as: :create_opportunity_owner_learning_recommendation
   resources :opportunities, controller: "owner/opportunities", path: "owner/opportunities", as: :owner_opportunities, only: %i[index show new create] do
     get :focus, on: :collection
     patch :review, on: :member
+    patch :approve, on: :member
     patch :reject, on: :member
     post :convert_to_candidate, on: :member
+    patch :focus_approve, on: :member
     patch :focus_review, on: :member
     patch :focus_reject, on: :member
     post :focus_convert_to_candidate, on: :member
@@ -47,6 +52,16 @@ Rails.application.routes.draw do
     patch :reject, on: :member
     post :reevaluate_ai, on: :member
     post :send_to_executor, on: :member
+    post :generate_codex_prompt_draft, on: :member
+  end
+
+  namespace :owner do
+    resources :codex_prompt_drafts, only: %i[index show] do
+      patch :approve, on: :member
+      patch :reject, on: :member
+      patch :mark_copied, on: :member
+      patch :mark_executed, on: :member
+    end
   end
 
   resources :action_results, only: %i[index show new create edit update] do

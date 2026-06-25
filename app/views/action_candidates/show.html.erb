@@ -7,6 +7,11 @@
     <% else %>
       <%= button_to "自動改修タスク化", auto_revision_tasks_path(action_candidate_id: @action_candidate.id), method: :post, class: "button secondary" %>
     <% end %>
+    <% if @codex_prompt_draft %>
+      <%= link_to "Codex Promptを見る", owner_codex_prompt_draft_path(@codex_prompt_draft), class: "button secondary" %>
+    <% else %>
+      <%= button_to "Codex Promptを生成", generate_codex_prompt_draft_action_candidate_path(@action_candidate), method: :post, class: "button secondary" %>
+    <% end %>
     <% if @action_candidate.data_preparation? || @action_candidate.generation_source == "ai_insight" %>
       <% executor_task = @action_candidate.unfinished_executor_task %>
       <% if executor_task %>
