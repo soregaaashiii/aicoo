@@ -48,4 +48,29 @@ class OpportunityDiscoveryItemTest < ActiveSupport::TestCase
     assert item.practicality_score.present?
     assert item.metadata.dig("practicality", "subscores").present?
   end
+
+  test "stores business playbook score for opportunity" do
+    BusinessPlaybook.create!(
+      business: businesses(:suelog),
+      sample_count: 20,
+      confidence_score: 80,
+      opportunity_type_summary: {
+        "lp_test" => {
+          "type" => "lp_test",
+          "score" => "75",
+          "sample_count" => 20
+        }
+      }
+    )
+    item = OpportunityDiscoveryItem.create!(
+      business: businesses(:suelog),
+      title: "LP検証Opportunity",
+      source_type: "google_trends",
+      opportunity_type: "lp_test",
+      opportunity_score: 90
+    )
+
+    assert_equal 75.to_d, item.business_playbook_score
+    assert item.metadata.dig("business_playbook", "coefficient").present?
+  end
 end

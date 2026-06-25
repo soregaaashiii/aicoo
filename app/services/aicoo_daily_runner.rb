@@ -158,6 +158,11 @@ class AicooDailyRunner
     log!("OwnerExecutionQueue skipped count=#{owner_queue_result.skipped.size}")
     log!("OwnerExecutionQueue high risk count=#{owner_queue_result.high_risk.size}")
 
+    playbook_result = record_step!(run, "business_playbook_update") do
+      Aicoo::BusinessPlaybookBuilder.update_all!
+    end
+    log!("BusinessPlaybook updated count=#{playbook_result.updated_count}")
+
     log!("Daily Run finished target_date=#{target_date}")
   end
 

@@ -15,6 +15,7 @@ class Business < ApplicationRecord
   has_many :revenue_events, dependent: :destroy
   has_many :business_metric_dailies, dependent: :destroy
   has_one :business_execution_profile, dependent: :destroy
+  has_one :business_playbook, dependent: :destroy
   has_one :proxy_score_weight, dependent: :destroy
   has_many :proxy_score_weight_adjustment_logs, dependent: :destroy
 

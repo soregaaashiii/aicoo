@@ -66,6 +66,7 @@ class ActionCandidate < ApplicationRecord
   validates :final_expected_value_yen, :final_confidence_score,
             numericality: { only_integer: true, greater_than_or_equal_to: 0 }, allow_nil: true
   validates :practicality_score, numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 100 }, allow_nil: true
+  validates :business_playbook_score, numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 100 }, allow_nil: true
 
   scope :by_expected_value, -> { includes(:business).order(Arel.sql("expected_hourly_value_yen DESC NULLS LAST, expected_profit_yen DESC NULLS LAST")) }
   scope :by_recommendation, -> { includes(:business).order(Arel.sql("final_score DESC NULLS LAST, expected_hourly_value_yen DESC NULLS LAST")) }
@@ -159,6 +160,7 @@ class ActionCandidate < ApplicationRecord
     apply_evidence
     apply_strategic_learning
     apply_practicality_filter
+    apply_business_playbook
   end
 
   def calculate_expected_hourly_value
@@ -250,6 +252,18 @@ class ActionCandidate < ApplicationRecord
         "score_before_practicality" => (metadata.to_h.dig("strategic_learning", "final_score") || final_score).to_s,
         "score_after_practicality" => final_score.to_s,
         "multiplier" => practicality_multiplier(result.practicality_score).to_s
+      )
+    )
+  end
+
+  def apply_business_playbook
+    result = Aicoo::BusinessPlaybookScorer.new(self).call
+    self.business_playbook_score = result.score
+    self.final_score = (final_score.to_d * result.coefficient).round(2)
+    self.metadata = metadata.to_h.merge(
+      "business_playbook" => result.metadata.merge(
+        "score_before_playbook" => (metadata.to_h.dig("practicality", "score_after_practicality") || final_score).to_s,
+        "score_after_playbook" => final_score.to_s
       )
     )
   end

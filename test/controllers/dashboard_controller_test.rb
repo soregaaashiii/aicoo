@@ -76,6 +76,8 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "平均Practicality"
     assert_includes response.body, "Evidence Summary"
     assert_includes response.body, "Evidence付きCandidate率"
+    assert_includes response.body, "Business Playbook Summary"
+    assert_includes response.body, "学習済Business"
     assert_includes response.body, "今日の確認ダイジェスト"
     assert_includes response.body, "Daily Run Health"
     assert_includes response.body, "今日の提案"

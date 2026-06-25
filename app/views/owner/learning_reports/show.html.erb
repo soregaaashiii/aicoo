@@ -319,6 +319,42 @@
 
   <section class="dashboard-section">
     <div class="section-heading">
+      <h2>Business Playbook</h2>
+      <p>Business別に成功しやすいActionTypeと学習Confidenceを確認します。</p>
+    </div>
+    <div class="metric-grid">
+      <div class="metric-card"><span>学習済Business</span><strong><%= @business_playbook_summary.learned_businesses_count %>/<%= @business_playbook_summary.total_businesses %></strong></div>
+      <div class="metric-card"><span>平均Confidence</span><strong><%= number_with_precision(@business_playbook_summary.average_confidence, precision: 1) %></strong></div>
+      <div class="metric-card"><span>学習不足</span><strong><%= @business_playbook_summary.low_confidence_businesses.size %>件</strong></div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Business</th><th>Top ActionType</th><th>Worst ActionType</th><th>平均ROI</th><th>平均収益</th><th>平均Practicality</th><th>平均Evidence</th><th>Confidence</th></tr>
+        </thead>
+        <tbody>
+          <% @business_playbook_summary.top_playbooks.each do |playbook| %>
+            <tr>
+              <td><%= link_to playbook.business.name, playbook.business %></td>
+              <td><%= playbook.top_action_type.presence || "-" %></td>
+              <td><%= playbook.worst_action_type.presence || "-" %></td>
+              <td><%= playbook.average_roi ? number_with_precision(playbook.average_roi, precision: 2) : "-" %></td>
+              <td><%= number_to_currency(playbook.average_actual_profit_yen.to_d, unit: "¥", precision: 0) %></td>
+              <td><%= number_with_precision(playbook.average_practicality_score.to_d, precision: 1) %></td>
+              <td><%= number_with_precision(playbook.average_evidence_score.to_d, precision: 1) %></td>
+              <td><%= number_with_precision(playbook.confidence_score, precision: 1) %></td>
+            </tr>
+          <% end %>
+          <% if @business_playbook_summary.top_playbooks.empty? %>
+            <tr><td colspan="8">Business Playbookはまだ学習不足です。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
       <h2>Action Types</h2>
       <p>得意な行動タイプと、外れやすい行動タイプです。</p>
     </div>

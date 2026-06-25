@@ -16,6 +16,7 @@ module Owner
       assert_includes response.body, "最大Boost"
       assert_includes response.body, "Practicality分析"
       assert_includes response.body, "Evidence分析"
+      assert_includes response.body, "Business Playbook"
       assert_includes response.body, "ActionCandidate化"
       assert_includes response.body, "Accuracy"
       assert_includes response.body, "Calibration"

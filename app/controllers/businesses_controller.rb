@@ -12,6 +12,7 @@ class BusinessesController < ApplicationController
     @data_sources = @business.data_sources.includes(:data_imports).order(:name)
     @recent_data_imports = @business.data_imports.includes(:data_source).recent.limit(5)
     @recent_serp_analyses = @business.serp_analyses.order(analyzed_at: :desc).limit(10)
+    @business_playbook = @business.business_playbook
   end
 
   # GET /businesses/new

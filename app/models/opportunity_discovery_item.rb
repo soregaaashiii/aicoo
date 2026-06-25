@@ -30,6 +30,7 @@ class OpportunityDiscoveryItem < ApplicationRecord
             numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 100 }, allow_nil: true
   validates :decision_log_coefficient, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
   validates :practicality_score, numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 100 }, allow_nil: true
+  validates :business_playbook_score, numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 100 }, allow_nil: true
 
   scope :recent, -> { order(discovered_at: :desc, created_at: :desc) }
   scope :top_ranked, -> { order(Arel.sql("expected_value_yen DESC NULLS LAST, opportunity_score DESC NULLS LAST, discovered_at DESC NULLS LAST, created_at DESC")) }
@@ -76,6 +77,7 @@ class OpportunityDiscoveryItem < ApplicationRecord
     apply_strategic_learning_defaults
     apply_evidence_defaults
     apply_practicality_defaults
+    apply_business_playbook_defaults
   end
 
   def conservative_value_yen
@@ -131,5 +133,16 @@ class OpportunityDiscoveryItem < ApplicationRecord
     self.practicality_warning = result.practicality_warning
     self.practicality_reason = result.practicality_reason
     self.metadata = metadata.to_h.merge("practicality" => result.metadata)
+  end
+
+  def apply_business_playbook_defaults
+    result = Aicoo::BusinessPlaybookScorer.new(self).call
+    self.business_playbook_score = result.score
+    self.strategic_adjusted_score = (strategic_adjusted_score.to_d * result.coefficient).round(2)
+    self.metadata = metadata.to_h.merge(
+      "business_playbook" => result.metadata.merge(
+        "score_after_playbook" => strategic_adjusted_score.to_s
+      )
+    )
   end
 end

@@ -56,7 +56,8 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
       assert_match "pending_calibration_count=0", run.run_log
       assert_match "OwnerExecutionQueue created count=2", run.run_log
       assert_match "AutoRevisionQueue skipped reason=disabled", run.run_log
-      assert_equal 15, run.aicoo_daily_run_steps.count
+      assert_match "BusinessPlaybook updated count=2", run.run_log
+      assert_equal 16, run.aicoo_daily_run_steps.count
       assert_equal %w[
         analytics_fetch
         datahub_collect
@@ -72,11 +73,12 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
         calibration
         owner_task_digest
         owner_execution_queue
+        business_playbook_update
         auto_revision_queue
       ], run.aicoo_daily_run_steps.order(:created_at).pluck(:step_name)
       assert_equal %w[skipped success], run.aicoo_daily_run_steps.distinct.pluck(:status).sort
       assert_equal 0, AutoRevisionQueueRun.count
-      assert_equal %i[analytics datahub import adjust_all generate insight evaluate snapshot queue meta_snapshot calibration owner_queue], order
+      assert_equal %i[analytics datahub import adjust_all generate insight evaluate snapshot queue meta_snapshot calibration owner_queue playbook], order
     end
   end
 
@@ -242,7 +244,15 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
                           with_singleton_stub(Aicoo::OwnerExecutionQueueBuilder, :new, ->(due_on:, generated_from:) {
                             fake_owner_execution_queue_builder(order)
                           }) do
-                            yield
+                            with_singleton_stub(Aicoo::BusinessPlaybookBuilder, :update_all!, -> {
+                              order << :playbook
+                              Aicoo::BusinessPlaybookBuilder::Result.new(
+                                updated_count: 2,
+                                playbooks: [ Object.new, Object.new ]
+                              )
+                            }) do
+                              yield
+                            end
                           end
                         end
                       end

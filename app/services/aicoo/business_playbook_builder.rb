@@ -1,0 +1,174 @@
+module Aicoo
+  class BusinessPlaybookBuilder
+    Result = Data.define(:updated_count, :playbooks)
+
+    def self.update_all!
+      playbooks = Business.find_each.map { |business| new(business).update! }
+      Result.new(updated_count: playbooks.size, playbooks:)
+    end
+
+    def initialize(business)
+      @business = business
+    end
+
+    def update!
+      playbook = business.business_playbook || business.build_business_playbook
+      action_summary = action_type_summary
+      opportunity_summary = opportunity_type_summary
+      playbook.update!(
+        sample_count: total_sample_count(action_summary, opportunity_summary),
+        confidence_score: confidence_for(action_summary, opportunity_summary),
+        top_action_type: top_type(action_summary),
+        worst_action_type: worst_type(action_summary),
+        top_opportunity_type: top_type(opportunity_summary),
+        worst_opportunity_type: worst_type(opportunity_summary),
+        average_roi: average(action_summary.values.pluck("roi")),
+        average_actual_profit_yen: average(action_summary.values.pluck("average_actual_profit_yen")),
+        average_practicality_score: average(action_summary.values.pluck("average_practicality_score")),
+        average_evidence_score: average(action_summary.values.pluck("average_evidence_score")),
+        action_type_summary: action_summary,
+        opportunity_type_summary: opportunity_summary,
+        metadata: {
+          "generated_from" => %w[action_results revenue_events owner_decision_logs action_execution_logs owner_execution_queue_items codex_prompt_drafts opportunity_discovery_items action_candidates],
+          "recommended_action_types" => recommended_types(action_summary),
+          "weak_action_types" => weak_types(action_summary)
+        },
+        last_calculated_at: Time.current
+      )
+      playbook
+    end
+
+    private
+
+    attr_reader :business
+
+    def action_type_summary
+      action_types = (business.action_candidates.distinct.pluck(:action_type) + OwnerDecisionLog.where(business:).distinct.pluck(:action_type)).compact_blank.uniq
+      action_types.index_with { |action_type| action_type_row(action_type) }
+    end
+
+    def action_type_row(action_type)
+      candidates = business.action_candidates.where(action_type:)
+      decisions = OwnerDecisionLog.where(business:, action_type:)
+      results = ActionResult.joins(:action_candidate).where(business:, action_candidates: { action_type: })
+      executions = ActionExecutionLog.joins(:action_candidate).where(business:, action_candidates: { action_type: })
+      revenue = RevenueEvent.joins(:action_candidate).where(business:, action_candidates: { action_type: }).revenue.sum(:amount)
+      expense = RevenueEvent.joins(:action_candidate).where(business:, action_candidates: { action_type: }).expense.sum(:amount)
+      actual_profit = results.sum(:actual_profit_yen)
+      expected_profit = candidates.sum(:expected_profit_yen)
+      total_decisions = decisions.count
+      execution_count = executions.count
+      sample_count = [ results.count, total_decisions, execution_count ].sum
+      average_actual_profit = results.count.positive? ? actual_profit.to_d / results.count : 0.to_d
+      roi = expense.to_i.positive? ? (revenue.to_d - expense.to_d) / expense.to_d : nil
+
+      {
+        "type" => action_type,
+        "execution_count" => execution_count,
+        "adoption_rate" => rate(decisions.where(decision_type: OwnerDecisionLog::POSITIVE_DECISIONS).count, total_decisions),
+        "reject_rate" => rate(decisions.where(decision_type: "reject").count, total_decisions),
+        "skip_rate" => rate(decisions.where(decision_type: "skip").count, total_decisions),
+        "execution_rate" => rate(decisions.where(decision_type: OwnerDecisionLog::EXECUTION_DECISIONS).count, total_decisions),
+        "average_expected_profit_yen" => average(candidates.pluck(:expected_profit_yen)),
+        "average_actual_profit_yen" => average_actual_profit,
+        "roi" => roi,
+        "average_hours" => average(candidates.pluck(:expected_hours)),
+        "average_practicality_score" => average(candidates.pluck(:practicality_score)),
+        "average_evidence_score" => average(candidates.map { |candidate| candidate.metadata.to_h.dig("evidence", "score").to_d }),
+        "decision_log_coefficient" => decision_log_coefficient(decisions),
+        "success_rate" => rate(results.where("actual_profit_yen > 0").count, results.count),
+        "sample_count" => sample_count,
+        "score" => playbook_score(
+          success_rate: rate(results.where("actual_profit_yen > 0").count, results.count),
+          adoption_rate: rate(decisions.where(decision_type: OwnerDecisionLog::POSITIVE_DECISIONS).count, total_decisions),
+          average_actual_profit:,
+          expected_profit:
+        )
+      }.transform_values { |value| value.respond_to?(:round) ? value.to_d.round(4).to_s : value }
+    end
+
+    def opportunity_type_summary
+      types = business.opportunity_discovery_items.distinct.pluck(:opportunity_type).compact_blank
+      types.index_with { |opportunity_type| opportunity_type_row(opportunity_type) }
+    end
+
+    def opportunity_type_row(opportunity_type)
+      opportunities = business.opportunity_discovery_items.where(opportunity_type:)
+      candidates = ActionCandidate.where(id: opportunities.where.not(action_candidate_id: nil).select(:action_candidate_id))
+      results = ActionResult.where(action_candidate_id: candidates.select(:id))
+      decisions = OwnerDecisionLog.where(business:, opportunity_type:)
+      actual_profit = results.sum(:actual_profit_yen)
+      sample_count = opportunities.count + decisions.count + results.count
+
+      {
+        "type" => opportunity_type,
+        "opportunity_count" => opportunities.count,
+        "success_rate" => rate(results.where("actual_profit_yen > 0").count, results.count),
+        "adoption_rate" => rate(decisions.where(decision_type: OwnerDecisionLog::POSITIVE_DECISIONS).count, decisions.count),
+        "average_expected_value_yen" => average(opportunities.pluck(:expected_value_yen)),
+        "average_actual_profit_yen" => results.count.positive? ? actual_profit.to_d / results.count : 0.to_d,
+        "sample_count" => sample_count,
+        "score" => playbook_score(
+          success_rate: rate(results.where("actual_profit_yen > 0").count, results.count),
+          adoption_rate: rate(decisions.where(decision_type: OwnerDecisionLog::POSITIVE_DECISIONS).count, decisions.count),
+          average_actual_profit: results.count.positive? ? actual_profit.to_d / results.count : 0.to_d,
+          expected_profit: opportunities.sum(:expected_value_yen)
+        )
+      }.transform_values { |value| value.respond_to?(:round) ? value.to_d.round(4).to_s : value }
+    end
+
+    def playbook_score(success_rate:, adoption_rate:, average_actual_profit:, expected_profit:)
+      revenue_signal = expected_profit.to_d.positive? ? [ average_actual_profit.to_d / expected_profit.to_d, 1.to_d ].min : 0.to_d
+      ((success_rate.to_d * 40) + (adoption_rate.to_d * 30) + (revenue_signal * 30)).round(2)
+    end
+
+    def decision_log_coefficient(decisions)
+      total = decisions.count
+      return 1.to_d if total < Aicoo::DecisionLogCoefficient::MIN_SAMPLE_SIZE
+
+      positive = decisions.where(decision_type: OwnerDecisionLog::POSITIVE_DECISIONS).count
+      negative = decisions.where(decision_type: %w[reject skip]).count
+      coefficient = 1.to_d + (((positive.to_d / total) - (negative.to_d / total)) * 0.25.to_d)
+      [ [ coefficient, Aicoo::DecisionLogCoefficient::MIN_COEFFICIENT ].max, Aicoo::DecisionLogCoefficient::MAX_COEFFICIENT ].min
+    end
+
+    def confidence_for(action_summary, opportunity_summary)
+      samples = total_sample_count(action_summary, opportunity_summary)
+      [ samples * 4, 100 ].min.to_d
+    end
+
+    def total_sample_count(action_summary, opportunity_summary)
+      action_summary.values.sum { |row| row["sample_count"].to_i } + opportunity_summary.values.sum { |row| row["sample_count"].to_i }
+    end
+
+    def top_type(summary)
+      summary.values.max_by { |row| row["score"].to_d }&.fetch("type", nil)
+    end
+
+    def worst_type(summary)
+      meaningful = summary.values.select { |row| row["sample_count"].to_i.positive? }
+      meaningful.min_by { |row| row["score"].to_d }&.fetch("type", nil)
+    end
+
+    def recommended_types(summary)
+      summary.values.sort_by { |row| -row["score"].to_d }.first(3).map { |row| row["type"] }
+    end
+
+    def weak_types(summary)
+      summary.values.select { |row| row["sample_count"].to_i.positive? }.sort_by { |row| row["score"].to_d }.first(3).map { |row| row["type"] }
+    end
+
+    def average(values)
+      values = values.compact.map(&:to_d)
+      return 0.to_d if values.empty?
+
+      values.sum / values.size
+    end
+
+    def rate(numerator, denominator)
+      return 0.to_d if denominator.to_i.zero?
+
+      numerator.to_d / denominator.to_d
+    end
+  end
+end

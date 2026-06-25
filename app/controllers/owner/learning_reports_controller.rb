@@ -5,6 +5,7 @@ module Owner
       @learning_report_recommendations = Aicoo::LearningReportRecommendation.new.call
       @practicality_summary = Aicoo::PracticalitySummary.new.call
       @evidence_summary = Aicoo::EvidenceSummary.new.call
+      @business_playbook_summary = Aicoo::BusinessPlaybookSummary.new.call
       @discovery_source_performance_report = Aicoo::DiscoverySourcePerformanceReport.new.call
       @owner_decision_summary = Aicoo::OwnerDecisionSummary.new.call
       @strategic_learning_report = Aicoo::StrategicLearningReport.new.call

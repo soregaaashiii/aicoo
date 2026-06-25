@@ -90,6 +90,38 @@
   </div>
 </section>
 
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>Business Playbook Summary</h2>
+    <p>Businessごとの勝ちパターンがどれくらい学習されているかを確認します。</p>
+  </div>
+  <div class="metric-grid">
+    <div class="metric-card"><span>学習済Business</span><strong><%= @business_playbook_summary.learned_businesses_count %>/<%= @business_playbook_summary.total_businesses %></strong></div>
+    <div class="metric-card"><span>Playbook Confidence</span><strong><%= number_with_precision(@business_playbook_summary.average_confidence, precision: 1) %></strong></div>
+    <div class="metric-card"><span>学習不足Business</span><strong><%= @business_playbook_summary.low_confidence_businesses.size %>件</strong></div>
+  </div>
+  <div class="aicoo-grid aicoo-grid-2">
+    <div class="aicoo-card aicoo-card-compact">
+      <h3>Confidence上位</h3>
+      <ul class="compact-list">
+        <% @business_playbook_summary.top_playbooks.each do |playbook| %>
+          <li><%= link_to playbook.business.name, playbook.business %> / confidence <%= number_with_precision(playbook.confidence_score, precision: 1) %> / top <%= playbook.top_action_type.presence || "-" %></li>
+        <% end %>
+        <% if @business_playbook_summary.top_playbooks.empty? %><li>データ不足</li><% end %>
+      </ul>
+    </div>
+    <div class="aicoo-card aicoo-card-compact">
+      <h3>学習不足Business</h3>
+      <ul class="compact-list">
+        <% @business_playbook_summary.low_confidence_businesses.each do |business| %>
+          <li><%= link_to business.name, business %></li>
+        <% end %>
+        <% if @business_playbook_summary.low_confidence_businesses.empty? %><li>該当なし</li><% end %>
+      </ul>
+    </div>
+  </div>
+</section>
+
 <section class="dashboard-section" id="execution-summary">
   <div class="section-heading">
     <h2>Auto Revision Approval Queue</h2>

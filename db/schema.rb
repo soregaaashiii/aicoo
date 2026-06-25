@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_25_096000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_25_096100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -43,6 +43,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_25_096000) do
     t.datetime "approved_at"
     t.string "approved_by"
     t.bigint "business_id", null: false
+    t.decimal "business_playbook_score"
     t.integer "confidence_score"
     t.integer "cost_yen"
     t.datetime "created_at", null: false
@@ -838,6 +839,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_25_096000) do
     t.index ["recorded_on"], name: "index_business_metric_dailies_on_recorded_on"
   end
 
+  create_table "business_playbooks", force: :cascade do |t|
+    t.jsonb "action_type_summary", default: {}, null: false
+    t.decimal "average_actual_profit_yen"
+    t.decimal "average_evidence_score"
+    t.decimal "average_practicality_score"
+    t.decimal "average_roi"
+    t.bigint "business_id", null: false
+    t.decimal "confidence_score", default: "0.0", null: false
+    t.datetime "created_at", null: false
+    t.datetime "last_calculated_at"
+    t.jsonb "metadata", default: {}, null: false
+    t.jsonb "opportunity_type_summary", default: {}, null: false
+    t.integer "sample_count", default: 0, null: false
+    t.string "top_action_type"
+    t.string "top_opportunity_type"
+    t.datetime "updated_at", null: false
+    t.string "worst_action_type"
+    t.string "worst_opportunity_type"
+    t.index ["business_id"], name: "index_business_playbooks_on_business_id", unique: true
+  end
+
   create_table "businesses", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.jsonb "default_verification_commands", default: [], null: false
@@ -993,6 +1015,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_25_096000) do
     t.bigint "action_candidate_id"
     t.decimal "automation_value_score"
     t.bigint "business_id"
+    t.decimal "business_playbook_score"
     t.decimal "competition_score"
     t.decimal "confidence"
     t.datetime "created_at", null: false
@@ -1224,6 +1247,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_25_096000) do
   add_foreign_key "auto_revision_tasks", "businesses", column: "target_business_id"
   add_foreign_key "business_execution_profiles", "businesses"
   add_foreign_key "business_metric_dailies", "businesses"
+  add_foreign_key "business_playbooks", "businesses"
   add_foreign_key "codex_prompt_drafts", "action_candidates"
   add_foreign_key "codex_prompt_drafts", "businesses"
   add_foreign_key "codex_quality_checks", "auto_revision_tasks"

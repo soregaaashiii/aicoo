@@ -67,6 +67,7 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "confidence_score"
     assert_includes response.body, "Execution Profile"
     assert_includes response.body, "Codex対象プロジェクト"
+    assert_includes response.body, "Business Playbook"
   end
 
   test "should get edit" do

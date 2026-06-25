@@ -94,6 +94,33 @@ class ActionCandidateTest < ActiveSupport::TestCase
     assert action_candidate.metadata.dig("practicality", "multiplier").present?
   end
 
+  test "stores business playbook score metadata" do
+    BusinessPlaybook.create!(
+      business: businesses(:suelog),
+      sample_count: 20,
+      confidence_score: 80,
+      action_type_summary: {
+        "seo_improvement" => {
+          "type" => "seo_improvement",
+          "score" => "80",
+          "sample_count" => 20
+        }
+      }
+    )
+    action_candidate = ActionCandidate.create!(
+      business: businesses(:suelog),
+      title: "Playbook score candidate",
+      action_type: "seo_improvement",
+      immediate_value_yen: 20_000,
+      success_probability: 0.5,
+      expected_hours: 2
+    )
+
+    assert_equal 80.to_d, action_candidate.business_playbook_score
+    assert action_candidate.metadata.dig("business_playbook", "coefficient").present?
+    assert action_candidate.metadata.dig("business_playbook", "reason").present?
+  end
+
   test "leaves hourly value and roi blank when denominators are blank or zero" do
     action_candidate = ActionCandidate.create!(
       business: businesses(:cards),

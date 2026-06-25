@@ -75,6 +75,22 @@
 
   <section class="dashboard-section">
     <div class="section-heading">
+      <h2>Business Playbook</h2>
+      <p>このBusinessの勝ちパターンから見たOpportunity評価です。</p>
+    </div>
+    <% playbook = @opportunity.metadata.to_h.fetch("business_playbook", {}) %>
+    <div class="metric-grid aicoo-owner-secondary">
+      <div class="metric-card"><span>Playbook Score</span><strong><%= number_with_precision(@opportunity.business_playbook_score.to_d, precision: 1) %></strong></div>
+      <div class="metric-card"><span>Confidence</span><strong><%= number_with_precision(playbook["confidence"].to_s.to_d, precision: 1) %></strong></div>
+      <div class="metric-card"><span>係数</span><strong><%= number_with_precision(playbook["coefficient"].presence || 1, precision: 4) %></strong></div>
+    </div>
+    <div class="aicoo-card aicoo-card-compact">
+      <p><%= playbook["reason"].presence || "Business Playbook未学習のため汎用ルールで評価しています。" %></p>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
       <h2>Practicality</h2>
       <p>ActionCandidate化できるほど具体的かを確認します。</p>
     </div>

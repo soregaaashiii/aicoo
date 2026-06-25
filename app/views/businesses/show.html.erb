@@ -22,6 +22,43 @@
 
 <section class="dashboard-section">
   <div class="section-heading">
+    <h2>Business Playbook</h2>
+    <p>このBusinessで成功しやすいActionTypeを、実績・収益・Decision Logから自動学習します。</p>
+  </div>
+  <% if @business_playbook&.learned? %>
+    <div class="metric-grid">
+      <div class="metric-card"><span>Confidence</span><strong><%= number_with_precision(@business_playbook.confidence_score, precision: 1) %></strong></div>
+      <div class="metric-card"><span>得意Action</span><strong><%= @business_playbook.top_action_type.presence || "-" %></strong></div>
+      <div class="metric-card"><span>苦手Action</span><strong><%= @business_playbook.worst_action_type.presence || "-" %></strong></div>
+      <div class="metric-card"><span>平均収益</span><strong><%= number_to_currency(@business_playbook.average_actual_profit_yen.to_d, unit: "¥", precision: 0) %></strong></div>
+      <div class="metric-card"><span>平均Practicality</span><strong><%= number_with_precision(@business_playbook.average_practicality_score.to_d, precision: 1) %></strong></div>
+      <div class="metric-card"><span>平均Evidence</span><strong><%= number_with_precision(@business_playbook.average_evidence_score.to_d, precision: 1) %></strong></div>
+    </div>
+    <div class="aicoo-grid aicoo-grid-2">
+      <div class="aicoo-card aicoo-card-compact">
+        <h3>おすすめAction</h3>
+        <ul class="compact-list">
+          <% @business_playbook.action_type_rows.first(5).each do |row| %>
+            <li><strong><%= row["type"] %></strong> / score <%= number_with_precision(row["score"].to_d, precision: 1) %> / 採用率 <%= number_to_percentage(row["adoption_rate"].to_d * 100, precision: 1) %></li>
+          <% end %>
+        </ul>
+      </div>
+      <div class="aicoo-card aicoo-card-compact">
+        <h3>最近改善すべきAction</h3>
+        <ul class="compact-list">
+          <% @business_playbook.action_type_rows.reverse.first(5).each do |row| %>
+            <li><strong><%= row["type"] %></strong> / score <%= number_with_precision(row["score"].to_d, precision: 1) %> / sample <%= row["sample_count"] %></li>
+          <% end %>
+        </ul>
+      </div>
+    </div>
+  <% else %>
+    <p class="aicoo-empty-state">Business Playbookはまだ学習不足です。ActionResult、RevenueEvent、Decision Logが増えると自動で形成されます。</p>
+  <% end %>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
     <h2>Codex対象プロジェクト</h2>
     <p>ActionCandidateからCodex Prompt Draftを作る時に使うプロジェクト情報です。</p>
   </div>
