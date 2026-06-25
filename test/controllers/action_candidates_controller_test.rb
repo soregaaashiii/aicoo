@@ -115,7 +115,11 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
 
     get action_candidate_url(@action_candidate)
     assert_response :success
+    assert_includes response.body, "提案理由"
+    assert_includes response.body, "Evidence Summary"
     assert_includes response.body, "提案と実行の差分"
+    assert_includes response.body, "Practicality"
+    assert_includes response.body, "実行可能性"
     assert_includes response.body, "SEO記事作成 + LP改善"
     assert_includes response.body, "実行可能性補正"
     assert_includes response.body, "補正前 success_probability"

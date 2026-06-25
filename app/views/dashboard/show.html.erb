@@ -45,6 +45,51 @@
   </div>
 </section>
 
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>Practicality Summary</h2>
+    <p>期待値だけでなく、今日すぐ実行できる具体度を確認します。</p>
+  </div>
+  <div class="metric-grid">
+    <div class="metric-card"><span>平均Practicality</span><strong><%= number_with_precision(@practicality_summary.average_practicality_score, precision: 1) %></strong></div>
+    <div class="metric-card"><span>30未満</span><strong><%= @practicality_summary.low_practicality_count %>件</strong></div>
+    <% @practicality_summary.adoption_rates.each do |rate| %>
+      <div class="metric-card"><span><%= rate.bucket %>採用率</span><strong><%= number_to_percentage(rate.rate * 100, precision: 1) %></strong><small><%= rate.positive_count %>/<%= rate.total_count %>件</small></div>
+    <% end %>
+  </div>
+  <div class="aicoo-card aicoo-card-compact">
+    <h3>Practicality上位候補</h3>
+    <ul class="compact-list">
+      <% @practicality_summary.top_candidates.each do |candidate| %>
+        <li><%= link_to candidate.title, action_candidate_path(candidate) %> / <%= number_with_precision(candidate.practicality_score, precision: 1) %></li>
+      <% end %>
+      <% if @practicality_summary.top_candidates.empty? %><li>データ不足</li><% end %>
+    </ul>
+  </div>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>Evidence Summary</h2>
+    <p>提案に判断根拠が付いているかを確認します。根拠不足は推測として扱わず、不足として表示します。</p>
+  </div>
+  <div class="metric-grid">
+    <div class="metric-card"><span>Evidence付きCandidate率</span><strong><%= number_to_percentage(@evidence_summary.evidence_attached_rate * 100, precision: 1) %></strong></div>
+    <div class="metric-card"><span>Evidence不足</span><strong><%= @evidence_summary.insufficient_evidence_count %>件</strong></div>
+    <div class="metric-card"><span>平均Evidence Score</span><strong><%= number_with_precision(@evidence_summary.average_evidence_score, precision: 1) %></strong></div>
+  </div>
+  <div class="aicoo-card aicoo-card-compact">
+    <h3>Evidence上位候補</h3>
+    <ul class="compact-list">
+      <% @evidence_summary.top_candidates.each do |candidate| %>
+        <% evidence = candidate.metadata.to_h["evidence"].to_h %>
+        <li><%= link_to candidate.title, action_candidate_path(candidate) %> / <%= number_with_precision(evidence["score"].to_d, precision: 1) %></li>
+      <% end %>
+      <% if @evidence_summary.top_candidates.empty? %><li>データ不足</li><% end %>
+    </ul>
+  </div>
+</section>
+
 <section class="dashboard-section" id="execution-summary">
   <div class="section-heading">
     <h2>Auto Revision Approval Queue</h2>

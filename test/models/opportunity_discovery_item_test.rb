@@ -45,5 +45,7 @@ class OpportunityDiscoveryItemTest < ActiveSupport::TestCase
     assert item.strategic_adjusted_score.present?
     assert item.metadata.dig("strategic_learning", "strategic_score").present?
     assert item.metadata.dig("strategic_learning_guardrail", "clamped_adjusted_score").present?
+    assert item.practicality_score.present?
+    assert item.metadata.dig("practicality", "subscores").present?
   end
 end

@@ -6,6 +6,7 @@ module Aicoo
 
     def call
       return opportunity.action_candidate if opportunity.action_candidate
+      return unless practical_enough?
 
       candidate = ActionCandidate.create!(
         business: opportunity.business || Business.order(:name).first,
@@ -33,6 +34,21 @@ module Aicoo
     private
 
     attr_reader :opportunity
+
+    def practical_enough?
+      score = opportunity.practicality_score || Aicoo::PracticalityScorer.new(opportunity).call.practicality_score
+      if score.to_d < Aicoo::PracticalityScorer::MIN_CANDIDATE_SCORE
+        opportunity.update_columns(
+          practicality_score: score,
+          practicality_warning: true,
+          practicality_reason: "Practicalityが30未満のためActionCandidate化せずOpportunityに残しました。",
+          updated_at: Time.current
+        )
+        return false
+      end
+
+      true
+    end
 
     def candidate_title
       "Explore検証: #{opportunity.title}"

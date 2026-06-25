@@ -29,6 +29,7 @@ class OpportunityDiscoveryItem < ApplicationRecord
   validates :long_term_profit_score, :learning_value_score, :automation_value_score, :exploration_value_score, :strategic_score,
             numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 100 }, allow_nil: true
   validates :decision_log_coefficient, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
+  validates :practicality_score, numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 100 }, allow_nil: true
 
   scope :recent, -> { order(discovered_at: :desc, created_at: :desc) }
   scope :top_ranked, -> { order(Arel.sql("expected_value_yen DESC NULLS LAST, opportunity_score DESC NULLS LAST, discovered_at DESC NULLS LAST, created_at DESC")) }
@@ -73,6 +74,8 @@ class OpportunityDiscoveryItem < ApplicationRecord
     self.confidence = opportunity_score if confidence.nil?
     self.discovered_at ||= Time.current
     apply_strategic_learning_defaults
+    apply_evidence_defaults
+    apply_practicality_defaults
   end
 
   def conservative_value_yen
@@ -115,5 +118,18 @@ class OpportunityDiscoveryItem < ApplicationRecord
         "decision_dimension_coefficients" => result.decision_dimension_coefficients
       }
     ).merge("strategic_learning_guardrail" => result.guardrail)
+  end
+
+  def apply_evidence_defaults
+    result = Aicoo::EvidenceBuilder.new(self).call
+    self.metadata = metadata.to_h.merge("evidence" => result.metadata)
+  end
+
+  def apply_practicality_defaults
+    result = Aicoo::PracticalityScorer.new(self).call
+    self.practicality_score = result.practicality_score
+    self.practicality_warning = result.practicality_warning
+    self.practicality_reason = result.practicality_reason
+    self.metadata = metadata.to_h.merge("practicality" => result.metadata)
   end
 end

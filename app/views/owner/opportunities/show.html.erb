@@ -48,6 +48,51 @@
 
   <section class="dashboard-section">
     <div class="section-heading">
+      <h2>提案理由</h2>
+      <p>Opportunityを支えているExplore・実績・判断ログの根拠です。</p>
+    </div>
+    <% evidence = @opportunity.metadata.to_h.fetch("evidence", {}) %>
+    <% evidence_items = Array(evidence["items"]) %>
+    <div class="metric-grid aicoo-owner-secondary">
+      <div class="metric-card"><span>Evidence Score</span><strong><%= evidence["score"].present? ? number_with_precision(evidence["score"].to_d, precision: 1) : "未評価" %></strong></div>
+      <div class="metric-card"><span>根拠数</span><strong><%= evidence_items.size %>件</strong></div>
+      <div class="metric-card"><span>状態</span><strong><%= evidence["warning"] ? "根拠不足" : "根拠あり" %></strong></div>
+    </div>
+    <div class="aicoo-card aicoo-card-compact">
+      <ul class="compact-list">
+        <% Array(evidence["summary"]).each do |line| %>
+          <li><%= line.to_s.sub(/\A・/, "") %></li>
+        <% end %>
+        <% if Array(evidence["summary"]).empty? %>
+          <li>Evidence不足: 判断に使える根拠データがまだありません。</li>
+        <% end %>
+      </ul>
+      <% if evidence["missing_sources"].present? %>
+        <p><strong>不足:</strong> <%= evidence["missing_sources"].join(", ") %></p>
+      <% end %>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Practicality</h2>
+      <p>ActionCandidate化できるほど具体的かを確認します。</p>
+    </div>
+    <% practicality = @opportunity.metadata.to_h.fetch("practicality", {}) %>
+    <% subscores = practicality.fetch("subscores", {}) %>
+    <div class="metric-grid aicoo-owner-secondary">
+      <div class="metric-card"><span>実行可能性</span><strong><%= @opportunity.practicality_score ? number_with_precision(@opportunity.practicality_score, precision: 1) : "未評価" %></strong></div>
+      <div class="metric-card"><span>対象</span><strong><%= number_with_precision(subscores["target_clarity_score"].to_d, precision: 1) %></strong></div>
+      <div class="metric-card"><span>行動</span><strong><%= number_with_precision(subscores["action_clarity_score"].to_d, precision: 1) %></strong></div>
+      <div class="metric-card"><span>成果物</span><strong><%= number_with_precision(subscores["deliverable_score"].to_d, precision: 1) %></strong></div>
+    </div>
+    <div class="aicoo-card aicoo-card-compact">
+      <p><%= @opportunity.practicality_reason.presence || practicality["reason"].presence || "Practicality情報はまだありません。" %></p>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
       <h2>内容</h2>
     </div>
     <div class="aicoo-card aicoo-card-compact">

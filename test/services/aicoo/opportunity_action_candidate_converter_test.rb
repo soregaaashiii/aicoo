@@ -46,5 +46,26 @@ module Aicoo
         assert_equal existing, OpportunityActionCandidateConverter.new(opportunity.reload).call
       end
     end
+
+    test "does not convert low practicality opportunity" do
+      opportunity = OpportunityDiscoveryItem.create!(
+        business: businesses(:suelog),
+        title: "アクセスが増えているページを改善する",
+        summary: "どのページかは未定で、最適化する",
+        source_type: "google_trends",
+        opportunity_type: "content_test",
+        expected_value_yen: 80_000,
+        confidence: 70,
+        status: "approved"
+      )
+      opportunity.update_columns(practicality_score: 20, practicality_warning: true)
+
+      assert_no_difference("ActionCandidate.count") do
+        assert_nil OpportunityActionCandidateConverter.new(opportunity).call
+      end
+
+      assert_nil opportunity.reload.action_candidate
+      assert_includes opportunity.practicality_reason, "ActionCandidate化せずOpportunityに残しました"
+    end
   end
 end

@@ -78,6 +78,22 @@ class ActionCandidateTest < ActiveSupport::TestCase
     assert action_candidate.metadata.dig("strategic_learning_guardrail", "base_score").present?
   end
 
+  test "stores practicality metadata and adjusts score" do
+    action_candidate = ActionCandidate.create!(
+      business: businesses(:suelog),
+      title: "CTR2%未満の記事5本をタイトル改訂する",
+      action_type: "seo_improvement",
+      immediate_value_yen: 20_000,
+      success_probability: 0.5,
+      expected_hours: 2,
+      execution_prompt: "CTR2%未満の記事5本を選び、タイトルを改訂して公開してください。完了条件: 5本公開。"
+    )
+
+    assert action_candidate.practicality_score.present?
+    assert action_candidate.metadata.dig("practicality", "subscores").present?
+    assert action_candidate.metadata.dig("practicality", "multiplier").present?
+  end
+
   test "leaves hourly value and roi blank when denominators are blank or zero" do
     action_candidate = ActionCandidate.create!(
       business: businesses(:cards),

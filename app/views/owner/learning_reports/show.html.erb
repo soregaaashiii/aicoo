@@ -258,6 +258,67 @@
 
   <section class="dashboard-section">
     <div class="section-heading">
+      <h2>Practicality分析</h2>
+      <p>具体的な提案ほど採用・完了・実行されているかを確認します。</p>
+    </div>
+    <div class="metric-grid">
+      <div class="metric-card"><span>平均Practicality</span><strong><%= number_with_precision(@practicality_summary.average_practicality_score, precision: 1) %></strong></div>
+      <div class="metric-card"><span>Practicality30未満</span><strong><%= @practicality_summary.low_practicality_count %>件</strong></div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Practicality</th><th>採用率</th><th>完了率</th><th>実行率</th></tr>
+        </thead>
+        <tbody>
+          <% @practicality_summary.adoption_rates.each do |rate| %>
+            <% completion = @practicality_summary.completion_rates.find { |item| item.bucket == rate.bucket } %>
+            <% execution = @practicality_summary.execution_rates.find { |item| item.bucket == rate.bucket } %>
+            <tr>
+              <td><%= rate.bucket %></td>
+              <td><%= number_to_percentage(rate.rate * 100, precision: 1) %> <small><%= rate.positive_count %>/<%= rate.total_count %></small></td>
+              <td><%= number_to_percentage(completion.rate * 100, precision: 1) %> <small><%= completion.positive_count %>/<%= completion.total_count %></small></td>
+              <td><%= number_to_percentage(execution.rate * 100, precision: 1) %> <small><%= execution.positive_count %>/<%= execution.total_count %></small></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Evidence分析</h2>
+      <p>根拠が強い提案ほど採用・完了・実行されているかを確認します。</p>
+    </div>
+    <div class="metric-grid">
+      <div class="metric-card"><span>Evidence付きCandidate率</span><strong><%= number_to_percentage(@evidence_summary.evidence_attached_rate * 100, precision: 1) %></strong></div>
+      <div class="metric-card"><span>Evidence不足</span><strong><%= @evidence_summary.insufficient_evidence_count %>件</strong></div>
+      <div class="metric-card"><span>平均Evidence Score</span><strong><%= number_with_precision(@evidence_summary.average_evidence_score, precision: 1) %></strong></div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Evidence</th><th>採用率</th><th>完了率</th><th>実行率</th></tr>
+        </thead>
+        <tbody>
+          <% @evidence_summary.adoption_rates.each do |rate| %>
+            <% completion = @evidence_summary.completion_rates.find { |item| item.bucket == rate.bucket } %>
+            <% execution = @evidence_summary.execution_rates.find { |item| item.bucket == rate.bucket } %>
+            <tr>
+              <td><%= rate.bucket %></td>
+              <td><%= number_to_percentage(rate.rate * 100, precision: 1) %> <small><%= rate.positive_count %>/<%= rate.total_count %></small></td>
+              <td><%= number_to_percentage(completion.rate * 100, precision: 1) %> <small><%= completion.positive_count %>/<%= completion.total_count %></small></td>
+              <td><%= number_to_percentage(execution.rate * 100, precision: 1) %> <small><%= execution.positive_count %>/<%= execution.total_count %></small></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
       <h2>Action Types</h2>
       <p>得意な行動タイプと、外れやすい行動タイプです。</p>
     </div>

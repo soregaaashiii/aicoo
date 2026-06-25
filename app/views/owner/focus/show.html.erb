@@ -29,6 +29,16 @@
           <% opportunity = @opportunity_focus_item.opportunity %>
           <h2><%= opportunity.title %></h2>
           <p><%= opportunity.summary.presence || opportunity.description.presence || @opportunity_focus_item.reason %></p>
+          <% if @top_task_evidence.present? %>
+            <div class="aicoo-card aicoo-card-compact">
+              <h3>提案理由</h3>
+              <ul class="compact-list">
+                <% Array(@top_task_evidence["summary"]).first(5).each do |line| %>
+                  <li><%= line.to_s.sub(/\A・/, "") %></li>
+                <% end %>
+              </ul>
+            </div>
+          <% end %>
           <div class="metric-grid aicoo-owner-secondary">
             <div class="metric-card"><span>期待値</span><strong><%= number_to_currency(opportunity.expected_value_yen.to_i, unit: "¥", precision: 0) %></strong></div>
             <div class="metric-card"><span>信頼度</span><strong><%= opportunity.confidence.to_i %></strong></div>
@@ -45,6 +55,16 @@
         <% else %>
           <h2><%= task.title %></h2>
           <p><%= task.reason %></p>
+          <% if @top_task_evidence.present? %>
+            <div class="aicoo-card aicoo-card-compact">
+              <h3>提案理由</h3>
+              <ul class="compact-list">
+                <% Array(@top_task_evidence["summary"]).first(5).each do |line| %>
+                  <li><%= line.to_s.sub(/\A・/, "") %></li>
+                <% end %>
+              </ul>
+            </div>
+          <% end %>
 
           <div class="actions compact-actions">
             <% task.quick_actions.each do |action| %>

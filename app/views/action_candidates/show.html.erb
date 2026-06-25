@@ -46,6 +46,84 @@
 
 <%= render @action_candidate %>
 
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>提案理由</h2>
+    <p>この提案を支えている根拠です。根拠が足りない場合は不足として扱います。</p>
+  </div>
+  <% evidence = @action_candidate.metadata.to_h.fetch("evidence", {}) %>
+  <% evidence_items = Array(evidence["items"]) %>
+  <div class="metric-grid">
+    <div class="metric-card"><span>Evidence Score</span><strong><%= evidence["score"].present? ? number_with_precision(evidence["score"].to_d, precision: 1) : "未評価" %></strong></div>
+    <div class="metric-card"><span>根拠数</span><strong><%= evidence_items.size %>件</strong></div>
+    <div class="metric-card"><span>状態</span><strong><%= evidence["warning"] ? "根拠不足" : "根拠あり" %></strong></div>
+  </div>
+  <div class="aicoo-card aicoo-card-compact">
+    <h3>Evidence Summary</h3>
+    <ul class="compact-list">
+      <% Array(evidence["summary"]).each do |line| %>
+        <li><%= line.to_s.sub(/\A・/, "") %></li>
+      <% end %>
+      <% if Array(evidence["summary"]).empty? %>
+        <li>Evidence不足: 判断に使える根拠データがまだありません。</li>
+      <% end %>
+    </ul>
+    <% if evidence["missing_sources"].present? %>
+      <p><strong>不足:</strong> <%= evidence["missing_sources"].join(", ") %></p>
+    <% end %>
+  </div>
+  <% if evidence_items.any? %>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>source</th><th>title</th><th>metric</th><th>current</th><th>change</th><th>confidence</th></tr>
+        </thead>
+        <tbody>
+          <% evidence_items.each do |item| %>
+            <tr>
+              <td><span class="pill"><%= item["source"] %></span></td>
+              <td><%= item["title"] %></td>
+              <td><%= item["metric_name"].presence || "-" %></td>
+              <td><%= item["current_value"].presence || "-" %></td>
+              <td><%= item["change_rate"].present? ? "#{item["change_rate"]}%" : "-" %></td>
+              <td><%= number_with_precision(item["confidence"].to_d, precision: 1) %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>Practicality</h2>
+    <p>今日すぐ着手できる具体度を確認します。</p>
+  </div>
+  <% practicality = @action_candidate.metadata.to_h.fetch("practicality", {}) %>
+  <% subscores = practicality.fetch("subscores", {}) %>
+  <div class="metric-grid">
+    <div class="metric-card"><span>実行可能性</span><strong><%= @action_candidate.practicality_score ? number_with_precision(@action_candidate.practicality_score, precision: 1) : "未評価" %></strong></div>
+    <div class="metric-card"><span>対象の明確さ</span><strong><%= number_with_precision(subscores["target_clarity_score"].to_d, precision: 1) %></strong></div>
+    <div class="metric-card"><span>やる内容</span><strong><%= number_with_precision(subscores["action_clarity_score"].to_d, precision: 1) %></strong></div>
+    <div class="metric-card"><span>成果物</span><strong><%= number_with_precision(subscores["deliverable_score"].to_d, precision: 1) %></strong></div>
+    <div class="metric-card"><span>今日着手可能</span><strong><%= number_with_precision(subscores["execution_ready_score"].to_d, precision: 1) %></strong></div>
+    <div class="metric-card"><span>依存関係</span><strong><%= number_with_precision(subscores["dependency_score"].to_d, precision: 1) %></strong></div>
+    <div class="metric-card"><span>自動化余地</span><strong><%= number_with_precision(subscores["automation_score"].to_d, precision: 1) %></strong></div>
+  </div>
+  <div class="aicoo-card aicoo-card-compact">
+    <strong><%= @action_candidate.practicality_warning? ? "不足情報あり" : "実行準備OK" %></strong>
+    <p><%= @action_candidate.practicality_reason.presence || practicality["reason"].presence || "Practicality情報はまだありません。" %></p>
+    <% if practicality["missing_items"].present? %>
+      <ul class="compact-list">
+        <% practicality["missing_items"].each do |item| %>
+          <li><%= item %></li>
+        <% end %>
+      </ul>
+    <% end %>
+  </div>
+</section>
+
 <% if @action_execution %>
   <section class="dashboard-section">
     <div class="section-heading">

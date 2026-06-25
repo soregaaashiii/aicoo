@@ -65,6 +65,7 @@ class ActionCandidate < ApplicationRecord
             numericality: { only_integer: true, greater_than_or_equal_to: 0 }, allow_nil: true
   validates :final_expected_value_yen, :final_confidence_score,
             numericality: { only_integer: true, greater_than_or_equal_to: 0 }, allow_nil: true
+  validates :practicality_score, numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 100 }, allow_nil: true
 
   scope :by_expected_value, -> { includes(:business).order(Arel.sql("expected_hourly_value_yen DESC NULLS LAST, expected_profit_yen DESC NULLS LAST")) }
   scope :by_recommendation, -> { includes(:business).order(Arel.sql("final_score DESC NULLS LAST, expected_hourly_value_yen DESC NULLS LAST")) }
@@ -155,7 +156,9 @@ class ActionCandidate < ApplicationRecord
     self.expected_learning_value_yen = LearningValueCalculator.new(self).value_yen
     self.expected_total_value_yen = expected_revenue_value_yen.to_i + expected_learning_value_yen.to_i
     apply_meta_evaluation
+    apply_evidence
     apply_strategic_learning
+    apply_practicality_filter
   end
 
   def calculate_expected_hourly_value
@@ -215,6 +218,11 @@ class ActionCandidate < ApplicationRecord
     self.metadata = metadata.to_h.merge("evaluator_breakdown" => result.evaluator_breakdown)
   end
 
+  def apply_evidence
+    result = Aicoo::EvidenceBuilder.new(self).call
+    self.metadata = metadata.to_h.merge("evidence" => result.metadata)
+  end
+
   def apply_strategic_learning
     result = Aicoo::StrategicLearningScorer.new(self, base_score: final_score).call
     self.final_score = result.final_score
@@ -229,6 +237,30 @@ class ActionCandidate < ApplicationRecord
         "decision_dimension_coefficients" => result.decision_dimension_coefficients
       }
     ).merge("strategic_learning_guardrail" => result.guardrail)
+  end
+
+  def apply_practicality_filter
+    result = Aicoo::PracticalityScorer.new(self).call
+    self.practicality_score = result.practicality_score
+    self.practicality_warning = result.practicality_warning
+    self.practicality_reason = result.practicality_reason
+    self.final_score = (final_score.to_d * practicality_multiplier(result.practicality_score)).round(2)
+    self.metadata = metadata.to_h.merge(
+      "practicality" => result.metadata.merge(
+        "score_before_practicality" => (metadata.to_h.dig("strategic_learning", "final_score") || final_score).to_s,
+        "score_after_practicality" => final_score.to_s,
+        "multiplier" => practicality_multiplier(result.practicality_score).to_s
+      )
+    )
+  end
+
+  def practicality_multiplier(score)
+    score = score.to_d
+    return 0.85.to_d if score < 30
+    return 0.92.to_d if score < 50
+    return 1.0.to_d if score < 70
+
+    1.12.to_d
   end
 
   def prediction_calibration

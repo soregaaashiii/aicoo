@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_25_095000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_25_096000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -68,6 +68,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_25_095000) do
     t.integer "neglect_loss_90d_yen", default: 0, null: false
     t.boolean "neglect_loss_auto_generated", default: false, null: false
     t.text "neglect_loss_reason"
+    t.text "practicality_reason"
+    t.decimal "practicality_score"
+    t.boolean "practicality_warning", default: false, null: false
     t.integer "priority_score"
     t.integer "risk_reduction_score"
     t.decimal "roi"
@@ -79,6 +82,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_25_095000) do
     t.index ["business_id"], name: "index_action_candidates_on_business_id"
     t.index ["department"], name: "index_action_candidates_on_department"
     t.index ["generation_source"], name: "index_action_candidates_on_generation_source"
+    t.index ["practicality_score"], name: "index_action_candidates_on_practicality_score"
   end
 
   create_table "action_execution_logs", force: :cascade do |t|
@@ -1005,6 +1009,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_25_095000) do
     t.decimal "monetization_score"
     t.decimal "opportunity_score"
     t.string "opportunity_type"
+    t.text "practicality_reason"
+    t.decimal "practicality_score"
+    t.boolean "practicality_warning", default: false, null: false
     t.bigint "source_observation_id"
     t.string "source_type", null: false
     t.string "status", null: false
@@ -1020,6 +1027,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_25_095000) do
     t.index ["discovered_at"], name: "index_opportunity_discovery_items_on_discovered_at"
     t.index ["expected_value_yen"], name: "index_opportunity_discovery_items_on_expected_value_yen"
     t.index ["opportunity_type"], name: "index_opportunity_discovery_items_on_opportunity_type"
+    t.index ["practicality_score"], name: "index_opportunity_discovery_items_on_practicality_score"
     t.index ["source_observation_id"], name: "index_opportunity_discovery_items_on_source_observation_id"
     t.index ["source_type"], name: "index_opportunity_discovery_items_on_source_type"
     t.index ["status"], name: "index_opportunity_discovery_items_on_status"

@@ -69,6 +69,8 @@ module Owner
 
       assert_response :success
       assert_includes response.body, "Opportunity Learning"
+      assert_includes response.body, "提案理由"
+      assert_includes response.body, "Practicality"
       assert_includes response.body, "Source Performance"
       assert_includes response.body, "Success"
       assert_includes response.body, "Result"

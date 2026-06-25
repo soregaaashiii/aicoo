@@ -14,6 +14,8 @@ module Owner
       assert_includes response.body, "Strategic Learning Guardrail"
       assert_includes response.body, "思想一致率"
       assert_includes response.body, "最大Boost"
+      assert_includes response.body, "Practicality分析"
+      assert_includes response.body, "Evidence分析"
       assert_includes response.body, "ActionCandidate化"
       assert_includes response.body, "Accuracy"
       assert_includes response.body, "Calibration"

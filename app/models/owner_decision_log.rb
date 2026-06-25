@@ -147,6 +147,8 @@ class OwnerDecisionLog < ApplicationRecord
       data["item_type"] = subject.item_type if subject.respond_to?(:item_type)
       data["generated_from"] = subject.generated_from if subject.respond_to?(:generated_from)
       data["strategic_learning"] = subject.metadata.to_h["strategic_learning"] if subject.respond_to?(:metadata) && subject.metadata.to_h["strategic_learning"].present?
+      data["practicality"] = subject.metadata.to_h["practicality"] if subject.respond_to?(:metadata) && subject.metadata.to_h["practicality"].present?
+      data["evidence"] = subject.metadata.to_h["evidence"] if subject.respond_to?(:metadata) && subject.metadata.to_h["evidence"].present?
       data
     end
 

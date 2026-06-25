@@ -65,6 +65,10 @@ module Owner
     def convert_to_candidate
       previous_status = @opportunity.status
       candidate = @opportunity.convert_to_action_candidate!
+      unless candidate
+        redirect_to owner_opportunity_path(@opportunity), alert: @opportunity.practicality_reason.presence || "具体化が必要なためActionCandidate化しませんでした。"
+        return
+      end
       record_decision!(
         "convert",
         "opportunity_detail",
@@ -96,6 +100,10 @@ module Owner
     def focus_convert_to_candidate
       previous_status = @opportunity.status
       candidate = @opportunity.convert_to_action_candidate!
+      unless candidate
+        redirect_to owner_focus_path, alert: @opportunity.practicality_reason.presence || "具体化が必要なためActionCandidate化しませんでした。"
+        return
+      end
       record_decision!(
         "convert",
         "owner_focus",
