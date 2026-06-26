@@ -60,6 +60,15 @@ class BusinessMetricDailiesController < ApplicationController
         phone_clicks
         map_clicks
         affiliate_clicks
+        users
+        views_per_user
+        average_engagement_time_seconds
+        engagement_rate
+        bounce_rate
+        conversions
+        event_count
+        scroll_events
+        internal_search_events
       ]
     )
   end

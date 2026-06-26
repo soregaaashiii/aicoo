@@ -29,6 +29,16 @@
     <% end %>
   </div>
 
+  <h2>GA4 Engagement</h2>
+  <div class="grid">
+    <% BusinessMetricDaily::ENGAGEMENT_FIELDS.each do |metric| %>
+      <div class="field">
+        <%= form.label metric, metric.to_s %>
+        <%= form.number_field metric, min: 0, step: BusinessMetricDaily::ENGAGEMENT_RATE_FIELDS.include?(metric) ? 0.01 : 1 %>
+      </div>
+    <% end %>
+  </div>
+
   <div class="actions">
     <%= form.submit "保存", class: "button" %>
   </div>

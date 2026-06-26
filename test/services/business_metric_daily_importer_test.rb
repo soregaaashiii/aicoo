@@ -14,7 +14,19 @@ class BusinessMetricDailyImporterTest < ActiveSupport::TestCase
       source_type: "ga4",
       business:,
       date:,
-      metrics: { sessions: 80, page_views: 120 }
+      metrics: {
+        sessions: 80,
+        page_views: 120,
+        activeUsers: 60,
+        viewsPerUser: 2.0,
+        averageEngagementTime: 95,
+        engagementRate: 0.56,
+        bounceRate: 0.32,
+        conversions: 4,
+        eventCount: 300,
+        scrollEvents: 40,
+        internal_search_events: 2
+      }
     )
 
     result = BusinessMetricDailyImporter.new(business:, date:).call
@@ -26,6 +38,15 @@ class BusinessMetricDailyImporterTest < ActiveSupport::TestCase
     assert_equal 25, metric.clicks
     assert_equal 80, metric.sessions
     assert_equal 120, metric.pageviews
+    assert_equal 60, metric.users
+    assert_equal 2.0.to_d, metric.views_per_user
+    assert_equal 95, metric.average_engagement_time_seconds
+    assert_equal 0.56.to_d, metric.engagement_rate
+    assert_equal 0.32.to_d, metric.bounce_rate
+    assert_equal 4, metric.conversions
+    assert_equal 300, metric.event_count
+    assert_equal 40, metric.scroll_events
+    assert_equal 2, metric.internal_search_events
     assert_equal 175.0, metric.proxy_score
   end
 

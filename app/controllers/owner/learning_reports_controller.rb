@@ -10,6 +10,7 @@ module Owner
       @discovery_source_performance_report = Aicoo::DiscoverySourcePerformanceReport.new.call
       @owner_decision_summary = Aicoo::OwnerDecisionSummary.new.call
       @strategic_learning_report = Aicoo::StrategicLearningReport.new.call
+      @engagement_summary = Aicoo::EngagementSummary.new.call
     end
   end
 end

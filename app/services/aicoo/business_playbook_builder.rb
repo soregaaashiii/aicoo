@@ -79,6 +79,9 @@ module Aicoo
         "average_hours" => average(candidates.pluck(:expected_hours)),
         "average_practicality_score" => average(candidates.pluck(:practicality_score)),
         "average_evidence_score" => average(candidates.map { |candidate| candidate.metadata.to_h.dig("evidence", "score").to_d }),
+        "average_engagement_delta" => average(results.map { |result| engagement_delta_for(result) }),
+        "average_navigation_delta" => average(results.map { |result| navigation_delta_for(result) }),
+        "average_conversion_delta" => average(results.map { |result| conversion_delta_for(result) }),
         "decision_log_coefficient" => decision_log_coefficient(decisions),
         "success_rate" => rate(results.where("actual_profit_yen > 0").count, results.count),
         "sample_count" => sample_count,
@@ -174,6 +177,9 @@ module Aicoo
         "roi" => roi,
         "average_practicality_score" => average(candidates.map(&:practicality_score)),
         "average_evidence_score" => average(candidates.map { |candidate| candidate.metadata.to_h.dig("evidence", "score").to_d }),
+        "average_engagement_delta" => average(executed_results.map { |result| engagement_delta_for(result) }),
+        "average_navigation_delta" => average(executed_results.map { |result| navigation_delta_for(result) }),
+        "average_conversion_delta" => average(executed_results.map { |result| conversion_delta_for(result) }),
         "sample_count" => sample_count,
         "score" => playbook_score(
           success_rate:,
@@ -232,6 +238,29 @@ module Aicoo
       return 0.to_d if values.empty?
 
       values.sum / values.size
+    end
+
+    def engagement_delta_for(result)
+      value = result.metadata.to_h.dig("engagement", "average_engagement_time_delta_seconds")
+      return value.to_d if value.present?
+
+      result.actual_pageviews_delta.to_d - result.actual_sessions_delta.to_d
+    end
+
+    def navigation_delta_for(result)
+      value = result.metadata.to_h.dig("engagement", "views_per_session_delta")
+      return value.to_d if value.present?
+      return 0.to_d if result.actual_sessions_delta.to_i.zero?
+
+      result.actual_pageviews_delta.to_d / result.actual_sessions_delta.to_d
+    end
+
+    def conversion_delta_for(result)
+      value = result.metadata.to_h.dig("engagement", "conversion_rate_delta")
+      return value.to_d if value.present?
+      return 0.to_d if result.actual_sessions_delta.to_i.zero?
+
+      (result.actual_phone_clicks_delta.to_i + result.actual_map_clicks_delta.to_i + result.actual_affiliate_clicks_delta.to_i).to_d / result.actual_sessions_delta.to_d
     end
 
     def rate(numerator, denominator)

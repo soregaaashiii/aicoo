@@ -19,7 +19,16 @@ module Aicoo
         executed_on: Date.current,
         evaluated_on: Date.current,
         evaluation_status: "evaluated",
-        actual_profit_yen: 8_000
+        actual_profit_yen: 8_000,
+        actual_sessions_delta: 100,
+        actual_pageviews_delta: 180,
+        metadata: {
+          "engagement" => {
+            "average_engagement_time_delta_seconds" => 24,
+            "views_per_session_delta" => 0.35,
+            "conversion_rate_delta" => 0.02
+          }
+        }
       )
       OwnerDecisionLog.record!(
         subject: candidate,
@@ -37,6 +46,10 @@ module Aicoo
       assert_operator playbook.confidence_score, :>, 0
       assert_equal "seo_improvement", playbook.top_action_type
       assert playbook.action_type_summary.key?("seo_improvement")
+      row = playbook.action_type_summary.fetch("seo_improvement")
+      assert_equal "24.0", row.fetch("average_engagement_delta")
+      assert_equal "0.35", row.fetch("average_navigation_delta")
+      assert_equal "0.02", row.fetch("average_conversion_delta")
     end
 
     test "learns action expansion task performance" do
@@ -71,6 +84,11 @@ module Aicoo
         evaluation_status: "evaluated",
         actual_profit_yen: 12_000,
         metadata: {
+          "engagement" => {
+            "average_engagement_time_delta_seconds" => 18,
+            "views_per_session_delta" => 0.2,
+            "conversion_rate_delta" => 0.01
+          },
           "action_expansion_learning" => {
             "available_tasks" => [ "SEOタイトル改訂", "内部リンク追加" ],
             "executed_tasks" => [ "SEOタイトル改訂" ],
@@ -92,6 +110,7 @@ module Aicoo
       assert task_summary.key?("SEOタイトル改訂")
       assert_equal 1, task_summary["SEOタイトル改訂"]["executed_result_count"].to_i
       assert_operator task_summary["SEOタイトル改訂"]["success_rate"].to_d, :>, 0
+      assert_equal "18.0", task_summary["SEOタイトル改訂"]["average_engagement_delta"]
       assert_equal "SEOタイトル改訂", playbook.metadata["recommended_tasks"].first
     end
 

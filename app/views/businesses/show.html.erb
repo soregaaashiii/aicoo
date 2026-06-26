@@ -59,6 +59,14 @@
       <small>pageviews <%= number_with_delimiter(period_30d.ga4_pageviews) %></small>
     </div>
     <div class="metric-card">
+      <span>Engagement</span>
+      <strong><%= number_with_precision(period_30d.engagement_score, precision: 1) %>/100</strong>
+      <small>
+        滞在 <%= number_with_precision(period_30d.average_engagement_time_seconds, precision: 0) %>秒 /
+        回遊 <%= number_with_precision(period_30d.views_per_session, precision: 2) %>
+      </small>
+    </div>
+    <div class="metric-card">
       <span>Revenue 7日 / 30日</span>
       <strong><%= number_to_currency(period_7d.revenue_yen, unit: "¥", precision: 0) %> / <%= number_to_currency(period_30d.revenue_yen, unit: "¥", precision: 0) %></strong>
       <small>RevenueEvent</small>
@@ -91,6 +99,11 @@
       <h3>GA4</h3>
       <p><%= analytics.data_status[:ga4_connected] ? "接続済み" : "未接続 / データ不足" %></p>
       <small>sessions / pageviews / active_users / conversions</small>
+    </div>
+    <div class="aicoo-card aicoo-card-compact">
+      <h3>Engagement</h3>
+      <p><%= analytics.data_status[:has_engagement_data] ? "データあり" : "データ不足" %></p>
+      <small>滞在時間 / 回遊率 / Engagement Rate / CV率 / Scroll</small>
     </div>
     <div class="aicoo-card aicoo-card-compact">
       <h3>Revenue</h3>
@@ -149,6 +162,18 @@
                  { key: "pageviews", label: "pageviews" },
                  { key: "active_users", label: "active_users" },
                  { key: "conversions", label: "conversions" }
+               ] %>
+
+    <%= render "analytics_chart",
+               title: "Engagementグラフ",
+               series: analytics.engagement_series,
+               metrics: [
+                 { key: "average_engagement_time_seconds", label: "平均滞在秒" },
+                 { key: "views_per_session", label: "Views/Session" },
+                 { key: "engagement_rate", label: "Engagement Rate" },
+                 { key: "conversion_rate", label: "CV率" },
+                 { key: "scroll_rate", label: "Scroll率" },
+                 { key: "engagement_score", label: "Engagement Score" }
                ] %>
 
     <%= render "analytics_chart",
@@ -267,6 +292,7 @@
               / score <%= number_with_precision(row["score"].to_d, precision: 1) %>
               / 成功率 <%= number_to_percentage(row["success_rate"].to_d * 100, precision: 1) %>
               / 完了率 <%= number_to_percentage(row["completion_rate"].to_d * 100, precision: 1) %>
+              / Engagement改善 <%= number_with_precision(row["average_engagement_delta"].to_d, precision: 2) %>
             </li>
           <% end %>
           <% if @business_playbook.task_rows.empty? %>

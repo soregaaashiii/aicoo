@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_26_122000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_26_133000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -847,16 +847,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_122000) do
 
   create_table "business_metric_dailies", force: :cascade do |t|
     t.integer "affiliate_clicks", default: 0, null: false
+    t.integer "average_engagement_time_seconds", default: 0, null: false
+    t.decimal "bounce_rate", default: "0.0", null: false
     t.bigint "business_id", null: false
     t.integer "clicks", default: 0, null: false
+    t.integer "conversions", default: 0, null: false
     t.datetime "created_at", null: false
+    t.decimal "engagement_rate", default: "0.0", null: false
+    t.integer "event_count", default: 0, null: false
     t.integer "impressions", default: 0, null: false
+    t.integer "internal_search_events", default: 0, null: false
     t.integer "map_clicks", default: 0, null: false
     t.integer "pageviews", default: 0, null: false
     t.integer "phone_clicks", default: 0, null: false
     t.date "recorded_on", null: false
+    t.integer "scroll_events", default: 0, null: false
     t.integer "sessions", default: 0, null: false
     t.datetime "updated_at", null: false
+    t.integer "users", default: 0, null: false
+    t.decimal "views_per_user", default: "0.0", null: false
     t.index ["business_id", "recorded_on"], name: "index_business_metric_dailies_on_business_id_and_recorded_on", unique: true
     t.index ["business_id"], name: "index_business_metric_dailies_on_business_id"
     t.index ["recorded_on"], name: "index_business_metric_dailies_on_recorded_on"

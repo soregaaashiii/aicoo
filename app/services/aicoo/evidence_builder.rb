@@ -48,11 +48,12 @@ module Aicoo
         *evaluator_breakdown_items,
         *explore_items,
         *business_metric_items,
+        *engagement_items,
         *serp_items,
         *revenue_items,
         decision_log_item,
         source_item
-      ].compact.first(8)
+      ].compact.first(10)
     end
 
     def evaluator_breakdown_items
@@ -124,6 +125,59 @@ module Aicoo
           metric_name: "sessions",
           current_value: latest.sessions,
           baseline_value: previous&.sessions,
+          captured_at: latest.recorded_on
+        )
+      ].compact.select { |item| item["current_value"].to_d.positive? }
+    end
+
+    def engagement_items
+      return [] unless business
+
+      metrics = BusinessMetricDaily.where(business:).order(recorded_on: :desc).limit(2).to_a
+      return [] if metrics.empty?
+
+      latest = metrics.first
+      previous = metrics.second
+      [
+        engagement_metric_snapshot(
+          title: "GA4滞在時間",
+          metric_name: "average_engagement_time_seconds",
+          current_value: latest.average_engagement_time_seconds,
+          baseline_value: previous&.average_engagement_time_seconds,
+          unit: "秒",
+          captured_at: latest.recorded_on
+        ),
+        engagement_metric_snapshot(
+          title: "GA4回遊率",
+          metric_name: "views_per_session",
+          current_value: latest.views_per_session,
+          baseline_value: previous&.views_per_session,
+          unit: "views/session",
+          captured_at: latest.recorded_on
+        ),
+        engagement_metric_snapshot(
+          title: "GA4 Engagement Rate",
+          metric_name: "engagement_rate",
+          current_value: latest.engagement_rate,
+          baseline_value: previous&.engagement_rate,
+          percentage: true,
+          captured_at: latest.recorded_on
+        ),
+        engagement_metric_snapshot(
+          title: "GA4 Bounce Rate",
+          metric_name: "bounce_rate",
+          current_value: latest.bounce_rate,
+          baseline_value: previous&.bounce_rate,
+          percentage: true,
+          inverse: true,
+          captured_at: latest.recorded_on
+        ),
+        engagement_metric_snapshot(
+          title: "GA4 CV率",
+          metric_name: "conversion_rate",
+          current_value: latest.conversion_rate,
+          baseline_value: previous&.conversion_rate,
+          percentage: true,
           captured_at: latest.recorded_on
         )
       ].compact.select { |item| item["current_value"].to_d.positive? }
@@ -229,6 +283,37 @@ module Aicoo
         confidence: baseline_value.present? ? 70 : 45,
         captured_at:
       )
+    end
+
+    def engagement_metric_snapshot(title:, metric_name:, current_value:, baseline_value:, captured_at:, unit: nil, percentage: false, inverse: false)
+      change_rate = change_rate_for(current_value, baseline_value)
+      formatted = format_engagement_value(current_value, unit:, percentage:)
+      direction = change_rate.nil? ? "#{formatted}です。" : "前回比#{change_rate}%で、現在は#{formatted}です。"
+      importance = importance_from_change(current_value, change_rate)
+      importance += 10 if inverse && current_value.to_d >= 0.7
+      importance += 10 if !inverse && metric_name == "average_engagement_time_seconds" && current_value.to_d < 90
+      snapshot(
+        source: "ga4",
+        title:,
+        summary: "#{metric_name} は#{direction}",
+        metric_name:,
+        current_value:,
+        baseline_value:,
+        change_rate:,
+        importance_score: importance,
+        confidence: baseline_value.present? ? 70 : 50,
+        captured_at:
+      )
+    end
+
+    def format_engagement_value(value, unit:, percentage:)
+      if percentage
+        "#{(value.to_d * 100).round(1)}%"
+      elsif unit.present?
+        "#{value.to_d.round(2)}#{unit}"
+      else
+        value.to_s
+      end
     end
 
     def snapshot(source:, title:, summary:, metric_name: nil, current_value: nil, baseline_value: nil, change_rate: nil, importance_score: 50, confidence: 50, url: nil, page: nil, keyword: nil, captured_at: nil)

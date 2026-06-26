@@ -42,6 +42,27 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     assert result.created.any? { |candidate| candidate.title.include?("CV導線") }
   end
 
+  test "creates engagement improvement candidates from weak GA4 engagement" do
+    create_metric_series(
+      default_clicks: 5,
+      recent_clicks: 8,
+      default_sessions: 20,
+      recent_sessions: 20,
+      default_pageviews: 50,
+      recent_pageviews: 22,
+      default_engagement_time: 180,
+      recent_engagement_time: 45,
+      recent_bounce_rate: 0.82,
+      recent_conversions: 0
+    )
+
+    result = MetricActionCandidateGenerator.new(business: @business, today: @today).call
+
+    assert result.created.any? { |candidate| candidate.metadata.fetch("metric_rule") == "engagement_time_improvement" }
+    assert result.created.any? { |candidate| candidate.metadata.fetch("metric_rule") == "engagement_navigation_improvement" }
+    assert result.created.any? { |candidate| candidate.metadata.fetch("metric_rule") == "engagement_exit_path_improvement" }
+  end
+
   test "creates revenue expansion candidate when revenue exists" do
     create_metric_series(default_clicks: 5, recent_clicks: 10)
     @business.revenue_events.create!(occurred_on: @today - 1, event_type: "revenue", amount: 10_000)
@@ -87,9 +108,17 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
 
   private
 
-  def create_metric_series(default_clicks: 0, recent_clicks: nil, default_impressions: 0, recent_impressions: nil)
+  def create_metric_series(default_clicks: 0, recent_clicks: nil, default_impressions: 0, recent_impressions: nil,
+                           default_sessions: 10, recent_sessions: nil, default_pageviews: 10, recent_pageviews: nil,
+                           default_engagement_time: 120, recent_engagement_time: nil, default_bounce_rate: 0.3,
+                           recent_bounce_rate: nil, default_conversions: 1, recent_conversions: nil)
     recent_clicks = default_clicks if recent_clicks.nil?
     recent_impressions = default_impressions if recent_impressions.nil?
+    recent_sessions = default_sessions if recent_sessions.nil?
+    recent_pageviews = default_pageviews if recent_pageviews.nil?
+    recent_engagement_time = default_engagement_time if recent_engagement_time.nil?
+    recent_bounce_rate = default_bounce_rate if recent_bounce_rate.nil?
+    recent_conversions = default_conversions if recent_conversions.nil?
 
     30.times do |offset|
       date = @today - 29 + offset
@@ -98,8 +127,12 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
         recorded_on: date,
         impressions: recent ? recent_impressions : default_impressions,
         clicks: recent ? recent_clicks : default_clicks,
-        sessions: recent ? 10 : 10,
-        pageviews: recent ? 10 : 10
+        sessions: recent ? recent_sessions : default_sessions,
+        pageviews: recent ? recent_pageviews : default_pageviews,
+        average_engagement_time_seconds: recent ? recent_engagement_time : default_engagement_time,
+        bounce_rate: recent ? recent_bounce_rate : default_bounce_rate,
+        engagement_rate: recent ? 0.3 : 0.6,
+        conversions: recent ? recent_conversions : default_conversions
       )
     end
   end

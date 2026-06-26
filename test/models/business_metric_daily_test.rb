@@ -82,4 +82,23 @@ class BusinessMetricDailyTest < ActiveSupport::TestCase
 
     assert_not metric.valid?
   end
+
+  test "calculates engagement helper metrics" do
+    metric = BusinessMetricDaily.new(
+      business: businesses(:suelog),
+      recorded_on: Date.current,
+      sessions: 100,
+      pageviews: 250,
+      average_engagement_time_seconds: 120,
+      engagement_rate: 0.6,
+      bounce_rate: 0.2,
+      conversions: 5,
+      scroll_events: 40
+    )
+
+    assert_equal 2.5.to_d, metric.views_per_session
+    assert_equal 0.05.to_d, metric.conversion_rate
+    assert_equal 0.4.to_d, metric.scroll_rate
+    assert_operator metric.engagement_score, :>, 0
+  end
 end

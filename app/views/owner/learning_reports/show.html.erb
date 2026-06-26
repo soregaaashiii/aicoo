@@ -355,6 +355,42 @@
 
   <section class="dashboard-section">
     <div class="section-heading">
+      <h2>Engagement Learning</h2>
+      <p>Taskごとに滞在・回遊・CV導線の改善傾向を確認します。</p>
+    </div>
+    <div class="metric-grid">
+      <div class="metric-card"><span>平均Engagement</span><strong><%= number_with_precision(@engagement_summary.average_engagement_score, precision: 1) %></strong></div>
+      <div class="metric-card"><span>平均滞在</span><strong><%= number_with_precision(@engagement_summary.average_engagement_time_seconds, precision: 0) %>秒</strong></div>
+      <div class="metric-card"><span>平均回遊</span><strong><%= number_with_precision(@engagement_summary.average_views_per_session, precision: 2) %></strong></div>
+      <div class="metric-card"><span>Engagement改善余地</span><strong><%= @engagement_summary.low_engagement_business_count %>件</strong></div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Business</th><th>Task</th><th>Engagement改善</th><th>回遊改善</th><th>CV改善</th><th>成功率</th><th>Sample</th></tr>
+        </thead>
+        <tbody>
+          <% @engagement_summary.task_rows.each do |row| %>
+            <tr>
+              <td><%= row["business"] %></td>
+              <td><%= row["task"] || row["type"] %></td>
+              <td class="number"><%= number_with_precision(row["average_engagement_delta"].to_d, precision: 2) %></td>
+              <td class="number"><%= number_with_precision(row["average_navigation_delta"].to_d, precision: 2) %></td>
+              <td><%= number_to_percentage(row["average_conversion_delta"].to_d * 100, precision: 1) %></td>
+              <td><%= number_to_percentage(row["success_rate"].to_d * 100, precision: 1) %></td>
+              <td class="number"><%= row["sample_count"] %></td>
+            </tr>
+          <% end %>
+          <% if @engagement_summary.task_rows.empty? %>
+            <tr><td colspan="7">Engagement改善をTask単位で学習するにはActionResultが不足しています。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
       <h2>Action Expansion Learning</h2>
       <p>Action Expansionが生成したTask単位で、採用率・完了率・成功率・ROIを確認します。</p>
     </div>

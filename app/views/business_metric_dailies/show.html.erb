@@ -21,6 +21,16 @@
     <dt><%= metric %></dt>
     <dd><%= @business_metric_daily.public_send(metric) %></dd>
   <% end %>
+  <% BusinessMetricDaily::ENGAGEMENT_FIELDS.each do |metric| %>
+    <dt><%= metric %></dt>
+    <dd><%= @business_metric_daily.public_send(metric) %></dd>
+  <% end %>
+  <dt>views_per_session</dt>
+  <dd><%= number_with_precision(@business_metric_daily.views_per_session, precision: 2) %></dd>
+  <dt>conversion_rate</dt>
+  <dd><%= number_to_percentage(@business_metric_daily.conversion_rate * 100, precision: 1) %></dd>
+  <dt>engagement_score</dt>
+  <dd><%= number_with_precision(@business_metric_daily.engagement_score, precision: 1) %></dd>
   <dt>proxy_score</dt>
   <dd><%= number_with_precision(@business_metric_daily.proxy_score, precision: 2) %></dd>
 </dl>

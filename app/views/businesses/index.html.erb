@@ -23,6 +23,7 @@
         <th>Last Sync</th>
         <th>GSC 7日 / 30日</th>
         <th>GA4 7日 / 30日</th>
+        <th>Engagement</th>
         <th>Revenue 7日 / 30日</th>
         <th>Data Source Cost</th>
         <th>Pending Actions</th>
@@ -48,6 +49,13 @@
           <td>
             sessions <%= number_with_delimiter(period_7d.ga4_sessions) %> / <%= number_with_delimiter(period_30d.ga4_sessions) %><br>
             <small>pageviews <%= number_with_delimiter(period_7d.ga4_pageviews) %> / <%= number_with_delimiter(period_30d.ga4_pageviews) %></small>
+          </td>
+          <td>
+            score <%= number_with_precision(period_30d.engagement_score, precision: 1) %><br>
+            <small>
+              滞在 <%= number_with_precision(period_30d.average_engagement_time_seconds, precision: 0) %>秒 /
+              回遊 <%= number_with_precision(period_30d.views_per_session, precision: 2) %>
+            </small>
           </td>
           <td>
             <%= number_to_currency(period_7d.revenue_yen, unit: "¥", precision: 0) %> /

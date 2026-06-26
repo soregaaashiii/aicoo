@@ -25,6 +25,8 @@
         <th>phone</th>
         <th>map</th>
         <th>affiliate</th>
+        <th>engagement</th>
+        <th>CV</th>
         <th>proxy_score</th>
         <th></th>
       </tr>
@@ -41,6 +43,19 @@
           <td class="number"><%= metric.phone_clicks %></td>
           <td class="number"><%= metric.map_clicks %></td>
           <td class="number"><%= metric.affiliate_clicks %></td>
+          <td>
+            <small>
+              time <%= metric.average_engagement_time_seconds %>秒 /
+              views/session <%= number_with_precision(metric.views_per_session, precision: 2) %><br>
+              rate <%= number_to_percentage(metric.engagement_rate.to_d * 100, precision: 1) %>
+            </small>
+          </td>
+          <td>
+            <small>
+              conv <%= metric.conversions %> /
+              CVR <%= number_to_percentage(metric.conversion_rate * 100, precision: 1) %>
+            </small>
+          </td>
           <td class="number"><%= number_with_precision(metric.proxy_score, precision: 2) %></td>
           <td>
             <%= link_to "詳細", metric %>

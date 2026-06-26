@@ -39,5 +39,31 @@ module Aicoo
       assert_operator result.evidence_score, :<, EvidenceBuilder::INSUFFICIENT_SCORE
       assert result.evidence_summary.any? { |line| line.include?("Evidence不足") } || result.missing_sources.any?
     end
+
+    test "adds ga4 engagement evidence from business metrics" do
+      business = businesses(:suelog)
+      business.business_metric_dailies.create!(
+        recorded_on: Date.current - 1,
+        sessions: 100,
+        pageviews: 300,
+        average_engagement_time_seconds: 168,
+        engagement_rate: 0.64,
+        bounce_rate: 0.28,
+        conversions: 6
+      )
+      candidate = business.action_candidates.create!(
+        title: "Engagement改善",
+        action_type: "ui_improvement",
+        generation_source: "manual",
+        immediate_value_yen: 10_000,
+        success_probability: 0.5
+      )
+
+      result = EvidenceBuilder.new(candidate).call
+
+      assert result.evidence_items.any? { |item| item["source"] == "ga4" && item["metric_name"] == "average_engagement_time_seconds" }
+      assert result.evidence_items.any? { |item| item["metric_name"].to_s.include?("engagement") || item["metric_name"] == "bounce_rate" }
+      assert result.evidence_summary.any? { |line| line.include?("average_engagement_time_seconds") || line.include?("engagement_rate") }
+    end
   end
 end

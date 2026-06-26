@@ -7,6 +7,13 @@ module Aicoo
       :gsc_ctr,
       :ga4_sessions,
       :ga4_pageviews,
+      :average_engagement_time_seconds,
+      :views_per_session,
+      :engagement_rate,
+      :bounce_rate,
+      :conversion_rate,
+      :scroll_rate,
+      :engagement_score,
       :revenue_yen,
       :pending_actions,
       :warning_count
@@ -21,6 +28,7 @@ module Aicoo
       :periods,
       :gsc_series,
       :ga4_series,
+      :engagement_series,
       :revenue_series,
       :action_series,
       :learning_series,
@@ -55,6 +63,7 @@ module Aicoo
         periods: period_summaries,
         gsc_series: metric_series(:gsc),
         ga4_series: metric_series(:ga4),
+        engagement_series: engagement_series,
         revenue_series: revenue_series,
         action_series: action_series,
         learning_series: learning_series,
@@ -80,6 +89,13 @@ module Aicoo
           gsc_ctr: ratio(clicks, impressions),
           ga4_sessions: metrics.sum(&:sessions),
           ga4_pageviews: metrics.sum(&:pageviews),
+          average_engagement_time_seconds: weighted_average(metrics, :average_engagement_time_seconds, :sessions),
+          views_per_session: ratio(metrics.sum(&:pageviews), metrics.sum(&:sessions)),
+          engagement_rate: weighted_average(metrics, :engagement_rate, :sessions),
+          bounce_rate: weighted_average(metrics, :bounce_rate, :sessions),
+          conversion_rate: ratio(metrics.sum(&:conversions), metrics.sum(&:sessions)),
+          scroll_rate: ratio(metrics.sum(&:scroll_events), metrics.sum(&:sessions)),
+          engagement_score: average(metrics.map(&:engagement_score)),
           revenue_yen: revenue_for(days),
           pending_actions: pending_actions_count,
           warning_count: health&.warning_count.to_i
@@ -100,11 +116,29 @@ module Aicoo
           {
             "sessions" => record.sessions,
             "pageviews" => record.pageviews,
-            "active_users" => nil,
-            "conversions" => nil
+            "active_users" => record.users,
+            "conversions" => record.conversions
           }
         end
         ChartPoint.new(date: record.recorded_on, values:)
+      end
+    end
+
+    def engagement_series
+      metric_records_for(DEFAULT_DAYS).map do |record|
+        ChartPoint.new(
+          date: record.recorded_on,
+          values: {
+            "average_engagement_time_seconds" => record.average_engagement_time_seconds,
+            "views_per_session" => record.views_per_session,
+            "views_per_user" => record.views_per_user,
+            "engagement_rate" => record.engagement_rate,
+            "bounce_rate" => record.bounce_rate,
+            "conversion_rate" => record.conversion_rate,
+            "scroll_rate" => record.scroll_rate,
+            "engagement_score" => record.engagement_score
+          }
+        )
       end
     end
 
@@ -167,6 +201,7 @@ module Aicoo
         ga4_connected: health&.ga4&.connected || false,
         has_gsc_data: metric_records_for(DEFAULT_DAYS).any? { |record| record.clicks.positive? || record.impressions.positive? },
         has_ga4_data: metric_records_for(DEFAULT_DAYS).any? { |record| record.sessions.positive? || record.pageviews.positive? },
+        has_engagement_data: metric_records_for(DEFAULT_DAYS).any? { |record| record.average_engagement_time_seconds.positive? || record.engagement_rate.to_d.positive? || record.conversions.positive? || record.scroll_events.positive? },
         has_revenue_data: revenue_by_date.values.any?(&:positive?),
         has_action_data: action_candidate_counts.values.any?(&:positive?),
         has_learning_data: decision_log_counts.values.any?(&:positive?) || business.business_playbook&.learned? || false
@@ -281,6 +316,20 @@ module Aicoo
       return 0.to_d if denominator.to_d.zero?
 
       numerator.to_d / denominator.to_d
+    end
+
+    def weighted_average(records, value_method, weight_method)
+      total_weight = records.sum { |record| record.public_send(weight_method).to_d }
+      return average(records.map { |record| record.public_send(value_method) }) if total_weight.zero?
+
+      records.sum { |record| record.public_send(value_method).to_d * record.public_send(weight_method).to_d } / total_weight
+    end
+
+    def average(values)
+      values = values.compact.map(&:to_d)
+      return 0.to_d if values.empty?
+
+      values.sum / values.size
     end
   end
 end

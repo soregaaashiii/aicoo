@@ -186,6 +186,9 @@ module Aicoo
     end
 
     def expansion_type
+      return "serp_internal_link" if metric_names.include?("views_per_session")
+      return "store_page_flow" if (metric_names & %w[bounce_rate conversion_rate]).any?
+      return "ctr_title_rewrite" if (metric_names & %w[average_engagement_time_seconds engagement_rate scroll_rate]).any?
       return "ctr_title_rewrite" if text.match?(/ctr|クリック|タイトル|meta|表示回数/) || metric_names.include?("impressions")
       return "serp_internal_link" if text.match?(/順位|serp|内部リンク|関連記事/) || evidence_sources.include?("serp")
       return "store_page_flow" if text.match?(/店舗|電話|地図|予約|喫煙|梅田|難波/)

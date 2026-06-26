@@ -51,6 +51,36 @@
 
   <section class="dashboard-section">
     <div class="section-heading">
+      <div>
+        <h2>Engagement Summary</h2>
+        <p>GA4の滞在・回遊・CV導線から、収益につながる読まれ方を監視します。</p>
+      </div>
+      <%= link_to "Business Analytics", businesses_path, class: "button secondary" %>
+    </div>
+
+    <div class="metric-grid">
+      <div class="metric-card"><span>平均Engagement Score</span><strong><%= number_with_precision(@engagement_summary.average_engagement_score, precision: 1) %></strong></div>
+      <div class="metric-card"><span>平均滞在</span><strong><%= number_with_precision(@engagement_summary.average_engagement_time_seconds, precision: 0) %>秒</strong></div>
+      <div class="metric-card"><span>平均回遊</span><strong><%= number_with_precision(@engagement_summary.average_views_per_session, precision: 2) %></strong></div>
+      <div class="metric-card"><span>Engagement Rate</span><strong><%= number_to_percentage(@engagement_summary.average_engagement_rate * 100, precision: 1) %></strong></div>
+      <div class="metric-card"><span>CV率</span><strong><%= number_to_percentage(@engagement_summary.average_conversion_rate * 100, precision: 1) %></strong></div>
+      <div class="metric-card"><span>改善余地Business</span><strong><%= @engagement_summary.low_engagement_business_count %>件</strong></div>
+    </div>
+
+    <div class="system-status-grid compact">
+      <% @engagement_summary.weak_businesses.first(5).each do |row| %>
+        <% status_class = row.warning.present? ? "warning" : "healthy" %>
+        <%= link_to row.business, class: "system-status-card status-#{status_class}" do %>
+          <span><%= row.business.name %></span>
+          <strong><%= number_with_precision(row.engagement_score, precision: 1) %></strong>
+          <small><%= row.warning.presence || "Engagement安定" %></small>
+        <% end %>
+      <% end %>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
       <h2>Detailed Operations</h2>
       <p>重い詳細集計は専用画面で確認します。SYSTEM MODEの初期表示では実行しません。</p>
     </div>

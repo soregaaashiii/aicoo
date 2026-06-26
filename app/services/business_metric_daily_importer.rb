@@ -10,7 +10,17 @@ class BusinessMetricDailyImporter
     phone_clicks
     map_clicks
     affiliate_clicks
+    users
+    views_per_user
+    average_engagement_time_seconds
+    engagement_rate
+    bounce_rate
+    conversions
+    event_count
+    scroll_events
+    internal_search_events
   ].freeze
+  DECIMAL_FIELDS = %i[views_per_user engagement_rate bounce_rate].freeze
 
   def self.import_all!(date:)
     Business.find_each.map { |business| new(business:, date:).call }
@@ -56,7 +66,11 @@ class BusinessMetricDailyImporter
 
   def merge_values!(target, source)
     source.each do |key, value|
-      target[key] = target[key].to_i + value.to_i
+      target[key] = if DECIMAL_FIELDS.include?(key)
+        value.to_d
+      else
+        target[key].to_i + value.to_i
+      end
     end
   end
 
@@ -70,7 +84,16 @@ class BusinessMetricDailyImporter
   def ga4_values
     {
       sessions: snapshot_metric_total("ga4", "sessions"),
-      pageviews: snapshot_metric_total("ga4", "page_views", "pageviews", "screenPageViews")
+      pageviews: snapshot_metric_total("ga4", "page_views", "pageviews", "screenPageViews", "views"),
+      users: snapshot_metric_total("ga4", "users", "activeUsers", "totalUsers"),
+      views_per_user: snapshot_metric_average("ga4", "viewsPerUser", "views_per_user"),
+      average_engagement_time_seconds: snapshot_metric_average("ga4", "averageEngagementTime", "average_engagement_time_seconds").round,
+      engagement_rate: snapshot_metric_average("ga4", "engagementRate", "engagement_rate"),
+      bounce_rate: snapshot_metric_average("ga4", "bounceRate", "bounce_rate"),
+      conversions: snapshot_metric_total("ga4", "conversions", "keyEvents"),
+      event_count: snapshot_metric_total("ga4", "eventCount", "event_count"),
+      scroll_events: snapshot_metric_total("ga4", "scroll", "scroll_events", "scrollEvents"),
+      internal_search_events: snapshot_metric_total("ga4", "internal_search", "view_search_results", "internal_search_events")
     }
   end
 
@@ -101,6 +124,24 @@ class BusinessMetricDailyImporter
         0
       end
     end
+  end
+
+  def snapshot_metric_average(source_type, *keys)
+    values = matching_snapshots(source_type).flat_map do |snapshot|
+      rows = snapshot_rows(snapshot)
+
+      if rows.any?
+        rows.filter_map { |row| row_matches_date?(row, snapshot) ? metric_from_hash_decimal(row, *keys) : nil }
+      elsif snapshot_matches_date?(snapshot)
+        [ metric_from_hash_decimal(snapshot_payload_hash(snapshot), *keys) ]
+      else
+        []
+      end
+    end.select(&:positive?)
+
+    return 0.to_d if values.empty?
+
+    values.sum.to_d / values.size
   end
 
   def snapshot_rows(snapshot)
@@ -159,6 +200,14 @@ class BusinessMetricDailyImporter
     keys.sum do |key|
       numeric(hash[key] || hash[key.to_sym] || metrics[key] || metrics[key.to_sym])
     end
+  end
+
+  def metric_from_hash_decimal(hash, *keys)
+    metrics = hash["metrics"].is_a?(Hash) ? hash["metrics"] : {}
+    keys.filter_map do |key|
+      raw = hash[key] || hash[key.to_sym] || metrics[key] || metrics[key.to_sym]
+      raw.to_d if raw.present?
+    end.first || 0.to_d
   end
 
   def numeric(value)

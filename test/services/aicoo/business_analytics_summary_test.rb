@@ -10,6 +10,15 @@ module Aicoo
         clicks: 50,
         sessions: 200,
         pageviews: 500,
+        users: 120,
+        views_per_user: 4.1,
+        average_engagement_time_seconds: 96,
+        engagement_rate: 0.62,
+        bounce_rate: 0.31,
+        conversions: 8,
+        event_count: 900,
+        scroll_events: 140,
+        internal_search_events: 3,
         affiliate_clicks: 12,
         phone_clicks: 4,
         map_clicks: 8
@@ -48,15 +57,22 @@ module Aicoo
       assert_equal 50, result.periods.fetch(7).gsc_clicks
       assert_equal 1_000, result.periods.fetch(30).gsc_impressions
       assert_equal 200, result.periods.fetch(7).ga4_sessions
+      assert_equal 96, result.periods.fetch(7).average_engagement_time_seconds
+      assert_equal 2.5.to_d, result.periods.fetch(7).views_per_session
+      assert_equal 0.04.to_d, result.periods.fetch(7).conversion_rate
       assert_equal 30_000, result.periods.fetch(30).revenue_yen
       assert_equal Date.current, result.gsc_series.last.date
       assert_equal 50, result.gsc_series.last.values["clicks"]
       assert_equal 200, result.ga4_series.last.values["sessions"]
+      assert_equal 8, result.ga4_series.last.values["conversions"]
+      assert_equal 96, result.engagement_series.last.values["average_engagement_time_seconds"]
+      assert_equal 2.5.to_d, result.engagement_series.last.values["views_per_session"]
       assert_equal 30_000, result.revenue_series.last.values["revenue_yen"]
       assert_operator result.action_series.last.values["action_candidates"], :>=, 1
       assert_equal 1, result.learning_series.last.values["decision_logs"]
       assert result.data_status[:has_gsc_data]
       assert result.data_status[:has_ga4_data]
+      assert result.data_status[:has_engagement_data]
       assert result.data_status[:has_revenue_data]
       assert result.cost_estimates.find { |estimate| estimate.source_key == "serp" }.manual?
     end
@@ -70,6 +86,7 @@ module Aicoo
       assert_equal 0, result.periods.fetch(30).revenue_yen
       assert_not result.data_status[:has_gsc_data]
       assert_not result.data_status[:has_ga4_data]
+      assert_not result.data_status[:has_engagement_data]
       assert_not result.data_status[:has_revenue_data]
     end
   end

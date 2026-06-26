@@ -27,6 +27,12 @@ class MetricActionCandidateGenerator
     phone_clicks
     map_clicks
     affiliate_clicks
+    users
+    average_engagement_time_seconds
+    conversions
+    event_count
+    scroll_events
+    internal_search_events
   ].freeze
 
   def self.generate_all!
@@ -58,6 +64,10 @@ class MetricActionCandidateGenerator
       ctr_spec,
       conversion_spec,
       internal_link_spec,
+      low_engagement_time_spec,
+      low_navigation_spec,
+      high_exit_path_spec,
+      low_scroll_spec,
       revenue_spec,
       zero_revenue_spec
     ].compact
@@ -146,6 +156,83 @@ class MetricActionCandidateGenerator
       expected_hours: 1.5,
       evaluation_reason: "直近7日のpageviewsがsessionsの1.2倍以下で、回遊余地があります。",
       execution_prompt: "#{business.name}の流入ページから関連ページ・CV導線への内部リンクを追加し、ユーザーが次に見るべきページへ移動できる構造にしてください。"
+    )
+  end
+
+  def low_engagement_time_spec
+    return unless recent7_total(:sessions).positive?
+    return unless recent7_average(:average_engagement_time_seconds) < 90
+
+    CandidateSpec.new(
+      key: "engagement_time_improvement",
+      title: "#{business.name}の滞在時間が短いページを改善する",
+      description: "GA4 Engagement上、平均滞在時間が短いため、冒頭・見出し・本文の読み進めやすさを改善します。",
+      action_type: "seo_improvement",
+      immediate_value_yen: estimate_value(22_000),
+      success_probability: 0.37,
+      strategic_value_score: 45,
+      risk_reduction_score: 25,
+      expected_hours: 1.5,
+      evaluation_reason: "直近7日の平均滞在時間が#{recent7_average(:average_engagement_time_seconds).round}秒です。",
+      execution_prompt: "#{business.name}で滞在時間が短い流入ページを確認し、冒頭文、見出し、本文の不足情報を改善してください。更新後は改善したページと変更内容をActionResultに記録してください。"
+    )
+  end
+
+  def low_navigation_spec
+    return unless recent7_total(:sessions).positive?
+    return unless recent7_views_per_session <= 1.3
+
+    CandidateSpec.new(
+      key: "engagement_navigation_improvement",
+      title: "#{business.name}の回遊率を上げる内部リンクを追加する",
+      description: "GA4 Engagement上、Views/Sessionが低いため、関連記事・近隣ページ・次アクションへの導線を追加します。",
+      action_type: "seo_improvement",
+      immediate_value_yen: estimate_value(20_000),
+      success_probability: 0.39,
+      strategic_value_score: 48,
+      risk_reduction_score: 22,
+      expected_hours: 1.5,
+      evaluation_reason: "直近7日のViews/Sessionが#{recent7_views_per_session.round(2)}です。",
+      execution_prompt: "#{business.name}で流入があるが回遊が弱いページを確認し、関連ページ・近隣ページ・CV導線への内部リンクを3〜5件追加してください。"
+    )
+  end
+
+  def high_exit_path_spec
+    return unless recent7_total(:sessions).positive?
+    return unless recent7_average_rate(:bounce_rate) >= 0.7 || recent7_conversion_rate <= 0.01
+
+    CandidateSpec.new(
+      key: "engagement_exit_path_improvement",
+      title: "#{business.name}の離脱が多いページのCTAを改善する",
+      description: "GA4 Engagement上、Bounce RateまたはCV率に課題があるため、電話・地図・予約などの次アクション導線を改善します。",
+      action_type: "ui_improvement",
+      immediate_value_yen: estimate_value(28_000),
+      success_probability: 0.36,
+      strategic_value_score: 52,
+      risk_reduction_score: 32,
+      expected_hours: 2,
+      evaluation_reason: "直近7日のBounce Rateは#{(recent7_average_rate(:bounce_rate) * 100).round(1)}%、CV率は#{(recent7_conversion_rate * 100).round(1)}%です。",
+      execution_prompt: "#{business.name}で離脱が多いページを確認し、電話・地図・予約・問い合わせなど収益に近いCTAをファーストビューと本文末に追加または改善してください。"
+    )
+  end
+
+  def low_scroll_spec
+    return unless recent7_total(:sessions).positive?
+    return unless recent7_total(:scroll_events).positive?
+    return unless recent7_scroll_rate < 0.35
+
+    CandidateSpec.new(
+      key: "engagement_scroll_improvement",
+      title: "#{business.name}のスクロール率が低いページの冒頭を改善する",
+      description: "GA4 Engagement上、Scroll Eventが少ないため、冒頭で読む理由と次の見出しまでの導線を改善します。",
+      action_type: "seo_improvement",
+      immediate_value_yen: estimate_value(16_000),
+      success_probability: 0.35,
+      strategic_value_score: 42,
+      risk_reduction_score: 25,
+      expected_hours: 1,
+      evaluation_reason: "直近7日のScroll率が#{(recent7_scroll_rate * 100).round(1)}%です。",
+      execution_prompt: "#{business.name}でスクロール率が低いページを確認し、冒頭文、目次、最初の見出し、CTA前の説明を改善して読み進めやすくしてください。"
     )
   end
 
@@ -256,6 +343,35 @@ class MetricActionCandidateGenerator
 
   def normalized_30d_total(metric)
     recent30_metrics.sum { |record| record.public_send(metric).to_i }.to_d / [ recent30_metrics.size, 1 ].max * 7
+  end
+
+  def recent7_average(metric)
+    values = recent7_metrics.filter_map { |record| record.public_send(metric).to_d if record.public_send(metric).to_d.positive? }
+    return 0.to_d if values.empty?
+
+    values.sum / values.size
+  end
+
+  def recent7_average_rate(metric)
+    recent7_average(metric)
+  end
+
+  def recent7_views_per_session
+    return 0.to_d if recent7_total(:sessions).zero?
+
+    recent7_total(:pageviews).to_d / recent7_total(:sessions).to_d
+  end
+
+  def recent7_conversion_rate
+    return 0.to_d if recent7_total(:sessions).zero?
+
+    recent7_total(:conversions).to_d / recent7_total(:sessions).to_d
+  end
+
+  def recent7_scroll_rate
+    return 0.to_d if recent7_total(:sessions).zero?
+
+    recent7_total(:scroll_events).to_d / recent7_total(:sessions).to_d
   end
 
   def recent7_cv_clicks
