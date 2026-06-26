@@ -11,9 +11,9 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Search"
     assert_includes response.body, "Notifications"
     assert_includes response.body, "Profile"
-    assert_includes response.body, "Today"
-    assert_includes response.body, "Tasks"
-    assert_includes response.body, "Opportunities"
+    assert_includes response.body, "今日"
+    assert_includes response.body, "確認タスク"
+    assert_includes response.body, "発見と検証"
     assert_includes response.body, "現在位置"
   end
 

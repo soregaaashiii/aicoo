@@ -30,16 +30,19 @@ module Owner
       assert_response :success
       assert_includes response.body, "Owner Home"
       assert_includes response.body, "次にやる1件"
-      assert_includes response.body, "Focus page execution"
+      assert_includes response.body, "/focus-pageでSEOタイトル改訂を行う"
       assert_includes response.body, "実行開始"
-      assert_includes response.body, "Execution Guide"
+      assert_includes response.body, "なぜやるか"
+      assert_includes response.body, "何をするか"
       assert_includes response.body, "SEOタイトル改訂"
       assert_includes response.body, "/focus-page"
+      assert_includes response.body, "完了条件"
+      assert_includes response.body, "Codex用の依頼文を作る"
       assert_includes response.body, "今日の処理状況"
-      assert_includes response.body, "Execution Ready"
-      assert_includes response.body, "Result Registration"
-      assert_includes response.body, "Calibration Pending"
-      assert_includes response.body, "Explore Review"
+      assert_includes response.body, "実行待ち"
+      assert_includes response.body, "結果登録待ち"
+      assert_includes response.body, "評価式承認待ち"
+      assert_includes response.body, "探索確認待ち"
       assert_includes response.body, "今日のDecision Log"
       assert_includes response.body, "重大な連携Warning"
       assert_includes response.body, "システム状態"
@@ -84,16 +87,15 @@ module Owner
       assert_response :success
       assert_includes response.body, "Focus pending opportunity"
       assert_includes response.body, "¥120,000"
-      assert_includes response.body, "信頼度"
-      assert_includes response.body, "lp_test"
-      assert_includes response.body, "google_trends"
-      assert_includes response.body, "Approve"
-      assert_includes response.body, "Reject"
-      assert_includes response.body, "Convert to ActionCandidate"
+      assert_includes response.body, "成功率"
+      assert_includes response.body, "低コストLPで検証できる"
+      assert_includes response.body, "承認"
+      assert_includes response.body, "却下"
+      assert_includes response.body, "実行候補にする"
       assert_includes response.body, focus_approve_owner_opportunity_path(opportunity)
       assert_includes response.body, focus_reject_owner_opportunity_path(opportunity)
       assert_includes response.body, focus_convert_to_candidate_owner_opportunity_path(opportunity)
-      assert_includes response.body, "Pending Opportunities"
+      assert_includes response.body, "機会確認待ち"
     end
 
     test "shows codex prompt draft task when approved candidate has no draft" do
@@ -117,7 +119,7 @@ module Owner
 
       assert_response :success
       assert_includes response.body, "Codex prompt focus candidate"
-      assert_includes response.body, "Codex Promptを生成"
+      assert_includes response.body, "Codex用依頼文を生成"
       assert_includes response.body, generate_codex_prompt_draft_action_candidate_path(candidate)
     end
 

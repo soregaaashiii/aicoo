@@ -9,6 +9,12 @@ module Owner
       @owner_decision_summary = Aicoo::OwnerDecisionSummary.new.call
       @top_task_evidence = evidence_for_top_task
       @top_task_expansion = expansion_for_top_task
+      @top_task_action_candidate = top_task_action_candidate
+      @ceo_summary = Aicoo::CeoSummaryBuilder.new(
+        task: @top_task,
+        action_candidate: @top_task_action_candidate,
+        opportunity: @opportunity_focus_item&.opportunity
+      ).call
       @business_integration_health = Aicoo::BusinessIntegrationHealth.new.call
       @owner_home_summary = Aicoo::OwnerHomeSummary.new(
         owner_focus_home: @owner_focus_home,

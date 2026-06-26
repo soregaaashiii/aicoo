@@ -28,15 +28,15 @@ module AicooNavigationHelper
 
     case path
     when %r{\A/owner/focus\z}, %r{\A/owner\z}, %r{\A/owner/dashboard\z}
-      "Today"
+      "今日やること"
     when %r{\A/owner/tasks}
-      "Tasks"
+      "確認タスク"
     when %r{\A/owner/opportunities}, %r{\A/owner/explore}
-      "Opportunities"
+      "発見と検証"
     when %r{\A/owner/learning_report}
-      "Learning"
+      "学習状態"
     when %r{\A/owner/discovery_report}
-      "Explore"
+      "発見源"
     when %r{\A/owner/codex_prompt_drafts}
       "Codex Prompts"
     when %r{\A/dashboard}
@@ -82,13 +82,13 @@ module AicooNavigationHelper
 
   def aicoo_ceo_sidebar_items
     [
-      { label: "Today", description: "次にやる1件", path: owner_focus_path },
-      { label: "Tasks", description: "承認・警告・復旧", path: owner_tasks_path },
-      { label: "Dashboard", description: "経営サマリー", path: owner_dashboard_path },
-      { label: "Opportunities", description: "発見と検証", path: owner_opportunities_path },
-      { label: "Learning", description: "学習状態", path: owner_learning_report_path },
-      { label: "Explore", description: "発見源レポート", path: owner_discovery_report_path },
-      { label: "Settings", description: "方針と安全設定", path: aicoo_setting_path }
+      { label: "今日", description: "次にやる1件", path: owner_focus_path },
+      { label: "確認タスク", description: "承認・警告・復旧", path: owner_tasks_path },
+      { label: "経営サマリー", description: "全体状況", path: owner_dashboard_path },
+      { label: "発見と検証", description: "事業機会", path: owner_opportunities_path },
+      { label: "学習状態", description: "判断の改善", path: owner_learning_report_path },
+      { label: "発見源", description: "どこから見つかったか", path: owner_discovery_report_path },
+      { label: "設定", description: "方針と安全設定", path: aicoo_setting_path }
     ]
   end
 
