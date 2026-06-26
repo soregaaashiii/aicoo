@@ -57,5 +57,54 @@ module Aicoo
       assert_equal "low", CodexPromptDraftBuilder.new(low).call.risk_level
       assert_equal "high", CodexPromptDraftBuilder.new(high).call.risk_level
     end
+
+    test "includes action expansion execution guide" do
+      candidate = ActionCandidate.create!(
+        business: businesses(:suelog),
+        title: "とり友 梅田 の順位改善",
+        action_type: "seo_improvement",
+        status: "approved",
+        immediate_value_yen: 10_000,
+        success_probability: 0.8,
+        execution_prompt: "順位改善してください。",
+        metadata: {
+          "evidence" => {
+            "score" => "82",
+            "warning" => false,
+            "items" => [
+              {
+                "source" => "gsc",
+                "metric_name" => "impressions",
+                "current_value" => "1200",
+                "confidence" => "82",
+                "page" => "/umeda/toritomo",
+                "keyword" => "とり友 梅田 喫煙"
+              }
+            ]
+          }
+        }
+      )
+      candidate.update_columns(
+        metadata: candidate.metadata.merge(
+          "action_expansion" => {
+            "expanded" => true,
+            "target" => "/umeda/toritomo",
+            "target_url" => "/umeda/toritomo",
+            "target_keyword" => "とり友 梅田 喫煙",
+            "expected_minutes" => 35,
+            "execution_steps" => [ "対象ページを開く", "SEOタイトルを改訂する" ],
+            "completion_criteria" => [ "対象KWが記録されている", "タイトルが改訂されている" ],
+            "warning" => false
+          }
+        )
+      )
+
+      draft = CodexPromptDraftBuilder.new(candidate).call
+
+      assert_includes draft.prompt_body, "Execution Guide"
+      assert_includes draft.prompt_body, "実行手順"
+      assert_includes draft.prompt_body, "完了条件"
+      assert_equal true, draft.metadata.dig("action_expansion", "expanded")
+    end
   end
 end

@@ -65,6 +65,18 @@
               </ul>
             </div>
           <% end %>
+          <% if @top_task_expansion.present? %>
+            <div class="aicoo-card aicoo-card-compact">
+              <h3>Execution Guide</h3>
+              <% if @top_task_expansion["warning"] %>
+                <p><%= @top_task_expansion["warning_reason"] %></p>
+              <% else %>
+                <p><strong>何をやる:</strong> <%= Array(@top_task_expansion["recommended_tasks"]).first || @top_task_expansion["expansion_type"] %></p>
+                <p><strong>どこを触る:</strong> <%= @top_task_expansion["target"].presence || "対象未特定" %></p>
+                <p><strong>完了条件:</strong> <%= Array(@top_task_expansion["completion_criteria"]).first(2).join(" / ") %></p>
+              <% end %>
+            </div>
+          <% end %>
 
           <div class="actions compact-actions">
             <% task.quick_actions.each do |action| %>

@@ -53,5 +53,30 @@ module Aicoo
       assert result.practicality_warning
       assert_includes result.missing_items, "対象が特定されていません"
     end
+
+    test "uses action expansion to improve specificity" do
+      candidate = ActionCandidate.new(
+        business: businesses(:suelog),
+        title: "順位改善",
+        action_type: "seo_improvement",
+        expected_hours: 1,
+        metadata: {
+          "evidence" => { "score" => "80", "warning" => false },
+          "action_expansion" => {
+            "expanded" => true,
+            "target_url" => "/umeda/toritomo",
+            "target_keyword" => "とり友 梅田 喫煙",
+            "recommended_tasks" => [ "SEOタイトル改訂" ],
+            "execution_steps" => [ "対象ページを開く", "SEOタイトルを改訂する" ],
+            "completion_criteria" => [ "タイトルが改訂されている" ]
+          }
+        }
+      )
+
+      result = PracticalityScorer.new(candidate).call
+
+      assert_operator result.subscores.fetch(:target_clarity_score), :>=, 45
+      assert_operator result.subscores.fetch(:action_clarity_score), :>=, 45
+    end
   end
 end

@@ -12,6 +12,17 @@ module Owner
         success_probability: 1,
         expected_hours: 1
       )
+      candidate.update_columns(
+        metadata: candidate.metadata.merge(
+          "action_expansion" => {
+            "expanded" => true,
+            "recommended_tasks" => [ "SEOタイトル改訂" ],
+            "target" => "/focus-page",
+            "completion_criteria" => [ "タイトルが改訂されている", "ActionResult登録用メモがある" ],
+            "warning" => false
+          }
+        )
+      )
       candidate.create_action_execution!(status: "ready", execution_type: "manual")
 
       get owner_focus_url
@@ -21,6 +32,9 @@ module Owner
       assert_includes response.body, "次にやる1件"
       assert_includes response.body, "Focus page execution"
       assert_includes response.body, "実行開始"
+      assert_includes response.body, "Execution Guide"
+      assert_includes response.body, "SEOタイトル改訂"
+      assert_includes response.body, "/focus-page"
       assert_includes response.body, "今日の処理状況"
       assert_includes response.body, "Execution Ready"
       assert_includes response.body, "Result Registration"

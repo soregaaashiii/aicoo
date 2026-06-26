@@ -158,6 +158,7 @@ class ActionCandidate < ApplicationRecord
     self.expected_total_value_yen = expected_revenue_value_yen.to_i + expected_learning_value_yen.to_i
     apply_meta_evaluation
     apply_evidence
+    apply_action_expansion
     apply_strategic_learning
     apply_practicality_filter
     apply_business_playbook
@@ -223,6 +224,11 @@ class ActionCandidate < ApplicationRecord
   def apply_evidence
     result = Aicoo::EvidenceBuilder.new(self).call
     self.metadata = metadata.to_h.merge("evidence" => result.metadata)
+  end
+
+  def apply_action_expansion
+    result = Aicoo::ActionExpansionEngine.new(self).call
+    self.metadata = metadata.to_h.merge("action_expansion" => result.metadata)
   end
 
   def apply_strategic_learning

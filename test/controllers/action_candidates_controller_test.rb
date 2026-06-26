@@ -117,6 +117,7 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.body, "提案理由"
     assert_includes response.body, "Evidence Summary"
+    assert_includes response.body, "Execution Guide"
     assert_includes response.body, "提案と実行の差分"
     assert_includes response.body, "Practicality"
     assert_includes response.body, "実行可能性"

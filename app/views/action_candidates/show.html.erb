@@ -97,6 +97,43 @@
 
 <section class="dashboard-section">
   <div class="section-heading">
+    <h2>Execution Guide</h2>
+    <p>抽象的な提案を、今日そのまま実行できる手順に展開します。</p>
+  </div>
+  <% expansion = @action_candidate.metadata.to_h.fetch("action_expansion", {}) %>
+  <div class="metric-grid">
+    <div class="metric-card"><span>状態</span><strong><%= expansion["expanded"] ? "具体化済み" : "具体化不足" %></strong></div>
+    <div class="metric-card"><span>対象</span><strong><%= expansion["target"].presence || "未特定" %></strong></div>
+    <div class="metric-card"><span>対象KW</span><strong><%= expansion["target_keyword"].presence || "未特定" %></strong></div>
+    <div class="metric-card"><span>所要時間</span><strong><%= expansion["expected_minutes"].present? ? "#{expansion["expected_minutes"]}分" : "未算出" %></strong></div>
+    <div class="metric-card"><span>信頼度</span><strong><%= expansion["confidence"].present? ? number_with_precision(expansion["confidence"].to_d, precision: 1) : "未評価" %></strong></div>
+  </div>
+  <div class="aicoo-card aicoo-card-compact">
+    <% if expansion["warning"] %>
+      <strong>Warning</strong>
+      <p><%= expansion["warning_reason"].presence || "具体化に必要な根拠が不足しています。" %></p>
+      <% if expansion["missing_data_sources"].present? %>
+        <p><strong>不足データ:</strong> <%= expansion["missing_data_sources"].join(", ") %></p>
+      <% end %>
+    <% else %>
+      <h3>実行手順</h3>
+      <ol class="compact-list">
+        <% Array(expansion["execution_steps"]).each do |step| %>
+          <li><%= step %></li>
+        <% end %>
+      </ol>
+      <h3>完了条件</h3>
+      <ul class="compact-list">
+        <% Array(expansion["completion_criteria"]).each do |criterion| %>
+          <li><%= criterion %></li>
+        <% end %>
+      </ul>
+    <% end %>
+  </div>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
     <h2>Business Playbook</h2>
     <p>このBusinessでの過去実績から、弱めに補正した結果です。</p>
   </div>

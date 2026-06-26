@@ -107,6 +107,9 @@ module Aicoo
         実装してほしいこと:
         #{action_candidate.execution_prompt.presence || action_candidate.description.presence || action_candidate.title}
 
+        Execution Guide:
+        #{execution_guide_text}
+
         変更範囲:
         - 対象ActionCandidateに必要な最小範囲に留める
         - 関連しないリファクタリングはしない
@@ -146,8 +149,31 @@ module Aicoo
         "generation_source" => action_candidate.generation_source,
         "final_score" => action_candidate.final_score&.to_s,
         "expected_value_yen" => expected_value_yen,
+        "action_expansion" => action_expansion,
         "project_configured" => project_key.present? && local_project_path.present?
       }
+    end
+
+    def execution_guide_text
+      expansion = action_expansion
+      return "Action Expansion未生成、またはEvidence不足のため具体手順はありません。" if expansion.blank? || expansion["warning"]
+
+      <<~TEXT.strip
+        対象: #{expansion["target"].presence || "未特定"}
+        対象URL: #{expansion["target_url"].presence || "未特定"}
+        対象KW: #{expansion["target_keyword"].presence || "未特定"}
+        所要時間: #{expansion["expected_minutes"].presence || "未算出"}分
+
+        実行手順:
+        #{Array(expansion["execution_steps"]).each_with_index.map { |step, index| "#{index + 1}. #{step}" }.join("\n")}
+
+        完了条件:
+        #{Array(expansion["completion_criteria"]).map { |criterion| "- #{criterion}" }.join("\n")}
+      TEXT
+    end
+
+    def action_expansion
+      action_candidate.metadata.to_h["action_expansion"].to_h
     end
   end
 end

@@ -64,7 +64,8 @@ module Aicoo
         value_for(:description),
         value_for(:summary),
         value_for(:execution_prompt),
-        value_for(:evaluation_reason)
+        value_for(:evaluation_reason),
+        action_expansion_text
       ].compact.join(" ").downcase
     end
 
@@ -165,6 +166,21 @@ module Aicoo
       return subject.metadata.to_h[attribute.to_s] if subject.respond_to?(:metadata)
 
       nil
+    end
+
+    def action_expansion_text
+      return unless subject.respond_to?(:metadata)
+
+      expansion = subject.metadata.to_h["action_expansion"].to_h
+      [
+        expansion["target"],
+        expansion["target_url"],
+        expansion["target_keyword"],
+        expansion["target_area"],
+        expansion["recommended_tasks"],
+        expansion["execution_steps"],
+        expansion["completion_criteria"]
+      ].flatten.compact.join(" ")
     end
 
     def evidence_insufficient?

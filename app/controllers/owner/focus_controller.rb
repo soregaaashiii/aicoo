@@ -8,6 +8,7 @@ module Owner
       @owner_execution_queue_summary = Aicoo::OwnerExecutionQueueSummary.new.call
       @owner_decision_summary = Aicoo::OwnerDecisionSummary.new.call
       @top_task_evidence = evidence_for_top_task
+      @top_task_expansion = expansion_for_top_task
       @business_integration_health = Aicoo::BusinessIntegrationHealth.new.call
       @owner_home_summary = Aicoo::OwnerHomeSummary.new(
         owner_focus_home: @owner_focus_home,
@@ -27,10 +28,24 @@ module Owner
 
     def evidence_for_top_task
       return @opportunity_focus_item.opportunity.metadata.to_h["evidence"] if @opportunity_focus_item
-      return unless @top_task&.target_path.to_s.match?(%r{/action_candidates/\d+})
 
-      id = @top_task.target_path.to_s.split("/").last
-      ActionCandidate.find_by(id:)&.metadata.to_h["evidence"]
+      top_task_action_candidate&.metadata.to_h["evidence"]
+    end
+
+    def expansion_for_top_task
+      top_task_action_candidate&.metadata.to_h["action_expansion"]
+    end
+
+    def top_task_action_candidate
+      return unless @top_task
+
+      if @top_task.target_path.to_s.match?(%r{/action_candidates/\d+})
+        id = @top_task.target_path.to_s.split("/").last
+        ActionCandidate.find_by(id:)
+      elsif @top_task.target_path.to_s.match?(%r{/action_executions/\d+})
+        id = @top_task.target_path.to_s.split("/").last
+        ActionExecution.find_by(id:)&.action_candidate
+      end
     end
   end
 end
