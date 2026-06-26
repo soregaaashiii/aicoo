@@ -12,6 +12,67 @@
              actions: header_actions %>
   <%= render "shared/aicoo_execution_tabs", active: :dashboard %>
 
+  <section class="dashboard-section" id="global-data-source-settings">
+    <div class="section-heading">
+      <div>
+        <h2>AICOO全体設定センター</h2>
+        <p>共通API/OAuth、実行モード、予算、接続状態を管理します。BusinessごとのPropertyやAccountは各Business編集画面で紐付けます。</p>
+      </div>
+    </div>
+
+    <% @data_source_settings_presenter.global_statuses_by_section.each do |section, statuses| %>
+      <div class="aicoo-card aicoo-card-compact">
+        <h3><%= @data_source_settings_presenter.section_label(section) %></h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Data Source</th>
+                <th>状態</th>
+                <th>Global default</th>
+                <th>Execution</th>
+                <th>Budget / Usage</th>
+                <th>Last Sync</th>
+                <th>必要な共通情報</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% statuses.each do |status| %>
+                <tr>
+                  <td>
+                    <strong><%= status.name %></strong><br>
+                    <% if status.manual_paid %>
+                      <span class="pill cost-level-high">🔴 有料Manual</span>
+                    <% end %>
+                  </td>
+                  <td><span class="pill status-<%= status.status_level %>"><%= status.status_label %></span></td>
+                  <td><%= status.global_default_available ? "利用可能" : "未設定" %></td>
+                  <td><span class="pill cost-level-<%= status.execution_mode %>"><%= status.execution_mode %></span></td>
+                  <td>
+                    <%= number_to_currency(status.monthly_budget_yen, unit: "¥", precision: 0) %> /
+                    使用 <%= number_to_currency(status.monthly_spend_yen, unit: "¥", precision: 0) %><br>
+                    <small>今月 <%= status.monthly_run_count %>回</small>
+                  </td>
+                  <td><%= status.last_sync_at ? l(status.last_sync_at, format: :short) : "未同期" %></td>
+                  <td>
+                    <% if status.credential_labels.any? %>
+                      <%= status.credential_labels.join(", ") %><br>
+                      <small>設定済み: <%= status.configured_credential_labels.presence&.join(", ") || "なし" %></small>
+                    <% else %>
+                      共通認証不要
+                    <% end %>
+                  </td>
+                  <td><button type="button" class="button secondary" disabled>Test connection</button></td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    <% end %>
+  </section>
+
   <section class="dashboard-section" id="data-source-costs">
     <div class="aicoo-card">
       <h2>Data Source Cost Engine</h2>

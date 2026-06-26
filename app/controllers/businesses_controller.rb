@@ -5,6 +5,7 @@ class BusinessesController < ApplicationController
   def index
     @businesses = Business.includes(:business_execution_profile).order(:name)
     @business_integration_health = Aicoo::BusinessIntegrationHealth.new.call
+    @data_source_settings_presenter = Aicoo::DataSourceSettingsPresenter.new
     @business_analytics_summaries = Aicoo::BusinessAnalyticsSummary.for_businesses(
       @businesses,
       health_result: @business_integration_health
@@ -20,6 +21,8 @@ class BusinessesController < ApplicationController
     @business_playbook = @business.business_playbook
     @integration_health = Aicoo::BusinessIntegrationHealth.new.call.business_healths.find { |row| row.business == @business }
     @business_analytics_summary = Aicoo::BusinessAnalyticsSummary.new(@business, health: @integration_health).call
+    @data_source_settings_presenter = Aicoo::DataSourceSettingsPresenter.new
+    @business_data_source_statuses = @data_source_settings_presenter.business_statuses(@business)
     load_data_source_settings_context
   end
 
@@ -64,24 +67,28 @@ class BusinessesController < ApplicationController
     end
   end
 
-  def update_data_source_settings
-    DataSourceCostProfile.ensure_defaults!
+    def update_data_source_settings
+      DataSourceCostProfile.ensure_defaults!
 
-    business_data_source_setting_params.each do |source_key, attributes|
-      setting = BusinessDataSourceSetting.find_or_initialize_by(business: @business, source_key:)
-      connection_fields = setting.connection_field_values.merge(attributes[:connection_fields].to_h)
-      setting.assign_attributes(
-        enabled: ActiveModel::Type::Boolean.new.cast(attributes[:enabled]),
-        connection_status: attributes[:connection_status],
+      business_data_source_setting_params.each do |source_key, attributes|
+        setting = BusinessDataSourceSetting.find_or_initialize_by(business: @business, source_key:)
+        connection_fields = setting.connection_field_values.merge(attributes[:connection_fields].to_h)
+        source_binding = setting.metadata.to_h.fetch("source_binding", {}).merge(attributes[:source_binding].to_h)
+        setting.assign_attributes(
+          enabled: ActiveModel::Type::Boolean.new.cast(attributes[:enabled]),
+          connection_status: attributes[:connection_status],
         external_account_id: attributes[:external_account_id],
         property_identifier: attributes[:property_identifier],
-        endpoint_url: attributes[:endpoint_url],
-        credential_reference: attributes[:credential_reference],
-        notes: attributes[:notes],
-        metadata: setting.metadata.merge("connection_fields" => connection_fields)
-      )
-      setting.save!
-    end
+          endpoint_url: attributes[:endpoint_url],
+          credential_reference: attributes[:credential_reference],
+          notes: attributes[:notes],
+          metadata: setting.metadata.merge(
+            "connection_fields" => connection_fields,
+            "source_binding" => source_binding
+          )
+        )
+        setting.save!
+      end
 
     redirect_to edit_business_path(@business, anchor: "data-source-link-settings"),
                 notice: "Data Source紐付け設定を保存しました。"
@@ -143,6 +150,7 @@ class BusinessesController < ApplicationController
       DataSourceCostProfile.ensure_defaults!
       @data_source_cost_profiles = DataSourceCostProfile.ordered
       @business_data_source_settings_by_key = @business.business_data_source_settings.index_by(&:source_key)
+      @data_source_settings_presenter = Aicoo::DataSourceSettingsPresenter.new(profiles: @data_source_cost_profiles, settings: @business.business_data_source_settings)
     end
 
     def business_data_source_setting_params

@@ -12,6 +12,7 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Last Sync"
     assert_includes response.body, "GSC 7日 / 30日"
     assert_includes response.body, "GA4 7日 / 30日"
+    assert_includes response.body, "接続状態"
     assert_includes response.body, "Revenue 7日 / 30日"
     assert_includes response.body, "Data Source Cost"
     assert_includes response.body, "Pending Actions"
@@ -20,6 +21,7 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Execution Profile"
     assert_includes response.body, "missing"
     assert_includes response.body, "Profile作成"
+    assert_includes response.body, "CODEX"
   end
 
   test "index shows execution profile coverage status" do
@@ -75,6 +77,7 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes response.body, "Business Analytics Dashboard"
+    assert_includes response.body, "Connection Status"
     assert_includes response.body, "GSCグラフ"
     assert_includes response.body, "GA4グラフ"
     assert_includes response.body, "Revenueグラフ"
@@ -110,17 +113,23 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "予想コスト"
     assert_includes response.body, "未紐付け"
     assert_includes response.body, "Data Source紐付けを編集"
+    assert_includes response.body, "紐付け設定"
+    assert_includes response.body, "CODEX"
   end
 
   test "should get edit" do
     get edit_business_url(@business)
     assert_response :success
     assert_includes response.body, "Data Source紐付け詳細"
-    assert_includes response.body, "利用 / Analysis"
+    assert_includes response.body, "AICOO全体設定を使う"
+    assert_includes response.body, "Execution mode override"
+    assert_includes response.body, "Budget override"
     assert_includes response.body, "Property / Target"
     assert_includes response.body, "Credential参照"
     assert_includes response.body, "GSC site_url"
     assert_includes response.body, "customer_id"
+    assert_includes response.body, "Test connection"
+    assert_includes response.body, "CODEX"
   end
 
   test "updates business data source connection settings" do
@@ -136,6 +145,7 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
           endpoint_url: "https://analytics.google.com/",
           credential_reference: "AICOO共通Google認証",
           connection_fields: { property_id: "properties/536889590" },
+          source_binding: { use_global: "0", execution_mode: "smart", monthly_budget_yen: "1200" },
           notes: "GA4 production"
         }
       }
@@ -147,6 +157,9 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "linked", setting.connection_status
     assert_equal "properties/536889590", setting.property_identifier
     assert_equal "properties/536889590", setting.connection_field_value("property_id")
+    assert_equal "0", setting.metadata.dig("source_binding", "use_global")
+    assert_equal "smart", setting.metadata.dig("source_binding", "execution_mode")
+    assert_equal "1200", setting.metadata.dig("source_binding", "monthly_budget_yen")
     assert_equal "AICOO共通Google認証", setting.credential_reference
     assert setting.last_connected_at.present?
   end

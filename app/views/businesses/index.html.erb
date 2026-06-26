@@ -23,6 +23,7 @@
         <th>Last Sync</th>
         <th>GSC 7日 / 30日</th>
         <th>GA4 7日 / 30日</th>
+        <th>接続状態</th>
         <th>Engagement</th>
         <th>Revenue 7日 / 30日</th>
         <th>Data Source Cost</th>
@@ -49,6 +50,13 @@
           <td>
             sessions <%= number_with_delimiter(period_7d.ga4_sessions) %> / <%= number_with_delimiter(period_30d.ga4_sessions) %><br>
             <small>pageviews <%= number_with_delimiter(period_7d.ga4_pageviews) %> / <%= number_with_delimiter(period_30d.ga4_pageviews) %></small>
+          </td>
+          <td>
+            <% @data_source_settings_presenter.business_statuses(business, source_keys: %w[gsc ga4 serp x]).each do |status| %>
+              <span class="pill status-<%= status.status_level %>"><%= status.source_key.upcase %> <%= status.status_label %></span><br>
+            <% end %>
+            <% codex_status = @data_source_settings_presenter.codex_status(business) %>
+            <span class="pill status-<%= codex_status.status_level %>">CODEX <%= codex_status.status_label %></span>
           </td>
           <td>
             score <%= number_with_precision(period_30d.engagement_score, precision: 1) %><br>

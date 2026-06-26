@@ -17,9 +17,26 @@
     <div class="section-heading">
       <div>
         <h2>Data Source紐付け詳細</h2>
-        <p>このBusinessで使う分析ツールとAnalysis Sourceを設定します。API KeyはAICOO設定側、ここではBusiness固有のProperty・URL・認証参照を管理します。利用ON/OFFは今日回す分析候補にも反映されます。</p>
+        <p>このBusinessがどのProperty / Account / Keyword / Handleを使うかを管理します。API KeyやOAuthはAICOO全体設定、ここでは事業固有の紐付けを設定します。</p>
       </div>
       <%= link_to "全体Data Source設定", aicoo_setting_path(anchor: "data-source-costs"), class: "button secondary" %>
+    </div>
+
+    <% business_statuses = @data_source_settings_presenter.business_statuses(@business) %>
+    <div class="metric-grid aicoo-owner-secondary">
+      <% business_statuses.each do |status| %>
+        <div class="metric-card">
+          <span><%= status.source_key.upcase %></span>
+          <strong><%= status.status_label %></strong>
+          <small><%= status.connection_summary %></small>
+        </div>
+      <% end %>
+      <% codex_status = @data_source_settings_presenter.codex_status(@business) %>
+      <div class="metric-card">
+        <span>CODEX</span>
+        <strong><%= codex_status.status_label %></strong>
+        <small><%= codex_status.summary %></small>
+      </div>
     </div>
 
     <%= form_with url: update_data_source_settings_business_path(@business), method: :patch, class: "aicoo-form" do %>
@@ -28,7 +45,10 @@
           <thead>
             <tr>
               <th>Data Source</th>
-              <th>利用 / Analysis</th>
+              <th>状態</th>
+              <th>利用</th>
+              <th>全体/個別</th>
+              <th>実行/予算Override</th>
               <th>紐付け状態</th>
               <th>Property / Target</th>
               <th>Account / 外部ID</th>
@@ -36,19 +56,55 @@
               <th>Credential参照</th>
               <th>サービス別設定</th>
               <th>メモ</th>
+              <th>操作</th>
             </tr>
           </thead>
           <tbody>
             <% @data_source_cost_profiles.each do |profile| %>
               <% setting = @business_data_source_settings_by_key[profile.source_key] || BusinessDataSourceSetting.new(business: @business, source_key: profile.source_key) %>
+              <% source_binding = setting.metadata.to_h.fetch("source_binding", {}) %>
+              <% use_global = ActiveModel::Type::Boolean.new.cast(source_binding.fetch("use_global", true)) %>
+              <% status = @data_source_settings_presenter.business_status(@business, profile.source_key) %>
               <tr>
                 <td>
                   <strong><%= profile.name %></strong><br>
                   <span class="pill cost-level-<%= profile.cost_level %>"><%= profile.execution_mode %></span>
+                  <% if status&.manual_paid %>
+                    <br><span class="pill cost-level-high">🔴 有料Manual</span>
+                  <% end %>
+                </td>
+                <td>
+                  <span class="pill status-<%= status.status_level %>"><%= status.status_label %></span><br>
+                  <% if status.warning.present? %>
+                    <small><%= status.warning %></small>
+                  <% else %>
+                    <small><%= status.uses_global ? "AICOO全体設定を利用" : "Business個別設定" %></small>
+                  <% end %>
                 </td>
                 <td>
                   <%= hidden_field_tag "business_data_source_settings[#{profile.source_key}][enabled]", "0" %>
                   <%= check_box_tag "business_data_source_settings[#{profile.source_key}][enabled]", "1", setting.enabled? %>
+                </td>
+                <td>
+                  <label>
+                    <%= hidden_field_tag "business_data_source_settings[#{profile.source_key}][source_binding][use_global]", "0" %>
+                    <%= check_box_tag "business_data_source_settings[#{profile.source_key}][source_binding][use_global]", "1", use_global %>
+                    AICOO全体設定を使う
+                  </label>
+                </td>
+                <td>
+                  <div class="field compact-field">
+                    <label>Execution mode override</label>
+                    <%= select_tag "business_data_source_settings[#{profile.source_key}][source_binding][execution_mode]",
+                                   options_for_select([["全体設定", ""]] + DataSourceCostProfile::EXECUTION_MODES.map { |mode| [mode, mode] }, source_binding["execution_mode"]) %>
+                  </div>
+                  <div class="field compact-field">
+                    <label>Budget override</label>
+                    <%= number_field_tag "business_data_source_settings[#{profile.source_key}][source_binding][monthly_budget_yen]",
+                                         source_binding["monthly_budget_yen"],
+                                         min: 0,
+                                         placeholder: profile.monthly_budget_yen %>
+                  </div>
                 </td>
                 <td>
                   <%= select_tag "business_data_source_settings[#{profile.source_key}][connection_status]",
@@ -92,6 +148,7 @@
                                      setting.notes,
                                      placeholder: "補足" %>
                 </td>
+                <td><button type="button" class="button secondary" disabled>Test connection</button></td>
               </tr>
             <% end %>
           </tbody>

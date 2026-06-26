@@ -89,6 +89,36 @@
     </div>
   <% end %>
 
+  <div class="aicoo-card aicoo-card-compact">
+    <div class="section-heading">
+      <div>
+        <h3>Connection Status</h3>
+        <p>このBusinessが使う分析ツールの紐付け状態です。</p>
+      </div>
+      <%= link_to "紐付け設定", edit_business_path(@business, anchor: "data-source-link-settings"), class: "button secondary" %>
+    </div>
+    <div class="metric-grid aicoo-owner-secondary">
+      <% @business_data_source_statuses.each do |status| %>
+        <div class="metric-card">
+          <span><%= status.source_key.upcase %></span>
+          <strong><%= status.status_label %></strong>
+          <small>
+            <%= status.connection_summary %>
+            <% if status.last_sync_at %>
+              / 最終 <%= l(status.last_sync_at, format: :short) %>
+            <% end %>
+          </small>
+        </div>
+      <% end %>
+      <% codex_status = @data_source_settings_presenter.codex_status(@business) %>
+      <div class="metric-card">
+        <span>CODEX</span>
+        <strong><%= codex_status.status_label %></strong>
+        <small><%= codex_status.summary %></small>
+      </div>
+    </div>
+  </div>
+
   <div class="business-analytics-status-grid">
     <div class="aicoo-card aicoo-card-compact">
       <h3>GSC</h3>
