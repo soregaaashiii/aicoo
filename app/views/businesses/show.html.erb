@@ -104,6 +104,32 @@
     </div>
   </div>
 
+  <div class="section-heading">
+    <h2>Data Source Cost</h2>
+    <p>分析できるかではなく、分析する価値があるかを確認します。</p>
+  </div>
+  <div class="business-analytics-status-grid">
+    <% analytics.cost_estimates.select { |estimate| %w[gsc ga4 serp explore x youtube openai].include?(estimate.source_key) }.each do |estimate| %>
+      <div class="aicoo-card aicoo-card-compact">
+        <h3><%= estimate.name %></h3>
+        <p>
+          <span class="pill cost-level-<%= estimate.cost_level %>"><%= estimate.execution_mode %></span>
+          <span class="pill status-<%= estimate.connection_status_level %>"><%= estimate.connection_label || "未紐付け" %></span>
+          <%= estimate.business_enabled ? "利用ON" : "BusinessでOFF" %>
+        </p>
+        <small>
+          予想コスト <%= number_to_currency(estimate.estimated_cost_yen, unit: "¥", precision: 0) %> /
+          期待利益 <%= number_to_currency(estimate.expected_profit_yen, unit: "¥", precision: 0) %> /
+          ROI <%= estimate.roi ? number_with_precision(estimate.roi, precision: 1) : "無料/未計算" %><br>
+          接続先: <%= estimate.connection_summary || "詳細未設定" %>
+        </small>
+      </div>
+    <% end %>
+  </div>
+  <div class="actions compact-actions">
+    <%= link_to "Data Source紐付けを編集", edit_business_path(@business, anchor: "data-source-link-settings"), class: "button secondary" %>
+  </div>
+
   <div class="business-analytics-chart-grid">
     <%= render "analytics_chart",
                title: "GSCグラフ",
@@ -424,6 +450,22 @@
   <div class="section-heading">
     <h2>SERP競合分析</h2>
     <p>検索結果を手入力またはCSV/TXTで保存し、競合強度をsuccess_probabilityの判断材料にします。</p>
+  </div>
+
+  <% serp_cost = Aicoo::CostEngine.new(business: @business).estimate("serp") %>
+  <div class="aicoo-card aicoo-card-compact">
+    <strong>SERP分析コスト</strong>
+    <p>
+      <span class="pill cost-level-<%= serp_cost.cost_level %>"><%= serp_cost.execution_mode %></span>
+      予想コスト <%= number_to_currency(serp_cost.estimated_cost_yen, unit: "¥", precision: 0) %> /
+      期待利益 <%= number_to_currency(serp_cost.expected_profit_yen, unit: "¥", precision: 0) %> /
+      ROI <%= serp_cost.roi ? number_with_precision(serp_cost.roi, precision: 1) : "無料/未計算" %>
+    </p>
+    <small>
+      前回取得:
+      <%= @recent_serp_analyses.first&.analyzed_at ? l(@recent_serp_analyses.first.analyzed_at, format: :short) : "未実行" %>
+      / 対象KW数: <%= @recent_serp_analyses.count %>
+    </small>
   </div>
 
   <%= form_with url: business_serp_analyses_path(@business), scope: :serp_analysis, multipart: true, class: "form" do |form| %>

@@ -24,6 +24,7 @@ module Aicoo
       :revenue_series,
       :action_series,
       :learning_series,
+      :cost_estimates,
       :settings,
       :data_status
     )
@@ -57,6 +58,7 @@ module Aicoo
         revenue_series: revenue_series,
         action_series: action_series,
         learning_series: learning_series,
+        cost_estimates: Aicoo::CostEngine.new(business:).call.estimates,
         settings: settings_summary,
         data_status: data_status
       )

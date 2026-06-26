@@ -93,6 +93,7 @@ Rails.application.routes.draw do
   resources :revenue_events
   resources :business_metric_dailies
   resource :aicoo_setting, only: %i[show update]
+  patch "aicoo_setting/data_sources", to: "aicoo_settings#update_data_sources", as: :update_data_sources_aicoo_setting
   resources :aicoo_daily_runs, only: %i[index show create] do
     resources :steps, only: [], controller: "aicoo_daily_run_steps" do
       post :recover, on: :member
@@ -104,6 +105,7 @@ Rails.application.routes.draw do
   resources :businesses do
     post :generate_ai_candidates, on: :member
     post :import_gsc, on: :member
+    patch :update_data_source_settings, on: :member
     resources :data_imports, only: :create
     resources :serp_analyses, only: :create
   end

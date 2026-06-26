@@ -24,6 +24,9 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Playbook"
     assert_includes response.body, "Executor"
     assert_includes response.body, "Settings"
+    assert_includes response.body, "Cost Summary"
+    assert_includes response.body, "Data Source Monitor"
+    assert_includes response.body, "月間APIコスト"
     assert_not_includes response.body, "AICOO TODAY"
   end
 

@@ -11,6 +11,7 @@ class Business < ApplicationRecord
   has_many :ai_evaluation_runs, dependent: :destroy
   has_many :data_sources, dependent: :destroy
   has_many :data_imports, through: :data_sources
+  has_many :business_data_source_settings, dependent: :destroy
   has_many :serp_analyses, dependent: :destroy
   has_many :revenue_events, dependent: :destroy
   has_many :business_metric_dailies, dependent: :destroy

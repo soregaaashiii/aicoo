@@ -1,5 +1,5 @@
 class BusinessesController < ApplicationController
-  before_action :set_business, only: %i[ show edit update destroy generate_ai_candidates import_gsc ]
+  before_action :set_business, only: %i[ show edit update destroy generate_ai_candidates import_gsc update_data_source_settings ]
 
   # GET /businesses or /businesses.json
   def index
@@ -20,6 +20,7 @@ class BusinessesController < ApplicationController
     @business_playbook = @business.business_playbook
     @integration_health = Aicoo::BusinessIntegrationHealth.new.call.business_healths.find { |row| row.business == @business }
     @business_analytics_summary = Aicoo::BusinessAnalyticsSummary.new(@business, health: @integration_health).call
+    load_data_source_settings_context
   end
 
   # GET /businesses/new
@@ -29,6 +30,7 @@ class BusinessesController < ApplicationController
 
   # GET /businesses/1/edit
   def edit
+    load_data_source_settings_context
   end
 
   # POST /businesses or /businesses.json
@@ -53,10 +55,37 @@ class BusinessesController < ApplicationController
         format.html { redirect_to @business, notice: "Business was successfully updated.", status: :see_other }
         format.json { render :show, status: :ok, location: @business }
       else
-        format.html { render :edit, status: :unprocessable_content }
+        format.html do
+          load_data_source_settings_context
+          render :edit, status: :unprocessable_content
+        end
         format.json { render json: @business.errors, status: :unprocessable_content }
       end
     end
+  end
+
+  def update_data_source_settings
+    DataSourceCostProfile.ensure_defaults!
+
+    business_data_source_setting_params.each do |source_key, attributes|
+      setting = BusinessDataSourceSetting.find_or_initialize_by(business: @business, source_key:)
+      setting.assign_attributes(
+        enabled: ActiveModel::Type::Boolean.new.cast(attributes[:enabled]),
+        connection_status: attributes[:connection_status],
+        external_account_id: attributes[:external_account_id],
+        property_identifier: attributes[:property_identifier],
+        endpoint_url: attributes[:endpoint_url],
+        credential_reference: attributes[:credential_reference],
+        notes: attributes[:notes]
+      )
+      setting.save!
+    end
+
+    redirect_to edit_business_path(@business, anchor: "data-source-link-settings"),
+                notice: "Data Source紐付け設定を保存しました。"
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to edit_business_path(@business, anchor: "data-source-link-settings"),
+                alert: "Data Source紐付け設定を保存できませんでした: #{e.record.errors.full_messages.to_sentence}"
   end
 
   # DELETE /businesses/1 or /businesses/1.json
@@ -106,6 +135,16 @@ class BusinessesController < ApplicationController
         :local_project_path,
         :repository_name
       ])
+    end
+
+    def load_data_source_settings_context
+      DataSourceCostProfile.ensure_defaults!
+      @data_source_cost_profiles = DataSourceCostProfile.ordered
+      @business_data_source_settings_by_key = @business.business_data_source_settings.index_by(&:source_key)
+    end
+
+    def business_data_source_setting_params
+      params.fetch(:business_data_source_settings, {}).permit!.to_h
     end
 
     def ai_action_count

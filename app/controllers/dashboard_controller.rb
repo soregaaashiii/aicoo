@@ -2,6 +2,7 @@ class DashboardController < ApplicationController
   def show
     run_daily_catch_up_if_due
     @system_mode_monitor = Aicoo::SystemModeSnapshotPresenter.new.call
+    @cost_summary = Aicoo::CostEngine.new.call
   end
 
   def refresh_system_mode_snapshot

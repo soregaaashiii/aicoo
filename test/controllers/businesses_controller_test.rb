@@ -13,6 +13,7 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "GSC 7日 / 30日"
     assert_includes response.body, "GA4 7日 / 30日"
     assert_includes response.body, "Revenue 7日 / 30日"
+    assert_includes response.body, "Data Source Cost"
     assert_includes response.body, "Pending Actions"
     assert_includes response.body, "Warning"
     assert_includes response.body, "Analytics"
@@ -90,11 +91,45 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "GSC"
     assert_includes response.body, "GA4"
     assert_includes response.body, "Business Playbook"
+    assert_includes response.body, "Data Source Cost"
+    assert_includes response.body, "SERP分析コスト"
+    assert_includes response.body, "予想コスト"
+    assert_includes response.body, "未紐付け"
+    assert_includes response.body, "Data Source紐付けを編集"
   end
 
   test "should get edit" do
     get edit_business_url(@business)
     assert_response :success
+    assert_includes response.body, "Data Source紐付け詳細"
+    assert_includes response.body, "Property / Target"
+    assert_includes response.body, "Credential参照"
+  end
+
+  test "updates business data source connection settings" do
+    DataSourceCostProfile.ensure_defaults!
+
+    patch update_data_source_settings_business_url(@business), params: {
+      business_data_source_settings: {
+        "ga4" => {
+          enabled: "1",
+          connection_status: "linked",
+          property_identifier: "properties/536889590",
+          external_account_id: "ga-account-1",
+          endpoint_url: "https://analytics.google.com/",
+          credential_reference: "AICOO共通Google認証",
+          notes: "GA4 production"
+        }
+      }
+    }
+
+    setting = @business.business_data_source_settings.find_by!(source_key: "ga4")
+    assert_redirected_to edit_business_url(@business, anchor: "data-source-link-settings")
+    assert setting.enabled?
+    assert_equal "linked", setting.connection_status
+    assert_equal "properties/536889590", setting.property_identifier
+    assert_equal "AICOO共通Google認証", setting.credential_reference
+    assert setting.last_connected_at.present?
   end
 
   test "should update business" do

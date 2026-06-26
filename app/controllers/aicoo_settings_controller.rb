@@ -1,6 +1,7 @@
 class AicooSettingsController < ApplicationController
   def show
     @aicoo_setting = AicooSetting.current
+    load_data_source_cost_context
   end
 
   def update
@@ -9,11 +10,70 @@ class AicooSettingsController < ApplicationController
     if @aicoo_setting.update(aicoo_setting_params)
       redirect_to aicoo_setting_path, notice: "AICOO設定を保存しました。"
     else
+      load_data_source_cost_context
       render :show, status: :unprocessable_entity
     end
   end
 
+  def update_data_sources
+    DataSourceCostProfile.ensure_defaults!
+    update_cost_profiles!
+    update_business_data_source_settings!
+
+    redirect_to aicoo_setting_path(anchor: "data-source-costs"), notice: "Data Source Cost設定を保存しました。"
+  rescue ActiveRecord::RecordInvalid => e
+    @aicoo_setting = AicooSetting.current
+    load_data_source_cost_context
+    flash.now[:alert] = "Data Source Cost設定を保存できませんでした: #{e.record.errors.full_messages.to_sentence}"
+    render :show, status: :unprocessable_entity
+  end
+
   private
+
+  def load_data_source_cost_context
+    DataSourceCostProfile.ensure_defaults!
+    @cost_summary = Aicoo::CostEngine.new.call
+    @data_source_cost_profiles = @cost_summary.profiles
+    @businesses = Business.order(:name)
+    @business_data_source_settings = BusinessDataSourceSetting.all.index_by { |setting| [ setting.business_id, setting.source_key ] }
+  end
+
+  def update_cost_profiles!
+    data_source_params.each do |source_key, attributes|
+      profile = DataSourceCostProfile.find_or_initialize_by(source_key:)
+      profile.assign_attributes(
+        name: attributes[:name],
+        enabled: ActiveModel::Type::Boolean.new.cast(attributes[:enabled]),
+        execution_mode: attributes[:execution_mode],
+        api_key: attributes[:api_key].presence || profile.api_key,
+        monthly_budget_yen: attributes[:monthly_budget_yen].to_i,
+        monthly_spend_yen: attributes[:monthly_spend_yen].to_i,
+        monthly_run_count: attributes[:monthly_run_count].to_i,
+        average_cost_yen: attributes[:average_cost_yen].to_d,
+        average_expected_profit_yen: attributes[:average_expected_profit_yen].to_d
+      )
+      profile.save!
+    end
+  end
+
+  def update_business_data_source_settings!
+    business_data_source_params.each do |business_id, settings|
+      business = Business.find(business_id)
+      settings.each do |source_key, attributes|
+        setting = BusinessDataSourceSetting.find_or_initialize_by(business:, source_key:)
+        setting.enabled = ActiveModel::Type::Boolean.new.cast(attributes[:enabled])
+        setting.save!
+      end
+    end
+  end
+
+  def data_source_params
+    params.fetch(:data_sources, {}).permit!.to_h
+  end
+
+  def business_data_source_params
+    params.fetch(:business_data_sources, {}).permit!.to_h
+  end
 
   def aicoo_setting_params
     params.expect(aicoo_setting: [

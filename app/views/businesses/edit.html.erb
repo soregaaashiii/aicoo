@@ -12,4 +12,81 @@
              active_main: :revenue,
              actions: header_actions %>
   <%= render "form", business: @business %>
+
+  <section class="dashboard-section" id="data-source-link-settings">
+    <div class="section-heading">
+      <div>
+        <h2>Data Source紐付け詳細</h2>
+        <p>このBusinessで使う分析ツールの接続先を設定します。API KeyはAICOO設定側、ここではBusiness固有のProperty・URL・認証参照を管理します。</p>
+      </div>
+      <%= link_to "全体Data Source設定", aicoo_setting_path(anchor: "data-source-costs"), class: "button secondary" %>
+    </div>
+
+    <%= form_with url: update_data_source_settings_business_path(@business), method: :patch, class: "aicoo-form" do %>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Data Source</th>
+              <th>利用</th>
+              <th>紐付け状態</th>
+              <th>Property / Target</th>
+              <th>Account / 外部ID</th>
+              <th>URL / Endpoint</th>
+              <th>Credential参照</th>
+              <th>メモ</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @data_source_cost_profiles.each do |profile| %>
+              <% setting = @business_data_source_settings_by_key[profile.source_key] || BusinessDataSourceSetting.new(business: @business, source_key: profile.source_key) %>
+              <tr>
+                <td>
+                  <strong><%= profile.name %></strong><br>
+                  <span class="pill cost-level-<%= profile.cost_level %>"><%= profile.execution_mode %></span>
+                </td>
+                <td>
+                  <%= hidden_field_tag "business_data_source_settings[#{profile.source_key}][enabled]", "0" %>
+                  <%= check_box_tag "business_data_source_settings[#{profile.source_key}][enabled]", "1", setting.enabled? %>
+                </td>
+                <td>
+                  <%= select_tag "business_data_source_settings[#{profile.source_key}][connection_status]",
+                                 options_for_select(BusinessDataSourceSetting::CONNECTION_STATUS_LABELS.map { |value, label| [label, value] }, setting.connection_status) %>
+                </td>
+                <td>
+                  <%= text_field_tag "business_data_source_settings[#{profile.source_key}][property_identifier]",
+                                     setting.property_identifier,
+                                     placeholder: "例: sc-domain / GA4 property / KW group" %>
+                </td>
+                <td>
+                  <%= text_field_tag "business_data_source_settings[#{profile.source_key}][external_account_id]",
+                                     setting.external_account_id,
+                                     placeholder: "例: account_id / channel_id" %>
+                </td>
+                <td>
+                  <%= text_field_tag "business_data_source_settings[#{profile.source_key}][endpoint_url]",
+                                     setting.endpoint_url,
+                                     placeholder: "例: https://..." %>
+                </td>
+                <td>
+                  <%= text_field_tag "business_data_source_settings[#{profile.source_key}][credential_reference]",
+                                     setting.credential_reference,
+                                     placeholder: "例: AICOO共通Google認証" %>
+                </td>
+                <td>
+                  <%= text_field_tag "business_data_source_settings[#{profile.source_key}][notes]",
+                                     setting.notes,
+                                     placeholder: "補足" %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="actions compact-actions">
+        <%= submit_tag "Data Source紐付けを保存", class: "button" %>
+      </div>
+    <% end %>
+  </section>
 </div>

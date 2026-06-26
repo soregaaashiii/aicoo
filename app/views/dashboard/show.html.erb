@@ -19,6 +19,38 @@
 
   <section class="dashboard-section">
     <div class="section-heading">
+      <div>
+        <h2>Cost Summary / Data Source Monitor</h2>
+        <p>Data Sourceごとの月間APIコスト、実行方式、ROIを監視します。</p>
+      </div>
+      <%= link_to "Data Source設定", aicoo_setting_path(anchor: "data-source-costs"), class: "button secondary" %>
+    </div>
+
+    <div class="metric-grid">
+      <div class="metric-card"><span>月間APIコスト</span><strong><%= number_to_currency(@cost_summary.monthly_api_cost_yen, unit: "¥", precision: 0) %></strong></div>
+      <div class="metric-card"><span>月間予算</span><strong><%= number_to_currency(@cost_summary.monthly_budget_yen, unit: "¥", precision: 0) %></strong></div>
+      <div class="metric-card"><span>ROI</span><strong><%= @cost_summary.roi ? number_with_precision(@cost_summary.roi, precision: 1) : "無料/未計算" %></strong></div>
+      <div class="metric-card"><span>Auto</span><strong><%= @cost_summary.auto_count %></strong></div>
+      <div class="metric-card"><span>Smart</span><strong><%= @cost_summary.smart_count %></strong></div>
+      <div class="metric-card"><span>Manual</span><strong><%= @cost_summary.manual_count %></strong></div>
+    </div>
+
+    <div class="system-status-grid compact">
+      <% @cost_summary.estimates.first(8).each do |estimate| %>
+        <div class="system-status-card status-<%= estimate.warning.present? ? "warning" : "healthy" %>">
+          <span><%= estimate.name %></span>
+          <strong><%= estimate.execution_mode.upcase %></strong>
+          <small>
+            cost <%= number_to_currency(estimate.estimated_cost_yen, unit: "¥", precision: 0) %> /
+            ROI <%= estimate.roi ? number_with_precision(estimate.roi, precision: 1) : "無料" %>
+          </small>
+        </div>
+      <% end %>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
       <h2>Detailed Operations</h2>
       <p>重い詳細集計は専用画面で確認します。SYSTEM MODEの初期表示では実行しません。</p>
     </div>

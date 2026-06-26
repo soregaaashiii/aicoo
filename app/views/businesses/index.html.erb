@@ -24,6 +24,7 @@
         <th>GSC 7日 / 30日</th>
         <th>GA4 7日 / 30日</th>
         <th>Revenue 7日 / 30日</th>
+        <th>Data Source Cost</th>
         <th>Pending Actions</th>
         <th>Warning</th>
         <th>Execution Profile</th>
@@ -52,6 +53,15 @@
             <%= number_to_currency(period_7d.revenue_yen, unit: "¥", precision: 0) %> /
             <%= number_to_currency(period_30d.revenue_yen, unit: "¥", precision: 0) %>
           </td>
+          <td>
+            <% serp_estimate = summary.cost_estimates.find { |estimate| estimate.source_key == "serp" } %>
+            <span class="pill cost-level-<%= serp_estimate.cost_level %>">SERP <%= serp_estimate.execution_mode %></span><br>
+            <span class="pill status-<%= serp_estimate.connection_status_level %>"><%= serp_estimate.connection_label || "未紐付け" %></span><br>
+            <small>
+              <%= number_to_currency(serp_estimate.estimated_cost_yen, unit: "¥", precision: 0) %> /
+              ROI <%= serp_estimate.roi ? number_with_precision(serp_estimate.roi, precision: 1) : "無料" %>
+            </small>
+          </td>
           <td class="number"><%= period_30d.pending_actions %></td>
           <td>
             <span class="pill"><%= summary.warning_count %>件</span>
@@ -77,6 +87,7 @@
               <%= link_to "Analytics", business_path(business, anchor: "analytics"), class: "button secondary" %>
               <%= link_to "詳細", business, class: "button secondary" %>
               <%= link_to "編集", edit_business_path(business), class: "button secondary" %>
+              <%= link_to "Data Source紐付け", edit_business_path(business, anchor: "data-source-link-settings"), class: "button secondary" %>
               <% if business.business_execution_profile %>
                 <%= link_to "Profile編集", edit_admin_business_execution_profile_path(business.business_execution_profile), class: "button secondary" %>
               <% else %>

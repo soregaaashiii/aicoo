@@ -12,6 +12,111 @@
              actions: header_actions %>
   <%= render "shared/aicoo_execution_tabs", active: :dashboard %>
 
+  <section class="dashboard-section" id="data-source-costs">
+    <div class="aicoo-card">
+      <h2>Data Source Cost Engine</h2>
+      <p class="aicoo-lab-help">
+        無料APIと有料APIを分け、Auto / Smart / Manual、月間予算、平均コスト、期待利益、ROIを管理します。
+        ManualのData SourceはOwnerが押した時だけ実行する前提です。
+      </p>
+
+      <div class="metric-grid">
+        <div class="metric-card"><span>月間APIコスト</span><strong><%= number_to_currency(@cost_summary.monthly_api_cost_yen, unit: "¥", precision: 0) %></strong></div>
+        <div class="metric-card"><span>月間予算</span><strong><%= number_to_currency(@cost_summary.monthly_budget_yen, unit: "¥", precision: 0) %></strong></div>
+        <div class="metric-card"><span>ROI</span><strong><%= @cost_summary.roi ? number_with_precision(@cost_summary.roi, precision: 1) : "無料/未計算" %></strong></div>
+        <div class="metric-card"><span>Auto</span><strong><%= @cost_summary.auto_count %></strong></div>
+        <div class="metric-card"><span>Smart</span><strong><%= @cost_summary.smart_count %></strong></div>
+        <div class="metric-card"><span>Manual</span><strong><%= @cost_summary.manual_count %></strong></div>
+      </div>
+
+      <%= form_with url: update_data_sources_aicoo_setting_path, method: :patch, class: "aicoo-form" do %>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Data Source</th>
+                <th>ON</th>
+                <th>方式</th>
+                <th>API Key</th>
+                <th>月間予算</th>
+                <th>月間使用額</th>
+                <th>今月実行</th>
+                <th>平均コスト</th>
+                <th>平均期待利益</th>
+                <th>ROI</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% @data_source_cost_profiles.each do |profile| %>
+                <% estimate = Aicoo::CostEngine.new.estimate(profile.source_key) %>
+                <tr>
+                  <td>
+                    <strong><%= profile.name %></strong><br>
+                    <span class="pill cost-level-<%= estimate.cost_level %>"><%= estimate.cost_level %></span>
+                    <%= hidden_field_tag "data_sources[#{profile.source_key}][name]", profile.name %>
+                  </td>
+                  <td>
+                    <%= hidden_field_tag "data_sources[#{profile.source_key}][enabled]", "0" %>
+                    <%= check_box_tag "data_sources[#{profile.source_key}][enabled]", "1", profile.enabled? %>
+                  </td>
+                  <td><%= select_tag "data_sources[#{profile.source_key}][execution_mode]", options_for_select(DataSourceCostProfile::EXECUTION_MODES, profile.execution_mode) %></td>
+                  <td>
+                    <%= password_field_tag "data_sources[#{profile.source_key}][api_key]", nil, placeholder: profile.api_key_configured? ? "設定済み" : "未設定" %>
+                  </td>
+                  <td><%= number_field_tag "data_sources[#{profile.source_key}][monthly_budget_yen]", profile.monthly_budget_yen, min: 0 %></td>
+                  <td><%= number_field_tag "data_sources[#{profile.source_key}][monthly_spend_yen]", profile.monthly_spend_yen, min: 0 %></td>
+                  <td><%= number_field_tag "data_sources[#{profile.source_key}][monthly_run_count]", profile.monthly_run_count, min: 0 %></td>
+                  <td><%= number_field_tag "data_sources[#{profile.source_key}][average_cost_yen]", profile.average_cost_yen, min: 0, step: 0.01 %></td>
+                  <td><%= number_field_tag "data_sources[#{profile.source_key}][average_expected_profit_yen]", profile.average_expected_profit_yen, min: 0, step: 1 %></td>
+                  <td><%= estimate.roi ? number_with_precision(estimate.roi, precision: 1) : "無料/未計算" %></td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Businessごとの利用Data Source</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Business</th>
+                <% @data_source_cost_profiles.each do |profile| %>
+                  <th><%= profile.source_key %></th>
+                <% end %>
+              </tr>
+            </thead>
+            <tbody>
+              <% @businesses.each do |business| %>
+                <tr>
+                  <td>
+                    <%= link_to business.name, business %><br>
+                    <small><%= link_to "紐付け詳細", edit_business_path(business, anchor: "data-source-link-settings") %></small>
+                  </td>
+                  <% @data_source_cost_profiles.each do |profile| %>
+                    <% setting = @business_data_source_settings[[business.id, profile.source_key]] %>
+                    <% enabled = setting.nil? ? true : setting.enabled? %>
+                    <td>
+                      <% connection_setting = @business_data_source_settings[[business.id, profile.source_key]] || BusinessDataSourceSetting.new(business:, source_key: profile.source_key) %>
+                      <%= hidden_field_tag "business_data_sources[#{business.id}][#{profile.source_key}][enabled]", "0" %>
+                      <%= check_box_tag "business_data_sources[#{business.id}][#{profile.source_key}][enabled]", "1", enabled %>
+                      <br>
+                      <span class="pill status-<%= connection_setting.connection_status_level %>"><%= connection_setting.connection_status_label %></span>
+                    </td>
+                  <% end %>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="actions compact-actions">
+          <%= submit_tag "Data Source設定を保存", class: "button" %>
+        </div>
+      <% end %>
+    </div>
+  </section>
+
   <section class="dashboard-section">
     <div class="aicoo-card">
       <h2>データ整備タスク自動キュー投入</h2>

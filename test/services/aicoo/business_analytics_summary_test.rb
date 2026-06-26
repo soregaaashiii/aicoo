@@ -58,6 +58,7 @@ module Aicoo
       assert result.data_status[:has_gsc_data]
       assert result.data_status[:has_ga4_data]
       assert result.data_status[:has_revenue_data]
+      assert result.cost_estimates.find { |estimate| estimate.source_key == "serp" }.manual?
     end
 
     test "returns safe empty state when analytics data is missing" do

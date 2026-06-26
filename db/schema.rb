@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_26_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_26_121000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -803,6 +803,28 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_120000) do
     t.index ["target_business_id"], name: "index_auto_revision_tasks_on_target_business_id"
   end
 
+  create_table "business_data_source_settings", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.string "connection_status", default: "unlinked", null: false
+    t.datetime "created_at", null: false
+    t.string "credential_reference"
+    t.boolean "enabled", default: true, null: false
+    t.string "endpoint_url"
+    t.string "external_account_id"
+    t.datetime "last_connected_at"
+    t.jsonb "metadata", default: {}, null: false
+    t.text "notes"
+    t.string "property_identifier"
+    t.string "source_key", null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id", "source_key"], name: "idx_on_business_id_source_key_f5e9d77d23", unique: true
+    t.index ["business_id"], name: "index_business_data_source_settings_on_business_id"
+    t.index ["connection_status"], name: "index_business_data_source_settings_on_connection_status"
+    t.index ["enabled"], name: "index_business_data_source_settings_on_enabled"
+    t.index ["last_connected_at"], name: "index_business_data_source_settings_on_last_connected_at"
+    t.index ["source_key"], name: "index_business_data_source_settings_on_source_key"
+  end
+
   create_table "business_execution_profiles", force: :cascade do |t|
     t.boolean "active", default: true, null: false
     t.bigint "business_id", null: false
@@ -934,6 +956,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_120000) do
     t.datetime "updated_at", null: false
     t.index ["aicoo_analytics_site_id"], name: "index_data_imports_on_aicoo_analytics_site_id"
     t.index ["data_source_id"], name: "index_data_imports_on_data_source_id"
+  end
+
+  create_table "data_source_cost_profiles", force: :cascade do |t|
+    t.text "api_key"
+    t.decimal "average_cost_yen", default: "0.0", null: false
+    t.decimal "average_expected_profit_yen", default: "0.0", null: false
+    t.datetime "created_at", null: false
+    t.boolean "enabled", default: true, null: false
+    t.string "execution_mode", default: "auto", null: false
+    t.text "last_error"
+    t.datetime "last_run_at"
+    t.jsonb "metadata", default: {}, null: false
+    t.integer "monthly_budget_yen", default: 0, null: false
+    t.integer "monthly_run_count", default: 0, null: false
+    t.integer "monthly_spend_yen", default: 0, null: false
+    t.string "name", null: false
+    t.string "source_key", null: false
+    t.datetime "updated_at", null: false
+    t.index ["enabled"], name: "index_data_source_cost_profiles_on_enabled"
+    t.index ["execution_mode"], name: "index_data_source_cost_profiles_on_execution_mode"
+    t.index ["source_key"], name: "index_data_source_cost_profiles_on_source_key", unique: true
   end
 
   create_table "data_sources", force: :cascade do |t|
@@ -1265,6 +1308,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_120000) do
   add_foreign_key "auto_revision_tasks", "action_candidates"
   add_foreign_key "auto_revision_tasks", "businesses"
   add_foreign_key "auto_revision_tasks", "businesses", column: "target_business_id"
+  add_foreign_key "business_data_source_settings", "businesses"
   add_foreign_key "business_execution_profiles", "businesses"
   add_foreign_key "business_metric_dailies", "businesses"
   add_foreign_key "business_playbooks", "businesses"
