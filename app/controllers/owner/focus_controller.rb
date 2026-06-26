@@ -11,6 +11,7 @@ module Owner
       @top_task_evidence = evidence_for_top_task
       @top_task_expansion = expansion_for_top_task
       @top_task_action_candidate = top_task_action_candidate
+      @top_task_detail_path = top_task_detail_path
       @ceo_summary = Aicoo::CeoSummaryBuilder.new(
         task: @top_task,
         action_candidate: @top_task_action_candidate,
@@ -52,6 +53,19 @@ module Owner
       elsif @top_task.target_path.to_s.match?(%r{/action_executions/\d+})
         id = @top_task.target_path.to_s.split("/").last
         ActionExecution.find_by(id:)&.action_candidate
+      end
+    end
+
+    def top_task_detail_path
+      return unless @top_task
+      return owner_opportunity_path(@opportunity_focus_item.opportunity) if @opportunity_focus_item
+
+      if @top_task.target_path.to_s.match?(%r{/action_executions/\d+})
+        @top_task.target_path
+      elsif @top_task_action_candidate&.action_execution
+        action_execution_path(@top_task_action_candidate.action_execution)
+      else
+        @top_task.target_path
       end
     end
   end

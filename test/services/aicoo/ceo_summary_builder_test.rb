@@ -62,6 +62,39 @@ module Aicoo
       assert_not_includes summary.reason_lines.join(" "), "metadata"
     end
 
+    test "uses dedicated system template for daily run failures" do
+      task = OwnerTaskInbox::Task.new(
+        priority: "critical",
+        task_type: "daily_run_failure",
+        title: "Daily Run stuck",
+        description: "running",
+        target_label: "AICOO",
+        target_path: "/aicoo_daily_runs/1",
+        reason: "critical stuck",
+        created_at: Time.current,
+        quick_actions: []
+      )
+
+      summary = CeoSummaryBuilder.new(task:).call
+
+      assert_equal "自動巡回を再開する", summary.title
+      assert_includes summary.reason_lines.join(" "), "自動巡回が止まっています"
+      assert_includes summary.work_lines.join(" "), "再実行する"
+      assert_nil summary.roi
+      assert_not_includes summary.title, "stuck"
+      assert_not_includes summary.reason_lines.join(" "), "critical"
+    end
+
+    test "removes owner facing internal words" do
+      text = CeoSummaryBuilder.human_label("Analytics Import ActionCandidate metadata Generation Source ROI")
+
+      assert_not_includes text, "Analytics Import"
+      assert_not_includes text, "ActionCandidate"
+      assert_not_includes text, "metadata"
+      assert_not_includes text, "Generation Source"
+      assert_includes text, "費用対効果"
+    end
+
     test "uses business specific wording for saas and media businesses" do
       media_candidate = ActionCandidate.new(
         business: businesses(:suelog),

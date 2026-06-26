@@ -1,20 +1,38 @@
 module Aicoo
   class CeoSummaryBuilder
     INTERNAL_TERMS = [
+      "Analytics Import",
+      "ActionCandidate",
       "Opportunity",
       "Generation Source",
       "metadata",
       "Internal Score",
-      "Builder"
+      "Builder",
+      "stuck",
+      "running",
+      "critical",
+      "pending",
+      "OwnerExecutionQueue",
+      "Analysis Candidate",
+      "Manual",
+      "Smart",
+      "Auto"
     ].freeze
     CEO_REPLACEMENTS = {
-      "Analytics Import" => "データ取り込み",
-      "ActionCandidate" => "実行候補",
-      "ActionResult" => "結果登録",
+      "ActionResult" => "結果を登録する",
+      "Business Health" => "事業状態",
+      "Evidence" => "根拠データ",
+      "ROI" => "費用対効果",
       "Explore Daily Routine" => "外部シグナル確認",
       "Explore Import" => "外部シグナル取り込み",
-      "Codex Prompt" => "Codex用依頼文",
-      "Daily Run" => "自動巡回"
+      "Codex Prompt" => "実装依頼文",
+      "Daily Run" => "自動巡回",
+      "Retry" => "再実行",
+      "Health" => "状態確認",
+      "Warning" => "注意あり",
+      "Stable" => "安定",
+      "Healthy" => "正常",
+      "Critical" => "要対応"
     }.freeze
 
     TASK_MINUTES = {
@@ -58,6 +76,8 @@ module Aicoo
         candidate_summary
       elsif opportunity
         opportunity_summary
+      elsif system_task?
+        system_task_summary
       elsif task
         task_summary
       else
@@ -110,7 +130,7 @@ module Aicoo
         expected_profit_yen: opportunity.expected_value_yen.to_i,
         roi: nil,
         success_probability: opportunity.confidence.to_d / 100,
-        completion_criteria: [ "承認・却下・実行候補化のどれかを選ぶ" ],
+        completion_criteria: [ "実行するか、後で確認するかを選ぶ" ],
         start_label: "実行候補にする",
         codex_label: nil,
         empty?: false
@@ -130,6 +150,25 @@ module Aicoo
         success_probability: nil,
         completion_criteria: [ "表示された処理を完了する" ],
         start_label: "処理を進める",
+        codex_label: nil,
+        empty?: false
+      )
+    end
+
+    def system_task_summary
+      template = system_template
+      Summary.new(
+        title: template.fetch(:title),
+        reason_lines: template.fetch(:reason_lines),
+        work_lines: template.fetch(:work_lines),
+        target_label: task.target_label,
+        time_lines: [ "合計 #{template.fetch(:minutes)}秒" ],
+        total_minutes: 1,
+        expected_profit_yen: nil,
+        roi: nil,
+        success_probability: nil,
+        completion_criteria: template.fetch(:completion_criteria),
+        start_label: "実行する",
         codex_label: nil,
         empty?: false
       )
@@ -183,6 +222,52 @@ module Aicoo
       return "オンボーディングを改善する" if candidate.business.description.to_s.match?(/saas|アプリ|app/i)
 
       title
+    end
+
+    def system_task?
+      task&.task_type.to_s.start_with?("daily_run") ||
+        task&.task_type.to_s == "learning_loop_health" ||
+        task&.task_type.to_s == "analysis_review"
+    end
+
+    def system_template
+      case task.task_type
+      when "daily_run_failure", "daily_run_partial_failed"
+        {
+          title: "自動巡回を再開する",
+          reason_lines: [
+            "昨日の自動巡回が止まっています。",
+            "このままだと今日の分析、提案生成、学習が更新されません。"
+          ],
+          work_lines: [ "自動巡回の詳細を開く", "再実行する", "Success表示を確認する" ],
+          completion_criteria: [ "Success表示になっている", "失敗理由が残っていない" ],
+          minutes: 30
+        }
+      when "daily_run_step_recovery", "daily_run_step_failure", "daily_run_recovery_attention"
+        {
+          title: "止まった処理だけ復旧する",
+          reason_lines: [ "自動巡回の一部処理が止まっています。", "全体をやり直さず、安全な処理だけ復旧します。" ],
+          work_lines: [ "失敗した処理を確認する", "復旧ボタンを押す", "Success表示を確認する" ],
+          completion_criteria: [ "対象処理がSuccess表示になっている" ],
+          minutes: 60
+        }
+      when "analysis_review"
+        {
+          title: "今日見るべき分析を確認する",
+          reason_lines: [ "追加で確認する価値が高い分析があります。", "コストに対して期待できる改善幅を確認します。" ],
+          work_lines: [ "対象Businessを開く", "推奨分析の理由を読む", "必要な分析だけ実行する" ],
+          completion_criteria: [ "実行する分析、または今日は見ない分析を判断済み" ],
+          minutes: 120
+        }
+      else
+        {
+          title: "AICOOの状態を確認する",
+          reason_lines: [ clean_title(task.reason.to_s.presence || task.description.to_s) ],
+          work_lines: [ "詳細を開く", "表示された処理を完了する" ],
+          completion_criteria: [ "状態が正常表示になっている" ],
+          minutes: 60
+        }
+      end
     end
 
     def work_lines_for(expansion, tasks)

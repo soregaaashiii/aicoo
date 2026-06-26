@@ -1,14 +1,14 @@
-<% content_for :title, "Owner Home" %>
+<% content_for :title, "今日やること" %>
 
 <% header_actions = capture do %>
-  <%= link_to "Tasks", owner_tasks_path, class: "button secondary" %>
-  <%= link_to "Dashboard", dashboard_path, class: "button secondary" %>
+  <%= link_to "全タスク", owner_tasks_path, class: "button secondary" %>
+  <%= link_to "運用状態", dashboard_path, class: "button secondary" %>
 <% end %>
 
 <div class="aicoo-page">
   <%= render "shared/aicoo_header",
-             title: "Owner Home",
-             description: "次に何をするかだけを表示します。",
+             title: "今日やること",
+             description: "5秒で分かる作業指示だけを表示します。",
              active_main: :revenue,
              actions: header_actions %>
 
@@ -21,7 +21,6 @@
     <% if @top_task %>
       <% task = @top_task %>
       <div class="aicoo-card">
-        <p><span class="pill"><%= task.priority %></span></p>
         <h2><%= @ceo_summary.title %></h2>
         <div class="aicoo-grid aicoo-grid-2">
           <div class="aicoo-card aicoo-card-compact">
@@ -43,7 +42,7 @@
         </div>
         <div class="metric-grid aicoo-owner-secondary">
           <div class="metric-card"><span>期待利益</span><strong><%= @ceo_summary.expected_profit_yen ? number_to_currency(@ceo_summary.expected_profit_yen, unit: "¥", precision: 0) : "-" %></strong></div>
-          <div class="metric-card"><span>期待ROI</span><strong><%= @ceo_summary.roi.present? ? number_with_precision(@ceo_summary.roi, precision: 2) : "-" %></strong></div>
+          <div class="metric-card"><span>期待費用対効果</span><strong><%= @ceo_summary.roi.present? ? number_with_precision(@ceo_summary.roi, precision: 2) : "-" %></strong></div>
           <div class="metric-card"><span>成功率</span><strong><%= @ceo_summary.success_probability.present? ? number_to_percentage(@ceo_summary.success_probability.to_d * 100, precision: 1) : "-" %></strong></div>
           <div class="metric-card"><span>所要時間</span><strong><%= @ceo_summary.total_minutes.positive? ? "#{@ceo_summary.total_minutes}分" : "-" %></strong></div>
         </div>
@@ -70,27 +69,21 @@
         <% if @opportunity_focus_item %>
           <% opportunity = @opportunity_focus_item.opportunity %>
           <div class="actions compact-actions">
-            <%= button_to "承認", focus_approve_owner_opportunity_path(opportunity), method: :patch, class: "button secondary" %>
-            <%= button_to "却下", focus_reject_owner_opportunity_path(opportunity), method: :patch, class: "button danger", data: { turbo_confirm: "この機会を却下しますか？" } %>
-            <%= button_to @ceo_summary.start_label, focus_convert_to_candidate_owner_opportunity_path(opportunity), method: :post, class: "button" %>
-            <%= link_to "詳細を見る", owner_opportunity_path(opportunity), class: "button secondary" %>
+            <%= button_to "実行する", focus_convert_to_candidate_owner_opportunity_path(opportunity), method: :post, class: "button" %>
+            <%= link_to "詳細を見る", @top_task_detail_path, class: "button secondary" %>
+            <%= button_to "後でやる", focus_review_owner_opportunity_path(opportunity), method: :patch, class: "button secondary" %>
           </div>
         <% else %>
           <div class="actions compact-actions">
-            <% task.quick_actions.each do |action| %>
-              <% button_class = ["button", ("secondary" if action.style == "secondary"), ("danger" if action.style == "danger")].compact.join(" ") %>
-              <% data = action.confirm_message.present? ? { turbo_confirm: action.confirm_message } : {} %>
-              <% action_label = Aicoo::CeoSummaryBuilder.human_label(action.label) %>
-              <% if action.method.to_s == "get" %>
-                <%= link_to action_label, action.path, class: button_class, data: %>
-              <% else %>
-                <%= button_to action_label, action.path, method: action.method, class: button_class, data: %>
-              <% end %>
+            <% primary_action = task.quick_actions.find { |action| action.method.to_s != "get" && action.style != "danger" } %>
+            <% if primary_action %>
+              <% data = primary_action.confirm_message.present? ? { turbo_confirm: primary_action.confirm_message } : {} %>
+              <%= button_to "実行する", primary_action.path, method: primary_action.method, class: "button", data: %>
+            <% elsif @top_task_action_candidate %>
+              <%= button_to "実行する", generate_codex_prompt_draft_action_candidate_path(@top_task_action_candidate), method: :post, class: "button" %>
             <% end %>
-            <% if @top_task_action_candidate && task.quick_actions.none? { |action| action.path == generate_codex_prompt_draft_action_candidate_path(@top_task_action_candidate) } %>
-              <%= button_to @ceo_summary.codex_label, generate_codex_prompt_draft_action_candidate_path(@top_task_action_candidate), method: :post, class: "button secondary" %>
-            <% end %>
-            <%= link_to "詳細を見る", task.target_path, class: "button secondary" %>
+            <%= link_to "詳細を見る", @top_task_detail_path || task.target_path, class: "button secondary" %>
+            <%= link_to "後でやる", owner_tasks_path, class: "button secondary" %>
           </div>
         <% end %>
       </div>
@@ -98,13 +91,11 @@
       <div class="aicoo-card aicoo-empty-state">
         <% if @owner_execution_queue_summary.top_item %>
           <% queue_item = @owner_execution_queue_summary.top_item %>
-          <p><span class="pill"><%= queue_item.risk_level %></span> <span class="pill"><%= queue_item.item_type %></span></p>
           <h2><%= queue_item.title %></h2>
           <p><%= queue_item.reason %></p>
           <div class="actions compact-actions">
-            <%= link_to "対象を見る", queue_item.target_path, class: "button" %>
-            <%= button_to "Completed", complete_owner_execution_queue_item_path(queue_item), method: :patch, class: "button secondary" %>
-            <%= button_to "Skipped", skip_owner_execution_queue_item_path(queue_item), method: :patch, class: "button secondary" %>
+            <%= link_to "詳細を見る", queue_item.target_path, class: "button secondary" %>
+            <%= button_to "後でやる", skip_owner_execution_queue_item_path(queue_item), method: :patch, class: "button secondary" %>
           </div>
         <% else %>
           <h2>今すぐ処理すべきタスクはありません。</h2>
@@ -116,13 +107,13 @@
 
   <section class="dashboard-section">
     <div class="section-heading">
-      <h2>今日やる分析</h2>
-      <p>コストと期待値を見て、必要な分析だけ回します。</p>
+      <h2>追加で確認すること</h2>
+      <p>必要な分析だけを選びます。作業の主役は上の1件です。</p>
     </div>
     <div class="metric-grid aicoo-owner-secondary">
-      <div class="metric-card"><span>分析候補</span><strong><%= @analysis_monitor.today_count %>件</strong></div>
-      <div class="metric-card"><span>Manual</span><strong><%= @analysis_monitor.manual_count %>件</strong></div>
-      <div class="metric-card"><span>推定コスト</span><strong><%= number_to_currency(@analysis_monitor.estimated_cost_yen, unit: "¥", precision: 0) %></strong></div>
+      <div class="metric-card"><span>確認候補</span><strong><%= @analysis_monitor.today_count %>件</strong></div>
+      <div class="metric-card"><span>人の確認が必要</span><strong><%= @analysis_monitor.manual_count %>件</strong></div>
+      <div class="metric-card"><span>予想コスト</span><strong><%= number_to_currency(@analysis_monitor.estimated_cost_yen, unit: "¥", precision: 0) %></strong></div>
       <div class="metric-card"><span>期待値</span><strong><%= number_to_currency(@analysis_monitor.expected_value_yen, unit: "¥", precision: 0) %></strong></div>
     </div>
     <div class="aicoo-card aicoo-card-compact">
@@ -131,13 +122,12 @@
           <li>
             <strong><%= candidate.display_name %></strong>
             / <%= candidate.business.name %>
-            / <%= candidate.execution_mode %>
-            / ROI <%= candidate.roi_label %>
-            / <%= candidate.reason %>
+            / 費用対効果 <%= candidate.roi_label %>
+            / <%= Aicoo::CeoSummaryBuilder.human_label(candidate.reason) %>
           </li>
         <% end %>
         <% if @analysis_monitor.top_candidates.empty? %>
-          <li>今日の分析候補はまだありません。SYSTEM MODEでAnalysis Candidateを生成できます。</li>
+          <li>追加で確認する分析はまだありません。</li>
         <% end %>
       </ul>
     </div>
@@ -154,46 +144,41 @@
       <div class="metric-card"><span>評価式承認待ち</span><strong><%= @owner_home_summary.pending_calibration_count %>件</strong></div>
       <div class="metric-card"><span>機会確認待ち</span><strong><%= @owner_home_summary.pending_opportunities_count %>件</strong></div>
       <div class="metric-card"><span>探索確認待ち</span><strong><%= @owner_home_summary.explore_review_count %>件</strong></div>
-      <div class="metric-card"><span>今日の実行キュー</span><strong><%= @owner_home_summary.today_queue_count %>件</strong></div>
-      <div class="metric-card"><span>キュー処理済み</span><strong><%= @owner_home_summary.today_queue_completed_count %>件</strong></div>
-      <div class="metric-card"><span>今日のDecision Log</span><strong><%= @owner_decision_summary.today_count %>件</strong></div>
+      <div class="metric-card"><span>あとで処理</span><strong><%= @owner_home_summary.today_queue_count %>件</strong></div>
+      <div class="metric-card"><span>処理済み</span><strong><%= @owner_home_summary.today_queue_completed_count %>件</strong></div>
+      <div class="metric-card"><span>今日の判断記録</span><strong><%= @owner_decision_summary.today_count %>件</strong></div>
     </div>
   </section>
 
   <section class="dashboard-section">
     <div class="section-heading">
-      <h2>今日の実行キュー</h2>
-      <p>低〜中リスクの処理候補だけを並べます。</p>
+      <h2>あとで処理する候補</h2>
+      <p>上の1件が終わったら見る候補です。</p>
     </div>
     <div class="table-wrap">
       <table>
         <thead>
           <tr>
-            <th>種別</th>
             <th>タイトル</th>
-            <th>Risk</th>
-            <th>Score</th>
+            <th>理由</th>
             <th>操作</th>
           </tr>
         </thead>
         <tbody>
           <% @owner_execution_queue_summary.items.first(5).each do |item| %>
             <tr>
-              <td><%= item.item_type %></td>
               <td><%= item.title %></td>
-              <td><span class="pill"><%= item.risk_level %></span></td>
-              <td class="number"><%= item.priority_score.to_d.round(1) %></td>
+              <td><%= Aicoo::CeoSummaryBuilder.human_label(item.reason) %></td>
               <td>
                 <div class="actions compact-actions">
-                  <%= link_to "対象", item.target_path, class: "button secondary" %>
-                  <%= button_to "Done", complete_owner_execution_queue_item_path(item), method: :patch, class: "button secondary" %>
-                  <%= button_to "Skip", skip_owner_execution_queue_item_path(item), method: :patch, class: "button secondary" %>
+                  <%= link_to "詳細を見る", item.target_path, class: "button secondary" %>
+                  <%= button_to "後でやる", skip_owner_execution_queue_item_path(item), method: :patch, class: "button secondary" %>
                 </div>
               </td>
             </tr>
           <% end %>
           <% if @owner_execution_queue_summary.items.empty? %>
-            <tr><td colspan="5">今日の実行キューはまだありません。</td></tr>
+            <tr><td colspan="3">あとで処理する候補はありません。</td></tr>
           <% end %>
         </tbody>
       </table>
@@ -204,16 +189,16 @@
   <% if critical_healths.any? %>
     <section class="dashboard-section">
       <div class="section-heading">
-        <h2>重大な連携Warning</h2>
+        <h2>重大な連携注意</h2>
         <p>AICOOが正常にデータ取得できていない可能性があります。</p>
       </div>
       <div class="aicoo-card-grid">
         <% critical_healths.each do |row| %>
           <div class="aicoo-card aicoo-card-compact">
-            <p><span class="pill">Health <%= number_with_precision(row.health_score, precision: 1) %></span></p>
+            <p><span class="pill">状態 <%= number_with_precision(row.health_score, precision: 1) %></span></p>
             <h3><%= row.business.name %></h3>
             <p><%= row.warnings.first %></p>
-            <%= link_to "Businessを見る", row.business, class: "button secondary" %>
+            <%= link_to "事業を見る", row.business, class: "button secondary" %>
           </div>
         <% end %>
       </div>
@@ -226,8 +211,8 @@
       <p>異常があるかだけ確認します。</p>
     </div>
     <div class="metric-grid aicoo-owner-secondary">
-      <div class="metric-card"><span>Daily Run</span><strong><%= @owner_home_summary.daily_run_status %></strong></div>
-      <div class="metric-card"><span>Learning</span><strong><%= @owner_home_summary.learning_status %></strong></div>
+      <div class="metric-card"><span>自動巡回</span><strong><%= Aicoo::CeoSummaryBuilder.human_label(@owner_home_summary.daily_run_status) %></strong></div>
+      <div class="metric-card"><span>学習状態</span><strong><%= Aicoo::CeoSummaryBuilder.human_label(@owner_home_summary.learning_status) %></strong></div>
     </div>
   </section>
 
@@ -237,10 +222,10 @@
       <p>必要な時だけ開きます。</p>
     </div>
     <div class="actions compact-actions">
-      <%= link_to "Tasks", owner_tasks_path, class: "button secondary" %>
-      <%= link_to "Learning", owner_learning_report_path, class: "button secondary" %>
-      <%= link_to "Explore", admin_explore_path, class: "button secondary" %>
-      <%= link_to "Dashboard", dashboard_path, class: "button secondary" %>
+      <%= link_to "全タスク", owner_tasks_path, class: "button secondary" %>
+      <%= link_to "学習を見る", owner_learning_report_path, class: "button secondary" %>
+      <%= link_to "探索を見る", admin_explore_path, class: "button secondary" %>
+      <%= link_to "運用状態を見る", dashboard_path, class: "button secondary" %>
     </div>
   </section>
 </div>
