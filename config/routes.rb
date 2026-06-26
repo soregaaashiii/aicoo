@@ -8,9 +8,12 @@ Rails.application.routes.draw do
   get "owner", to: "owner/dashboard#show", as: :owner_dashboard
   get "owner/dashboard", to: "owner/dashboard#show"
   get "owner/focus", to: "owner/focus#show", as: :owner_focus
+  patch "owner/focus/defer", to: "owner/focus#defer", as: :defer_owner_focus
+  patch "owner/focus/restore", to: "owner/focus#restore", as: :restore_owner_focus
   get "owner/tasks", to: "owner/tasks#index", as: :owner_tasks
   patch "owner/execution_queue_items/:id/complete", to: "owner/execution_queue_items#complete", as: :complete_owner_execution_queue_item
   patch "owner/execution_queue_items/:id/skip", to: "owner/execution_queue_items#skip", as: :skip_owner_execution_queue_item
+  patch "owner/execution_queue_items/:id/restore", to: "owner/execution_queue_items#restore", as: :restore_owner_execution_queue_item
   get "owner/learning_report", to: "owner/learning_reports#show", as: :owner_learning_report
   get "owner/discovery_report", to: "owner/discovery_reports#show", as: :owner_discovery_report
   get "owner/explore/opportunities", to: "owner/opportunities#index", as: :owner_explore_opportunities

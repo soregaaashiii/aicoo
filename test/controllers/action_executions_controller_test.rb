@@ -36,7 +36,11 @@ class ActionExecutionsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "実行プロンプト"
     assert_includes response.body, "Prediction Snapshot"
     assert_includes response.body, "Execution Snapshot"
-    assert_includes response.body, "実行開始"
+    assert_includes response.body, "作業開始"
+    assert_includes response.body, "実行結果を入力"
+    assert_includes response.body, "指示通りにできた"
+    assert_includes response.body, "捗って指示以上にやった"
+    assert_includes response.body, "できなくて途中で止まった"
   end
 
   test "starts execution" do
@@ -44,7 +48,7 @@ class ActionExecutionsControllerTest < ActionDispatch::IntegrationTest
       patch start_action_execution_url(@execution)
     end
 
-    assert_redirected_to action_execution_url(@execution)
+    assert_redirected_to action_execution_url(@execution, anchor: "execution-result-form")
     assert_equal "running", @execution.reload.status
     assert @execution.started_at.present?
     assert_equal "実行開始", OwnerTaskCompletionLog.last.action_label
@@ -58,7 +62,10 @@ class ActionExecutionsControllerTest < ActionDispatch::IntegrationTest
         action_execution: {
           actual_hours: 1.5,
           actual_cost_yen: 300,
-          result_summary: "タイトルを更新した"
+          execution_outcome: "exceeded",
+          completed_task_names: [ "SEOタイトル改訂", "内部リンク追加" ],
+          result_summary: "タイトルを更新した",
+          extra_work: "追加でmeta descriptionも更新した"
         }
       }
     end
@@ -68,7 +75,11 @@ class ActionExecutionsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "completed", @execution.status
     assert_equal 1.5.to_d, @execution.actual_hours
     assert_equal 300.to_d, @execution.actual_cost_yen
+    assert_match "指示以上に実施", @execution.result_summary
     assert_match "タイトルを更新した", @execution.result_summary
+    assert_match "追加でmeta descriptionも更新した", @execution.result_summary
+    assert_equal "exceeded", @execution.metadata.dig("execution_result_intake", "execution_outcome")
+    assert_equal [ "SEOタイトル改訂", "内部リンク追加" ], @execution.metadata.dig("execution_result_intake", "completed_task_names")
     assert @execution.completed_at.present?
   end
 
@@ -105,13 +116,20 @@ class ActionExecutionsControllerTest < ActionDispatch::IntegrationTest
 
     assert_difference("OwnerTaskCompletionLog.count", 1) do
       patch fail_action_execution_url(@execution), params: {
-        action_execution: { result_summary: "権限不足で失敗" }
+        action_execution: {
+          execution_outcome: "blocked",
+          result_summary: "権限不足で失敗",
+          blocked_reason: "編集権限が必要"
+        }
       }
     end
 
     assert_redirected_to action_execution_url(@execution)
     assert_equal "failed", @execution.reload.status
+    assert_match "途中で止まった", @execution.result_summary
     assert_match "権限不足で失敗", @execution.result_summary
+    assert_equal "blocked", @execution.metadata.dig("execution_result_intake", "execution_outcome")
+    assert_equal "編集権限が必要", @execution.metadata.dig("execution_result_intake", "blocked_reason")
     assert_equal "failed", OwnerTaskCompletionLog.last.action_result
   end
 end

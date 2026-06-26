@@ -82,7 +82,7 @@ module AicooNavigationHelper
 
   def aicoo_ceo_sidebar_items
     [
-      { label: "今日", description: "次にやる1件", path: owner_focus_path },
+      { label: "今日", description: "やることランキング", path: owner_focus_path },
       { label: "確認タスク", description: "承認・警告・復旧", path: owner_tasks_path },
       { label: "経営サマリー", description: "全体状況", path: owner_dashboard_path },
       { label: "発見と検証", description: "事業機会", path: owner_opportunities_path },

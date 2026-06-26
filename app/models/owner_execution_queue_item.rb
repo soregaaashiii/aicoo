@@ -31,6 +31,10 @@ class OwnerExecutionQueueItem < ApplicationRecord
     update!(status: "skipped")
   end
 
+  def restore!
+    update!(status: "pending")
+  end
+
   def target_path
     routes = Rails.application.routes.url_helpers
     case item_type

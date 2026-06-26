@@ -1,6 +1,9 @@
 <% content_for :title, "Action Execution" %>
 
 <% action_candidate = @action_execution.action_candidate %>
+<% expansion = action_candidate.metadata.to_h["action_expansion"].to_h %>
+<% execution_tasks = Array(expansion["recommended_tasks"]).presence || Array(expansion["execution_steps"]).presence || [] %>
+<% result_intake = @action_execution.metadata.to_h["execution_result_intake"].to_h %>
 <% header_actions = capture do %>
   <%= link_to "ActionCandidateへ", action_candidate, class: "button secondary" %>
   <% if @action_execution.action_result %>
@@ -96,20 +99,56 @@
 
   <section class="dashboard-section">
     <div class="section-heading">
-      <h2>操作</h2>
-      <p>実行状態を進め、完了後にActionResultへ接続します。</p>
+      <h2>作業の進め方</h2>
+      <p>作業開始は「作業中」にするだけです。完了時に、実際に何をしたかを下の入力欄へ残します。</p>
     </div>
     <div class="actions compact-actions">
       <% if @action_execution.status == "ready" %>
-        <%= button_to "実行開始", start_action_execution_path(@action_execution), method: :patch, class: "button" %>
+        <%= button_to "作業開始", start_action_execution_path(@action_execution), method: :patch, class: "button" %>
       <% end %>
       <% if @action_execution.status.in?(%w[ready running]) %>
-        <%= button_to "キャンセル", cancel_action_execution_path(@action_execution), method: :patch, class: "button danger", data: { turbo_confirm: "この実行をキャンセルしますか？" } %>
+        <%= link_to "実行結果を入力", action_execution_path(@action_execution, anchor: "execution-result-form"), class: "button secondary" %>
       <% end %>
     </div>
 
     <% if @action_execution.status.in?(%w[running ready]) %>
+      <div id="execution-result-form" class="aicoo-card aicoo-card-compact">
+        <h3>実行結果を入力</h3>
+        <p>指示通りにできたか、途中で止まったか、指示以上に進んだかをここで残します。</p>
+      </div>
+
       <%= form_with model: @action_execution, url: complete_action_execution_path(@action_execution), method: :patch, class: "form" do |form| %>
+        <div class="field">
+          <%= form.label :execution_outcome, "今回の結果" %>
+          <div class="checkbox-list">
+            <% [
+              [ "as_planned", "指示通りにできた" ],
+              [ "partial", "一部だけできた" ],
+              [ "exceeded", "捗って指示以上にやった" ],
+              [ "blocked", "できなくて途中で止まった" ]
+            ].each do |value, label| %>
+              <label>
+                <%= form.radio_button :execution_outcome, value, checked: params[:outcome].presence == value || (params[:outcome].blank? && value == "as_planned") %>
+                <%= label %>
+              </label>
+            <% end %>
+          </div>
+        </div>
+
+        <% if execution_tasks.any? %>
+          <div class="field">
+            <%= form.label :completed_task_names, "実際にやった作業" %>
+            <div class="checkbox-list">
+              <% execution_tasks.first(10).each do |task_name| %>
+                <label>
+                  <%= check_box_tag "action_execution[completed_task_names][]", task_name, false, id: nil %>
+                  <%= task_name %>
+                </label>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
+
         <div class="grid">
           <div class="field">
             <%= form.label :actual_hours, "実績時間" %>
@@ -121,18 +160,33 @@
           </div>
         </div>
         <div class="field">
-          <%= form.label :result_summary, "結果サマリー" %>
-          <%= form.textarea :result_summary, rows: 4 %>
+          <%= form.label :result_summary, "実際にやったこと" %>
+          <%= form.textarea :result_summary, rows: 4, placeholder: "例: SEOタイトルを変更し、内部リンクを3件追加した" %>
         </div>
-        <%= form.submit "完了", class: "button" %>
+        <div class="field">
+          <%= form.label :extra_work, "指示以上にやったこと" %>
+          <%= form.textarea :extra_work, rows: 3, placeholder: "例: 追加で関連記事を1本作成した" %>
+        </div>
+        <div class="field">
+          <%= form.label :blocked_reason, "できなかったこと・止まった理由" %>
+          <%= form.textarea :blocked_reason, rows: 3, placeholder: "例: 権限がなくページを更新できなかった" %>
+        </div>
+        <div class="actions compact-actions">
+          <%= form.submit "完了として保存", class: "button" %>
+        </div>
       <% end %>
 
       <%= form_with model: @action_execution, url: fail_action_execution_path(@action_execution), method: :patch, class: "form" do |form| %>
+        <%= form.hidden_field :execution_outcome, value: "blocked" %>
         <div class="field">
-          <%= form.label :result_summary, "失敗理由" %>
-          <%= form.textarea :result_summary, rows: 3 %>
+          <%= form.label :result_summary, "途中で止まった理由" %>
+          <%= form.textarea :result_summary, rows: 3, placeholder: "例: 必要な権限・素材・情報が不足していた" %>
         </div>
-        <%= form.submit "失敗", class: "button danger" %>
+        <div class="field">
+          <%= form.label :blocked_reason, "次に必要なもの" %>
+          <%= form.textarea :blocked_reason, rows: 3, placeholder: "例: 管理画面の編集権限が必要" %>
+        </div>
+        <%= form.submit "途中で止まったとして保存", class: "button danger" %>
       <% end %>
     <% end %>
   </section>
@@ -148,6 +202,14 @@
       <dd><%= @action_execution.completed_at ? l(@action_execution.completed_at, format: :long) : "-" %></dd>
       <dt>result_summary</dt>
       <dd><%= simple_format(@action_execution.result_summary.presence || "-") %></dd>
+      <dt>今回の結果</dt>
+      <dd><%= result_intake["execution_outcome_label"].presence || "-" %></dd>
+      <dt>実施した作業</dt>
+      <dd><%= Array(result_intake["completed_task_names"]).presence&.join(" / ") || "-" %></dd>
+      <dt>指示以上にやったこと</dt>
+      <dd><%= simple_format(result_intake["extra_work"].presence || "-") %></dd>
+      <dt>止まった理由</dt>
+      <dd><%= simple_format(result_intake["blocked_reason"].presence || "-") %></dd>
     </dl>
     <% if @action_execution.action_result %>
       <div class="actions">

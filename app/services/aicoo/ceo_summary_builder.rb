@@ -4,6 +4,7 @@ module Aicoo
       "Analytics Import",
       "ActionCandidate",
       "Opportunity",
+      "opportunity",
       "Generation Source",
       "metadata",
       "Internal Score",
@@ -19,7 +20,11 @@ module Aicoo
       "Auto"
     ].freeze
     CEO_REPLACEMENTS = {
+      "ActionResultやBusinessMetric" => "結果登録や事業データ",
+      "ActionResult登録" => "結果登録",
       "ActionResult" => "結果を登録する",
+      "Opportunity化" => "実行候補化",
+      "BusinessMetric" => "事業データ",
       "Business Health" => "事業状態",
       "Evidence" => "根拠データ",
       "ROI" => "費用対効果",

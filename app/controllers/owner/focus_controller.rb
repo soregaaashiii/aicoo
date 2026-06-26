@@ -3,9 +3,16 @@ module Owner
     def show
       @owner_focus_home = Aicoo::OwnerFocusHome.new.call
       @top_task = @owner_focus_home.top_task
+      @ceo_sort_mode = ceo_sort_mode
+      @owner_execution_queue_summary = Aicoo::OwnerExecutionQueueSummary.new.call
+      @ceo_priority_ranking = Aicoo::CeoPriorityRanking.new(
+        tasks: @owner_focus_home.focus_tasks,
+        sort_mode: @ceo_sort_mode,
+        queue_items: @owner_execution_queue_summary.skipped_items,
+        deferred_task_keys: deferred_task_keys
+      ).call
       @explore_daily_routine = Aicoo::ExploreDailyRoutine.new.call
       @opportunity_focus_item = opportunity_focus_item
-      @owner_execution_queue_summary = Aicoo::OwnerExecutionQueueSummary.new.call
       @owner_decision_summary = Aicoo::OwnerDecisionSummary.new.call
       @analysis_monitor = Aicoo::AnalysisMonitor.new.call
       @top_task_evidence = evidence_for_top_task
@@ -24,7 +31,29 @@ module Owner
       ).call
     end
 
+    def defer
+      key = params[:task_key].to_s
+      session[:ceo_deferred_task_keys] = (deferred_task_keys + [ key ]).uniq if key.present?
+      redirect_to owner_focus_path(sort: ceo_sort_mode), notice: "後でやるに移しました。"
+    end
+
+    def restore
+      key = params[:task_key].to_s
+      session[:ceo_deferred_task_keys] = deferred_task_keys - [ key ] if key.present?
+      redirect_to owner_focus_path(sort: ceo_sort_mode), notice: "今日のランキングに戻しました。"
+    end
+
     private
+
+    def ceo_sort_mode
+      mode = params[:sort].presence_in(Aicoo::CeoPriorityRanking::SORT_MODES)
+      session[:ceo_priority_sort_mode] = mode if mode.present?
+      mode || "recommended"
+    end
+
+    def deferred_task_keys
+      Array(session[:ceo_deferred_task_keys]).compact_blank
+    end
 
     def opportunity_focus_item
       return unless @top_task&.task_type == "opportunity_review"

@@ -3,6 +3,7 @@ module Aicoo
     TARGET_TASK_TYPES = %w[
       action_result_registration
       action_execution_ready
+      action_execution_running
       calibration_approval
       codex_prompt_draft_needed
       opportunity_review
@@ -55,16 +56,17 @@ module Aicoo
     def task_rank(task)
       return 0 if task.task_type == "daily_run_failure"
       return 1 if task.task_type == "action_execution_ready"
-      return 2 if task.task_type == "action_result_registration"
-      return 3 if task.task_type == "calibration_approval"
-      return 4 if task.task_type == "opportunity_review" && task.priority == "high"
-      return 5 if task.task_type == "opportunity_review"
-      return 6 if task.task_type == "codex_prompt_draft_needed"
-      return 7 if task.task_type == "explore_daily_routine"
-      return 8 if task.task_type == "learning_recommendation"
-      return 9 if task.task_type == "daily_run_step_recovery"
+      return 2 if task.task_type == "action_execution_running"
+      return 3 if task.task_type == "action_result_registration"
+      return 4 if task.task_type == "calibration_approval"
+      return 5 if task.task_type == "opportunity_review" && task.priority == "high"
+      return 6 if task.task_type == "opportunity_review"
+      return 7 if task.task_type == "codex_prompt_draft_needed"
+      return 8 if task.task_type == "explore_daily_routine"
+      return 9 if task.task_type == "learning_recommendation"
+      return 10 if task.task_type == "daily_run_step_recovery"
 
-      10 + OwnerTaskInbox::PRIORITY_ORDER.fetch(task.priority, 99)
+      11 + OwnerTaskInbox::PRIORITY_ORDER.fetch(task.priority, 99)
     end
 
     def summary_message

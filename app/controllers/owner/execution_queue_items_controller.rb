@@ -16,6 +16,13 @@ module Owner
       redirect_back fallback_location: owner_tasks_path, notice: "Queue Itemをskippedにしました。"
     end
 
+    def restore
+      previous_status = @owner_execution_queue_item.status
+      @owner_execution_queue_item.restore!
+      record_decision!("restore", previous_status:)
+      redirect_back fallback_location: owner_focus_path, notice: "今日のキューに戻しました。"
+    end
+
     private
 
     def set_owner_execution_queue_item

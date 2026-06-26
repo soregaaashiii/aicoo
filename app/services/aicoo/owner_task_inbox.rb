@@ -9,6 +9,7 @@ module Aicoo
     TASK_TYPE_LABELS = {
       "action_candidate_approval" => "行動候補承認",
       "action_execution_ready" => "実行準備完了",
+      "action_execution_running" => "作業中",
       "action_result_registration" => "実行結果登録",
       "learning_loop_health" => "学習ループ警告",
       "learning_loop_warning" => "学習品質警告",
@@ -58,6 +59,7 @@ module Aicoo
       (
         action_candidate_approval_tasks +
         action_execution_ready_tasks +
+        action_execution_running_tasks +
         action_result_registration_tasks +
         learning_loop_health_tasks +
         learning_loop_warning_tasks +
@@ -134,6 +136,28 @@ module Aicoo
         )
       end
     end
+
+    def action_execution_running_tasks
+      ActionExecution.includes(action_candidate: :business)
+                     .running
+                     .recent
+                     .limit(20)
+                     .map do |execution|
+        candidate = execution.action_candidate
+        Task.new(
+          priority: "high",
+          task_type: "action_execution_running",
+          title: "#{candidate.title} を完了させる",
+          description: "開始済みの作業があります。",
+          target_label: candidate.business.name,
+          target_path: routes.action_execution_path(execution),
+          reason: "開始済みです。完了または中断を選んでください。",
+          created_at: execution.started_at || execution.updated_at || execution.created_at,
+          quick_actions: action_execution_running_quick_actions(execution)
+        )
+      end
+    end
+
 
     def action_result_registration_tasks
       ActionExecution.includes(action_candidate: :business)
@@ -544,6 +568,13 @@ module Aicoo
       [
         quick_action("復旧する", :post, routes.recover_aicoo_daily_run_step_path(run, step), confirm_message: "#{step.step_name} stepを再実行しますか？", style: "primary"),
         quick_action("Step Breakdownを見る", :get, routes.aicoo_daily_run_path(run, anchor: "step-breakdown"), style: "secondary")
+      ]
+    end
+
+    def action_execution_running_quick_actions(execution)
+      [
+        quick_action("完了する", :patch, routes.complete_action_execution_path(execution), style: "primary"),
+        quick_action("中断する", :patch, routes.cancel_action_execution_path(execution), confirm_message: "この作業を中断しますか？", style: "secondary")
       ]
     end
 
