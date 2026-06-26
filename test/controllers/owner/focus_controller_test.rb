@@ -105,11 +105,11 @@ module Owner
       assert_includes response.body, "¥120,000"
       assert_includes response.body, "成功率"
       assert_includes response.body, "低コストLPで検証できる"
-      assert_includes response.body, "作業開始"
+      assert_includes response.body, "サービス下書きを作成"
       assert_includes response.body, "詳細を見る"
       assert_includes response.body, "後でやる"
       assert_not_includes response.body, "却下"
-      assert_includes response.body, focus_convert_to_candidate_owner_opportunity_path(opportunity)
+      assert_includes response.body, focus_create_business_owner_opportunity_path(opportunity)
       assert_includes response.body, "機会確認待ち"
     end
 

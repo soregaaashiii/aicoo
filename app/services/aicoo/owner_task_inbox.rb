@@ -284,10 +284,18 @@ module Aicoo
           quick_actions: [
             quick_action("Focusで処理", :get, routes.focus_owner_opportunities_path, style: "primary"),
             quick_action("Approve", :patch, routes.focus_approve_owner_opportunity_path(opportunity), style: "secondary"),
-            quick_action("Convert", :post, routes.focus_convert_to_candidate_owner_opportunity_path(opportunity), style: "secondary"),
+            opportunity_primary_quick_action(opportunity),
             quick_action("Opportunityを見る", :get, routes.owner_opportunity_path(opportunity), style: "secondary")
-          ]
+          ].compact
         )
+      end
+    end
+
+    def opportunity_primary_quick_action(opportunity)
+      if opportunity.new_service_candidate?
+        quick_action("新規サービス下書き", :post, routes.focus_create_business_owner_opportunity_path(opportunity), style: "secondary")
+      else
+        quick_action("Convert", :post, routes.focus_convert_to_candidate_owner_opportunity_path(opportunity), style: "secondary")
       end
     end
 

@@ -40,6 +40,10 @@ class OpportunityDiscoveryItem < ApplicationRecord
     Aicoo::OpportunityActionCandidateConverter.new(self).call
   end
 
+  def new_service_candidate?
+    business_id.blank?
+  end
+
   def execution_count
     action_candidate&.action_execution ? 1 : 0
   end

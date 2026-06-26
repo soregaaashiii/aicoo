@@ -24,10 +24,12 @@ Rails.application.routes.draw do
     patch :review, on: :member
     patch :approve, on: :member
     patch :reject, on: :member
+    post :create_business, on: :member
     post :convert_to_candidate, on: :member
     patch :focus_approve, on: :member
     patch :focus_review, on: :member
     patch :focus_reject, on: :member
+    post :focus_create_business, on: :member
     post :focus_convert_to_candidate, on: :member
   end
   patch "owner/calibrations/:id/approve", to: "owner/calibrations#approve", as: :approve_owner_calibration

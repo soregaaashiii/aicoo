@@ -5,10 +5,12 @@ module Owner
       review
       approve
       reject
+      create_business
       convert_to_candidate
       focus_approve
       focus_review
       focus_reject
+      focus_create_business
       focus_convert_to_candidate
     ]
 
@@ -62,6 +64,18 @@ module Owner
       redirect_to owner_opportunities_path, notice: "Opportunityを却下しました。"
     end
 
+    def create_business
+      previous_status = @opportunity.status
+      business = Aicoo::OpportunityBusinessBuilder.new(@opportunity).call
+      record_decision!(
+        "create_business",
+        "opportunity_detail",
+        previous_status:,
+        metadata: { business_id: business.id }
+      )
+      redirect_to owner_opportunity_path(@opportunity), notice: "新規サービス下書き『#{business.name}』を作成しました。次にActionCandidate化できます。"
+    end
+
     def convert_to_candidate
       previous_status = @opportunity.status
       candidate = @opportunity.convert_to_action_candidate!
@@ -95,6 +109,18 @@ module Owner
       @opportunity.update!(status: "rejected")
       record_decision!("reject", "owner_focus", previous_status:)
       redirect_to owner_focus_path, notice: "Opportunityを却下しました。"
+    end
+
+    def focus_create_business
+      previous_status = @opportunity.status
+      business = Aicoo::OpportunityBusinessBuilder.new(@opportunity).call
+      record_decision!(
+        "create_business",
+        "owner_focus",
+        previous_status:,
+        metadata: { business_id: business.id }
+      )
+      redirect_to owner_focus_path, notice: "新規サービス下書き『#{business.name}』を作成しました。"
     end
 
     def focus_convert_to_candidate

@@ -42,7 +42,7 @@
           <div class="metric-card"><span>Opportunity Score</span><strong><%= opportunity.opportunity_score.to_i %></strong></div>
           <div class="metric-card"><span>期待値</span><strong><%= number_to_currency(opportunity.expected_value_yen.to_i, unit: "¥", precision: 0) %></strong></div>
           <div class="metric-card"><span>confidence</span><strong><%= opportunity.confidence.to_i %></strong></div>
-          <div class="metric-card"><span>Business</span><strong><%= opportunity.business&.name || "-" %></strong></div>
+          <div class="metric-card"><span>Business</span><strong><%= opportunity.business&.name || "新規サービス候補" %></strong></div>
           <div class="metric-card"><span>Created</span><strong><%= l(opportunity.created_at, format: :short) %></strong></div>
         </div>
         <dl class="detail-list">
@@ -80,7 +80,11 @@
         <% if opportunity.status == "pending" %>
           <%= button_to "Approve", approve_owner_opportunity_path(opportunity), method: :patch, class: "button secondary" %>
         <% end %>
-        <%= button_to "Convert to Candidate", focus_convert_to_candidate_owner_opportunity_path(opportunity), method: :post, class: "button" %>
+        <% if opportunity.new_service_candidate? %>
+          <%= button_to "新規サービス下書きを作成", focus_create_business_owner_opportunity_path(opportunity), method: :post, class: "button" %>
+        <% else %>
+          <%= button_to "Convert to Candidate", focus_convert_to_candidate_owner_opportunity_path(opportunity), method: :post, class: "button" %>
+        <% end %>
         <%= button_to "Mark Reviewed", focus_review_owner_opportunity_path(opportunity), method: :patch, class: "button secondary" %>
         <%= button_to "Reject", focus_reject_owner_opportunity_path(opportunity), method: :patch, class: "button danger", data: { turbo_confirm: "このOpportunityを却下しますか？" } %>
         <%= link_to "詳細を見る", owner_opportunity_path(opportunity), class: "button secondary" %>

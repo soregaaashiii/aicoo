@@ -1,5 +1,5 @@
 class OwnerDecisionLog < ApplicationRecord
-  DECISION_TYPES = %w[approve reject convert complete skip copied executed].freeze
+  DECISION_TYPES = %w[approve reject convert create_business complete skip copied executed].freeze
   DECISION_SOURCES = %w[
     owner_focus
     owner_tasks

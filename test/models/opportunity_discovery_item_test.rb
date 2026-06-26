@@ -29,6 +29,54 @@ class OpportunityDiscoveryItemTest < ActiveSupport::TestCase
     end
   end
 
+  test "does not convert new service opportunity without business" do
+    item = OpportunityDiscoveryItem.create!(
+      title: "新規サービス候補",
+      description: "既存事業に紐づかない仮説",
+      opportunity_score: 80
+    )
+
+    assert_no_difference("ActionCandidate.count") do
+      assert_nil item.convert_to_action_candidate!
+    end
+
+    assert item.reload.new_service_candidate?
+    assert item.practicality_warning?
+    assert_equal true, item.metadata["business_creation_required"]
+  end
+
+  test "creates business draft for new service opportunity before conversion" do
+    item = OpportunityDiscoveryItem.create!(
+      title: "新しい予約比較サービス",
+      description: "予約導線の比較需要がありそう",
+      opportunity_score: 80
+    )
+
+    assert_difference("Business.count", 1) do
+      business = Aicoo::OpportunityBusinessBuilder.new(item).call
+      assert_equal "idea", business.status
+      assert_equal business, item.reload.business
+      assert_equal "approved", item.status
+    end
+
+    assert_difference("ActionCandidate.count", 1) do
+      assert item.convert_to_action_candidate!
+    end
+  end
+
+  test "business draft creation is idempotent" do
+    item = OpportunityDiscoveryItem.create!(title: "重複しない新規サービス", opportunity_score: 80)
+    builder = Aicoo::OpportunityBusinessBuilder.new(item)
+
+    assert_difference("Business.count", 1) do
+      builder.call
+    end
+
+    assert_no_difference("Business.count") do
+      builder.call
+    end
+  end
+
   test "stores strategic learning scores" do
     item = OpportunityDiscoveryItem.create!(
       title: "外部シグナルからLP検証",

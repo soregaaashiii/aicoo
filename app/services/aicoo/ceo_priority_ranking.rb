@@ -283,7 +283,11 @@ module Aicoo
     def todo_primary_action(task, candidate, execution, opportunity)
       routes = Rails.application.routes.url_helpers
       return action("作業開始", :patch, routes.start_action_execution_path(execution), "primary") if execution
-      return action("作業開始", :post, routes.focus_convert_to_candidate_owner_opportunity_path(opportunity), "primary") if opportunity
+      if opportunity
+        return action("サービス下書きを作成", :post, routes.focus_create_business_owner_opportunity_path(opportunity), "primary") if opportunity.new_service_candidate?
+
+        return action("作業開始", :post, routes.focus_convert_to_candidate_owner_opportunity_path(opportunity), "primary")
+      end
       return action("作業開始", :post, routes.generate_codex_prompt_draft_action_candidate_path(candidate), "primary") if candidate
 
       quick_action = task.quick_actions.find { |item| item.method.to_s != "get" && item.style != "danger" }

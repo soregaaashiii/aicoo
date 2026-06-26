@@ -51,6 +51,30 @@ module Owner
       assert_equal "opportunity_detail", OwnerDecisionLog.last.decision_source
     end
 
+    test "new service opportunity creates business draft instead of candidate first" do
+      opportunity = OpportunityDiscoveryItem.create!(
+        title: "New service from opportunity",
+        opportunity_score: 80
+      )
+
+      assert_no_difference("ActionCandidate.count") do
+        post convert_to_candidate_owner_opportunity_url(opportunity)
+      end
+
+      assert_redirected_to owner_opportunity_url(opportunity)
+      assert_equal true, opportunity.reload.metadata["business_creation_required"]
+
+      assert_difference("Business.count", 1) do
+        assert_difference("OwnerDecisionLog.count", 1) do
+          post create_business_owner_opportunity_url(opportunity)
+        end
+      end
+
+      assert_redirected_to owner_opportunity_url(opportunity)
+      assert_equal Business.last, opportunity.reload.business
+      assert_equal "create_business", OwnerDecisionLog.last.decision_type
+    end
+
     test "show tracks candidate execution and result" do
       opportunity = OpportunityDiscoveryItem.create!(title: "Tracked opportunity", business: businesses(:suelog))
       candidate = opportunity.convert_to_action_candidate!
@@ -92,6 +116,20 @@ module Owner
       assert_includes response.body, "Convert to Candidate"
       assert_includes response.body, "Mark Reviewed"
       assert_includes response.body, "Reject"
+    end
+
+    test "focus shows create business action for new service opportunity" do
+      OpportunityDiscoveryItem.create!(
+        title: "Focus new service",
+        opportunity_score: 90
+      )
+
+      get focus_owner_opportunities_url
+
+      assert_response :success
+      assert_includes response.body, "新規サービス候補"
+      assert_includes response.body, "新規サービス下書きを作成"
+      assert_includes response.body, focus_create_business_owner_opportunity_path(OpportunityDiscoveryItem.last)
     end
 
     test "focus review marks opportunity reviewed and returns to focus" do
@@ -140,6 +178,21 @@ module Owner
       assert_redirected_to action_candidate_url(ActionCandidate.last)
       assert_equal "converted", opportunity.reload.status
       assert_equal "convert", OwnerDecisionLog.last.decision_type
+    end
+
+    test "focus create business draft links opportunity to new business" do
+      opportunity = OpportunityDiscoveryItem.create!(title: "Focus business draft", opportunity_score: 80)
+
+      assert_difference("Business.count", 1) do
+        assert_difference("OwnerDecisionLog.count", 1) do
+          post focus_create_business_owner_opportunity_url(opportunity)
+        end
+      end
+
+      assert_redirected_to owner_focus_url
+      assert_equal Business.last, opportunity.reload.business
+      assert_equal "create_business", OwnerDecisionLog.last.decision_type
+      assert_equal "owner_focus", OwnerDecisionLog.last.decision_source
     end
   end
 end

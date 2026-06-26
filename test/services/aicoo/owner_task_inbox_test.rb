@@ -296,7 +296,7 @@ module Aicoo
       assert task
       assert_equal "high", task.priority
       assert_equal Rails.application.routes.url_helpers.focus_owner_opportunities_path, task.target_path
-      assert_equal [ "Focusで処理", "Approve", "Convert", "Opportunityを見る" ], task.quick_actions.map(&:label)
+      assert_equal [ "Focusで処理", "Approve", "新規サービス下書き", "Opportunityを見る" ], task.quick_actions.map(&:label)
     end
 
     test "returns high score explore signals that are not converted yet" do

@@ -6,10 +6,11 @@ module Aicoo
 
     def call
       return opportunity.action_candidate if opportunity.action_candidate
+      return unless business_ready?
       return unless practical_enough?
 
       candidate = ActionCandidate.create!(
-        business: opportunity.business || Business.order(:name).first,
+        business: opportunity.business,
         title: candidate_title,
         description: opportunity.summary.presence || opportunity.description,
         action_type: action_type,
@@ -34,6 +35,21 @@ module Aicoo
     private
 
     attr_reader :opportunity
+
+    def business_ready?
+      return true if opportunity.business
+
+      opportunity.update_columns(
+        practicality_warning: true,
+        practicality_reason: "新規サービス候補のため、先にBusiness下書きを作成してください。",
+        metadata: opportunity.metadata.to_h.merge(
+          "new_service_candidate" => true,
+          "business_creation_required" => true
+        ),
+        updated_at: Time.current
+      )
+      false
+    end
 
     def practical_enough?
       score = opportunity.practicality_score || Aicoo::PracticalityScorer.new(opportunity).call.practicality_score

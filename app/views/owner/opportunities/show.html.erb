@@ -10,7 +10,11 @@
     <% if @opportunity.status == "pending" %>
       <%= button_to "Approve", approve_owner_opportunity_path(@opportunity), method: :patch, class: "button secondary" %>
     <% end %>
-    <%= button_to "Convert to Candidate", convert_to_candidate_owner_opportunity_path(@opportunity), method: :post, class: "button" %>
+    <% if @opportunity.new_service_candidate? %>
+      <%= button_to "新規サービス下書きを作成", create_business_owner_opportunity_path(@opportunity), method: :post, class: "button" %>
+    <% else %>
+      <%= button_to "Convert to Candidate", convert_to_candidate_owner_opportunity_path(@opportunity), method: :post, class: "button" %>
+    <% end %>
   <% end %>
 <% end %>
 
@@ -31,6 +35,18 @@
       <div class="metric-card"><span>discovered</span><strong><%= @opportunity.discovered_at ? l(@opportunity.discovered_at, format: :short) : "-" %></strong></div>
     </div>
   </section>
+
+  <% if @opportunity.new_service_candidate? %>
+    <section class="dashboard-section">
+      <div class="aicoo-card aicoo-card-compact">
+        <h2>新規サービス候補</h2>
+        <p>このOpportunityは既存Businessに紐づいていません。ActionCandidate化する前に、新規サービスのBusiness下書きを作成してください。</p>
+        <div class="actions compact-actions">
+          <%= button_to "新規サービス下書きを作成", create_business_owner_opportunity_path(@opportunity), method: :post, class: "button" %>
+        </div>
+      </div>
+    </section>
+  <% end %>
 
   <section class="dashboard-section">
     <div class="section-heading">
