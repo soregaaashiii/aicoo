@@ -15,7 +15,10 @@ class DataSourceCostProfile < ApplicationRecord
     "x" => { name: "X Search", execution_mode: "manual", average_cost_yen: 40, average_expected_profit_yen: 1_200 },
     "youtube" => { name: "YouTube Search", execution_mode: "manual", average_cost_yen: 25, average_expected_profit_yen: 900 },
     "google_ads" => { name: "Google Ads", execution_mode: "manual", average_cost_yen: 100, average_expected_profit_yen: 2_500 },
-    "meta_ads" => { name: "Meta Ads", execution_mode: "manual", average_cost_yen: 100, average_expected_profit_yen: 2_000 }
+    "meta_ads" => { name: "Meta Ads", execution_mode: "manual", average_cost_yen: 100, average_expected_profit_yen: 2_000 },
+    "reddit" => { name: "Reddit Research", execution_mode: "manual", average_cost_yen: 20, average_expected_profit_yen: 900 },
+    "github" => { name: "GitHub Signals", execution_mode: "smart", average_cost_yen: 5, average_expected_profit_yen: 600 },
+    "product_hunt" => { name: "Product Hunt", execution_mode: "smart", average_cost_yen: 10, average_expected_profit_yen: 800 }
   }.freeze
 
   has_many :business_data_source_settings, foreign_key: :source_key, primary_key: :source_key, inverse_of: :data_source_cost_profile

@@ -3,6 +3,7 @@ class DashboardController < ApplicationController
     run_daily_catch_up_if_due
     @system_mode_monitor = Aicoo::SystemModeSnapshotPresenter.new.call
     @cost_summary = Aicoo::CostEngine.new.call
+    @analysis_monitor = Aicoo::AnalysisMonitor.new.call
     @engagement_summary = Aicoo::EngagementSummary.new.call
   end
 
@@ -10,6 +11,13 @@ class DashboardController < ApplicationController
     snapshot = Aicoo::SystemModeSnapshotBuilder.new.call
 
     redirect_to dashboard_path, notice: "System Mode Snapshotを更新しました: #{helpers.l(snapshot.captured_at, format: :short)}"
+  end
+
+  def generate_analysis_candidates
+    result = Aicoo::AnalysisOrchestrator.run_all!(today: Date.current, limit_per_business: 8)
+
+    redirect_to dashboard_path,
+                notice: "Analysis Candidateを#{result.created_count}件作成 / #{result.updated_count}件更新しました。スキップ: #{result.skipped_count}件"
   end
 
   def generate_ai_top10

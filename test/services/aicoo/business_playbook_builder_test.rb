@@ -114,6 +114,31 @@ module Aicoo
       assert_equal "SEOタイトル改訂", playbook.metadata["recommended_tasks"].first
     end
 
+    test "learns analysis source performance" do
+      business = businesses(:suelog)
+      business.analysis_candidates.create!(
+        analysis_source: "serp",
+        status: "completed",
+        expected_value_yen: 2_000,
+        estimated_cost_yen: 20,
+        estimated_minutes: 30,
+        roi: 100,
+        confidence: 80,
+        priority: 90,
+        execution_mode: "manual",
+        due_on: Date.current,
+        reason: "順位急落のためSERP分析"
+      )
+
+      playbook = BusinessPlaybookBuilder.new(business).update!
+      analysis_summary = playbook.metadata["analysis_summary"]
+
+      assert analysis_summary.key?("serp")
+      assert_equal 1, analysis_summary["serp"]["candidate_count"].to_i
+      assert_operator analysis_summary["serp"]["roi"].to_d, :>, 0
+      assert_equal "serp", playbook.analysis_rows.first["source"]
+    end
+
     test "updates all businesses" do
       result = BusinessPlaybookBuilder.update_all!
 

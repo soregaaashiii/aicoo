@@ -16,9 +16,10 @@ module Aicoo
       action_summary = action_type_summary
       opportunity_summary = opportunity_type_summary
       task_summary = action_expansion_task_summary
+      analysis_summary = analysis_source_summary
       playbook.update!(
-        sample_count: total_sample_count(action_summary, opportunity_summary, task_summary),
-        confidence_score: confidence_for(action_summary, opportunity_summary, task_summary),
+        sample_count: total_sample_count(action_summary, opportunity_summary, task_summary, analysis_summary),
+        confidence_score: confidence_for(action_summary, opportunity_summary, task_summary, analysis_summary),
         top_action_type: top_type(action_summary),
         worst_action_type: worst_type(action_summary),
         top_opportunity_type: top_type(opportunity_summary),
@@ -35,7 +36,10 @@ module Aicoo
           "weak_action_types" => weak_types(action_summary),
           "task_summary" => task_summary,
           "recommended_tasks" => recommended_types(task_summary),
-          "weak_tasks" => weak_types(task_summary)
+          "weak_tasks" => weak_types(task_summary),
+          "analysis_summary" => analysis_summary,
+          "recommended_analysis_sources" => recommended_types(analysis_summary),
+          "weak_analysis_sources" => weak_types(analysis_summary)
         },
         last_calculated_at: Time.current
       )
@@ -190,6 +194,45 @@ module Aicoo
       }.transform_values { |value| value.respond_to?(:round) ? value.to_d.round(4).to_s : value }
     end
 
+    def analysis_source_summary
+      business.analysis_candidates.distinct.pluck(:analysis_source).compact_blank.index_with do |source|
+        analysis_source_row(source)
+      end
+    end
+
+    def analysis_source_row(source)
+      candidates = business.analysis_candidates.where(analysis_source: source)
+      total_count = candidates.count
+      completed_count = candidates.where(status: "completed").count
+      skipped_count = candidates.where(status: "skipped").count
+      failed_count = candidates.where(status: "failed").count
+      expected_value = candidates.sum(:expected_value_yen)
+      estimated_cost = candidates.sum(:estimated_cost_yen)
+      average_roi = average(candidates.pluck(:roi))
+      roi = estimated_cost.to_d.positive? ? expected_value.to_d / estimated_cost.to_d : average_roi
+      completion_rate = rate(completed_count, total_count)
+      skip_rate = rate(skipped_count, total_count)
+      failure_rate = rate(failed_count, total_count)
+
+      {
+        "type" => source,
+        "source" => source,
+        "candidate_count" => total_count,
+        "completed_count" => completed_count,
+        "skipped_count" => skipped_count,
+        "failed_count" => failed_count,
+        "completion_rate" => completion_rate,
+        "skip_rate" => skip_rate,
+        "failure_rate" => failure_rate,
+        "average_expected_value_yen" => average(candidates.pluck(:expected_value_yen)),
+        "average_estimated_cost_yen" => average(candidates.pluck(:estimated_cost_yen)),
+        "roi" => roi,
+        "average_confidence" => average(candidates.pluck(:confidence)),
+        "sample_count" => total_count,
+        "score" => ((completion_rate.to_d * 30) + ([ roi.to_d, 100 ].min * 0.5) - (failure_rate.to_d * 20)).round(2)
+      }.transform_values { |value| value.respond_to?(:round) ? value.to_d.round(4).to_s : value }
+    end
+
     def playbook_score(success_rate:, adoption_rate:, average_actual_profit:, expected_profit:)
       revenue_signal = expected_profit.to_d.positive? ? [ average_actual_profit.to_d / expected_profit.to_d, 1.to_d ].min : 0.to_d
       ((success_rate.to_d * 40) + (adoption_rate.to_d * 30) + (revenue_signal * 30)).round(2)
@@ -205,15 +248,16 @@ module Aicoo
       [ [ coefficient, Aicoo::DecisionLogCoefficient::MIN_COEFFICIENT ].max, Aicoo::DecisionLogCoefficient::MAX_COEFFICIENT ].min
     end
 
-    def confidence_for(action_summary, opportunity_summary, task_summary)
-      samples = total_sample_count(action_summary, opportunity_summary, task_summary)
+    def confidence_for(action_summary, opportunity_summary, task_summary, analysis_summary)
+      samples = total_sample_count(action_summary, opportunity_summary, task_summary, analysis_summary)
       [ samples * 4, 100 ].min.to_d
     end
 
-    def total_sample_count(action_summary, opportunity_summary, task_summary)
+    def total_sample_count(action_summary, opportunity_summary, task_summary, analysis_summary)
       action_summary.values.sum { |row| row["sample_count"].to_i } +
         opportunity_summary.values.sum { |row| row["sample_count"].to_i } +
-        task_summary.values.sum { |row| row["sample_count"].to_i }
+        task_summary.values.sum { |row| row["sample_count"].to_i } +
+        analysis_summary.values.sum { |row| row["sample_count"].to_i }
     end
 
     def top_type(summary)

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_26_133000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_26_142000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -710,6 +710,33 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_133000) do
     t.datetime "updated_at", null: false
   end
 
+  create_table "analysis_candidates", force: :cascade do |t|
+    t.string "analysis_source", null: false
+    t.bigint "business_id", null: false
+    t.decimal "confidence", default: "0.0", null: false
+    t.datetime "created_at", null: false
+    t.date "due_on", null: false
+    t.decimal "estimated_cost_yen", default: "0.0", null: false
+    t.integer "estimated_minutes", default: 0, null: false
+    t.jsonb "evidence", default: {}, null: false
+    t.string "execution_mode", null: false
+    t.integer "expected_value_yen", default: 0, null: false
+    t.datetime "last_run_at"
+    t.jsonb "metadata", default: {}, null: false
+    t.decimal "priority", default: "0.0", null: false
+    t.text "reason"
+    t.decimal "roi"
+    t.string "status", default: "pending", null: false
+    t.datetime "updated_at", null: false
+    t.index ["analysis_source"], name: "index_analysis_candidates_on_analysis_source"
+    t.index ["business_id", "analysis_source", "due_on"], name: "idx_on_business_id_analysis_source_due_on_eec0d8cd55", unique: true
+    t.index ["business_id"], name: "index_analysis_candidates_on_business_id"
+    t.index ["due_on"], name: "index_analysis_candidates_on_due_on"
+    t.index ["execution_mode"], name: "index_analysis_candidates_on_execution_mode"
+    t.index ["priority"], name: "index_analysis_candidates_on_priority"
+    t.index ["status"], name: "index_analysis_candidates_on_status"
+  end
+
   create_table "analytics_fetch_runs", force: :cascade do |t|
     t.bigint "analytics_source_setting_id", null: false
     t.datetime "created_at", null: false
@@ -1311,6 +1338,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_133000) do
   add_foreign_key "aicoo_lab_predictions", "aicoo_lab_experiments"
   add_foreign_key "aicoo_lab_results", "aicoo_lab_experiments"
   add_foreign_key "aicoo_lab_signups", "aicoo_lab_landing_pages"
+  add_foreign_key "analysis_candidates", "businesses"
   add_foreign_key "analytics_fetch_runs", "analytics_source_settings"
   add_foreign_key "analytics_source_settings", "aicoo_analytics_sites"
   add_foreign_key "analytics_source_settings", "aicoo_google_credentials", column: "google_credential_id"

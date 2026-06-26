@@ -49,6 +49,45 @@
     </div>
   </section>
 
+  <section class="dashboard-section" id="analysis-monitor">
+    <div class="section-heading">
+      <div>
+        <h2>Analysis Monitor</h2>
+        <p>Businessごとに今日回すべき分析を、期待値・コスト・ROIで監視します。</p>
+      </div>
+      <%= button_to "今日のAnalysis Candidateを生成", generate_analysis_candidates_dashboard_path, method: :post, class: "button secondary" %>
+    </div>
+
+    <div class="metric-grid">
+      <div class="metric-card"><span>Today</span><strong><%= @analysis_monitor.today_count %></strong></div>
+      <div class="metric-card"><span>Pending</span><strong><%= @analysis_monitor.pending_count %></strong></div>
+      <div class="metric-card"><span>Auto / Smart / Manual</span><strong><%= @analysis_monitor.auto_count %> / <%= @analysis_monitor.smart_count %> / <%= @analysis_monitor.manual_count %></strong></div>
+      <div class="metric-card"><span>推定コスト</span><strong><%= number_to_currency(@analysis_monitor.estimated_cost_yen, unit: "¥", precision: 0) %></strong></div>
+      <div class="metric-card"><span>期待値</span><strong><%= number_to_currency(@analysis_monitor.expected_value_yen, unit: "¥", precision: 0) %></strong></div>
+      <div class="metric-card"><span>ROI</span><strong><%= @analysis_monitor.roi ? number_with_precision(@analysis_monitor.roi, precision: 1) : "無料/未計算" %></strong></div>
+    </div>
+
+    <% if @analysis_monitor.warnings.any? %>
+      <div class="aicoo-card aicoo-card-compact">
+        <%= @analysis_monitor.warnings.join(" / ") %>
+      </div>
+    <% end %>
+
+    <div class="system-status-grid compact">
+      <% @analysis_monitor.top_candidates.each do |candidate| %>
+        <%= link_to candidate.business, class: "system-status-card status-#{candidate.manual? ? "warning" : "healthy"}" do %>
+          <span><%= candidate.business.name %> / <%= candidate.display_name %></span>
+          <strong><%= candidate.execution_mode.upcase %></strong>
+          <small>
+            期待値 <%= number_to_currency(candidate.expected_value_yen, unit: "¥", precision: 0) %> /
+            コスト <%= number_to_currency(candidate.estimated_cost_yen, unit: "¥", precision: 0) %> /
+            ROI <%= candidate.roi_label %>
+          </small>
+        <% end %>
+      <% end %>
+    </div>
+  </section>
+
   <section class="dashboard-section">
     <div class="section-heading">
       <div>

@@ -143,6 +143,35 @@
     <%= link_to "Data Source紐付けを編集", edit_business_path(@business, anchor: "data-source-link-settings"), class: "button secondary" %>
   </div>
 
+  <div class="section-heading">
+    <h2>Analysis Sources</h2>
+    <p>今日このBusinessで回す価値が高い分析候補です。Manualは実行前にコストとROIを確認します。</p>
+  </div>
+  <% if analytics.analysis_candidates.any? %>
+    <div class="business-analytics-status-grid">
+      <% analytics.analysis_candidates.each do |candidate| %>
+        <div class="aicoo-card aicoo-card-compact">
+          <h3><%= candidate.display_name %></h3>
+          <p>
+            <span class="pill cost-level-<%= candidate.manual? ? "high" : candidate.execution_mode %>"><%= candidate.execution_mode %></span>
+            <span class="pill status-<%= candidate.status == "pending" ? "warning" : "healthy" %>"><%= candidate.status %></span>
+          </p>
+          <small>
+            期待値 <%= number_to_currency(candidate.expected_value_yen, unit: "¥", precision: 0) %> /
+            予想コスト <%= number_to_currency(candidate.estimated_cost_yen, unit: "¥", precision: 0) %> /
+            ROI <%= candidate.roi_label %><br>
+            Last Run: <%= candidate.last_run_at ? l(candidate.last_run_at, format: :short) : "未実行" %><br>
+            <%= candidate.reason %>
+          </small>
+        </div>
+      <% end %>
+    </div>
+  <% else %>
+    <div class="aicoo-card aicoo-card-compact">
+      <p class="aicoo-empty-state">今日のAnalysis Candidateはまだありません。Daily Run後、またはSYSTEM MODEのAnalysis Monitorから生成してください。</p>
+    </div>
+  <% end %>
+
   <div class="business-analytics-chart-grid">
     <%= render "analytics_chart",
                title: "GSCグラフ",
@@ -297,6 +326,22 @@
           <% end %>
           <% if @business_playbook.task_rows.empty? %>
             <li>Task単位の学習はまだ不足しています。</li>
+          <% end %>
+        </ul>
+      </div>
+      <div class="aicoo-card aicoo-card-compact">
+        <h3>おすすめAnalysis</h3>
+        <ul class="compact-list">
+          <% @business_playbook.analysis_rows.first(8).each do |row| %>
+            <li>
+              <strong><%= row["source"] || row["type"] %></strong>
+              / ROI <%= number_with_precision(row["roi"].to_d, precision: 1) %>
+              / 完了率 <%= number_to_percentage(row["completion_rate"].to_d * 100, precision: 1) %>
+              / sample <%= row["sample_count"] %>
+            </li>
+          <% end %>
+          <% if @business_playbook.analysis_rows.empty? %>
+            <li>Analysis単位の学習はまだ不足しています。</li>
           <% end %>
         </ul>
       </div>

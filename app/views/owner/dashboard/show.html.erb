@@ -47,6 +47,33 @@
 
   <section class="dashboard-section">
     <div class="section-heading">
+      <h2>今日やる分析</h2>
+      <p>分析も期待値とコストで優先順位を付けます。</p>
+    </div>
+    <div class="metric-grid aicoo-owner-secondary">
+      <div class="metric-card"><span>候補</span><strong><%= @analysis_monitor.today_count %>件</strong></div>
+      <div class="metric-card"><span>Auto / Smart / Manual</span><strong><%= @analysis_monitor.auto_count %> / <%= @analysis_monitor.smart_count %> / <%= @analysis_monitor.manual_count %></strong></div>
+      <div class="metric-card"><span>推定コスト</span><strong><%= number_to_currency(@analysis_monitor.estimated_cost_yen, unit: "¥", precision: 0) %></strong></div>
+      <div class="metric-card"><span>期待値</span><strong><%= number_to_currency(@analysis_monitor.expected_value_yen, unit: "¥", precision: 0) %></strong></div>
+    </div>
+    <div class="aicoo-card aicoo-card-compact">
+      <ul class="compact-list">
+        <% @analysis_monitor.top_candidates.first(5).each do |candidate| %>
+          <li>
+            <%= link_to "#{candidate.business.name} / #{candidate.display_name}", candidate.business %>
+            / <%= candidate.execution_mode %>
+            / ROI <%= candidate.roi_label %>
+          </li>
+        <% end %>
+        <% if @analysis_monitor.top_candidates.empty? %>
+          <li>今日の分析候補はまだありません。</li>
+        <% end %>
+      </ul>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
       <h2>今日やること TOP10</h2>
       <p>モードに応じて、収益と学習のどちらを重視するかを切り替えます。</p>
     </div>

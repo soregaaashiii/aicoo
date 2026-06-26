@@ -17,6 +17,7 @@ module Aicoo
       "opportunity_review" => "Opportunity確認",
       "explore_signal_review" => "Explore Signal確認",
       "explore_daily_routine" => "Explore日次確認",
+      "analysis_review" => "分析実行判断",
       "discovery_source_warning" => "発見源警告",
       "calibration_approval" => "評価式承認",
       "daily_run_failure" => "Daily Run失敗",
@@ -65,6 +66,7 @@ module Aicoo
         opportunity_review_tasks +
         explore_daily_routine_tasks +
         explore_signal_review_tasks +
+        analysis_review_tasks +
         discovery_source_warning_tasks +
         calibration_approval_tasks +
         daily_run_step_recovery_tasks +
@@ -265,6 +267,30 @@ module Aicoo
       end
     end
 
+    def analysis_review_tasks
+      AnalysisCandidate.includes(:business)
+                       .for_today
+                       .pending
+                       .ordered
+                       .limit(10)
+                       .map do |candidate|
+        Task.new(
+          priority: analysis_priority(candidate),
+          task_type: "analysis_review",
+          title: "#{candidate.business.name} の #{candidate.display_name} を確認",
+          description: "今日実行する価値が高い分析候補です。",
+          target_label: candidate.business.name,
+          target_path: routes.business_path(candidate.business, anchor: "analytics"),
+          reason: "#{candidate.execution_mode.upcase} / 期待値 #{candidate.expected_value_yen.to_i.to_fs(:delimited)}円 / コスト #{candidate.estimated_cost_yen.to_i.to_fs(:delimited)}円 / ROI #{candidate.roi_label}",
+          created_at: candidate.created_at,
+          quick_actions: [
+            quick_action("Business Analyticsを見る", :get, routes.business_path(candidate.business, anchor: "analytics"), style: "secondary"),
+            quick_action("SYSTEM MODEを見る", :get, routes.dashboard_path(anchor: "analysis-monitor"), style: "secondary")
+          ]
+        )
+      end
+    end
+
     def discovery_source_warning_tasks
       report = DiscoverySourcePerformanceReport.new.call
       report.weakest_sources.select { |summary| discovery_source_warning?(summary) }.first(5).map do |summary|
@@ -331,6 +357,13 @@ module Aicoo
       return "medium" if routine.import_needed
 
       "medium"
+    end
+
+    def analysis_priority(candidate)
+      return "high" if candidate.manual? && candidate.roi.to_d >= 10
+      return "medium" if candidate.smart? || candidate.roi.to_d >= 3
+
+      "low"
     end
 
     def daily_run_tasks

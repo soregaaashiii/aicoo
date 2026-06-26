@@ -355,6 +355,38 @@
 
   <section class="dashboard-section">
     <div class="section-heading">
+      <h2>Analysis Learning</h2>
+      <p>分析ソースごとのROI、完了率、失敗率をBusiness Playbookから確認します。</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Business</th><th>Analysis</th><th>ROI</th><th>完了率</th><th>Skip率</th><th>Failure率</th><th>期待値</th><th>コスト</th><th>Sample</th></tr>
+        </thead>
+        <tbody>
+          <% @business_playbook_summary.top_playbooks.flat_map { |playbook| playbook.analysis_rows.map { |row| [playbook, row] } }.first(20).each do |playbook, row| %>
+            <tr>
+              <td><%= link_to playbook.business.name, playbook.business %></td>
+              <td><%= row["source"] || row["type"] %></td>
+              <td><%= number_with_precision(row["roi"].to_d, precision: 1) %></td>
+              <td><%= number_to_percentage(row["completion_rate"].to_d * 100, precision: 1) %></td>
+              <td><%= number_to_percentage(row["skip_rate"].to_d * 100, precision: 1) %></td>
+              <td><%= number_to_percentage(row["failure_rate"].to_d * 100, precision: 1) %></td>
+              <td><%= number_to_currency(row["average_expected_value_yen"].to_d, unit: "¥", precision: 0) %></td>
+              <td><%= number_to_currency(row["average_estimated_cost_yen"].to_d, unit: "¥", precision: 0) %></td>
+              <td><%= row["sample_count"] %></td>
+            </tr>
+          <% end %>
+          <% if @business_playbook_summary.top_playbooks.all? { |playbook| playbook.analysis_rows.empty? } %>
+            <tr><td colspan="9">Analysis Learningはまだデータ不足です。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
       <h2>Engagement Learning</h2>
       <p>Taskごとに滞在・回遊・CV導線の改善傾向を確認します。</p>
     </div>

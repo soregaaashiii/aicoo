@@ -158,6 +158,13 @@ class AicooDailyRunner
     log!("OwnerExecutionQueue skipped count=#{owner_queue_result.skipped.size}")
     log!("OwnerExecutionQueue high risk count=#{owner_queue_result.high_risk.size}")
 
+    analysis_result = record_step!(run, "analysis_orchestration") do
+      Aicoo::AnalysisOrchestrator.run_all!(today: Date.current, limit_per_business: 8)
+    end
+    log!("AnalysisCandidate created count=#{analysis_result.created_count}")
+    log!("AnalysisCandidate updated count=#{analysis_result.updated_count}")
+    log!("AnalysisCandidate skipped count=#{analysis_result.skipped_count}")
+
     playbook_result = record_step!(run, "business_playbook_update") do
       Aicoo::BusinessPlaybookBuilder.update_all!
     end

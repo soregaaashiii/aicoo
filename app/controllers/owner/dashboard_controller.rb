@@ -15,6 +15,7 @@ module Owner
       @opportunity_focus_queue = Aicoo::OpportunityFocusQueue.new.call
       @explore_summary = Aicoo::ExploreSummary.new.call
       @explore_daily_routine = Aicoo::ExploreDailyRoutine.new.call
+      @analysis_monitor = Aicoo::AnalysisMonitor.new.call
     end
   end
 end

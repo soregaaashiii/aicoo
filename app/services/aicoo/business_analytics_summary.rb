@@ -32,6 +32,7 @@ module Aicoo
       :revenue_series,
       :action_series,
       :learning_series,
+      :analysis_candidates,
       :cost_estimates,
       :settings,
       :data_status
@@ -67,6 +68,7 @@ module Aicoo
         revenue_series: revenue_series,
         action_series: action_series,
         learning_series: learning_series,
+        analysis_candidates: analysis_candidates,
         cost_estimates: Aicoo::CostEngine.new(business:).call.estimates,
         settings: settings_summary,
         data_status: data_status
@@ -206,6 +208,10 @@ module Aicoo
         has_action_data: action_candidate_counts.values.any?(&:positive?),
         has_learning_data: decision_log_counts.values.any?(&:positive?) || business.business_playbook&.learned? || false
       }
+    end
+
+    def analysis_candidates
+      business.analysis_candidates.where(due_on: today).ordered.limit(8).to_a
     end
 
     def metrics_for(days)

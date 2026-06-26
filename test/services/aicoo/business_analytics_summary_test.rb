@@ -48,6 +48,18 @@ module Aicoo
         previous_status: "idea",
         new_status: "approved"
       )
+      @business.analysis_candidates.create!(
+        analysis_source: "serp",
+        expected_value_yen: 1_500,
+        estimated_cost_yen: 20,
+        estimated_minutes: 30,
+        roi: 75,
+        confidence: 60,
+        priority: 90,
+        execution_mode: "manual",
+        reason: "順位急落を確認するためSERP分析を推奨",
+        due_on: Date.current
+      )
     end
 
     test "summarizes business analytics periods and chart series" do
@@ -75,6 +87,7 @@ module Aicoo
       assert result.data_status[:has_engagement_data]
       assert result.data_status[:has_revenue_data]
       assert result.cost_estimates.find { |estimate| estimate.source_key == "serp" }.manual?
+      assert_equal "serp", result.analysis_candidates.first.analysis_source
     end
 
     test "returns safe empty state when analytics data is missing" do

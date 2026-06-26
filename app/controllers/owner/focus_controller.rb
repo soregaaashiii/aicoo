@@ -7,6 +7,7 @@ module Owner
       @opportunity_focus_item = opportunity_focus_item
       @owner_execution_queue_summary = Aicoo::OwnerExecutionQueueSummary.new.call
       @owner_decision_summary = Aicoo::OwnerDecisionSummary.new.call
+      @analysis_monitor = Aicoo::AnalysisMonitor.new.call
       @top_task_evidence = evidence_for_top_task
       @top_task_expansion = expansion_for_top_task
       @top_task_action_candidate = top_task_action_candidate

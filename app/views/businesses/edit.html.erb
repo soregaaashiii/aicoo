@@ -17,7 +17,7 @@
     <div class="section-heading">
       <div>
         <h2>Data Source紐付け詳細</h2>
-        <p>このBusinessで使う分析ツールの接続先を設定します。API KeyはAICOO設定側、ここではBusiness固有のProperty・URL・認証参照を管理します。</p>
+        <p>このBusinessで使う分析ツールとAnalysis Sourceを設定します。API KeyはAICOO設定側、ここではBusiness固有のProperty・URL・認証参照を管理します。利用ON/OFFは今日回す分析候補にも反映されます。</p>
       </div>
       <%= link_to "全体Data Source設定", aicoo_setting_path(anchor: "data-source-costs"), class: "button secondary" %>
     </div>
@@ -28,7 +28,7 @@
           <thead>
             <tr>
               <th>Data Source</th>
-              <th>利用</th>
+              <th>利用 / Analysis</th>
               <th>紐付け状態</th>
               <th>Property / Target</th>
               <th>Account / 外部ID</th>

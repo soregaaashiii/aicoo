@@ -26,6 +26,7 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Settings"
     assert_includes response.body, "Cost Summary"
     assert_includes response.body, "Data Source Monitor"
+    assert_includes response.body, "Analysis Monitor"
     assert_includes response.body, "月間APIコスト"
     assert_not_includes response.body, "AICOO TODAY"
   end
@@ -54,6 +55,17 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
 
     assert_redirected_to dashboard_url
     assert_match(/代理指標から行動候補を/, flash[:notice])
+  end
+
+  test "generates analysis candidates from dashboard" do
+    AnalysisCandidate.delete_all
+
+    before_count = AnalysisCandidate.count
+    post generate_analysis_candidates_dashboard_url
+
+    assert_redirected_to dashboard_url
+    assert_operator AnalysisCandidate.count, :>, before_count
+    assert_match(/Analysis Candidateを/, flash[:notice])
   end
 
   test "generates action candidates from correction readiness from dashboard" do

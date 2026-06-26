@@ -58,6 +58,18 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     @business.revenue_events.create!(occurred_on: Date.current, event_type: "revenue", amount: 10_000)
     @business.revenue_events.create!(occurred_on: Date.current, event_type: "expense", amount: 3_000)
     @business.business_metric_dailies.create!(recorded_on: Date.current, impressions: 1_000, clicks: 10)
+    @business.analysis_candidates.create!(
+      analysis_source: "serp",
+      expected_value_yen: 1_500,
+      estimated_cost_yen: 20,
+      estimated_minutes: 30,
+      roi: 75,
+      confidence: 60,
+      priority: 90,
+      execution_mode: "manual",
+      reason: "順位急落を確認するためSERP分析を推奨",
+      due_on: Date.current
+    )
 
     get business_url(@business)
 
@@ -92,6 +104,8 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "GA4"
     assert_includes response.body, "Business Playbook"
     assert_includes response.body, "Data Source Cost"
+    assert_includes response.body, "Analysis Sources"
+    assert_includes response.body, "順位急落を確認するためSERP分析を推奨"
     assert_includes response.body, "SERP分析コスト"
     assert_includes response.body, "予想コスト"
     assert_includes response.body, "未紐付け"
@@ -102,6 +116,7 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     get edit_business_url(@business)
     assert_response :success
     assert_includes response.body, "Data Source紐付け詳細"
+    assert_includes response.body, "利用 / Analysis"
     assert_includes response.body, "Property / Target"
     assert_includes response.body, "Credential参照"
     assert_includes response.body, "GSC site_url"
