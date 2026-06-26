@@ -1,69 +1,13 @@
 class DashboardController < ApplicationController
   def show
     run_daily_catch_up_if_due
-    @dashboard_summary = DashboardSummaryService.new.call
-    @department_ranking = ActionCandidateDepartmentRanking.new(limit: 10).call
-    @department_precision_summaries = ActionResultDepartmentSummary.new.summaries
-    @aicoo_completion_levels = AicooCompletionLevelSummary.new.levels
-    @aicoo_insight_summary = AicooInsight::Summary.new
-    @execution_feasibility_insight = AicooExecutionFeasibilityInsightService.new.call
-    @execution_feasibility_correction_overview = AicooExecutionFeasibilityCorrectionOverviewService.new.call
-    @learning_loop_summary = AicooLearningLoopSummaryService.new.call
-    @learning_loop_action_center = AicooLearningLoopActionCenterService.new.call
-    @learning_loop_quality_report = Aicoo::LearningLoopQualityReport.new.call
-    @learning_report_recommendations = Aicoo::LearningReportRecommendation.new.call
-    @practicality_summary = Aicoo::PracticalitySummary.new.call
-    @evidence_summary = Aicoo::EvidenceSummary.new.call
-    @business_playbook_summary = Aicoo::BusinessPlaybookSummary.new.call
-    @business_integration_health = Aicoo::BusinessIntegrationHealth.new.call
-    @system_mode_monitor = Aicoo::SystemModeMonitor.new.call
-    @strategic_learning_report = Aicoo::StrategicLearningReport.new.call
-    @opportunity_discovery_summary = Aicoo::OpportunityDiscoverySummary.new.call
-    @discovery_source_performance_report = Aicoo::DiscoverySourcePerformanceReport.new.call
-    @opportunity_focus_queue = Aicoo::OpportunityFocusQueue.new.call
-    @explore_summary = Aicoo::ExploreSummary.new.call
-    @explore_daily_routine = Aicoo::ExploreDailyRoutine.new.call
-    @action_result_registration_health = Aicoo::ActionResultRegistrationHealth.new.call
-    @learning_loop_health_summary = Aicoo::LearningLoopHealthSummary.new.call
-    @owner_task_inbox = Aicoo::OwnerTaskInbox.new.call
-    @owner_task_digest = Aicoo::OwnerTaskDigest.new(owner_task_inbox: @owner_task_inbox).call
-    @owner_task_completion_logs = OwnerTaskCompletionLog.recent.limit(3)
-    @action_execution_summary = action_execution_summary
-    @auto_revision_task_summary = AutoRevisionTaskSummary.new.call
-    @repository_target_coverage = AicooRepositoryTargetCoverageService.new.call
-    @action_prediction_calibration_summary = ActionPredictionCalibrationSummary.new.call
-    @action_prediction_calibration_impact = ActionPredictionCalibrationImpact.new.call
-    ranking_scope = dashboard_ranking_scope
-    @expected_value_rankings = ranking_scope.by_expected_value
-    @recommendation_rankings = ranking_scope.by_recommendation
-    @business_summaries = Business.includes(:action_candidates, :revenue_events, :business_metric_dailies).order(:name).map do |business|
-      BusinessSummary.new(business)
-    end
-    @business_summaries = sort_business_summaries(@business_summaries)
-    @data_statuses = Business.includes(data_sources: :data_imports).order(:name).map { |business| DataStatus.new(business) }
-    @ai_analysis_statuses = Business.includes(:ai_evaluation_runs).order(:name).map { |business| AiAnalysisStatus.new(business) }
-    @aicoo_lab_candidate_summary = AicooLabCandidateSummary.new
-    @aicoo_lab_landing_page_summary = AicooLabLandingPageSummary.new
-    @aicoo_lab_experiment_summary = AicooLabExperimentSummary.new
-    @aicoo_lab_metric_summary = AicooLabMetricSummary.new
-    @aicoo_lab_generation_run_summary = AicooLabGenerationRunSummary.new
-    @aicoo_lab_ai_draft_summary = AicooLabAiDraftSummary.new
-    @aicoo_lab_flow_summary = AicooLabFlowSummary.new(@aicoo_lab_candidate_summary, @aicoo_lab_landing_page_summary, @aicoo_lab_experiment_summary)
-    @aicoo_lab_next_actions = AicooLabNextActions.new(@aicoo_lab_candidate_summary, @aicoo_lab_experiment_summary).items
-    @aicoo_lab_today_tasks = AicooLabTodayTasks.new.items
-    @aicoo_lab_kpi_summary = AicooLabKpiSummary.new(@aicoo_lab_metric_summary)
-    @aicoo_revenue_execution_summary = AicooRevenueExecutionSummary.new
-    @aicoo_datahub_summary = AicooDataHubSummary.new
-    @prediction_source_summary = PredictionSourceSummary.new
-    @aicoo_judge_summary = AicooJudgeSummary.new
-    @action_result_summary = ActionResultSummary.new
-    @proxy_score_global_weight = ProxyScoreWeight.current_global || ProxyScoreWeight.new(ProxyScoreWeight.default_attributes)
-    @proxy_score_weight_summaries = Business.includes(:proxy_score_weight).order(:name).map do |business|
-      ProxyScoreWeightSummary.new(business)
-    end
-    @recent_proxy_score_weight_logs = ProxyScoreWeightAdjustmentLog.includes(:business).order(adjusted_at: :desc).limit(10)
-    @latest_aicoo_daily_run = AicooDailyRun.recent.first
-    @daily_run_scheduler_status = AicooDailyRunScheduler.status
+    @system_mode_monitor = Aicoo::SystemModeSnapshotPresenter.new.call
+  end
+
+  def refresh_system_mode_snapshot
+    snapshot = Aicoo::SystemModeSnapshotBuilder.new.call
+
+    redirect_to dashboard_path, notice: "System Mode Snapshotを更新しました: #{helpers.l(snapshot.captured_at, format: :short)}"
   end
 
   def generate_ai_top10

@@ -4,6 +4,17 @@
       <p class="aicoo-mode-eyebrow">AICOO SYSTEM MODE</p>
       <h2>System Mode Monitor</h2>
       <p><%= monitor.system_health_message %></p>
+      <p>
+        <span class="pill">Snapshot</span>
+        最終Snapshot:
+        <strong><%= monitor.snapshot_captured_at ? l(monitor.snapshot_captured_at, format: :short) : "未作成" %></strong>
+        <% if monitor.snapshot_age_seconds %>
+          / <%= distance_of_time_in_words(monitor.snapshot_age_seconds.seconds) %>前
+        <% end %>
+        <% if monitor.snapshot_warning.present? %>
+          / <span class="system-warning-text"><%= monitor.snapshot_warning %></span>
+        <% end %>
+      </p>
     </div>
     <div class="system-health-score status-<%= monitor.system_health_status %>">
       <span>System Health Score</span>
@@ -13,6 +24,7 @@
   </div>
 
   <nav class="system-monitor-nav" aria-label="System mode monitor sections">
+    <%= button_to "Refresh", refresh_system_mode_snapshot_dashboard_path, method: :post, class: "button" %>
     <% monitor.navigation.each do |label, path| %>
       <%= link_to label, path %>
     <% end %>
@@ -34,8 +46,10 @@
     <h2>Visual Analytics</h2>
     <p>主要指標の推移をグラフで確認します。</p>
   </div>
-  <div class="system-chart-grid">
-    <% monitor.charts.each do |chart| %>
+  <details class="system-details" open>
+    <summary>主要グラフを見る</summary>
+    <div class="system-chart-grid">
+      <% monitor.charts.each do |chart| %>
       <% max_value = chart.points.map { |point| point.value.to_d }.max.to_d %>
       <% max_value = 1.to_d if max_value <= 0 %>
       <div class="system-chart-card" id="chart-<%= chart.key %>">
@@ -56,8 +70,12 @@
           <% end %>
         </div>
       </div>
-    <% end %>
-  </div>
+      <% end %>
+      <% if monitor.charts.empty? %>
+        <div class="aicoo-card aicoo-empty-state">Snapshot生成後にグラフが表示されます。</div>
+      <% end %>
+    </div>
+  </details>
 </section>
 
 <section class="dashboard-section" id="system-pipeline">
@@ -98,14 +116,14 @@
       <tbody>
         <% monitor.integration_rows.each do |row| %>
           <tr>
-            <td><%= link_to row.business.name, row.business %></td>
+            <td><%= link_to row.business_name, row.business_path %></td>
             <td><span class="system-status-pill status-<%= row.health_score.to_d >= 80 ? "healthy" : row.health_score.to_d >= 60 ? "attention" : "warning" %>"><%= number_with_precision(row.health_score, precision: 1) %></span></td>
-            <td><%= row.gsc.status %></td>
-            <td><%= row.ga4.status %></td>
-            <td><%= row.serp.status %></td>
-            <td><%= row.explore.status %></td>
+            <td><%= row.gsc_status %></td>
+            <td><%= row.ga4_status %></td>
+            <td><%= row.serp_status %></td>
+            <td><%= row.explore_status %></td>
             <td><%= row.last_sync_at ? l(row.last_sync_at, format: :short) : "-" %></td>
-            <td><%= row.warnings.first || "正常" %></td>
+            <td><%= row.warning || "正常" %></td>
           </tr>
         <% end %>
         <% if monitor.integration_rows.empty? %>
@@ -128,15 +146,14 @@
       </thead>
       <tbody>
         <% monitor.job_rows.each do |run| %>
-          <% duration = run.started_at && run.finished_at ? (run.finished_at - run.started_at).round(1) : nil %>
           <tr>
-            <td><%= link_to run.target_date, aicoo_daily_run_path(run) %></td>
+            <td><%= link_to run.target_date, run.path %></td>
             <td><span class="pill"><%= run.status %></span></td>
             <td><%= run.started_at ? l(run.started_at, format: :short) : "-" %></td>
-            <td><%= duration ? "#{duration}s" : "-" %></td>
-            <td><%= run.aicoo_daily_run_steps.successful.count %>/<%= run.aicoo_daily_run_steps.count %></td>
+            <td><%= run.duration_seconds ? "#{run.duration_seconds}s" : "-" %></td>
+            <td><%= run.success_steps %>/<%= run.step_count %></td>
             <td><%= run.retry_count %></td>
-            <td><%= [run.error_message, run.calibration_error].compact_blank.first || "-" %></td>
+            <td><%= run.error || "-" %></td>
           </tr>
         <% end %>
         <% if monitor.job_rows.empty? %>
@@ -192,7 +209,7 @@
       <tbody>
         <% monitor.playbook_rows.each do |playbook| %>
           <tr>
-            <td><%= link_to playbook.business.name, playbook.business %></td>
+            <td><%= link_to playbook.business_name, playbook.business_path %></td>
             <td><%= number_with_precision(playbook.confidence_score, precision: 1) %></td>
             <td><%= playbook.sample_count %></td>
             <td><%= playbook.top_action_type.presence || "-" %></td>

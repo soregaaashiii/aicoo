@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_25_096100) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_26_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1211,6 +1211,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_25_096100) do
     t.datetime "updated_at", null: false
     t.string "url"
     t.index ["serp_analysis_id"], name: "index_serp_results_on_serp_analysis_id"
+  end
+
+  create_table "system_mode_snapshots", force: :cascade do |t|
+    t.datetime "captured_at", null: false
+    t.datetime "created_at", null: false
+    t.integer "critical_count", default: 0, null: false
+    t.jsonb "executor_summary", default: {}, null: false
+    t.decimal "health_score", default: "0.0", null: false
+    t.jsonb "integrations_summary", default: {}, null: false
+    t.jsonb "jobs_summary", default: {}, null: false
+    t.jsonb "learning_summary", default: {}, null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.jsonb "pipeline_status", default: {}, null: false
+    t.jsonb "playbook_summary", default: {}, null: false
+    t.jsonb "queues_summary", default: {}, null: false
+    t.jsonb "settings_summary", default: {}, null: false
+    t.datetime "updated_at", null: false
+    t.jsonb "visual_analytics", default: {}, null: false
+    t.integer "warning_count", default: 0, null: false
+    t.index ["captured_at"], name: "index_system_mode_snapshots_on_captured_at"
   end
 
   add_foreign_key "action_candidate_score_snapshots", "action_candidates"

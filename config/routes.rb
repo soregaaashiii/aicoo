@@ -41,6 +41,7 @@ Rails.application.routes.draw do
   post "dashboard/generate_action_candidates_from_metrics", to: "dashboard#generate_action_candidates_from_metrics", as: :generate_action_candidates_from_metrics_dashboard
   post "dashboard/generate_correction_readiness_actions", to: "dashboard#generate_correction_readiness_actions", as: :generate_correction_readiness_actions_dashboard
   post "dashboard/build_auto_revision_queue", to: "dashboard#build_auto_revision_queue", as: :build_auto_revision_queue_dashboard
+  post "dashboard/refresh_system_mode_snapshot", to: "dashboard#refresh_system_mode_snapshot", as: :refresh_system_mode_snapshot_dashboard
   post "dashboard/adjust_global_proxy_score_weights", to: "dashboard#adjust_global_proxy_score_weights", as: :adjust_global_proxy_score_weights_dashboard
   post "dashboard/adjust_all_business_proxy_score_weights", to: "dashboard#adjust_all_business_proxy_score_weights", as: :adjust_all_business_proxy_score_weights_dashboard
   get "department_rankings", to: "department_rankings#index"

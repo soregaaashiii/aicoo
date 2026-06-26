@@ -19,7 +19,11 @@ module Aicoo
       :playbook_rows,
       :executor_cards,
       :setting_cards,
-      :charts
+      :charts,
+      :snapshot_present,
+      :snapshot_captured_at,
+      :snapshot_age_seconds,
+      :snapshot_warning
     )
 
     HEALTH_STATUS_SCORES = {
@@ -45,7 +49,11 @@ module Aicoo
         playbook_rows: BusinessPlaybook.includes(:business).order(confidence_score: :desc).limit(8),
         executor_cards:,
         setting_cards:,
-        charts:
+        charts:,
+        snapshot_present: false,
+        snapshot_captured_at: Time.current,
+        snapshot_age_seconds: 0,
+        snapshot_warning: nil
       )
     end
 
