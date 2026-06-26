@@ -157,6 +157,26 @@
     </div>
   </section>
 
+  <% critical_healths = @business_integration_health.critical_businesses.first(3) %>
+  <% if critical_healths.any? %>
+    <section class="dashboard-section">
+      <div class="section-heading">
+        <h2>重大な連携Warning</h2>
+        <p>AICOOが正常にデータ取得できていない可能性があります。</p>
+      </div>
+      <div class="aicoo-card-grid">
+        <% critical_healths.each do |row| %>
+          <div class="aicoo-card aicoo-card-compact">
+            <p><span class="pill">Health <%= number_with_precision(row.health_score, precision: 1) %></span></p>
+            <h3><%= row.business.name %></h3>
+            <p><%= row.warnings.first %></p>
+            <%= link_to "Businessを見る", row.business, class: "button secondary" %>
+          </div>
+        <% end %>
+      </div>
+    </section>
+  <% end %>
+
   <section class="dashboard-section">
     <div class="section-heading">
       <h2>システム状態</h2>

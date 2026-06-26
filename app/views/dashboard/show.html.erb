@@ -13,10 +13,12 @@
 <div class="aicoo-page">
   <%= render "shared/aicoo_header",
              title: "AICOO 操作盤",
-             description: "今日やる行動を選び、実行し、実績から予測精度を高めます。",
+             description: "SYSTEM MODE: AICOO自身の監視室です。Health・連携・Pipeline・Queue・Learningを確認します。",
              active_main: :dashboard,
              actions: header_actions %>
   <%= render "shared/aicoo_execution_tabs", active: :dashboard %>
+
+<%= render "dashboard/system_mode_monitor", monitor: @system_mode_monitor %>
 
 <%= render "shared/owner_task_inbox",
            owner_task_inbox: @owner_task_inbox,
@@ -119,6 +121,40 @@
         <% if @business_playbook_summary.low_confidence_businesses.empty? %><li>該当なし</li><% end %>
       </ul>
     </div>
+  </div>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
+    <h2>Business Health Summary</h2>
+    <p>BusinessごとのGSC・GA4・SERP・Explore・Daily Run・Playbook連携状態を監視します。</p>
+  </div>
+  <div class="metric-grid">
+    <div class="metric-card"><span>平均Health Score</span><strong><%= number_with_precision(@business_integration_health.average_health_score, precision: 1) %></strong></div>
+    <div class="metric-card"><span>Critical</span><strong><%= @business_integration_health.critical_businesses.size %>件</strong></div>
+    <div class="metric-card"><span>Warning</span><strong><%= @business_integration_health.warning_businesses.size %>件</strong></div>
+    <div class="metric-card"><span>Healthy</span><strong><%= @business_integration_health.healthy_businesses.size %>件</strong></div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Business</th><th>Health Score</th><th>Warning</th><th>Last Sync</th><th>主なWarning</th></tr>
+      </thead>
+      <tbody>
+        <% @business_integration_health.business_healths.each do |row| %>
+          <tr>
+            <td><%= link_to row.business.name, row.business %></td>
+            <td class="number"><%= number_with_precision(row.health_score, precision: 1) %></td>
+            <td class="number"><%= row.warning_count %>件</td>
+            <td><%= row.last_sync_at ? l(row.last_sync_at, format: :short) : "-" %></td>
+            <td><%= row.warnings.first || "正常" %></td>
+          </tr>
+        <% end %>
+        <% if @business_integration_health.business_healths.empty? %>
+          <tr><td colspan="5">Businessがまだありません。</td></tr>
+        <% end %>
+      </tbody>
+    </table>
   </div>
 </section>
 

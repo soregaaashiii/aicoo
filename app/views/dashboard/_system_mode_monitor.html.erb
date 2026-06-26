@@ -1,0 +1,241 @@
+<section class="system-monitor" id="system-health">
+  <div class="system-monitor-hero">
+    <div>
+      <p class="aicoo-mode-eyebrow">AICOO SYSTEM MODE</p>
+      <h2>System Mode Monitor</h2>
+      <p><%= monitor.system_health_message %></p>
+    </div>
+    <div class="system-health-score status-<%= monitor.system_health_status %>">
+      <span>System Health Score</span>
+      <strong><%= number_with_precision(monitor.system_health_score, precision: 1) %></strong>
+      <small><%= monitor.system_health_status %></small>
+    </div>
+  </div>
+
+  <nav class="system-monitor-nav" aria-label="System mode monitor sections">
+    <% monitor.navigation.each do |label, path| %>
+      <%= link_to label, path %>
+    <% end %>
+  </nav>
+
+  <div class="system-status-grid">
+    <% monitor.status_cards.each do |card| %>
+      <%= link_to card.path, class: "system-status-card status-#{card.status}" do %>
+        <span><%= card.label %></span>
+        <strong><%= card.value %></strong>
+        <small><%= card.detail %></small>
+      <% end %>
+    <% end %>
+  </div>
+</section>
+
+<section class="dashboard-section" id="system-visual-analytics">
+  <div class="section-heading">
+    <h2>Visual Analytics</h2>
+    <p>主要指標の推移をグラフで確認します。</p>
+  </div>
+  <div class="system-chart-grid">
+    <% monitor.charts.each do |chart| %>
+      <% max_value = chart.points.map { |point| point.value.to_d }.max.to_d %>
+      <% max_value = 1.to_d if max_value <= 0 %>
+      <div class="system-chart-card" id="chart-<%= chart.key %>">
+        <div class="system-chart-heading">
+          <h3><%= chart.title %></h3>
+          <span><%= chart.unit %></span>
+        </div>
+        <div class="system-bars">
+          <% chart.points.each do |point| %>
+            <% height = ((point.value.to_d / max_value) * 100).clamp(4, 100) %>
+            <div class="system-bar-item">
+              <div class="system-bar-value"><%= number_with_precision(point.value, precision: 1) %></div>
+              <div class="system-bar-track">
+                <div class="system-bar-fill status-<%= point.status %>" style="height: <%= height %>%"></div>
+              </div>
+              <div class="system-bar-label"><%= point.label %></div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+  </div>
+</section>
+
+<section class="dashboard-section" id="system-pipeline">
+  <div class="section-heading">
+    <h2>Pipeline Monitor</h2>
+    <p>Data → Explore → Opportunity → ActionCandidate → Codex Prompt → Execution Queue → Decision Log → Playbook → Strategic Learning</p>
+  </div>
+  <div class="pipeline-flow">
+    <% monitor.pipeline_steps.each do |step| %>
+      <%= link_to step.path, class: "pipeline-node status-#{step.status}" do %>
+        <span><%= step.label %></span>
+        <strong><%= step.count %></strong>
+        <small><%= step.reason %></small>
+      <% end %>
+    <% end %>
+  </div>
+</section>
+
+<section class="dashboard-section" id="system-integrations">
+  <div class="section-heading">
+    <h2>Integrations</h2>
+    <p>BusinessごとのGSC・GA4・SERP・Explore・API・OAuth・Last Syncを監視します。</p>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Business</th>
+          <th>Health</th>
+          <th>GSC</th>
+          <th>GA4</th>
+          <th>SERP</th>
+          <th>Explore</th>
+          <th>Last Sync</th>
+          <th>Warning</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% monitor.integration_rows.each do |row| %>
+          <tr>
+            <td><%= link_to row.business.name, row.business %></td>
+            <td><span class="system-status-pill status-<%= row.health_score.to_d >= 80 ? "healthy" : row.health_score.to_d >= 60 ? "attention" : "warning" %>"><%= number_with_precision(row.health_score, precision: 1) %></span></td>
+            <td><%= row.gsc.status %></td>
+            <td><%= row.ga4.status %></td>
+            <td><%= row.serp.status %></td>
+            <td><%= row.explore.status %></td>
+            <td><%= row.last_sync_at ? l(row.last_sync_at, format: :short) : "-" %></td>
+            <td><%= row.warnings.first || "正常" %></td>
+          </tr>
+        <% end %>
+        <% if monitor.integration_rows.empty? %>
+          <tr><td colspan="8">Businessがまだありません。</td></tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="dashboard-section" id="system-jobs">
+  <div class="section-heading">
+    <h2>Jobs</h2>
+    <p>Daily Run、Step、Retry、失敗理由を確認します。</p>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Run</th><th>Status</th><th>Started</th><th>Duration</th><th>Steps</th><th>Retry</th><th>Error</th></tr>
+      </thead>
+      <tbody>
+        <% monitor.job_rows.each do |run| %>
+          <% duration = run.started_at && run.finished_at ? (run.finished_at - run.started_at).round(1) : nil %>
+          <tr>
+            <td><%= link_to run.target_date, aicoo_daily_run_path(run) %></td>
+            <td><span class="pill"><%= run.status %></span></td>
+            <td><%= run.started_at ? l(run.started_at, format: :short) : "-" %></td>
+            <td><%= duration ? "#{duration}s" : "-" %></td>
+            <td><%= run.aicoo_daily_run_steps.successful.count %>/<%= run.aicoo_daily_run_steps.count %></td>
+            <td><%= run.retry_count %></td>
+            <td><%= [run.error_message, run.calibration_error].compact_blank.first || "-" %></td>
+          </tr>
+        <% end %>
+        <% if monitor.job_rows.empty? %>
+          <tr><td colspan="7">Daily Runはまだありません。</td></tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="dashboard-section" id="system-queues">
+  <div class="section-heading">
+    <h2>Queues</h2>
+    <p>Opportunity Queue、Execution Queue、Retry Queueの滞留を確認します。</p>
+  </div>
+  <div class="system-status-grid compact">
+    <% monitor.queue_cards.each do |card| %>
+      <%= link_to card.path, class: "system-status-card status-#{card.status}" do %>
+        <span><%= card.label %></span>
+        <strong><%= card.value %></strong>
+        <small><%= card.detail %></small>
+      <% end %>
+    <% end %>
+  </div>
+</section>
+
+<section class="dashboard-section" id="system-learning">
+  <div class="section-heading">
+    <h2>Learning</h2>
+    <p>Decision Log、Strategic Learning、Guardrail、Evidence、Practicalityを集約します。</p>
+  </div>
+  <div class="system-status-grid compact">
+    <% monitor.learning_cards.each do |card| %>
+      <%= link_to card.path, class: "system-status-card status-#{card.status}" do %>
+        <span><%= card.label %></span>
+        <strong><%= card.value %></strong>
+        <small><%= card.detail %></small>
+      <% end %>
+    <% end %>
+  </div>
+</section>
+
+<section class="dashboard-section" id="system-playbook">
+  <div class="section-heading">
+    <h2>Playbook</h2>
+    <p>Businessごとの勝ちパターン学習状態を確認します。</p>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Business</th><th>Confidence</th><th>Samples</th><th>Top Action</th><th>Worst Action</th><th>ROI</th></tr>
+      </thead>
+      <tbody>
+        <% monitor.playbook_rows.each do |playbook| %>
+          <tr>
+            <td><%= link_to playbook.business.name, playbook.business %></td>
+            <td><%= number_with_precision(playbook.confidence_score, precision: 1) %></td>
+            <td><%= playbook.sample_count %></td>
+            <td><%= playbook.top_action_type.presence || "-" %></td>
+            <td><%= playbook.worst_action_type.presence || "-" %></td>
+            <td><%= playbook.average_roi ? number_with_precision(playbook.average_roi, precision: 2) : "-" %></td>
+          </tr>
+        <% end %>
+        <% if monitor.playbook_rows.empty? %>
+          <tr><td colspan="6">Playbookはまだ学習されていません。</td></tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="dashboard-section" id="system-executor">
+  <div class="section-heading">
+    <h2>Executor</h2>
+    <p>Codex Prompt、Approved、Copied、Executed、Pendingの状態を確認します。</p>
+  </div>
+  <div class="system-status-grid compact">
+    <% monitor.executor_cards.each do |card| %>
+      <%= link_to card.path, class: "system-status-card status-#{card.status}" do %>
+        <span><%= card.label %></span>
+        <strong><%= card.value %></strong>
+        <small><%= card.detail %></small>
+      <% end %>
+    <% end %>
+  </div>
+</section>
+
+<section class="dashboard-section" id="system-settings">
+  <div class="section-heading">
+    <h2>Settings</h2>
+    <p>Strategic Weight、Guardrail、Queue、Retry、Learning、Daily Run設定へ移動します。</p>
+  </div>
+  <div class="system-status-grid compact">
+    <% monitor.setting_cards.each do |card| %>
+      <%= link_to card.path, class: "system-status-card status-#{card.status}" do %>
+        <span><%= card.label %></span>
+        <strong><%= card.value %></strong>
+        <small><%= card.detail %></small>
+      <% end %>
+    <% end %>
+  </div>
+</section>

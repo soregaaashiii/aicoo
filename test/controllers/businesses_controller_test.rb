@@ -67,6 +67,10 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "confidence_score"
     assert_includes response.body, "Execution Profile"
     assert_includes response.body, "Codex対象プロジェクト"
+    assert_includes response.body, "Integration Health"
+    assert_includes response.body, "Health Score"
+    assert_includes response.body, "GSC"
+    assert_includes response.body, "GA4"
     assert_includes response.body, "Business Playbook"
   end
 

@@ -27,6 +27,7 @@ module Owner
       assert_includes response.body, "Calibration Pending"
       assert_includes response.body, "Explore Review"
       assert_includes response.body, "今日のDecision Log"
+      assert_includes response.body, "重大な連携Warning"
       assert_includes response.body, "システム状態"
       assert_includes response.body, "Daily Run"
       assert_includes response.body, "Learning"

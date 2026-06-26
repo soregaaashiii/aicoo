@@ -15,6 +15,8 @@ class DashboardController < ApplicationController
     @practicality_summary = Aicoo::PracticalitySummary.new.call
     @evidence_summary = Aicoo::EvidenceSummary.new.call
     @business_playbook_summary = Aicoo::BusinessPlaybookSummary.new.call
+    @business_integration_health = Aicoo::BusinessIntegrationHealth.new.call
+    @system_mode_monitor = Aicoo::SystemModeMonitor.new.call
     @strategic_learning_report = Aicoo::StrategicLearningReport.new.call
     @opportunity_discovery_summary = Aicoo::OpportunityDiscoverySummary.new.call
     @discovery_source_performance_report = Aicoo::DiscoverySourcePerformanceReport.new.call

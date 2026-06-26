@@ -57,7 +57,7 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
       assert_match "OwnerExecutionQueue created count=2", run.run_log
       assert_match "AutoRevisionQueue skipped reason=disabled", run.run_log
       assert_match "BusinessPlaybook updated count=2", run.run_log
-      assert_equal 16, run.aicoo_daily_run_steps.count
+      assert_equal 17, run.aicoo_daily_run_steps.count
       assert_equal %w[
         analytics_fetch
         datahub_collect
@@ -74,6 +74,7 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
         owner_task_digest
         owner_execution_queue
         business_playbook_update
+        business_integration_health
         auto_revision_queue
       ], run.aicoo_daily_run_steps.order(:created_at).pluck(:step_name)
       assert_equal %w[skipped success], run.aicoo_daily_run_steps.distinct.pluck(:status).sort

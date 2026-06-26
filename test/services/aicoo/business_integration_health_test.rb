@@ -1,0 +1,138 @@
+require "test_helper"
+
+module Aicoo
+  class BusinessIntegrationHealthTest < ActiveSupport::TestCase
+    setup do
+      @business = businesses(:suelog)
+      @business.update!(gsc_site_url: "sc-domain:suelog.test")
+      AnalyticsFetchRun.delete_all
+      AnalyticsSourceSetting.delete_all
+      AicooAnalyticsSite.delete_all
+      AicooDailyRun.delete_all
+      BusinessPlaybook.delete_all
+      OwnerDecisionLog.delete_all
+      ExploreObservation.delete_all
+      ExploreDataSource.delete_all
+      OpportunityDiscoveryItem.delete_all
+      SerpAnalysis.delete_all
+    end
+
+    test "returns low health with warnings when integrations are missing" do
+      result = BusinessIntegrationHealth.new.call
+      health = result.business_healths.find { |row| row.business == @business }
+
+      assert health
+      assert_operator health.health_score, :<, BusinessIntegrationHealth::LOW_HEALTH_THRESHOLD
+      assert_includes health.warnings, "GSC取得成功がまだありません"
+      assert_includes health.warnings, "GA4未接続"
+      assert_includes health.warnings, "Daily Run未実行"
+      assert_includes result.critical_businesses, health
+    end
+
+    test "aggregates configured integrations and lowers warnings for healthy data" do
+      create_successful_analytics_settings
+      @business.serp_analyses.create!(
+        keyword: "シーシャ 大阪",
+        device: "desktop",
+        result_count: 10,
+        analyzed_at: Time.current
+      )
+      opportunity = OpportunityDiscoveryItem.create!(
+        business: @business,
+        title: "Explore opportunity",
+        source_type: "google_trends",
+        status: "pending",
+        opportunity_score: 90
+      )
+      source = ExploreDataSource.create!(name: "Trends", source_type: "google_trends", status: "active")
+      ExploreObservation.create!(
+        explore_data_source: source,
+        opportunity_discovery_item: opportunity,
+        title: "大阪 シーシャ需要",
+        observation_type: "trend",
+        score: 85,
+        observed_at: Time.current
+      )
+      AicooDailyRun.create!(
+        target_date: Date.current,
+        source: "manual",
+        status: "success",
+        started_at: Time.current,
+        finished_at: Time.current
+      )
+      @business.create_business_playbook!(sample_count: 5, confidence_score: 55, last_calculated_at: Time.current)
+      OwnerDecisionLog.create!(
+        subject_type: "ActionCandidate",
+        subject_id: 1,
+        business: @business,
+        decision_type: "approve",
+        decision_source: "owner_focus",
+        title: "Approved",
+        decided_at: Time.current
+      )
+      @business.action_candidates.create!(
+        title: "CTR改善",
+        status: "idea",
+        action_type: "seo_improvement",
+        immediate_value_yen: 10_000,
+        success_probability: 1,
+        expected_hours: 1
+      )
+
+      health = BusinessIntegrationHealth.new.call.business_healths.find { |row| row.business == @business }
+
+      assert_operator health.health_score, :>=, BusinessIntegrationHealth::ATTENTION_HEALTH_THRESHOLD
+      assert_nil health.gsc.warning
+      assert_nil health.ga4.warning
+      assert_nil health.serp.warning
+      assert_nil health.explore.warning
+      assert_nil health.daily_run.warning
+      assert_equal({ "today" => 1, "7d" => 1, "30d" => 1 }, health.decision_log.count)
+    end
+
+    test "warns when analytics data is stale" do
+      site = AicooAnalyticsSite.create!(
+        business: @business,
+        name: "Suelog",
+        public_url: "https://suelog.test",
+        domain: "suelog.test",
+        gsc_site_url: @business.gsc_site_url,
+        ga4_property_id: "properties/123"
+      )
+      setting = site.gsc_setting
+      setting.analytics_fetch_runs.create!(
+        status: "success",
+        source_type: "gsc",
+        snapshot_count: 10,
+        started_at: 5.days.ago,
+        finished_at: 5.days.ago
+      )
+
+      health = BusinessIntegrationHealth.new.call.business_healths.find { |row| row.business == @business }
+
+      assert_equal "GSCが3日以上更新されていません", health.gsc.warning
+    end
+
+    private
+
+    def create_successful_analytics_settings
+      site = AicooAnalyticsSite.create!(
+        business: @business,
+        name: "Suelog",
+        public_url: "https://suelog.test",
+        domain: "suelog.test",
+        gsc_site_url: @business.gsc_site_url,
+        ga4_property_id: "properties/123"
+      )
+      [ site.gsc_setting, site.ga4_setting ].each do |setting|
+        setting.analytics_fetch_runs.create!(
+          status: "success",
+          source_type: setting.source_type,
+          snapshot_count: 25,
+          started_at: Time.current,
+          finished_at: Time.current
+        )
+      end
+    end
+  end
+end

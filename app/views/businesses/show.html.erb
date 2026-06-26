@@ -22,6 +22,51 @@
 
 <section class="dashboard-section">
   <div class="section-heading">
+    <h2>Integration Health</h2>
+    <p>このBusinessの外部連携・データ更新・学習状態を監視します。</p>
+  </div>
+  <% if @integration_health %>
+    <div class="metric-grid">
+      <div class="metric-card"><span>Health Score</span><strong><%= number_with_precision(@integration_health.health_score, precision: 1) %></strong></div>
+      <div class="metric-card"><span>Warning</span><strong><%= @integration_health.warning_count %>件</strong></div>
+      <div class="metric-card"><span>Last Sync</span><strong><%= @integration_health.last_sync_at ? l(@integration_health.last_sync_at, format: :short) : "-" %></strong></div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>連携</th><th>状態</th><th>最終取得</th><th>最終成功</th><th>件数</th><th>Warning</th></tr>
+        </thead>
+        <tbody>
+          <% [@integration_health.gsc, @integration_health.ga4, @integration_health.serp, @integration_health.explore, @integration_health.daily_run, @integration_health.playbook, @integration_health.decision_log].each do |health| %>
+            <tr>
+              <td><%= health.source.upcase %></td>
+              <td><span class="pill"><%= health.status %></span></td>
+              <td><%= health.last_fetched_at ? l(health.last_fetched_at, format: :short) : "-" %></td>
+              <td><%= health.last_success_at ? l(health.last_success_at, format: :short) : "-" %></td>
+              <td><%= health.count.is_a?(Hash) ? health.count.map { |key, value| "#{key}:#{value}" }.join(" / ") : health.count %></td>
+              <td><%= health.warning.presence || "正常" %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+    <% if @integration_health.warnings.any? %>
+      <div class="aicoo-card aicoo-card-compact">
+        <h3>Warnings</h3>
+        <ul class="compact-list">
+          <% @integration_health.warnings.each do |warning| %>
+            <li><%= warning %></li>
+          <% end %>
+        </ul>
+      </div>
+    <% end %>
+  <% else %>
+    <p class="aicoo-empty-state">Integration Healthを集計できませんでした。</p>
+  <% end %>
+</section>
+
+<section class="dashboard-section">
+  <div class="section-heading">
     <h2>Business Playbook</h2>
     <p>このBusinessで成功しやすいActionTypeを、実績・収益・Decision Logから自動学習します。</p>
   </div>

@@ -163,6 +163,15 @@ class AicooDailyRunner
     end
     log!("BusinessPlaybook updated count=#{playbook_result.updated_count}")
 
+    integration_health = record_step!(run, "business_integration_health") do
+      Aicoo::BusinessIntegrationHealth.new.call
+    end
+    log!(
+      "BusinessIntegrationHealth average_score=#{integration_health.average_health_score} " \
+      "critical=#{integration_health.critical_businesses.size} " \
+      "warning=#{integration_health.warning_businesses.size}"
+    )
+
     log!("Daily Run finished target_date=#{target_date}")
   end
 

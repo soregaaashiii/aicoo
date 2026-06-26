@@ -355,6 +355,39 @@
 
   <section class="dashboard-section">
     <div class="section-heading">
+      <h2>Health Trend</h2>
+      <p>Business別の連携HealthとWarning状況です。</p>
+    </div>
+    <div class="metric-grid">
+      <div class="metric-card"><span>平均Health</span><strong><%= number_with_precision(@business_integration_health.average_health_score, precision: 1) %></strong></div>
+      <div class="metric-card"><span>Critical</span><strong><%= @business_integration_health.critical_businesses.size %>件</strong></div>
+      <div class="metric-card"><span>Warning</span><strong><%= @business_integration_health.warning_businesses.size %>件</strong></div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Business</th><th>Health</th><th>Warning数</th><th>GSC</th><th>GA4</th><th>SERP</th><th>Explore</th><th>Playbook</th></tr>
+        </thead>
+        <tbody>
+          <% @business_integration_health.business_healths.each do |row| %>
+            <tr>
+              <td><%= link_to row.business.name, row.business %></td>
+              <td class="number"><%= number_with_precision(row.health_score, precision: 1) %></td>
+              <td class="number"><%= row.warning_count %></td>
+              <td><%= row.gsc.status %></td>
+              <td><%= row.ga4.status %></td>
+              <td><%= row.serp.status %></td>
+              <td><%= row.explore.status %></td>
+              <td><%= row.playbook.status %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
       <h2>Action Types</h2>
       <p>得意な行動タイプと、外れやすい行動タイプです。</p>
     </div>

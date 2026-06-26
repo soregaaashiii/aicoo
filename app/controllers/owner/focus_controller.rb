@@ -8,6 +8,7 @@ module Owner
       @owner_execution_queue_summary = Aicoo::OwnerExecutionQueueSummary.new.call
       @owner_decision_summary = Aicoo::OwnerDecisionSummary.new.call
       @top_task_evidence = evidence_for_top_task
+      @business_integration_health = Aicoo::BusinessIntegrationHealth.new.call
       @owner_home_summary = Aicoo::OwnerHomeSummary.new(
         owner_focus_home: @owner_focus_home,
         explore_daily_routine: @explore_daily_routine
