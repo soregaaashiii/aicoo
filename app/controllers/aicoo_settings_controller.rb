@@ -41,6 +41,7 @@ class AicooSettingsController < ApplicationController
   def update_cost_profiles!
     data_source_params.each do |source_key, attributes|
       profile = DataSourceCostProfile.find_or_initialize_by(source_key:)
+      credentials = merge_credentials(profile, attributes[:credentials])
       profile.assign_attributes(
         name: attributes[:name],
         enabled: ActiveModel::Type::Boolean.new.cast(attributes[:enabled]),
@@ -50,7 +51,8 @@ class AicooSettingsController < ApplicationController
         monthly_spend_yen: attributes[:monthly_spend_yen].to_i,
         monthly_run_count: attributes[:monthly_run_count].to_i,
         average_cost_yen: attributes[:average_cost_yen].to_d,
-        average_expected_profit_yen: attributes[:average_expected_profit_yen].to_d
+        average_expected_profit_yen: attributes[:average_expected_profit_yen].to_d,
+        metadata: profile.metadata.merge("credentials" => credentials)
       )
       profile.save!
     end
@@ -69,6 +71,20 @@ class AicooSettingsController < ApplicationController
 
   def data_source_params
     params.fetch(:data_sources, {}).permit!.to_h
+  end
+
+  def merge_credentials(profile, raw_credentials)
+    credentials = profile.credentials.dup
+    raw_credentials.to_h.each do |key, value|
+      next if value.blank? && profile.credential_configured?(key)
+
+      if key.to_s == "api_key"
+        profile.api_key = value.presence || profile.api_key
+      else
+        credentials[key.to_s] = value
+      end
+    end
+    credentials
   end
 
   def business_data_source_params

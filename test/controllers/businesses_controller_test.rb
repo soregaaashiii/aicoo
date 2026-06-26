@@ -104,6 +104,8 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Data Source紐付け詳細"
     assert_includes response.body, "Property / Target"
     assert_includes response.body, "Credential参照"
+    assert_includes response.body, "GSC site_url"
+    assert_includes response.body, "customer_id"
   end
 
   test "updates business data source connection settings" do
@@ -118,6 +120,7 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
           external_account_id: "ga-account-1",
           endpoint_url: "https://analytics.google.com/",
           credential_reference: "AICOO共通Google認証",
+          connection_fields: { property_id: "properties/536889590" },
           notes: "GA4 production"
         }
       }
@@ -128,6 +131,7 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert setting.enabled?
     assert_equal "linked", setting.connection_status
     assert_equal "properties/536889590", setting.property_identifier
+    assert_equal "properties/536889590", setting.connection_field_value("property_id")
     assert_equal "AICOO共通Google認証", setting.credential_reference
     assert setting.last_connected_at.present?
   end

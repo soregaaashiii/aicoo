@@ -15,6 +15,8 @@ class AicooSettingsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Data Source Cost Engine"
     assert_includes response.body, "SERP"
     assert_includes response.body, "manual"
+    assert_includes response.body, "developer_token"
+    assert_includes response.body, "Bearer Token"
     assert_includes response.body, "自動投入ON"
   end
 
@@ -28,6 +30,7 @@ class AicooSettingsControllerTest < ActionDispatch::IntegrationTest
           enabled: "1",
           execution_mode: "manual",
           api_key: "",
+          credentials: { endpoint: "https://serp.example.test" },
           monthly_budget_yen: "3000",
           monthly_spend_yen: "120",
           monthly_run_count: "4",
@@ -49,6 +52,7 @@ class AicooSettingsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "manual", profile.execution_mode
     assert_equal 3000, profile.monthly_budget_yen
     assert_equal 20.to_d, profile.average_cost_yen
+    assert_equal "https://serp.example.test", profile.credentials["endpoint"]
     assert_not setting.enabled?
   end
 

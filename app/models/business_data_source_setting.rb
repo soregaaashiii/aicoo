@@ -45,11 +45,30 @@ class BusinessDataSourceSetting < ApplicationRecord
 
   def connection_summary
     [
+      connection_field_value("site_url").presence,
+      connection_field_value("property_id").presence,
+      connection_field_value("keyword").presence,
+      connection_field_value("search_query").presence,
+      connection_field_value("customer_id").presence,
+      connection_field_value("ad_account_id").presence,
+      connection_field_value("project_id").presence,
       property_identifier.presence,
       external_account_id.presence,
       endpoint_url.presence,
       credential_reference.presence
     ].compact.first || "詳細未設定"
+  end
+
+  def connection_fields
+    Aicoo::DataSourceFieldRegistry.business_connection_fields(source_key)
+  end
+
+  def connection_field_values
+    metadata.fetch("connection_fields", {})
+  end
+
+  def connection_field_value(key)
+    connection_field_values[key.to_s]
   end
 
   private

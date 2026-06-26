@@ -37,7 +37,7 @@
                 <th>Data Source</th>
                 <th>ON</th>
                 <th>方式</th>
-                <th>API Key</th>
+                <th>認証情報</th>
                 <th>月間予算</th>
                 <th>月間使用額</th>
                 <th>今月実行</th>
@@ -61,7 +61,22 @@
                   </td>
                   <td><%= select_tag "data_sources[#{profile.source_key}][execution_mode]", options_for_select(DataSourceCostProfile::EXECUTION_MODES, profile.execution_mode) %></td>
                   <td>
-                    <%= password_field_tag "data_sources[#{profile.source_key}][api_key]", nil, placeholder: profile.api_key_configured? ? "設定済み" : "未設定" %>
+                    <% credential_fields = profile.credential_fields %>
+                    <% if credential_fields.any? %>
+                      <% credential_fields.each do |field| %>
+                        <div class="field compact-field">
+                          <label><%= field.label %></label>
+                          <% input_name = field.key == "api_key" ? "data_sources[#{profile.source_key}][api_key]" : "data_sources[#{profile.source_key}][credentials][#{field.key}]" %>
+                          <% if field.secret %>
+                            <%= password_field_tag input_name, nil, placeholder: profile.credential_configured?(field.key) ? "設定済み" : field.placeholder %>
+                          <% else %>
+                            <%= text_field_tag input_name, profile.credential_value(field.key), placeholder: field.placeholder %>
+                          <% end %>
+                        </div>
+                      <% end %>
+                    <% else %>
+                      <%= password_field_tag "data_sources[#{profile.source_key}][api_key]", nil, placeholder: profile.api_key_configured? ? "設定済み" : "未設定" %>
+                    <% end %>
                   </td>
                   <td><%= number_field_tag "data_sources[#{profile.source_key}][monthly_budget_yen]", profile.monthly_budget_yen, min: 0 %></td>
                   <td><%= number_field_tag "data_sources[#{profile.source_key}][monthly_spend_yen]", profile.monthly_spend_yen, min: 0 %></td>

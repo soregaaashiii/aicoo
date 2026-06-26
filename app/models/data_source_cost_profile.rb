@@ -80,6 +80,22 @@ class DataSourceCostProfile < ApplicationRecord
     api_key.present?
   end
 
+  def credential_fields
+    Aicoo::DataSourceFieldRegistry.global_credential_fields(source_key)
+  end
+
+  def credentials
+    metadata.fetch("credentials", {})
+  end
+
+  def credential_value(key)
+    key.to_s == "api_key" ? api_key : credentials[key.to_s]
+  end
+
+  def credential_configured?(key)
+    credential_value(key).present?
+  end
+
   private
 
   def set_defaults

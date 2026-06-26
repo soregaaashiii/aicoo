@@ -34,6 +34,7 @@
               <th>Account / 外部ID</th>
               <th>URL / Endpoint</th>
               <th>Credential参照</th>
+              <th>サービス別設定</th>
               <th>メモ</th>
             </tr>
           </thead>
@@ -72,6 +73,19 @@
                   <%= text_field_tag "business_data_source_settings[#{profile.source_key}][credential_reference]",
                                      setting.credential_reference,
                                      placeholder: "例: AICOO共通Google認証" %>
+                </td>
+                <td>
+                  <% setting.connection_fields.each do |field| %>
+                    <div class="field compact-field">
+                      <label><%= field.label %></label>
+                      <%= text_field_tag "business_data_source_settings[#{profile.source_key}][connection_fields][#{field.key}]",
+                                         setting.connection_field_value(field.key),
+                                         placeholder: field.placeholder %>
+                    </div>
+                  <% end %>
+                  <% if setting.connection_fields.empty? %>
+                    <small>追加必須項目なし</small>
+                  <% end %>
                 </td>
                 <td>
                   <%= text_field_tag "business_data_source_settings[#{profile.source_key}][notes]",

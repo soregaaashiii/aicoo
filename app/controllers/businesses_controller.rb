@@ -69,6 +69,7 @@ class BusinessesController < ApplicationController
 
     business_data_source_setting_params.each do |source_key, attributes|
       setting = BusinessDataSourceSetting.find_or_initialize_by(business: @business, source_key:)
+      connection_fields = setting.connection_field_values.merge(attributes[:connection_fields].to_h)
       setting.assign_attributes(
         enabled: ActiveModel::Type::Boolean.new.cast(attributes[:enabled]),
         connection_status: attributes[:connection_status],
@@ -76,7 +77,8 @@ class BusinessesController < ApplicationController
         property_identifier: attributes[:property_identifier],
         endpoint_url: attributes[:endpoint_url],
         credential_reference: attributes[:credential_reference],
-        notes: attributes[:notes]
+        notes: attributes[:notes],
+        metadata: setting.metadata.merge("connection_fields" => connection_fields)
       )
       setting.save!
     end
