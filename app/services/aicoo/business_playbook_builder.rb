@@ -15,9 +15,10 @@ module Aicoo
       playbook = business.business_playbook || business.build_business_playbook
       action_summary = action_type_summary
       opportunity_summary = opportunity_type_summary
+      task_summary = action_expansion_task_summary
       playbook.update!(
-        sample_count: total_sample_count(action_summary, opportunity_summary),
-        confidence_score: confidence_for(action_summary, opportunity_summary),
+        sample_count: total_sample_count(action_summary, opportunity_summary, task_summary),
+        confidence_score: confidence_for(action_summary, opportunity_summary, task_summary),
         top_action_type: top_type(action_summary),
         worst_action_type: worst_type(action_summary),
         top_opportunity_type: top_type(opportunity_summary),
@@ -31,7 +32,10 @@ module Aicoo
         metadata: {
           "generated_from" => %w[action_results revenue_events owner_decision_logs action_execution_logs owner_execution_queue_items codex_prompt_drafts opportunity_discovery_items action_candidates],
           "recommended_action_types" => recommended_types(action_summary),
-          "weak_action_types" => weak_types(action_summary)
+          "weak_action_types" => weak_types(action_summary),
+          "task_summary" => task_summary,
+          "recommended_tasks" => recommended_types(task_summary),
+          "weak_tasks" => weak_types(task_summary)
         },
         last_calculated_at: Time.current
       )
@@ -117,6 +121,69 @@ module Aicoo
       }.transform_values { |value| value.respond_to?(:round) ? value.to_d.round(4).to_s : value }
     end
 
+    def action_expansion_task_summary
+      task_names.index_with { |task| action_expansion_task_row(task) }
+    end
+
+    def task_names
+      names = business.action_candidates.flat_map do |candidate|
+        Array(candidate.metadata.to_h.dig("action_expansion", "recommended_tasks"))
+      end
+      names += OwnerDecisionLog.where(business:).flat_map { |log| Array(log.metadata.to_h["action_expansion_tasks"]) }
+      names += ActionResult.where(business:).flat_map { |result| Array(result.metadata.to_h.dig("action_expansion_learning", "available_tasks")) }
+      names.compact_blank.uniq
+    end
+
+    def action_expansion_task_row(task)
+      candidates = business.action_candidates.select do |candidate|
+        Array(candidate.metadata.to_h.dig("action_expansion", "recommended_tasks")).include?(task)
+      end
+      decisions = OwnerDecisionLog.where(business:).select do |log|
+        Array(log.metadata.to_h["action_expansion_tasks"]).include?(task)
+      end
+      results = ActionResult.where(business:).select do |result|
+        Array(result.metadata.to_h.dig("action_expansion_learning", "available_tasks")).include?(task)
+      end
+      executed_results = results.select do |result|
+        Array(result.metadata.to_h.dig("action_expansion_learning", "executed_tasks")).include?(task)
+      end
+      total_decisions = decisions.size
+      sample_count = candidates.size + decisions.size + results.size
+      actual_profit = executed_results.sum { |result| result.actual_profit_yen.to_i }
+      expected_profit = candidates.sum { |candidate| candidate.expected_profit_yen.to_i }
+      average_actual_profit = executed_results.any? ? actual_profit.to_d / executed_results.size : 0.to_d
+      success_rate = rate(executed_results.count { |result| result.actual_profit_yen.to_i.positive? }, executed_results.size)
+      adoption_rate = rate(decisions.count { |log| OwnerDecisionLog::POSITIVE_DECISIONS.include?(log.decision_type) }, total_decisions)
+      completion_rate = rate(executed_results.size, results.size)
+      roi = expected_profit.positive? ? actual_profit.to_d / expected_profit.to_d : nil
+
+      {
+        "type" => task,
+        "task" => task,
+        "candidate_count" => candidates.size,
+        "decision_count" => total_decisions,
+        "result_count" => results.size,
+        "executed_result_count" => executed_results.size,
+        "adoption_rate" => adoption_rate,
+        "reject_rate" => rate(decisions.count { |log| log.decision_type == "reject" }, total_decisions),
+        "skip_rate" => rate(decisions.count { |log| log.decision_type == "skip" }, total_decisions),
+        "completion_rate" => completion_rate,
+        "success_rate" => success_rate,
+        "average_expected_profit_yen" => average(candidates.map(&:expected_profit_yen)),
+        "average_actual_profit_yen" => average_actual_profit,
+        "roi" => roi,
+        "average_practicality_score" => average(candidates.map(&:practicality_score)),
+        "average_evidence_score" => average(candidates.map { |candidate| candidate.metadata.to_h.dig("evidence", "score").to_d }),
+        "sample_count" => sample_count,
+        "score" => playbook_score(
+          success_rate:,
+          adoption_rate:,
+          average_actual_profit:,
+          expected_profit:
+        )
+      }.transform_values { |value| value.respond_to?(:round) ? value.to_d.round(4).to_s : value }
+    end
+
     def playbook_score(success_rate:, adoption_rate:, average_actual_profit:, expected_profit:)
       revenue_signal = expected_profit.to_d.positive? ? [ average_actual_profit.to_d / expected_profit.to_d, 1.to_d ].min : 0.to_d
       ((success_rate.to_d * 40) + (adoption_rate.to_d * 30) + (revenue_signal * 30)).round(2)
@@ -132,13 +199,15 @@ module Aicoo
       [ [ coefficient, Aicoo::DecisionLogCoefficient::MIN_COEFFICIENT ].max, Aicoo::DecisionLogCoefficient::MAX_COEFFICIENT ].min
     end
 
-    def confidence_for(action_summary, opportunity_summary)
-      samples = total_sample_count(action_summary, opportunity_summary)
+    def confidence_for(action_summary, opportunity_summary, task_summary)
+      samples = total_sample_count(action_summary, opportunity_summary, task_summary)
       [ samples * 4, 100 ].min.to_d
     end
 
-    def total_sample_count(action_summary, opportunity_summary)
-      action_summary.values.sum { |row| row["sample_count"].to_i } + opportunity_summary.values.sum { |row| row["sample_count"].to_i }
+    def total_sample_count(action_summary, opportunity_summary, task_summary)
+      action_summary.values.sum { |row| row["sample_count"].to_i } +
+        opportunity_summary.values.sum { |row| row["sample_count"].to_i } +
+        task_summary.values.sum { |row| row["sample_count"].to_i }
     end
 
     def top_type(summary)

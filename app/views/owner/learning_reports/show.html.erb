@@ -355,6 +355,37 @@
 
   <section class="dashboard-section">
     <div class="section-heading">
+      <h2>Action Expansion Learning</h2>
+      <p>Action Expansionが生成したTask単位で、採用率・完了率・成功率・ROIを確認します。</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Business</th><th>Task</th><th>Score</th><th>採用率</th><th>完了率</th><th>成功率</th><th>平均利益</th><th>Sample</th></tr>
+        </thead>
+        <tbody>
+          <% @business_playbook_summary.top_playbooks.flat_map { |playbook| playbook.task_rows.first(5).map { |row| [playbook, row] } }.first(20).each do |playbook, row| %>
+            <tr>
+              <td><%= link_to playbook.business.name, playbook.business %></td>
+              <td><%= row["task"] || row["type"] %></td>
+              <td class="number"><%= number_with_precision(row["score"].to_d, precision: 1) %></td>
+              <td><%= number_to_percentage(row["adoption_rate"].to_d * 100, precision: 1) %></td>
+              <td><%= number_to_percentage(row["completion_rate"].to_d * 100, precision: 1) %></td>
+              <td><%= number_to_percentage(row["success_rate"].to_d * 100, precision: 1) %></td>
+              <td><%= number_to_currency(row["average_actual_profit_yen"].to_d, unit: "¥", precision: 0) %></td>
+              <td class="number"><%= row["sample_count"] %></td>
+            </tr>
+          <% end %>
+          <% if @business_playbook_summary.top_playbooks.all? { |playbook| playbook.task_rows.empty? } %>
+            <tr><td colspan="8">Action Expansion Taskの学習データはまだ不足しています。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
       <h2>Health Trend</h2>
       <p>Business別の連携HealthとWarning状況です。</p>
     </div>

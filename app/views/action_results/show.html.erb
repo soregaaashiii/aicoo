@@ -53,6 +53,40 @@
   <dd><%= simple_format(@action_result.note.presence || "-") %></dd>
 </dl>
 
+<% expansion_learning = @action_result.metadata.to_h.fetch("action_expansion_learning", {}) %>
+<% if expansion_learning.present? %>
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Action Expansion Learning</h2>
+      <p>実行ガイドのうち、今回実際に行ったタスクを学習データとして保存しています。</p>
+    </div>
+    <div class="aicoo-grid aicoo-grid-2">
+      <div class="aicoo-card aicoo-card-compact">
+        <h3>実行したTask</h3>
+        <ul class="compact-list">
+          <% Array(expansion_learning["executed_tasks"]).each do |task| %>
+            <li><%= task %></li>
+          <% end %>
+          <% if Array(expansion_learning["executed_tasks"]).empty? %>
+            <li>未記録</li>
+          <% end %>
+        </ul>
+      </div>
+      <div class="aicoo-card aicoo-card-compact">
+        <h3>未実行Task</h3>
+        <ul class="compact-list">
+          <% Array(expansion_learning["skipped_tasks"]).each do |task| %>
+            <li><%= task %></li>
+          <% end %>
+          <% if Array(expansion_learning["skipped_tasks"]).empty? %>
+            <li>なし</li>
+          <% end %>
+        </ul>
+      </div>
+    </div>
+  </section>
+<% end %>
+
 <section class="dashboard-section">
   <div class="section-heading">
     <h2>紐づいた売上/費用</h2>

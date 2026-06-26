@@ -258,6 +258,22 @@
           <% end %>
         </ul>
       </div>
+      <div class="aicoo-card aicoo-card-compact">
+        <h3>一番効くTask TOP10</h3>
+        <ul class="compact-list">
+          <% @business_playbook.task_rows.first(10).each do |row| %>
+            <li>
+              <strong><%= row["task"] || row["type"] %></strong>
+              / score <%= number_with_precision(row["score"].to_d, precision: 1) %>
+              / 成功率 <%= number_to_percentage(row["success_rate"].to_d * 100, precision: 1) %>
+              / 完了率 <%= number_to_percentage(row["completion_rate"].to_d * 100, precision: 1) %>
+            </li>
+          <% end %>
+          <% if @business_playbook.task_rows.empty? %>
+            <li>Task単位の学習はまだ不足しています。</li>
+          <% end %>
+        </ul>
+      </div>
     </div>
   <% else %>
     <p class="aicoo-empty-state">Business Playbookはまだ学習不足です。ActionResult、RevenueEvent、Decision Logが増えると自動で形成されます。</p>

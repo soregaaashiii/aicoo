@@ -69,6 +69,39 @@ class ActionResultsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to action_result_url(ActionResult.last)
   end
 
+  test "stores executed action expansion tasks on result" do
+    @action_candidate.update_column(
+      :metadata,
+      {
+        "action_expansion" => {
+          "version" => "v1",
+          "expansion_type" => "ctr_title_rewrite",
+          "recommended_tasks" => [ "SEOタイトル改訂", "内部リンク追加" ],
+          "task_priority" => { "SEOタイトル改訂" => 1, "内部リンク追加" => 2 },
+          "confidence" => "82"
+        }
+      }
+    )
+
+    post action_results_url, params: {
+      action_result: {
+        action_candidate_id: @action_candidate.id,
+        business_id: @action_candidate.business_id,
+        executed_on: Date.current,
+        evaluated_on: Date.current,
+        actual_revenue_yen: 1_000,
+        actual_profit_yen: 800,
+        note: "Execution result"
+      },
+      executed_expansion_tasks: [ "SEOタイトル改訂" ]
+    }
+
+    learning = ActionResult.last.metadata["action_expansion_learning"]
+    assert_equal [ "SEOタイトル改訂" ], learning["executed_tasks"]
+    assert_equal [ "内部リンク追加" ], learning["skipped_tasks"]
+    assert_equal "ctr_title_rewrite", learning["expansion_type"]
+  end
+
   test "creates action result linked to action execution" do
     execution = @action_candidate.create_action_execution!(status: "completed", execution_type: "manual", completed_at: Time.current)
 

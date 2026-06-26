@@ -4,6 +4,7 @@ module Aicoo
       順位改善 アクセス改善 記事改善 SEO改善 CV改善 導線改善 最適化 品質向上 改善する 強化する 伸ばす 見直す
     ].freeze
     LOW_CONFIDENCE = 35.to_d
+    EXPANSION_VERSION = "v1".freeze
 
     Result = Data.define(
       :expanded,
@@ -114,21 +115,28 @@ module Aicoo
     end
 
     def expanded_result(expansion_type:, recommended_tasks:, execution_steps:, completion_criteria:, expected_minutes:)
+      prioritized_tasks = prioritize_tasks(recommended_tasks)
       metadata = base_metadata.merge(
         "expanded" => true,
+        "version" => EXPANSION_VERSION,
         "expansion_type" => expansion_type,
         "target" => target_label,
         "target_url" => target_page,
         "target_keyword" => target_keyword,
         "target_area" => target_area,
         "target_pages" => [ target_page ].compact,
-        "recommended_tasks" => recommended_tasks,
+        "recommended_tasks" => prioritized_tasks,
+        "generated_tasks" => task_snapshots(prioritized_tasks),
+        "task_priority" => task_priority(prioritized_tasks),
         "execution_steps" => execution_steps,
         "expected_minutes" => expected_minutes,
         "completion_criteria" => completion_criteria,
         "required_data_sources" => required_data_sources,
         "missing_data_sources" => [],
         "confidence" => confidence.to_s,
+        "evidence_snapshot" => evidence_snapshot,
+        "playbook_snapshot" => playbook_snapshot,
+        "practicality_snapshot" => practicality_snapshot,
         "warning" => false,
         "warning_reason" => nil
       )
@@ -144,6 +152,7 @@ module Aicoo
     def warning_result(reason)
       metadata = base_metadata.merge(
         "expanded" => false,
+        "version" => EXPANSION_VERSION,
         "expansion_type" => nil,
         "target" => target_label,
         "target_url" => target_page,
@@ -151,12 +160,17 @@ module Aicoo
         "target_area" => target_area,
         "target_pages" => [ target_page ].compact,
         "recommended_tasks" => [],
+        "generated_tasks" => [],
+        "task_priority" => {},
         "execution_steps" => [],
         "expected_minutes" => nil,
         "completion_criteria" => [],
         "required_data_sources" => required_data_sources,
         "missing_data_sources" => missing_data_sources,
         "confidence" => confidence.to_s,
+        "evidence_snapshot" => evidence_snapshot,
+        "playbook_snapshot" => playbook_snapshot,
+        "practicality_snapshot" => practicality_snapshot,
         "warning" => true,
         "warning_reason" => reason
       )
@@ -257,6 +271,63 @@ module Aicoo
 
     def metric_names
       evidence_items.filter_map { |item| item["metric_name"].presence }
+    end
+
+    def prioritize_tasks(tasks)
+      scores = task_summary
+      tasks.sort_by.with_index do |task, index|
+        row_score = scores.dig(task, "score").to_d
+        [ -row_score, index ]
+      end
+    end
+
+    def task_snapshots(tasks)
+      tasks.each_with_index.map do |task, index|
+        row = task_summary[task].to_h
+        {
+          "name" => task,
+          "priority" => index + 1,
+          "playbook_score" => row["score"].to_s.presence || "50.0",
+          "sample_count" => row["sample_count"].to_i,
+          "success_rate" => row["success_rate"].to_s,
+          "adoption_rate" => row["adoption_rate"].to_s,
+          "completion_rate" => row["completion_rate"].to_s,
+          "roi" => row["roi"].to_s.presence
+        }.compact
+      end
+    end
+
+    def task_priority(tasks)
+      tasks.each_with_index.to_h { |task, index| [ task, index + 1 ] }
+    end
+
+    def task_summary
+      @task_summary ||= action_candidate.business&.business_playbook&.metadata.to_h.fetch("task_summary", {})
+    end
+
+    def evidence_snapshot
+      {
+        "score" => evidence["score"].to_s,
+        "sources" => evidence_sources.uniq,
+        "items_count" => evidence_items.size
+      }
+    end
+
+    def playbook_snapshot
+      playbook = action_candidate.business&.business_playbook
+      {
+        "confidence_score" => playbook&.confidence_score.to_s,
+        "top_action_type" => playbook&.top_action_type,
+        "task_summary_count" => task_summary.size
+      }.compact
+    end
+
+    def practicality_snapshot
+      practicality = action_candidate.metadata.to_h["practicality"].to_h
+      {
+        "score" => action_candidate.practicality_score.to_s.presence || practicality["practicality_score"].to_s,
+        "warning" => action_candidate.practicality_warning || practicality["warning"]
+      }.compact
     end
 
     def evidence_sources

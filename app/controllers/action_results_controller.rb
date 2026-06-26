@@ -25,6 +25,7 @@ class ActionResultsController < ApplicationController
 
   def create
     @action_result = ActionResult.new(action_result_params)
+    apply_action_expansion_learning
 
     if @action_result.save
       redirect_to @action_result, notice: "Action result was successfully created."
@@ -37,6 +38,7 @@ class ActionResultsController < ApplicationController
   end
 
   def update
+    apply_action_expansion_learning
     if @action_result.update(action_result_params)
       redirect_to @action_result, notice: "Action result was successfully updated."
     else
@@ -74,8 +76,33 @@ class ActionResultsController < ApplicationController
         :actual_map_clicks_delta,
         :actual_affiliate_clicks_delta,
         :evaluation_status,
-        :note
+        :note,
+        metadata: {}
       ]
+    )
+  end
+
+  def apply_action_expansion_learning
+    result = defined?(@action_result) ? @action_result : nil
+    return unless result
+
+    candidate = result.action_candidate || ActionCandidate.find_by(id: action_result_params[:action_candidate_id])
+    expansion = candidate&.metadata.to_h["action_expansion"].to_h
+    tasks = Array(expansion["recommended_tasks"])
+    return if tasks.empty?
+
+    executed_tasks = Array(params[:executed_expansion_tasks]).compact_blank
+    result.metadata = result.metadata.to_h.merge(
+      "action_expansion_learning" => {
+        "version" => expansion["version"],
+        "expansion_type" => expansion["expansion_type"],
+        "available_tasks" => tasks,
+        "executed_tasks" => executed_tasks,
+        "skipped_tasks" => tasks - executed_tasks,
+        "task_priority" => expansion["task_priority"].to_h,
+        "confidence" => expansion["confidence"].to_s,
+        "captured_at" => Time.current.iso8601
+      }
     )
   end
 end

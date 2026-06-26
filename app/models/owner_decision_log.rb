@@ -149,7 +149,14 @@ class OwnerDecisionLog < ApplicationRecord
       data["strategic_learning"] = subject.metadata.to_h["strategic_learning"] if subject.respond_to?(:metadata) && subject.metadata.to_h["strategic_learning"].present?
       data["practicality"] = subject.metadata.to_h["practicality"] if subject.respond_to?(:metadata) && subject.metadata.to_h["practicality"].present?
       data["evidence"] = subject.metadata.to_h["evidence"] if subject.respond_to?(:metadata) && subject.metadata.to_h["evidence"].present?
+      data["action_expansion"] = subject.metadata.to_h["action_expansion"] if subject.respond_to?(:metadata) && subject.metadata.to_h["action_expansion"].present?
+      data["action_expansion_tasks"] = action_expansion_tasks if action_expansion_tasks.any?
       data
+    end
+
+    def action_expansion_tasks
+      expansion = subject.metadata.to_h["action_expansion"].to_h if subject.respond_to?(:metadata)
+      Array(expansion&.fetch("recommended_tasks", []))
     end
 
     def first_existing(*attributes)

@@ -31,6 +31,24 @@
     </div>
   <% end %>
 
+  <% expansion = action_result.action_candidate&.metadata.to_h.fetch("action_expansion", {}) %>
+  <% expansion_tasks = Array(expansion["recommended_tasks"]) %>
+  <% if expansion_tasks.any? %>
+    <% selected_tasks = Array(action_result.metadata.to_h.dig("action_expansion_learning", "executed_tasks")) %>
+    <div class="aicoo-card aicoo-card-compact">
+      <h3>実行したExpansion Task</h3>
+      <p>今回のActionResultに、どの実行手順を実際に行ったかを保存します。</p>
+      <div class="compact-list">
+        <% expansion_tasks.each do |task| %>
+          <label class="checkbox-row">
+            <%= check_box_tag "executed_expansion_tasks[]", task, selected_tasks.include?(task) %>
+            <span><%= task %></span>
+          </label>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
   <div class="grid">
     <div class="field">
       <%= form.label :executed_on, "実行日" %>

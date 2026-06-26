@@ -12,6 +12,10 @@ class BusinessPlaybook < ApplicationRecord
     opportunity_type_summary.to_h.values.sort_by { |row| -row.to_h["score"].to_d }
   end
 
+  def task_rows
+    metadata.to_h.fetch("task_summary", {}).values.sort_by { |row| -row.to_h["score"].to_d }
+  end
+
   def learned?
     sample_count.positive?
   end

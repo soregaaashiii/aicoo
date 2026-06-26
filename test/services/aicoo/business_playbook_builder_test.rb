@@ -39,6 +39,62 @@ module Aicoo
       assert playbook.action_type_summary.key?("seo_improvement")
     end
 
+    test "learns action expansion task performance" do
+      business = businesses(:suelog)
+      candidate = ActionCandidate.create!(
+        business:,
+        title: "Expansion learning candidate",
+        action_type: "seo_improvement",
+        immediate_value_yen: 10_000,
+        success_probability: 0.5,
+        expected_hours: 2,
+        execution_prompt: "CTR2%未満の記事5本をタイトル改訂してください。"
+      )
+      candidate.update_column(
+        :metadata,
+        {
+          "action_expansion" => {
+            "version" => "v1",
+            "recommended_tasks" => [ "SEOタイトル改訂", "内部リンク追加" ],
+            "generated_tasks" => [
+              { "name" => "SEOタイトル改訂", "priority" => 1 },
+              { "name" => "内部リンク追加", "priority" => 2 }
+            ]
+          }
+        }
+      )
+      ActionResult.create!(
+        action_candidate: candidate,
+        business:,
+        executed_on: Date.current,
+        evaluated_on: Date.current,
+        evaluation_status: "evaluated",
+        actual_profit_yen: 12_000,
+        metadata: {
+          "action_expansion_learning" => {
+            "available_tasks" => [ "SEOタイトル改訂", "内部リンク追加" ],
+            "executed_tasks" => [ "SEOタイトル改訂" ],
+            "skipped_tasks" => [ "内部リンク追加" ]
+          }
+        }
+      )
+      OwnerDecisionLog.record!(
+        subject: candidate,
+        decision_type: "approve",
+        decision_source: "action_candidate_detail",
+        previous_status: "idea",
+        new_status: "approved"
+      )
+
+      playbook = BusinessPlaybookBuilder.new(business).update!
+      task_summary = playbook.metadata["task_summary"]
+
+      assert task_summary.key?("SEOタイトル改訂")
+      assert_equal 1, task_summary["SEOタイトル改訂"]["executed_result_count"].to_i
+      assert_operator task_summary["SEOタイトル改訂"]["success_rate"].to_d, :>, 0
+      assert_equal "SEOタイトル改訂", playbook.metadata["recommended_tasks"].first
+    end
+
     test "updates all businesses" do
       result = BusinessPlaybookBuilder.update_all!
 

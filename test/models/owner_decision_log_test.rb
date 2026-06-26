@@ -51,6 +51,33 @@ class OwnerDecisionLogTest < ActiveSupport::TestCase
     assert_equal 82, log.confidence
   end
 
+  test "records action expansion task snapshot" do
+    candidate = action_candidates(:nagazakicho_article)
+    candidate.update_column(
+      :metadata,
+      {
+        "action_expansion" => {
+          "recommended_tasks" => [ "SEOタイトル改訂", "内部リンク追加" ],
+          "generated_tasks" => [
+            { "name" => "SEOタイトル改訂", "priority" => 1 },
+            { "name" => "内部リンク追加", "priority" => 2 }
+          ]
+        }
+      }
+    )
+
+    log = OwnerDecisionLog.record!(
+      subject: candidate,
+      decision_type: "approve",
+      decision_source: "action_candidate_detail",
+      previous_status: "idea",
+      new_status: "approved"
+    )
+
+    assert_equal [ "SEOタイトル改訂", "内部リンク追加" ], log.metadata["action_expansion_tasks"]
+    assert_equal 2, log.metadata.dig("action_expansion", "generated_tasks").size
+  end
+
   test "does not create immediate duplicate logs" do
     candidate = action_candidates(:nagazakicho_article)
 

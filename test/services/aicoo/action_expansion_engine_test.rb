@@ -51,5 +51,49 @@ module Aicoo
       assert result.metadata["warning"]
       assert_match(/Evidence不足/, result.metadata["warning_reason"])
     end
+
+    test "orders recommended tasks by business playbook task performance" do
+      business = businesses(:suelog)
+      business.business_playbook&.destroy!
+      BusinessPlaybook.create!(
+        business:,
+        sample_count: 20,
+        confidence_score: 80,
+        metadata: {
+          "task_summary" => {
+            "SEOタイトル改訂" => { "score" => "92", "sample_count" => 10, "success_rate" => "0.9", "adoption_rate" => "0.8" },
+            "meta description改訂" => { "score" => "40", "sample_count" => 10, "success_rate" => "0.4", "adoption_rate" => "0.3" }
+          }
+        }
+      )
+      candidate = ActionCandidate.new(
+        business:,
+        title: "CTR改善",
+        action_type: "seo_improvement",
+        metadata: {
+          "evidence" => {
+            "score" => "90",
+            "warning" => false,
+            "items" => [
+              {
+                "source" => "gsc",
+                "metric_name" => "impressions",
+                "confidence" => "90",
+                "page" => "/umeda/toritomo",
+                "keyword" => "とり友 梅田 喫煙"
+              }
+            ]
+          }
+        }
+      )
+
+      result = ActionExpansionEngine.new(candidate).call
+
+      assert result.expanded
+      assert_equal "SEOタイトル改訂", result.metadata["recommended_tasks"].first
+      assert_equal "v1", result.metadata["version"]
+      assert_equal 1, result.metadata.dig("task_priority", "SEOタイトル改訂")
+      assert_equal "92", result.metadata.dig("generated_tasks", 0, "playbook_score")
+    end
   end
 end
