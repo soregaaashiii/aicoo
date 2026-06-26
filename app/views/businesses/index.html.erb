@@ -19,16 +19,46 @@
       <tr>
         <th>事業名</th>
         <th>状態</th>
+        <th>Health</th>
+        <th>Last Sync</th>
+        <th>GSC 7日 / 30日</th>
+        <th>GA4 7日 / 30日</th>
+        <th>Revenue 7日 / 30日</th>
+        <th>Pending Actions</th>
+        <th>Warning</th>
         <th>Execution Profile</th>
-        <th>行動候補数</th>
         <th>操作</th>
       </tr>
     </thead>
     <tbody>
       <% @businesses.each do |business| %>
+        <% summary = @business_analytics_summaries.fetch(business) %>
+        <% period_7d = summary.periods.fetch(7) %>
+        <% period_30d = summary.periods.fetch(30) %>
         <tr>
           <td><%= link_to business.name, business %></td>
           <td><span class="pill"><%= business.status %></span></td>
+          <td class="number"><%= number_with_precision(summary.health&.health_score.to_d, precision: 1) %></td>
+          <td><%= summary.last_sync_at ? l(summary.last_sync_at, format: :short) : "未接続 / データ不足" %></td>
+          <td>
+            clicks <%= number_with_delimiter(period_7d.gsc_clicks) %> / <%= number_with_delimiter(period_30d.gsc_clicks) %><br>
+            <small>impressions <%= number_with_delimiter(period_7d.gsc_impressions) %> / <%= number_with_delimiter(period_30d.gsc_impressions) %></small>
+          </td>
+          <td>
+            sessions <%= number_with_delimiter(period_7d.ga4_sessions) %> / <%= number_with_delimiter(period_30d.ga4_sessions) %><br>
+            <small>pageviews <%= number_with_delimiter(period_7d.ga4_pageviews) %> / <%= number_with_delimiter(period_30d.ga4_pageviews) %></small>
+          </td>
+          <td>
+            <%= number_to_currency(period_7d.revenue_yen, unit: "¥", precision: 0) %> /
+            <%= number_to_currency(period_30d.revenue_yen, unit: "¥", precision: 0) %>
+          </td>
+          <td class="number"><%= period_30d.pending_actions %></td>
+          <td>
+            <span class="pill"><%= summary.warning_count %>件</span>
+            <% if summary.warnings.any? %>
+              <small><%= summary.warnings.first %></small>
+            <% end %>
+          </td>
           <td>
             <% if (profile = business.business_execution_profile) %>
               <span class="pill"><%= AicooRepositoryTargetCoverageService::STATUS_LABELS.fetch(profile.coverage_status) %></span>
@@ -42,9 +72,9 @@
               <small>Execution Profile未作成</small>
             <% end %>
           </td>
-          <td class="number"><%= business.action_candidates.count %></td>
           <td>
             <div class="actions compact-actions">
+              <%= link_to "Analytics", business_path(business, anchor: "analytics"), class: "button secondary" %>
               <%= link_to "詳細", business, class: "button secondary" %>
               <%= link_to "編集", edit_business_path(business), class: "button secondary" %>
               <% if business.business_execution_profile %>

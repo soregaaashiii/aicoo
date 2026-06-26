@@ -1,0 +1,24 @@
+<% values = metrics.each_with_object({}) { |metric, hash| hash[metric[:key]] = business_chart_max(series, metric[:key]) } %>
+
+<div class="business-analytics-chart">
+  <div class="business-analytics-chart-header">
+    <h3><%= title %></h3>
+    <% if series.blank? || metrics.all? { |metric| series.sum { |point| point.values[metric[:key]].to_d }.zero? } %>
+      <span class="pill">データ不足</span>
+    <% end %>
+  </div>
+
+  <% metrics.each do |metric| %>
+    <div class="business-analytics-bars" aria-label="<%= metric[:label] %>">
+      <div class="business-analytics-metric-label"><%= metric[:label] %></div>
+      <div class="business-analytics-bar-row">
+        <% series.each do |point| %>
+          <% value = point.values[metric[:key]] %>
+          <span class="business-analytics-bar"
+                title="<%= point.date %> / <%= metric[:label] %>: <%= value.nil? ? "データ不足" : value %>"
+                style="height: <%= business_chart_height(point, metric[:key], values[metric[:key]]) %>%"></span>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+</div>

@@ -23,46 +23,72 @@
   </head>
 
   <body>
-    <% ceo_mode = request.path.start_with?("/owner") %>
-    <header class="app-header">
-      <div>
-        <%= link_to "AI COO / AI経営企画室", ceo_mode ? owner_dashboard_path : dashboard_path, class: "brand" %>
-        <p><%= ceo_mode ? "CEO MODE: 経営判断に集中する画面" : "SYSTEM MODE: 分析・運用・設定の画面" %></p>
+    <header class="app-header aicoo-global-header">
+      <div class="aicoo-brand-block">
+        <%= link_to "AICOO", aicoo_mode_home_path, class: "brand" %>
+        <p><%= aicoo_mode_label %> / <%= aicoo_mode_description %></p>
       </div>
-      <nav>
-        <% if ceo_mode %>
-          <%= link_to dashboard_path, title: "分析・運用・設定を見る" do %>
-            SYSTEM MODE<br><small>詳細分析を見る</small>
-          <% end %>
-        <% else %>
-          <%= link_to owner_dashboard_path, title: "今日やることへ戻る" do %>
-            CEO MODE<br><small>今日やることへ戻る</small>
-          <% end %>
-          <%= link_to admin_aicoo_lab_experiments_path, title: "新しい事業案を検証する" do %>
-            新規事業<br><small>新しい事業案を検証する</small>
-          <% end %>
-          <%= link_to admin_aicoo_executor_path, title: "Codexへ渡す作業指示" do %>
-            実行指示<br><small>Codexへ渡す作業指示</small>
-          <% end %>
-          <%= link_to admin_aicoo_datahub_path, title: "PV・CV・収益などの事実" do %>
-            実績データ<br><small>PV・CV・収益などの事実</small>
-          <% end %>
-          <%= link_to admin_aicoo_judge_path, title: "予測精度を確認する" do %>
-            成績表<br><small>予測精度を確認する</small>
-          <% end %>
+
+      <nav class="aicoo-mode-nav" aria-label="Mode navigation">
+        <%= link_to owner_focus_path, class: ["aicoo-mode-pill", ("active" if aicoo_ceo_mode?)] do %>
+          CEO MODE<br><small>今日動く</small>
+        <% end %>
+        <%= link_to dashboard_path, class: ["aicoo-mode-pill", ("active" unless aicoo_ceo_mode?)] do %>
+          SYSTEM MODE<br><small>監視室</small>
+        <% end %>
+        <%= link_to businesses_path, class: "aicoo-header-link" do %>
+          Business<br><small>事業一覧</small>
         <% end %>
       </nav>
+
+      <div class="aicoo-header-tools">
+        <%= form_with url: action_candidates_path, method: :get, class: "aicoo-global-search", data: { turbo: false } do |form| %>
+          <%= form.search_field :q, placeholder: "Search", aria: { label: "Search" } %>
+        <% end %>
+        <%= link_to "Notifications", owner_tasks_path, class: "aicoo-notification-chip" %>
+        <span class="aicoo-profile-chip">Profile</span>
+      </div>
     </header>
 
-    <main class="app-main">
-      <% if notice.present? %>
-        <p class="notice"><%= notice %></p>
-      <% end %>
-      <% if alert.present? %>
-        <p class="alert"><%= alert %></p>
-      <% end %>
+    <div class="aicoo-shell <%= aicoo_ceo_mode? ? "aicoo-shell-ceo" : "aicoo-shell-system" %>">
+      <aside class="aicoo-sidebar" aria-label="<%= aicoo_mode_label %> navigation">
+        <div class="aicoo-sidebar-mode">
+          <strong><%= aicoo_mode_label %></strong>
+          <span><%= aicoo_ceo_mode? ? "Focus / Tasks / Learning" : "Monitor / Diagnostics / Settings" %></span>
+        </div>
 
-      <%= yield %>
-    </main>
+        <nav class="aicoo-sidebar-nav">
+          <% aicoo_sidebar_items.each do |item| %>
+            <%= link_to item[:path], class: ["aicoo-sidebar-link", ("active" if aicoo_sidebar_active?(item))] do %>
+              <strong><%= item[:label] %></strong>
+              <span><%= item[:description] %></span>
+            <% end %>
+          <% end %>
+        </nav>
+      </aside>
+
+      <main class="app-main aicoo-main">
+        <nav class="aicoo-breadcrumb" aria-label="現在位置">
+          <span>現在位置</span>
+          <% aicoo_breadcrumb_items.each_with_index do |item, index| %>
+            <span class="aicoo-breadcrumb-separator">›</span>
+            <% if index == aicoo_breadcrumb_items.size - 1 %>
+              <strong><%= item[:label] %></strong>
+            <% else %>
+              <%= link_to item[:label], item[:path] %>
+            <% end %>
+          <% end %>
+        </nav>
+
+        <% if notice.present? %>
+          <p class="notice"><%= notice %></p>
+        <% end %>
+        <% if alert.present? %>
+          <p class="alert"><%= alert %></p>
+        <% end %>
+
+        <%= yield %>
+      </main>
+    </div>
   </body>
 </html>

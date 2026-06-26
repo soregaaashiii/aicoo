@@ -8,6 +8,14 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
   test "should get index" do
     get businesses_url
     assert_response :success
+    assert_includes response.body, "Health"
+    assert_includes response.body, "Last Sync"
+    assert_includes response.body, "GSC 7日 / 30日"
+    assert_includes response.body, "GA4 7日 / 30日"
+    assert_includes response.body, "Revenue 7日 / 30日"
+    assert_includes response.body, "Pending Actions"
+    assert_includes response.body, "Warning"
+    assert_includes response.body, "Analytics"
     assert_includes response.body, "Execution Profile"
     assert_includes response.body, "missing"
     assert_includes response.body, "Profile作成"
@@ -53,6 +61,16 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     get business_url(@business)
 
     assert_response :success
+    assert_includes response.body, "Business Analytics Dashboard"
+    assert_includes response.body, "GSCグラフ"
+    assert_includes response.body, "GA4グラフ"
+    assert_includes response.body, "Revenueグラフ"
+    assert_includes response.body, "Actionグラフ"
+    assert_includes response.body, "Learningグラフ"
+    assert_includes response.body, "clicks"
+    assert_includes response.body, "sessions"
+    assert_includes response.body, "revenue_yen"
+    assert_includes response.body, "未接続 / データ不足"
     assert_includes response.body, "収益サマリー"
     assert_includes response.body, "今月売上"
     assert_includes response.body, "今月費用"

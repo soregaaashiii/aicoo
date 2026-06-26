@@ -20,6 +20,142 @@
 
 <%= render @business %>
 
+<section class="dashboard-section" id="analytics">
+  <div class="section-heading">
+    <div>
+      <h2>Business Analytics Dashboard</h2>
+      <p>GSC / GA4 / Revenue / Action / Learning をこのBusiness単位で確認します。</p>
+    </div>
+    <div class="actions compact-actions">
+      <%= link_to "Actions", "#business-actions", class: "button secondary" %>
+      <%= link_to "Learning", "#business-learning", class: "button secondary" %>
+      <%= link_to "Settings", "#business-settings", class: "button secondary" %>
+    </div>
+  </div>
+
+  <% analytics = @business_analytics_summary %>
+  <% period_7d = analytics.periods.fetch(7) %>
+  <% period_30d = analytics.periods.fetch(30) %>
+
+  <div class="business-analytics-overview">
+    <div class="metric-card">
+      <span>Health</span>
+      <strong><%= analytics.health ? number_with_precision(analytics.health.health_score, precision: 1) : "データ不足" %></strong>
+      <small><%= analytics.warning_count %> warnings</small>
+    </div>
+    <div class="metric-card">
+      <span>Last Sync</span>
+      <strong><%= analytics.last_sync_at ? l(analytics.last_sync_at, format: :short) : "未接続" %></strong>
+      <small>GSC / GA4 / Revenue</small>
+    </div>
+    <div class="metric-card">
+      <span>GSC clicks 7日 / 30日</span>
+      <strong><%= number_with_delimiter(period_7d.gsc_clicks) %> / <%= number_with_delimiter(period_30d.gsc_clicks) %></strong>
+      <small>CTR <%= business_analytics_value(period_30d.gsc_ctr, percentage: true) %></small>
+    </div>
+    <div class="metric-card">
+      <span>GA4 sessions 7日 / 30日</span>
+      <strong><%= number_with_delimiter(period_7d.ga4_sessions) %> / <%= number_with_delimiter(period_30d.ga4_sessions) %></strong>
+      <small>pageviews <%= number_with_delimiter(period_30d.ga4_pageviews) %></small>
+    </div>
+    <div class="metric-card">
+      <span>Revenue 7日 / 30日</span>
+      <strong><%= number_to_currency(period_7d.revenue_yen, unit: "¥", precision: 0) %> / <%= number_to_currency(period_30d.revenue_yen, unit: "¥", precision: 0) %></strong>
+      <small>RevenueEvent</small>
+    </div>
+    <div class="metric-card">
+      <span>Pending Actions</span>
+      <strong><%= period_30d.pending_actions %></strong>
+      <small>ActionCandidate</small>
+    </div>
+  </div>
+
+  <% if analytics.warnings.any? %>
+    <div class="aicoo-card aicoo-card-compact">
+      <h3>Connection / Data Warnings</h3>
+      <ul class="compact-list">
+        <% analytics.warnings.each do |warning| %>
+          <li><%= warning %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div class="business-analytics-status-grid">
+    <div class="aicoo-card aicoo-card-compact">
+      <h3>GSC</h3>
+      <p><%= analytics.data_status[:gsc_connected] ? "接続済み" : "未接続 / データ不足" %></p>
+      <small>clicks / impressions / CTR / average_position</small>
+    </div>
+    <div class="aicoo-card aicoo-card-compact">
+      <h3>GA4</h3>
+      <p><%= analytics.data_status[:ga4_connected] ? "接続済み" : "未接続 / データ不足" %></p>
+      <small>sessions / pageviews / active_users / conversions</small>
+    </div>
+    <div class="aicoo-card aicoo-card-compact">
+      <h3>Revenue</h3>
+      <p><%= analytics.data_status[:has_revenue_data] ? "データあり" : "データ不足" %></p>
+      <small>revenue_yen / affiliate_clicks / phone_clicks / map_clicks</small>
+    </div>
+    <div class="aicoo-card aicoo-card-compact">
+      <h3>Learning</h3>
+      <p><%= analytics.data_status[:has_learning_data] ? "学習データあり" : "データ不足" %></p>
+      <small>Decision Log / Playbook / Practicality / Evidence</small>
+    </div>
+  </div>
+
+  <div class="business-analytics-chart-grid">
+    <%= render "analytics_chart",
+               title: "GSCグラフ",
+               series: analytics.gsc_series,
+               metrics: [
+                 { key: "clicks", label: "clicks" },
+                 { key: "impressions", label: "impressions" },
+                 { key: "ctr", label: "CTR" },
+                 { key: "average_position", label: "average_position" }
+               ] %>
+
+    <%= render "analytics_chart",
+               title: "GA4グラフ",
+               series: analytics.ga4_series,
+               metrics: [
+                 { key: "sessions", label: "sessions" },
+                 { key: "pageviews", label: "pageviews" },
+                 { key: "active_users", label: "active_users" },
+                 { key: "conversions", label: "conversions" }
+               ] %>
+
+    <%= render "analytics_chart",
+               title: "Revenueグラフ",
+               series: analytics.revenue_series,
+               metrics: [
+                 { key: "revenue_yen", label: "revenue_yen" },
+                 { key: "affiliate_clicks", label: "affiliate_clicks" },
+                 { key: "phone_clicks", label: "phone_clicks" },
+                 { key: "map_clicks", label: "map_clicks" }
+               ] %>
+
+    <%= render "analytics_chart",
+               title: "Actionグラフ",
+               series: analytics.action_series,
+               metrics: [
+                 { key: "action_candidates", label: "ActionCandidate生成数" },
+                 { key: "executions", label: "実行数" },
+                 { key: "results", label: "Result登録数" }
+               ] %>
+
+    <%= render "analytics_chart",
+               title: "Learningグラフ",
+               series: analytics.learning_series,
+               metrics: [
+                 { key: "decision_logs", label: "Decision Log件数" },
+                 { key: "playbook_confidence", label: "Playbook Confidence" },
+                 { key: "practicality_average", label: "Practicality平均" },
+                 { key: "evidence_average", label: "Evidence平均" }
+               ] %>
+  </div>
+</section>
+
 <section class="dashboard-section">
   <div class="section-heading">
     <h2>Integration Health</h2>
@@ -65,7 +201,7 @@
   <% end %>
 </section>
 
-<section class="dashboard-section">
+<section class="dashboard-section" id="business-learning">
   <div class="section-heading">
     <h2>Business Playbook</h2>
     <p>このBusinessで成功しやすいActionTypeを、実績・収益・Decision Logから自動学習します。</p>
@@ -102,7 +238,7 @@
   <% end %>
 </section>
 
-<section class="dashboard-section">
+<section class="dashboard-section" id="business-settings">
   <div class="section-heading">
     <h2>Codex対象プロジェクト</h2>
     <p>ActionCandidateからCodex Prompt Draftを作る時に使うプロジェクト情報です。</p>
@@ -229,6 +365,42 @@
         <% end %>
       </tbody>
     </table>
+  </div>
+</section>
+
+<section class="dashboard-section" id="business-actions">
+  <div class="section-heading">
+    <h2>Actions</h2>
+    <p>このBusinessのActionCandidate、Opportunity、CodexPromptDraftを確認します。</p>
+  </div>
+  <div class="aicoo-grid aicoo-grid-3">
+    <div class="aicoo-card aicoo-card-compact">
+      <h3>ActionCandidate</h3>
+      <strong><%= @business.action_candidates.count %>件</strong>
+      <ul class="compact-list">
+        <% @business.action_candidates.by_recommendation.limit(5).each do |candidate| %>
+          <li><%= link_to candidate.title, candidate %></li>
+        <% end %>
+      </ul>
+    </div>
+    <div class="aicoo-card aicoo-card-compact">
+      <h3>Opportunity</h3>
+      <strong><%= @business.opportunity_discovery_items.count %>件</strong>
+      <ul class="compact-list">
+        <% @business.opportunity_discovery_items.order(created_at: :desc).limit(5).each do |opportunity| %>
+          <li><%= link_to opportunity.title, owner_opportunity_path(opportunity) %></li>
+        <% end %>
+      </ul>
+    </div>
+    <div class="aicoo-card aicoo-card-compact">
+      <h3>CodexPromptDraft</h3>
+      <strong><%= @business.codex_prompt_drafts.count %>件</strong>
+      <ul class="compact-list">
+        <% @business.codex_prompt_drafts.order(created_at: :desc).limit(5).each do |draft| %>
+          <li><%= link_to draft.title, owner_codex_prompt_draft_path(draft) %></li>
+        <% end %>
+      </ul>
+    </div>
   </div>
 </section>
 

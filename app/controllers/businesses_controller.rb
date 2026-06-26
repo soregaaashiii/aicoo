@@ -4,6 +4,11 @@ class BusinessesController < ApplicationController
   # GET /businesses or /businesses.json
   def index
     @businesses = Business.includes(:business_execution_profile).order(:name)
+    @business_integration_health = Aicoo::BusinessIntegrationHealth.new.call
+    @business_analytics_summaries = Aicoo::BusinessAnalyticsSummary.for_businesses(
+      @businesses,
+      health_result: @business_integration_health
+    )
   end
 
   # GET /businesses/1 or /businesses/1.json
@@ -14,6 +19,7 @@ class BusinessesController < ApplicationController
     @recent_serp_analyses = @business.serp_analyses.order(analyzed_at: :desc).limit(10)
     @business_playbook = @business.business_playbook
     @integration_health = Aicoo::BusinessIntegrationHealth.new.call.business_healths.find { |row| row.business == @business }
+    @business_analytics_summary = Aicoo::BusinessAnalyticsSummary.new(@business, health: @integration_health).call
   end
 
   # GET /businesses/new

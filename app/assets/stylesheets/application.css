@@ -51,6 +51,17 @@ a:hover {
   padding: 18px 28px;
 }
 
+.aicoo-global-header {
+  min-height: 78px;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.aicoo-brand-block {
+  min-width: 180px;
+}
+
 .brand {
   color: var(--text);
   display: inline-block;
@@ -70,12 +81,177 @@ a:hover {
   white-space: nowrap;
 }
 
+.aicoo-mode-nav,
+.aicoo-header-tools {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  min-width: 0;
+}
+
+.aicoo-mode-pill,
+.aicoo-header-link,
+.aicoo-notification-chip,
+.aicoo-profile-chip {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  display: inline-flex;
+  flex-direction: column;
+  font-weight: 700;
+  justify-content: center;
+  line-height: 1.2;
+  min-height: 42px;
+  padding: 8px 10px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.aicoo-mode-pill small,
+.aicoo-header-link small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.aicoo-mode-pill.active {
+  background: #e7f4f1;
+  border-color: #94cfc4;
+  color: #0b5f52;
+}
+
+.aicoo-global-search {
+  min-width: 180px;
+}
+
+.aicoo-global-search input {
+  background: #f8fafb;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font: inherit;
+  min-height: 42px;
+  padding: 8px 10px;
+  width: 100%;
+}
+
+.aicoo-notification-chip,
+.aicoo-profile-chip {
+  background: #f8fafb;
+  color: #34424e;
+  flex-direction: row;
+  font-size: 13px;
+}
+
+.aicoo-shell {
+  display: grid;
+  grid-template-columns: 244px minmax(0, 1fr);
+  min-height: calc(100vh - 79px);
+}
+
+.aicoo-sidebar {
+  align-self: start;
+  background: #fbfcfd;
+  border-right: 1px solid var(--border);
+  height: calc(100vh - 79px);
+  overflow-y: auto;
+  padding: 18px 14px;
+  position: sticky;
+  top: 79px;
+}
+
+.aicoo-sidebar-mode {
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 12px;
+  padding: 0 8px 14px;
+}
+
+.aicoo-sidebar-mode strong {
+  display: block;
+  font-size: 13px;
+}
+
+.aicoo-sidebar-mode span {
+  color: var(--muted);
+  display: block;
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.aicoo-sidebar-nav {
+  display: grid;
+  gap: 6px;
+}
+
+.aicoo-sidebar-link {
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--text);
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 10px 11px;
+  text-decoration: none;
+}
+
+.aicoo-sidebar-link strong,
+.aicoo-sidebar-link span {
+  overflow-wrap: anywhere;
+}
+
+.aicoo-sidebar-link strong {
+  font-size: 14px;
+}
+
+.aicoo-sidebar-link span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.aicoo-sidebar-link.active,
+.aicoo-sidebar-link:hover {
+  background: var(--surface);
+  border-color: var(--border);
+  text-decoration: none;
+}
+
+.aicoo-shell-ceo .aicoo-sidebar-link.active {
+  border-left: 4px solid #0f766e;
+}
+
+.aicoo-shell-system .aicoo-sidebar-link.active {
+  border-left: 4px solid #176b87;
+}
+
 .app-main {
   margin: 0 auto;
   max-width: 1480px;
   overflow-x: hidden;
   padding: 28px;
   width: 100%;
+}
+
+.aicoo-main {
+  margin: 0;
+  min-width: 0;
+}
+
+.aicoo-breadcrumb {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 13px;
+  gap: 7px;
+  margin-bottom: 18px;
+}
+
+.aicoo-breadcrumb a,
+.aicoo-breadcrumb strong {
+  color: var(--text);
+}
+
+.aicoo-breadcrumb-separator {
+  color: #9aa5ae;
 }
 
 .notice {
@@ -1154,6 +1330,81 @@ textarea {
   width: 100%;
 }
 
+.business-analytics-overview,
+.business-analytics-status-grid,
+.business-analytics-chart-grid {
+  display: grid;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.business-analytics-overview {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.business-analytics-status-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.business-analytics-chart-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.business-analytics-chart {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  min-width: 0;
+  padding: 14px;
+}
+
+.business-analytics-chart-header {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.business-analytics-chart-header h3 {
+  font-size: 16px;
+  margin: 0;
+}
+
+.business-analytics-bars {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+  min-width: 0;
+}
+
+.business-analytics-metric-label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.business-analytics-bar-row {
+  align-items: end;
+  background: #f4f7f8;
+  border: 1px solid #edf1f3;
+  border-radius: 6px;
+  display: grid;
+  gap: 2px;
+  grid-template-columns: repeat(30, minmax(3px, 1fr));
+  height: 72px;
+  min-width: 0;
+  padding: 6px;
+}
+
+.business-analytics-bar {
+  background: #176b87;
+  border-radius: 4px 4px 2px 2px;
+  display: block;
+  min-height: 4px;
+}
+
 @media (max-width: 760px) {
   .app-header,
   .page-title,
@@ -1167,6 +1418,50 @@ textarea {
     flex-wrap: wrap;
   }
 
+  .aicoo-global-header {
+    position: static;
+  }
+
+  .aicoo-mode-nav,
+  .aicoo-header-tools {
+    align-items: stretch;
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .aicoo-global-search {
+    min-width: min(100%, 220px);
+  }
+
+  .aicoo-shell {
+    display: block;
+  }
+
+  .aicoo-sidebar {
+    border-bottom: 1px solid var(--border);
+    border-right: 0;
+    height: auto;
+    overflow-x: auto;
+    overflow-y: visible;
+    padding: 12px;
+    position: static;
+  }
+
+  .aicoo-sidebar-mode {
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+  }
+
+  .aicoo-sidebar-nav {
+    display: flex;
+    gap: 8px;
+    min-width: max-content;
+  }
+
+  .aicoo-sidebar-link {
+    min-width: 150px;
+  }
+
   .app-main {
     padding: 18px;
   }
@@ -1174,6 +1469,9 @@ textarea {
   .grid,
   .metric-grid,
   .aicoo-card-grid,
+  .business-analytics-overview,
+  .business-analytics-status-grid,
+  .business-analytics-chart-grid,
   .aicoo-lab-inbox-grid,
   .two-column,
   .computed dl,
@@ -1186,6 +1484,9 @@ textarea {
   .aicoo-card-grid,
   .aicoo-grid,
   .aicoo-grid-3,
+  .business-analytics-overview,
+  .business-analytics-status-grid,
+  .business-analytics-chart-grid,
   .aicoo-owner-secondary,
   .aicoo-system-summary,
   .system-chart-grid,
