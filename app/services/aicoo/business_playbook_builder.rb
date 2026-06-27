@@ -2,9 +2,15 @@ module Aicoo
   class BusinessPlaybookBuilder
     Result = Data.define(:updated_count, :playbooks)
 
-    def self.update_all!
-      playbooks = Business.find_each.map { |business| new(business).update! }
-      Result.new(updated_count: playbooks.size, playbooks:)
+    def self.update_all!(collect_records: true)
+      playbooks = []
+      updated_count = 0
+      Business.find_each do |business|
+        playbook = new(business).update!
+        updated_count += 1
+        playbooks << playbook if collect_records
+      end
+      Result.new(updated_count:, playbooks:)
     end
 
     def initialize(business)
@@ -69,6 +75,7 @@ module Aicoo
       sample_count = [ results.count, total_decisions, execution_count ].sum
       average_actual_profit = results.count.positive? ? actual_profit.to_d / results.count : 0.to_d
       roi = expense.to_i.positive? ? (revenue.to_d - expense.to_d) / expense.to_d : nil
+      result_rows = result_metric_rows(results)
 
       {
         "type" => action_type,
@@ -82,10 +89,10 @@ module Aicoo
         "roi" => roi,
         "average_hours" => average(candidates.pluck(:expected_hours)),
         "average_practicality_score" => average(candidates.pluck(:practicality_score)),
-        "average_evidence_score" => average(candidates.map { |candidate| candidate.metadata.to_h.dig("evidence", "score").to_d }),
-        "average_engagement_delta" => average(results.map { |result| engagement_delta_for(result) }),
-        "average_navigation_delta" => average(results.map { |result| navigation_delta_for(result) }),
-        "average_conversion_delta" => average(results.map { |result| conversion_delta_for(result) }),
+        "average_evidence_score" => average(candidates.pluck(:metadata).map { |metadata| metadata.to_h.dig("evidence", "score").to_d }),
+        "average_engagement_delta" => average(result_rows.map { |row| engagement_delta_for_row(row) }),
+        "average_navigation_delta" => average(result_rows.map { |row| navigation_delta_for_row(row) }),
+        "average_conversion_delta" => average(result_rows.map { |row| conversion_delta_for_row(row) }),
         "decision_log_coefficient" => decision_log_coefficient(decisions),
         "success_rate" => rate(results.where("actual_profit_yen > 0").count, results.count),
         "sample_count" => sample_count,
@@ -133,34 +140,34 @@ module Aicoo
     end
 
     def task_names
-      names = business.action_candidates.flat_map do |candidate|
-        Array(candidate.metadata.to_h.dig("action_expansion", "recommended_tasks"))
+      names = business.action_candidates.pluck(:metadata).flat_map do |metadata|
+        Array(metadata.to_h.dig("action_expansion", "recommended_tasks"))
       end
-      names += OwnerDecisionLog.where(business:).flat_map { |log| Array(log.metadata.to_h["action_expansion_tasks"]) }
-      names += ActionResult.where(business:).flat_map { |result| Array(result.metadata.to_h.dig("action_expansion_learning", "available_tasks")) }
+      names += OwnerDecisionLog.where(business:).pluck(:metadata).flat_map { |metadata| Array(metadata.to_h["action_expansion_tasks"]) }
+      names += ActionResult.where(business:).pluck(:metadata).flat_map { |metadata| Array(metadata.to_h.dig("action_expansion_learning", "available_tasks")) }
       names.compact_blank.uniq
     end
 
     def action_expansion_task_row(task)
-      candidates = business.action_candidates.select do |candidate|
-        Array(candidate.metadata.to_h.dig("action_expansion", "recommended_tasks")).include?(task)
+      candidates = business.action_candidates.pluck(:expected_profit_yen, :practicality_score, :metadata).select do |(_expected_profit, _practicality_score, metadata)|
+        Array(metadata.to_h.dig("action_expansion", "recommended_tasks")).include?(task)
       end
-      decisions = OwnerDecisionLog.where(business:).select do |log|
-        Array(log.metadata.to_h["action_expansion_tasks"]).include?(task)
+      decisions = OwnerDecisionLog.where(business:).pluck(:decision_type, :metadata).select do |(_decision_type, metadata)|
+        Array(metadata.to_h["action_expansion_tasks"]).include?(task)
       end
-      results = ActionResult.where(business:).select do |result|
-        Array(result.metadata.to_h.dig("action_expansion_learning", "available_tasks")).include?(task)
+      results = ActionResult.where(business:).pluck(*result_metric_columns).select do |row|
+        Array(row.last.to_h.dig("action_expansion_learning", "available_tasks")).include?(task)
       end
       executed_results = results.select do |result|
-        Array(result.metadata.to_h.dig("action_expansion_learning", "executed_tasks")).include?(task)
+        Array(result.last.to_h.dig("action_expansion_learning", "executed_tasks")).include?(task)
       end
       total_decisions = decisions.size
       sample_count = candidates.size + decisions.size + results.size
-      actual_profit = executed_results.sum { |result| result.actual_profit_yen.to_i }
-      expected_profit = candidates.sum { |candidate| candidate.expected_profit_yen.to_i }
+      actual_profit = executed_results.sum { |row| row[0].to_i }
+      expected_profit = candidates.sum { |row| row[0].to_i }
       average_actual_profit = executed_results.any? ? actual_profit.to_d / executed_results.size : 0.to_d
-      success_rate = rate(executed_results.count { |result| result.actual_profit_yen.to_i.positive? }, executed_results.size)
-      adoption_rate = rate(decisions.count { |log| OwnerDecisionLog::POSITIVE_DECISIONS.include?(log.decision_type) }, total_decisions)
+      success_rate = rate(executed_results.count { |row| row[0].to_i.positive? }, executed_results.size)
+      adoption_rate = rate(decisions.count { |row| OwnerDecisionLog::POSITIVE_DECISIONS.include?(row[0]) }, total_decisions)
       completion_rate = rate(executed_results.size, results.size)
       roi = expected_profit.positive? ? actual_profit.to_d / expected_profit.to_d : nil
 
@@ -172,18 +179,18 @@ module Aicoo
         "result_count" => results.size,
         "executed_result_count" => executed_results.size,
         "adoption_rate" => adoption_rate,
-        "reject_rate" => rate(decisions.count { |log| log.decision_type == "reject" }, total_decisions),
-        "skip_rate" => rate(decisions.count { |log| log.decision_type == "skip" }, total_decisions),
+        "reject_rate" => rate(decisions.count { |row| row[0] == "reject" }, total_decisions),
+        "skip_rate" => rate(decisions.count { |row| row[0] == "skip" }, total_decisions),
         "completion_rate" => completion_rate,
         "success_rate" => success_rate,
-        "average_expected_profit_yen" => average(candidates.map(&:expected_profit_yen)),
+        "average_expected_profit_yen" => average(candidates.map { |row| row[0] }),
         "average_actual_profit_yen" => average_actual_profit,
         "roi" => roi,
-        "average_practicality_score" => average(candidates.map(&:practicality_score)),
-        "average_evidence_score" => average(candidates.map { |candidate| candidate.metadata.to_h.dig("evidence", "score").to_d }),
-        "average_engagement_delta" => average(executed_results.map { |result| engagement_delta_for(result) }),
-        "average_navigation_delta" => average(executed_results.map { |result| navigation_delta_for(result) }),
-        "average_conversion_delta" => average(executed_results.map { |result| conversion_delta_for(result) }),
+        "average_practicality_score" => average(candidates.map { |row| row[1] }),
+        "average_evidence_score" => average(candidates.map { |row| row[2].to_h.dig("evidence", "score").to_d }),
+        "average_engagement_delta" => average(executed_results.map { |row| engagement_delta_for_row(row) }),
+        "average_navigation_delta" => average(executed_results.map { |row| navigation_delta_for_row(row) }),
+        "average_conversion_delta" => average(executed_results.map { |row| conversion_delta_for_row(row) }),
         "sample_count" => sample_count,
         "score" => playbook_score(
           success_rate:,
@@ -284,27 +291,55 @@ module Aicoo
       values.sum / values.size
     end
 
-    def engagement_delta_for(result)
-      value = result.metadata.to_h.dig("engagement", "average_engagement_time_delta_seconds")
-      return value.to_d if value.present?
-
-      result.actual_pageviews_delta.to_d - result.actual_sessions_delta.to_d
+    def result_metric_rows(scope)
+      scope.pluck(*result_metric_columns)
     end
 
-    def navigation_delta_for(result)
-      value = result.metadata.to_h.dig("engagement", "views_per_session_delta")
-      return value.to_d if value.present?
-      return 0.to_d if result.actual_sessions_delta.to_i.zero?
-
-      result.actual_pageviews_delta.to_d / result.actual_sessions_delta.to_d
+    def result_metric_columns
+      %i[
+        actual_profit_yen
+        actual_pageviews_delta
+        actual_sessions_delta
+        actual_phone_clicks_delta
+        actual_map_clicks_delta
+        actual_affiliate_clicks_delta
+        metadata
+      ]
     end
 
-    def conversion_delta_for(result)
-      value = result.metadata.to_h.dig("engagement", "conversion_rate_delta")
+    def engagement_delta_for_row(row)
+      value = result_row_metadata(row).dig("engagement", "average_engagement_time_delta_seconds")
       return value.to_d if value.present?
-      return 0.to_d if result.actual_sessions_delta.to_i.zero?
 
-      (result.actual_phone_clicks_delta.to_i + result.actual_map_clicks_delta.to_i + result.actual_affiliate_clicks_delta.to_i).to_d / result.actual_sessions_delta.to_d
+      result_row_pageviews_delta(row) - result_row_sessions_delta(row)
+    end
+
+    def navigation_delta_for_row(row)
+      value = result_row_metadata(row).dig("engagement", "views_per_session_delta")
+      return value.to_d if value.present?
+      return 0.to_d if result_row_sessions_delta(row).zero?
+
+      result_row_pageviews_delta(row) / result_row_sessions_delta(row)
+    end
+
+    def conversion_delta_for_row(row)
+      value = result_row_metadata(row).dig("engagement", "conversion_rate_delta")
+      return value.to_d if value.present?
+      return 0.to_d if result_row_sessions_delta(row).zero?
+
+      (row[3].to_i + row[4].to_i + row[5].to_i).to_d / result_row_sessions_delta(row)
+    end
+
+    def result_row_pageviews_delta(row)
+      row[1].to_d
+    end
+
+    def result_row_sessions_delta(row)
+      row[2].to_d
+    end
+
+    def result_row_metadata(row)
+      row[6].to_h
     end
 
     def rate(numerator, denominator)

@@ -40,7 +40,7 @@ module Aicoo
     ATTENTION_HEALTH_THRESHOLD = 80
 
     def call
-      rows = Business.includes(:business_playbook, :action_candidates, :opportunity_discovery_items).order(:name).map do |business|
+      rows = Business.includes(:business_playbook).order(:name).map do |business|
         build_business_health(business)
       end
       Result.new(
@@ -104,8 +104,9 @@ module Aicoo
 
     def analytics_health(business, source_type)
       settings = analytics_settings_for(business, source_type)
-      setting = settings.max_by { |record| record.latest_fetch_run&.started_at || record.updated_at }
-      latest_run = setting&.latest_fetch_run
+      latest_runs_by_setting = settings.index_with { |record| latest_fetch_run_for(record) }
+      setting = settings.max_by { |record| latest_runs_by_setting[record]&.started_at || record.updated_at }
+      latest_run = setting ? latest_runs_by_setting[setting] : nil
       latest_success = latest_fetch_run(settings, "success")
       latest_failed = latest_fetch_run(settings, "failed")
       configured = configured_analytics?(business, source_type, setting)
@@ -121,13 +122,13 @@ module Aicoo
         last_fetched_at:,
         last_success_at: latest_success&.finished_at || latest_success&.started_at,
         last_failed_at: latest_failed&.finished_at || latest_failed&.started_at,
-        count: settings.sum { |record| record.analytics_fetch_runs.sum(:snapshot_count) },
+        count: snapshot_count_for(settings),
         warning:
       )
     end
 
     def analytics_settings_for(business, source_type)
-      AnalyticsSourceSetting.includes(:aicoo_analytics_site, :analytics_fetch_runs).select do |setting|
+      analytics_settings.select do |setting|
         next false unless setting.source_type == source_type
         next true if setting.aicoo_analytics_site&.business_id == business.id
 
@@ -136,7 +137,24 @@ module Aicoo
     end
 
     def latest_fetch_run(settings, status)
-      settings.flat_map(&:analytics_fetch_runs).select { |run| run.status == status }.max_by { |run| run.finished_at || run.started_at || run.created_at }
+      AnalyticsFetchRun
+        .where(analytics_source_setting_id: settings.map(&:id), status:)
+        .recent
+        .first
+    end
+
+    def latest_fetch_run_for(setting)
+      AnalyticsFetchRun.where(analytics_source_setting_id: setting.id).recent.first
+    end
+
+    def snapshot_count_for(settings)
+      return 0 if settings.empty?
+
+      AnalyticsFetchRun.where(analytics_source_setting_id: settings.map(&:id)).sum(:snapshot_count)
+    end
+
+    def analytics_settings
+      @analytics_settings ||= AnalyticsSourceSetting.includes(:aicoo_analytics_site).to_a
     end
 
     def configured_analytics?(business, source_type, setting)

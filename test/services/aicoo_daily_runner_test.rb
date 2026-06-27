@@ -247,7 +247,7 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
                           with_singleton_stub(Aicoo::OwnerExecutionQueueBuilder, :new, ->(due_on:, generated_from:) {
                             fake_owner_execution_queue_builder(order)
                           }) do
-                            with_singleton_stub(Aicoo::AnalysisOrchestrator, :run_all!, ->(today:, limit_per_business:) {
+                            with_singleton_stub(Aicoo::AnalysisOrchestrator, :run_all!, ->(today:, limit_per_business:, collect_records: true) {
                               order << :analysis
                               Aicoo::AnalysisOrchestrator::Result.new(
                                 generated_at: Time.current,
@@ -257,7 +257,7 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
                                 skipped_count: 3
                               )
                             }) do
-                              with_singleton_stub(Aicoo::BusinessPlaybookBuilder, :update_all!, -> {
+                              with_singleton_stub(Aicoo::BusinessPlaybookBuilder, :update_all!, ->(collect_records: true) {
                                 order << :playbook
                                 Aicoo::BusinessPlaybookBuilder::Result.new(
                                   updated_count: 2,

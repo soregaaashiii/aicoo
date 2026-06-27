@@ -18,14 +18,26 @@ module Aicoo
       :last_run_at
     )
 
-    def self.run_all!(today: Date.current, limit_per_business: nil)
-      results = Business.find_each.map { |business| new(business:, today:).call(limit: limit_per_business) }
+    def self.run_all!(today: Date.current, limit_per_business: nil, collect_records: true)
+      candidates = []
+      created_count = 0
+      updated_count = 0
+      skipped_count = 0
+
+      Business.find_each do |business|
+        result = new(business:, today:).call(limit: limit_per_business)
+        candidates.concat(result.candidates) if collect_records
+        created_count += result.created_count
+        updated_count += result.updated_count
+        skipped_count += result.skipped_count
+      end
+
       Result.new(
         generated_at: Time.current,
-        candidates: results.flat_map(&:candidates),
-        created_count: results.sum(&:created_count),
-        updated_count: results.sum(&:updated_count),
-        skipped_count: results.sum(&:skipped_count)
+        candidates:,
+        created_count:,
+        updated_count:,
+        skipped_count:
       )
     end
 

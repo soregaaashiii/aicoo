@@ -159,14 +159,14 @@ class AicooDailyRunner
     log!("OwnerExecutionQueue high risk count=#{owner_queue_result.high_risk.size}")
 
     analysis_result = record_step!(run, "analysis_orchestration") do
-      Aicoo::AnalysisOrchestrator.run_all!(today: Date.current, limit_per_business: 8)
+      Aicoo::AnalysisOrchestrator.run_all!(today: Date.current, limit_per_business: 8, collect_records: false)
     end
     log!("AnalysisCandidate created count=#{analysis_result.created_count}")
     log!("AnalysisCandidate updated count=#{analysis_result.updated_count}")
     log!("AnalysisCandidate skipped count=#{analysis_result.skipped_count}")
 
     playbook_result = record_step!(run, "business_playbook_update") do
-      Aicoo::BusinessPlaybookBuilder.update_all!
+      Aicoo::BusinessPlaybookBuilder.update_all!(collect_records: false)
     end
     log!("BusinessPlaybook updated count=#{playbook_result.updated_count}")
 
@@ -184,9 +184,9 @@ class AicooDailyRunner
   end
 
   def fetch_analytics!
-    before_ids = AnalyticsFetchRun.pluck(:id)
+    last_id = AnalyticsFetchRun.maximum(:id).to_i
     AicooAnalytics::DailyFetchJob.perform_now
-    AnalyticsFetchRun.where.not(id: before_ids)
+    AnalyticsFetchRun.where("id > ?", last_id)
   end
 
   def adjust_proxy_weights
