@@ -15,6 +15,7 @@ module Owner
       @opportunity_focus_item = opportunity_focus_item
       @owner_decision_summary = Aicoo::OwnerDecisionSummary.new.call
       @analysis_monitor = Aicoo::AnalysisMonitor.new.call
+      @running_daily_run = AicooDailyRun.running.includes(:aicoo_daily_run_steps).recent.first
       @top_task_evidence = evidence_for_top_task
       @top_task_expansion = expansion_for_top_task
       @top_task_action_candidate = top_task_action_candidate

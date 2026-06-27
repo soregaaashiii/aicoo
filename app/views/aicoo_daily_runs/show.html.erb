@@ -13,6 +13,22 @@
              actions: header_actions %>
   <%= render "shared/aicoo_execution_tabs", active: :dashboard %>
 
+  <% if @daily_run.running? %>
+    <% current_step = @daily_run.current_step %>
+    <section class="dashboard-section">
+      <div class="aicoo-card">
+        <p><span class="pill">現在実行中</span></p>
+        <h2>Daily Runはまだ完了していません</h2>
+        <p>
+          開始: <%= @daily_run.started_at ? l(@daily_run.started_at, format: :long) : "-" %> /
+          経過: <%= @daily_run.running_duration_label %> /
+          現在step: <%= current_step&.step_name || "準備中" %>
+        </p>
+        <p>このRunが完了するまで、同じ対象日の再実行はスキップされます。</p>
+      </div>
+    </section>
+  <% end %>
+
   <section class="dashboard-section">
     <div class="metric-grid">
       <div class="metric-card"><span>状態</span><strong><%= @daily_run.status %></strong></div>

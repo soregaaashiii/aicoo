@@ -14,6 +14,38 @@
 
   <section class="dashboard-section">
     <div class="section-heading">
+      <h2>現在の実行状態</h2>
+      <p>Daily Runが実行中の場合、対象日・現在のstep・経過時間を表示します。</p>
+    </div>
+
+    <% if @running_daily_runs.any? %>
+      <div class="aicoo-card-grid">
+        <% @running_daily_runs.each do |daily_run| %>
+          <% current_step = daily_run.current_step %>
+          <div class="aicoo-card">
+            <p><span class="pill">実行中</span></p>
+            <h2><%= daily_run.target_date %> のDaily Run</h2>
+            <div class="metric-grid">
+              <div class="metric-card"><span>開始</span><strong><%= daily_run.started_at ? l(daily_run.started_at, format: :short) : "-" %></strong></div>
+              <div class="metric-card"><span>経過</span><strong><%= daily_run.running_duration_label %></strong></div>
+              <div class="metric-card"><span>現在step</span><strong><%= current_step&.step_name || "準備中" %></strong></div>
+              <div class="metric-card"><span>source</span><strong><%= daily_run.source %></strong></div>
+            </div>
+            <div class="actions compact-actions">
+              <%= link_to "詳細を見る", daily_run, class: "button" %>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    <% else %>
+      <div class="aicoo-card aicoo-card-compact">
+        <strong>Daily Runは現在実行されていません。</strong>
+      </div>
+    <% end %>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
       <h2>手動実行</h2>
       <p>対象日を指定して、AICOOの日次処理をまとめて実行します。</p>
     </div>

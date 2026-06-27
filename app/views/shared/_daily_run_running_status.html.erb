@@ -1,0 +1,18 @@
+<% if daily_run %>
+  <% current_step = daily_run.current_step %>
+  <section class="dashboard-section">
+    <div class="aicoo-card">
+      <p><span class="pill">自動巡回 実行中</span></p>
+      <h2><%= daily_run.target_date %> のDaily Runが動いています</h2>
+      <div class="metric-grid">
+        <div class="metric-card"><span>開始</span><strong><%= daily_run.started_at ? l(daily_run.started_at, format: :short) : "-" %></strong></div>
+        <div class="metric-card"><span>経過</span><strong><%= daily_run.running_duration_label %></strong></div>
+        <div class="metric-card"><span>現在step</span><strong><%= current_step&.step_name || "準備中" %></strong></div>
+        <div class="metric-card"><span>source</span><strong><%= daily_run.source %></strong></div>
+      </div>
+      <div class="actions compact-actions">
+        <%= link_to "進行状況を見る", daily_run, class: "button secondary" %>
+      </div>
+    </div>
+  </section>
+<% end %>

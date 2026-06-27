@@ -32,4 +32,29 @@ class AicooDailyRun < ApplicationRecord
   def failed?
     %w[failed partial_failed stuck].include?(status)
   end
+
+  def running_duration_seconds
+    return 0 unless running? && started_at
+
+    (Time.current - started_at).to_i
+  end
+
+  def running_duration_label
+    seconds = running_duration_seconds
+    return "-" if seconds.zero?
+
+    minutes = seconds / 60
+    return "#{seconds}秒" if minutes.zero?
+
+    hours = minutes / 60
+    remaining_minutes = minutes % 60
+    return "#{minutes}分" if hours.zero?
+
+    "#{hours}時間#{remaining_minutes}分"
+  end
+
+  def current_step
+    aicoo_daily_run_steps.where(status: "running").order(started_at: :desc, created_at: :desc).first ||
+      aicoo_daily_run_steps.order(started_at: :desc, created_at: :desc).first
+  end
 end

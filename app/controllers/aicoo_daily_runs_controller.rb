@@ -1,6 +1,7 @@
 class AicooDailyRunsController < ApplicationController
   def index
     @daily_runs = AicooDailyRun.recent.limit(50)
+    @running_daily_runs = AicooDailyRun.running.includes(:aicoo_daily_run_steps).recent
   end
 
   def show

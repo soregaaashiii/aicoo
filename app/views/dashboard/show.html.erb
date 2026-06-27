@@ -15,6 +15,8 @@
              actions: header_actions %>
   <%= render "shared/aicoo_execution_tabs", active: :dashboard %>
 
+  <%= render "shared/daily_run_running_status", daily_run: @running_daily_run %>
+
   <%= render "dashboard/system_mode_monitor", monitor: @system_mode_monitor %>
 
   <section class="dashboard-section">

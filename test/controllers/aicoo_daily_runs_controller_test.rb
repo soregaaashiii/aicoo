@@ -14,6 +14,28 @@ class AicooDailyRunsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Insight"
   end
 
+  test "shows running daily run status on index" do
+    daily_run = AicooDailyRun.create!(
+      target_date: Date.yesterday,
+      status: "running",
+      source: "manual",
+      started_at: 10.minutes.ago
+    )
+    daily_run.aicoo_daily_run_steps.create!(
+      step_name: "action_generation",
+      status: "running",
+      started_at: 2.minutes.ago
+    )
+
+    get aicoo_daily_runs_url
+
+    assert_response :success
+    assert_includes response.body, "現在の実行状態"
+    assert_includes response.body, "実行中"
+    assert_includes response.body, "action_generation"
+    assert_includes response.body, aicoo_daily_run_path(daily_run)
+  end
+
   test "shows daily run detail" do
     daily_run = AicooDailyRun.create!(target_date: Date.yesterday, status: "success", source: "manual", run_log: "done")
     daily_run.aicoo_daily_run_steps.create!(
@@ -107,6 +129,28 @@ class AicooDailyRunsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "補正提案"
     assert_includes response.body, "Execution Correction Overview"
     assert_includes response.body, "done"
+  end
+
+  test "shows running banner on daily run detail" do
+    daily_run = AicooDailyRun.create!(
+      target_date: Date.yesterday,
+      status: "running",
+      source: "manual",
+      started_at: 10.minutes.ago
+    )
+    daily_run.aicoo_daily_run_steps.create!(
+      step_name: "business_playbook_update",
+      status: "running",
+      started_at: 1.minute.ago
+    )
+
+    get aicoo_daily_run_url(daily_run)
+
+    assert_response :success
+    assert_includes response.body, "現在実行中"
+    assert_includes response.body, "Daily Runはまだ完了していません"
+    assert_includes response.body, "business_playbook_update"
+    assert_includes response.body, "同じ対象日の再実行はスキップされます"
   end
 
   test "creates daily run from form" do

@@ -5,6 +5,7 @@ class DashboardController < ApplicationController
     @cost_summary = Aicoo::CostEngine.new.call
     @analysis_monitor = Aicoo::AnalysisMonitor.new.call
     @engagement_summary = Aicoo::EngagementSummary.new.call
+    @running_daily_run = AicooDailyRun.running.includes(:aicoo_daily_run_steps).recent.first
   end
 
   def refresh_system_mode_snapshot
