@@ -14,11 +14,11 @@ module AicooAnalytics
 
     GA4_METRICS = %w[
       sessions
-      activeUsers
+      totalUsers
       screenPageViews
-      averageEngagementTime
+      userEngagementDuration
       engagementRate
-      conversions
+      keyEvents
       eventCount
     ].freeze
 
@@ -80,11 +80,22 @@ module AicooAnalytics
 
     def fetch_ga4(setting, source_results)
       with_fetch_run(setting, "ga4", source_results) do
+        dimensions = %w[date]
+        Rails.logger.info(
+          "Google API GA4 request " \
+          "#{{
+            property_id: setting.property_id,
+            start_date: start_date.to_s,
+            end_date: end_date.to_s,
+            dimensions:,
+            metrics: GA4_METRICS
+          }.to_json}"
+        )
         response = resolved_ga4_client(setting).run_report(
           property_id: setting.property_id,
           start_date:,
           end_date:,
-          dimensions: %w[date],
+          dimensions:,
           metrics: GA4_METRICS,
           limit: 10_000
         )
@@ -170,7 +181,7 @@ module AicooAnalytics
           sessions: 0,
           users: 0,
           pageviews: 0,
-          average_engagement_time_weighted: 0.to_d,
+          user_engagement_duration: 0.to_d,
           engagement_rate_weighted: 0.to_d,
           conversions: 0,
           event_count: 0
@@ -179,7 +190,7 @@ module AicooAnalytics
         current[:sessions] += sessions
         current[:users] += numeric(values[1])
         current[:pageviews] += numeric(values[2])
-        current[:average_engagement_time_weighted] += values[3].to_d * sessions
+        current[:user_engagement_duration] += values[3].to_d
         current[:engagement_rate_weighted] += values[4].to_d * sessions
         current[:conversions] += numeric(values[5])
         current[:event_count] += numeric(values[6])
@@ -188,7 +199,7 @@ module AicooAnalytics
           sessions: values.fetch(:sessions),
           users: values.fetch(:users),
           pageviews: values.fetch(:pageviews),
-          average_engagement_time_seconds: weighted_average(values, :average_engagement_time_weighted).round,
+          average_engagement_time_seconds: average_engagement_duration(values).round,
           engagement_rate: weighted_average(values, :engagement_rate_weighted),
           conversions: values.fetch(:conversions),
           event_count: values.fetch(:event_count)
@@ -231,6 +242,13 @@ module AicooAnalytics
       return 0 if sessions.zero?
 
       (values.fetch(key) / sessions).round(4)
+    end
+
+    def average_engagement_duration(values)
+      sessions = values.fetch(:sessions)
+      return 0 if sessions.zero?
+
+      (values.fetch(:user_engagement_duration) / sessions).round(4)
     end
 
     def average_position(values)

@@ -50,6 +50,10 @@ module AicooAnalytics
         assert_equal 60, ga4_result[:totals]["sessions"]
         assert_equal 140, ga4_result[:totals]["pageviews"]
         assert_equal "properties/123", ga4_result[:identifier]
+        assert_includes ga4_result[:metric_headers], "userEngagementDuration"
+        assert_includes ga4_result[:metric_headers], "totalUsers"
+        assert_includes ga4_result[:metric_headers], "keyEvents"
+        assert_not_includes ga4_result[:metric_headers], "averageEngagementTime"
       end
 
       first_metric = BusinessMetricDaily.find_by!(business: @business, recorded_on: Date.new(2026, 6, 26))
@@ -131,7 +135,7 @@ module AicooAnalytics
                 { "value" => "20" },
                 { "value" => "15" },
                 { "value" => "50" },
-                { "value" => "90" },
+                { "value" => "1800" },
                 { "value" => "0.6" },
                 { "value" => "2" },
                 { "value" => "100" }
@@ -143,13 +147,15 @@ module AicooAnalytics
                 { "value" => "40" },
                 { "value" => "30" },
                 { "value" => "90" },
-                { "value" => "120" },
+                { "value" => "4800" },
                 { "value" => "0.7" },
                 { "value" => "5" },
                 { "value" => "180" }
               ]
             }
           ],
+          "metricHeaders" => metrics.map { |name| { "name" => name } },
+          "dimensionHeaders" => dimensions.map { |name| { "name" => name } },
           "request" => { "property_id" => property_id, "start_date" => start_date.to_s, "end_date" => end_date.to_s, "dimensions" => dimensions, "metrics" => metrics, "limit" => limit }
         }
       end

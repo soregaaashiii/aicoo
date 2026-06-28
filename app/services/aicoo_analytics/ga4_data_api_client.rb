@@ -26,7 +26,7 @@ module AicooAnalytics
         open_timeout: @timeout,
         read_timeout: @timeout
       ) { |http| http.request(request) }
-      raise Error, "GA4 API error: #{response.code} #{response.body}" unless response.is_a?(Net::HTTPSuccess)
+      raise Error, response_error_message(response) unless response.is_a?(Net::HTTPSuccess)
 
       JSON.parse(response.body)
     rescue Net::OpenTimeout, Net::ReadTimeout => e
@@ -47,11 +47,27 @@ module AicooAnalytics
     end
 
     def default_metrics
-      %w[screenPageViews activeUsers sessions eventCount]
+      %w[screenPageViews totalUsers sessions eventCount]
     end
 
     def normalized_property_id(property_id)
       property_id.to_s.sub(/\Aproperties\//, "")
+    end
+
+    def response_error_message(response)
+      body = response.body.to_s
+      parsed = JSON.parse(body)
+      error = parsed.fetch("error", {})
+      status = error["status"].to_s
+      message = error["message"].to_s
+
+      if response.code.to_i == 400 && (status == "INVALID_ARGUMENT" || message.include?("not a valid metric"))
+        "GA4 APIのmetric名が無効です: #{message}"
+      else
+        "GA4 API error: #{response.code} #{body}"
+      end
+    rescue JSON::ParserError
+      "GA4 API error: #{response.code} #{body}"
     end
   end
 end
