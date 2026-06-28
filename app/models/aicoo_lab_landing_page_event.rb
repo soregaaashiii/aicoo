@@ -1,5 +1,5 @@
 class AicooLabLandingPageEvent < ApplicationRecord
-  EVENT_TYPES = %w[view cta_click signup].freeze
+  EVENT_TYPES = %w[view cta_click signup scroll].freeze
 
   belongs_to :aicoo_lab_landing_page
 

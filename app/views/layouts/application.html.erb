@@ -6,18 +6,9 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="application-name" content="AI COO / AI経営企画室">
     <meta name="mobile-web-app-capable" content="yes">
+    <meta name="robots" content="noindex,nofollow">
     <%= csrf_meta_tags %>
     <%= csp_meta_tag %>
-
-    <% if render_ga4_tag? %>
-      <script async src="https://www.googletagmanager.com/gtag/js?id=<%= u ga4_measurement_id %>"></script>
-      <script>
-        window.dataLayer = window.dataLayer || [];
-        function gtag(){dataLayer.push(arguments);}
-        gtag('js', new Date());
-        gtag('config', '<%= j ga4_measurement_id %>');
-      </script>
-    <% end %>
 
     <%= yield :head %>
 

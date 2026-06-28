@@ -69,7 +69,8 @@ module Admin
         params.expect(
           aicoo_lab_landing_page: [
             :headline, :subheadline, :body, :cta_text, :assumed_price_yen, :status, :preview_slug, :published_slug,
-            :generated_at, :notes
+            :public_status, :scheduled_publish_at, :seo_title, :seo_description, :og_title, :og_description,
+            :og_image_url, :canonical_url, :generated_at, :notes
           ]
         )
       end

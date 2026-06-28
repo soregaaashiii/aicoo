@@ -40,13 +40,57 @@
         <%= form.select :status, AicooLabLandingPage::STATUSES %>
       </div>
       <div class="field">
+        <%= form.label :public_status, "公開状態" %>
+        <%= form.select :public_status, AicooLabLandingPage::PUBLIC_STATUSES %>
+      </div>
+      <div class="field">
         <%= form.label :preview_slug %>
         <%= form.text_field :preview_slug %>
+      </div>
+      <div class="field">
+        <%= form.label :published_slug, "公開slug" %>
+        <%= form.text_field :published_slug %>
+      </div>
+      <div class="field">
+        <%= form.label :scheduled_publish_at, "予約公開日時" %>
+        <%= form.datetime_field :scheduled_publish_at %>
       </div>
     </div>
     <div class="field">
       <%= form.label :notes %>
       <%= form.textarea :notes, rows: 4 %>
+    </div>
+  </section>
+
+  <section>
+    <h2>SEO / SNS</h2>
+    <div class="grid">
+      <div class="field">
+        <%= form.label :seo_title, "SEO title" %>
+        <%= form.text_field :seo_title %>
+      </div>
+      <div class="field">
+        <%= form.label :canonical_url, "canonical URL" %>
+        <%= form.url_field :canonical_url %>
+      </div>
+    </div>
+    <div class="field">
+      <%= form.label :seo_description, "SEO description" %>
+      <%= form.textarea :seo_description, rows: 3 %>
+    </div>
+    <div class="grid">
+      <div class="field">
+        <%= form.label :og_title, "OG title" %>
+        <%= form.text_field :og_title %>
+      </div>
+      <div class="field">
+        <%= form.label :og_image_url, "OG image URL" %>
+        <%= form.url_field :og_image_url %>
+      </div>
+    </div>
+    <div class="field">
+      <%= form.label :og_description, "OG description" %>
+      <%= form.textarea :og_description, rows: 3 %>
     </div>
   </section>
 

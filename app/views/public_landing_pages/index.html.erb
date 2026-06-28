@@ -1,0 +1,50 @@
+<% content_for :title, "公開LP一覧" %>
+<% content_for :meta_description, "公開中のランディングページ一覧です。" %>
+<% content_for :canonical_url, public_absolute_url(public_landing_pages_path) %>
+
+<main class="lp-preview">
+  <section class="lp-hero">
+    <p class="lp-eyebrow">公開LP</p>
+    <h1>公開中のランディングページ</h1>
+    <p class="lp-subheadline">現在公開されているLPだけを掲載しています。</p>
+  </section>
+
+  <section class="lp-content">
+    <%= form_with url: public_landing_pages_path, method: :get, class: "filters", data: { turbo: false } do |form| %>
+      <div class="field compact-field">
+        <%= form.label :q, "検索" %>
+        <%= form.search_field :q, value: params[:q], placeholder: "タイトル・説明で検索" %>
+      </div>
+      <%= form.submit "検索", class: "button" %>
+      <%= link_to "クリア", public_landing_pages_path, class: "button secondary" if params[:q].present? %>
+    <% end %>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>タイトル</th>
+            <th>説明</th>
+            <th>作成日</th>
+            <th>公開日</th>
+            <th>LP</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @landing_pages.each do |landing_page| %>
+            <tr>
+              <td><%= landing_page.headline %></td>
+              <td><%= truncate(landing_page.subheadline.presence || landing_page.body.to_s, length: 120) %></td>
+              <td><%= l(landing_page.created_at.to_date, format: :default) %></td>
+              <td><%= landing_page.published_at ? l(landing_page.published_at.to_date, format: :default) : "-" %></td>
+              <td><%= link_to "見る", public_lp_path(landing_page.published_slug), class: "button secondary" %></td>
+            </tr>
+          <% end %>
+          <% if @landing_pages.empty? %>
+            <tr><td colspan="5">公開中のLPはまだありません。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>

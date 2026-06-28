@@ -36,4 +36,45 @@ class AicooLabLandingPageTest < ActiveSupport::TestCase
     assert_equal "preview_ready", landing_page.status
     assert_equal "preview_ready", experiment.reload.status
   end
+
+  test "publishes scheduled landing pages when due" do
+    experiment = AicooLabExperiment.create!(title: "Scheduled test", experiment_type: "lp", acquisition_channel: "sns")
+    landing_page = experiment.create_aicoo_lab_landing_page!(
+      headline: "Scheduled headline",
+      subheadline: "Scheduled subheadline",
+      body: "Scheduled body",
+      cta_text: "事前登録する",
+      public_status: "scheduled",
+      scheduled_publish_at: 1.minute.ago,
+      published_slug: "scheduled-model-lp"
+    )
+
+    AicooLabLandingPage.publish_due!
+
+    landing_page.reload
+    assert_equal "published", landing_page.public_status
+    assert_equal "published", landing_page.status
+    assert_nil landing_page.scheduled_publish_at
+    assert landing_page.publicly_visible?
+  end
+
+  test "records published slug history when slug changes" do
+    experiment = AicooLabExperiment.create!(title: "Slug history test", experiment_type: "lp", acquisition_channel: "sns")
+    landing_page = experiment.create_aicoo_lab_landing_page!(
+      headline: "Slug headline",
+      subheadline: "Slug subheadline",
+      body: "Slug body",
+      cta_text: "事前登録する",
+      status: "published",
+      public_status: "published",
+      published_at: Time.current,
+      published_slug: "first-slug"
+    )
+
+    assert_difference("AicooLabLandingPageSlugHistory.count", 1) do
+      landing_page.update!(published_slug: "second-slug")
+    end
+
+    assert_equal "first-slug", landing_page.slug_histories.last.slug
+  end
 end

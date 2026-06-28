@@ -6,9 +6,13 @@ AICOO Lab LPs can be shared externally through published LP URLs while AICOO man
 
 Public paths:
 
-- `/aicoo_lab/lp/:slug`
-- `/aicoo_lab/lp/:slug/cta_click`
-- `/aicoo_lab/lp/:slug/signup`
+- `/lp`
+- `/lp/:slug`
+- `/lp/:slug/cta_click`
+- `/lp/:slug/scroll`
+- `/lp/:slug/signup`
+- `/sitemap.xml`
+- `/robots.txt`
 
 Management paths such as `/dashboard`, `/admin/*`, `/action_candidates`, `/judge`, and `/businesses` require Basic authentication in production.
 
@@ -41,19 +45,26 @@ bin/rails db:migrate && bin/rails server -b 0.0.0.0 -p $PORT
 Optional environment variables:
 
 - `GA4_MEASUREMENT_ID` (example: `G-E5KCHJTFVP`)
+- `GOOGLE_SITE_VERIFICATION`
 - `OPENAI_API_KEY`
 - `OPENAI_MODEL`
 - `GOOGLE_CLIENT_ID`
 - `GOOGLE_CLIENT_SECRET`
 - `GOOGLE_REFRESH_TOKEN`
 
+`AICOO_PUBLIC_BASE_URL` controls canonical URLs, sitemap URLs, and public LP URLs. Set it to the public host, such as `https://lab.aicoo.jp`, when moving away from the Render default domain.
+
 ## Verify after deploy
 
 1. Open `/dashboard`.
 2. Confirm Basic authentication is required.
 3. Publish an AICOO Lab LP from the management screen.
-4. Open `/aicoo_lab/lp/:slug` in an incognito browser.
+4. Open `/lp/:slug` in an incognito browser.
 5. Confirm the LP is visible without Basic authentication.
-6. Submit CTA/signup and confirm PV/CTA/Signup are recorded.
+6. Confirm the page source contains canonical, Open Graph, Twitter Card, and GA4 tags.
+7. Open `/sitemap.xml` and confirm only published LPs are listed with `lastmod`.
+8. Submit CTA/signup and confirm PV/CTA/Signup/Scroll events are recorded.
+
+Scheduled LPs use `public_status=scheduled` and `scheduled_publish_at`. They are published automatically the next time `/lp`, `/lp/:slug`, or `/sitemap.xml` is requested after the scheduled time.
 
 `http://127.0.0.1:*` and `http://localhost:*` are local-only URLs and cannot be used for external SNS sharing.

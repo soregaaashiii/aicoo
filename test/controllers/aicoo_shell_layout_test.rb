@@ -53,4 +53,17 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
   ensure
     previous.nil? ? ENV.delete("GA4_MEASUREMENT_ID") : ENV["GA4_MEASUREMENT_ID"] = previous
   end
+
+  test "google site verification is not rendered in test environment" do
+    previous = ENV.fetch("GOOGLE_SITE_VERIFICATION", nil)
+    ENV["GOOGLE_SITE_VERIFICATION"] = "google-token"
+
+    get owner_focus_url
+
+    assert_response :success
+    assert_not_includes response.body, "google-site-verification"
+    assert_not_includes response.body, "google-token"
+  ensure
+    previous.nil? ? ENV.delete("GOOGLE_SITE_VERIFICATION") : ENV["GOOGLE_SITE_VERIFICATION"] = previous
+  end
 end

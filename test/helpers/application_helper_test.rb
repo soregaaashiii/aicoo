@@ -26,6 +26,31 @@ class ApplicationHelperTest < ActionView::TestCase
     end
   end
 
+  test "google site verification is enabled only in production with token" do
+    with_env("GOOGLE_SITE_VERIFICATION", "google-token") do
+      with_rails_env("production") do
+        assert render_google_site_verification?
+        assert_equal "google-token", google_site_verification
+      end
+    end
+  end
+
+  test "google site verification is disabled outside production" do
+    with_env("GOOGLE_SITE_VERIFICATION", "google-token") do
+      with_rails_env("test") do
+        assert_not render_google_site_verification?
+      end
+    end
+  end
+
+  test "google site verification is disabled without token" do
+    with_env("GOOGLE_SITE_VERIFICATION", nil) do
+      with_rails_env("production") do
+        assert_not render_google_site_verification?
+      end
+    end
+  end
+
   private
 
   def with_env(key, value)

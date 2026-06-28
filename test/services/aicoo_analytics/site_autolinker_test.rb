@@ -21,7 +21,7 @@ module AicooAnalytics
 
       result = SiteAutolinker.new(base_url: "https://aicoo.example.com").link!(landing_page)
 
-      site = AicooAnalyticsSite.find_by!(public_url: "https://aicoo.example.com/aicoo_lab/lp/#{landing_page.published_slug}")
+      site = AicooAnalyticsSite.find_by!(public_url: "https://aicoo.example.com/lp/#{landing_page.published_slug}")
       assert_equal 1, result.created_count
       assert_equal landing_page.headline, site.name
       assert_equal "aicoo.example.com", site.domain

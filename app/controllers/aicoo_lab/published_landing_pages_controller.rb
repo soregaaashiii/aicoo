@@ -1,6 +1,7 @@
 module AicooLab
   class PublishedLandingPagesController < ApplicationController
-    layout "aicoo_lab_preview"
+    layout "public_lp"
+    before_action :publish_due_landing_pages
     before_action :set_landing_page
     before_action :set_rendering_context
 
@@ -34,7 +35,7 @@ module AicooLab
     private
 
     def set_landing_page
-      @landing_page = AicooLabLandingPage.find_by!(published_slug: params.expect(:published_slug), status: "published")
+      @landing_page = AicooLabLandingPage.publicly_available.find_by!(published_slug: params.expect(:published_slug))
     end
 
     def set_rendering_context
@@ -43,6 +44,11 @@ module AicooLab
       @cta_click_path = aicoo_lab_published_lp_cta_click_path(@landing_page.published_slug)
       @signup_path = aicoo_lab_published_lp_signup_path(@landing_page.published_slug)
       @back_path = aicoo_lab_published_lp_path(@landing_page.published_slug)
+      @canonical_url = @landing_page.canonical_url.presence || helpers.public_absolute_url(public_lp_path(@landing_page.published_slug))
+    end
+
+    def publish_due_landing_pages
+      AicooLabLandingPage.publish_due!
     end
 
     def event_recorder

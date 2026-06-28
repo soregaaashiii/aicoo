@@ -1,17 +1,31 @@
 class AicooLabLandingPage < ApplicationRecord
   STATUSES = %w[draft preview_ready approved rejected published unpublished].freeze
+  PUBLIC_STATUSES = %w[draft scheduled published archived].freeze
   GENERATION_SOURCES = %w[manual candidate_conversion].freeze
 
   belongs_to :aicoo_lab_experiment
   has_many :aicoo_lab_landing_page_events, dependent: :destroy
+  has_many :slug_histories,
+           class_name: "AicooLabLandingPageSlugHistory",
+           dependent: :destroy
   has_many :aicoo_lab_signups, dependent: :destroy
 
   before_validation :set_defaults
+  before_update :record_published_slug_history, if: :will_save_change_to_published_slug?
 
   validates :status, inclusion: { in: STATUSES }
+  validates :public_status, inclusion: { in: PUBLIC_STATUSES }
   validates :generation_source, inclusion: { in: GENERATION_SOURCES }
   validates :preview_slug, presence: true, uniqueness: true
   validates :assumed_price_yen, numericality: { only_integer: true, greater_than_or_equal_to: 0 }, allow_nil: true
+
+  scope :with_public_slug, -> { where.not(published_slug: [ nil, "" ]) }
+  scope :publicly_available, -> {
+    with_public_slug.where(public_status: "published").where("published_at IS NULL OR published_at <= ?", Time.current)
+  }
+  scope :scheduled_for_publication, -> {
+    where(public_status: "scheduled").where.not(scheduled_publish_at: nil).where(scheduled_publish_at: ..Time.current)
+  }
 
   def self.build_from_experiment(experiment)
     new(
@@ -34,16 +48,71 @@ class AicooLabLandingPage < ApplicationRecord
 
   def publish!
     transaction do
-      self.published_slug = unique_published_slug if published_slug.blank?
+      ensure_published_slug
       self.published_at = Time.current if published_at.blank?
       self.status = "published"
+      self.public_status = "published"
+      self.scheduled_publish_at = nil
       save!
       aicoo_lab_experiment.mark_status!("running")
     end
   end
 
   def unpublish!
-    update!(status: "unpublished")
+    update!(status: "unpublished", public_status: "archived")
+  end
+
+  def schedule_publication!(scheduled_publish_at:)
+    update!(
+      public_status: "scheduled",
+      scheduled_publish_at:,
+      published_slug: published_slug.presence || unique_published_slug
+    )
+  end
+
+  def publish_scheduled!
+    transaction do
+      ensure_published_slug
+      self.published_at = scheduled_publish_at || Time.current
+      self.public_status = "published"
+      self.status = "published"
+      self.scheduled_publish_at = nil
+      save!
+      aicoo_lab_experiment.mark_status!("running")
+    end
+  end
+
+  def publicly_visible?
+    public_status == "published" && published_slug.present? && (published_at.blank? || published_at <= Time.current)
+  end
+
+  def ensure_published_slug
+    self.published_slug = unique_published_slug if published_slug.blank?
+    published_slug
+  end
+
+  def self.publish_due!
+    scheduled_for_publication.find_each(&:publish_scheduled!)
+  end
+
+  def effective_seo_title
+    seo_title.presence || headline
+  end
+
+  def effective_seo_description
+    seo_description.presence || og_description.presence || subheadline.presence || body.to_s.truncate(155)
+  end
+
+  def effective_og_title
+    og_title.presence || effective_seo_title
+  end
+
+  def effective_og_description
+    og_description.presence || effective_seo_description
+  end
+
+  def effective_og_image_url
+    og_image_url.presence
   end
 
   def publishable?
@@ -101,6 +170,7 @@ class AicooLabLandingPage < ApplicationRecord
 
   def set_defaults
     self.status = "draft" if status.blank?
+    self.public_status = default_public_status if public_status.blank?
     self.generation_source = "manual" if generation_source.blank?
     self.cta_text = "事前登録する" if cta_text.blank?
     self.generated_at = Time.current if generated_at.blank?
@@ -114,10 +184,30 @@ class AicooLabLandingPage < ApplicationRecord
     end
   end
 
+  def default_public_status
+    case status
+    when "published"
+      "published"
+    when "unpublished"
+      "archived"
+    else
+      "draft"
+    end
+  end
+
   def unique_published_slug
     loop do
       slug = SecureRandom.urlsafe_base64(12).downcase
+      next if AicooLabLandingPageSlugHistory.exists?(slug:)
+
       break slug unless self.class.exists?(published_slug: slug)
     end
+  end
+
+  def record_published_slug_history
+    previous_slug = published_slug_in_database
+    return if previous_slug.blank? || previous_slug == published_slug
+
+    slug_histories.find_or_create_by!(slug: previous_slug)
   end
 end

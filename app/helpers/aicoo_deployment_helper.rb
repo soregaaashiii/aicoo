@@ -21,8 +21,8 @@ module AicooDeploymentHelper
     return nil if landing_page.blank? || landing_page.published_slug.blank?
 
     base_url = aicoo_public_base_url
-    return aicoo_lab_published_lp_url(landing_page.published_slug) if base_url.blank?
+    return public_lp_url(landing_page.published_slug) if base_url.blank?
 
-    "#{base_url.delete_suffix('/')}/aicoo_lab/lp/#{landing_page.published_slug}"
+    "#{base_url.delete_suffix('/')}/lp/#{landing_page.published_slug}"
   end
 end

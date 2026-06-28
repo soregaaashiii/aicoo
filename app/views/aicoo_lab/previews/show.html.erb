@@ -1,4 +1,12 @@
-<% content_for :title, @landing_page.headline %>
+<% content_for :title, @landing_page.effective_seo_title %>
+<% content_for :meta_description, @landing_page.effective_seo_description %>
+<% content_for :canonical_url, @canonical_url if @canonical_url.present? %>
+<% content_for :og_title, @landing_page.effective_og_title %>
+<% content_for :og_description, @landing_page.effective_og_description %>
+<% if @landing_page.effective_og_image_url.present? %>
+  <% content_for :og_image, @landing_page.effective_og_image_url %>
+  <% content_for :twitter_card, "summary_large_image" %>
+<% end %>
 
 <main class="lp-preview">
   <section class="lp-hero">
@@ -26,3 +34,46 @@
     <%= button_to @landing_page.cta_text, @cta_click_path || aicoo_lab_preview_cta_click_path(@landing_page.preview_slug), method: :post, class: "button" %>
   </section>
 </main>
+
+<% if @scroll_event_path.present? %>
+  <script>
+    (() => {
+      const thresholds = [25, 50, 75, 100];
+      const sent = new Set();
+      const csrfToken = document.querySelector("meta[name='csrf-token']")?.content;
+
+      const sendScrollDepth = (depth) => {
+        if (sent.has(depth)) return;
+        sent.add(depth);
+
+        fetch("<%= j @scroll_event_path %>", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRF-Token": csrfToken
+          },
+          body: JSON.stringify({ depth })
+        }).catch(() => {});
+
+        if (window.gtag) {
+          window.gtag("event", "lp_scroll_depth", {
+            landing_page_slug: "<%= j @landing_page.published_slug %>",
+            scroll_depth: depth
+          });
+        }
+      };
+
+      const checkScrollDepth = () => {
+        const scrollable = document.documentElement.scrollHeight - window.innerHeight;
+        const percent = scrollable <= 0 ? 100 : Math.round((window.scrollY / scrollable) * 100);
+        thresholds.forEach((threshold) => {
+          if (percent >= threshold) sendScrollDepth(threshold);
+        });
+      };
+
+      window.addEventListener("scroll", checkScrollDepth, { passive: true });
+      window.addEventListener("load", checkScrollDepth);
+    })();
+  </script>
+<% end %>

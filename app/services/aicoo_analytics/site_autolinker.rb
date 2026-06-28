@@ -44,7 +44,8 @@ module AicooAnalytics
     end
 
     def link_landing_pages
-      AicooLabLandingPage.where(status: "published").where.not(published_slug: [ nil, "" ]).find_each { |landing_page| link!(landing_page) }
+      AicooLabLandingPage.publish_due!
+      AicooLabLandingPage.publicly_available.find_each { |landing_page| link!(landing_page) }
     end
 
     def upsert_site!(record, public_url)
@@ -99,7 +100,7 @@ module AicooAnalytics
     def public_landing_page_url(landing_page)
       return nil if landing_page.published_slug.blank?
 
-      "#{resolved_base_url}/aicoo_lab/lp/#{landing_page.published_slug}" if resolved_base_url.present?
+      "#{resolved_base_url}/lp/#{landing_page.published_slug}" if resolved_base_url.present?
     end
 
     def resolved_base_url

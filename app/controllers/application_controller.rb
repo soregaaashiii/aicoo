@@ -5,6 +5,7 @@ class ApplicationController < ActionController::Base
   allow_browser versions: :modern
 
   before_action :protect_aicoo_management_area
+  before_action :set_robots_header
 
   # Changes to the importmap will invalidate the etag for HTML responses
   stale_when_importmap_changes
@@ -34,9 +35,15 @@ class ApplicationController < ActionController::Base
   end
 
   def public_render_path?
-    request.path.start_with?("/aicoo_lab/lp/", "/assets/") ||
+    request.path == "/lp" ||
+      request.path.start_with?("/lp/", "/aicoo_lab/lp/", "/assets/") ||
+      request.path.in?([ "/robots.txt", "/sitemap.xml" ]) ||
       request.path == "/up" ||
       request.path == "/favicon.ico"
+  end
+
+  def set_robots_header
+    response.set_header("X-Robots-Tag", "noindex, nofollow") unless public_render_path?
   end
 
   def secure_basic_auth_match?(provided_value, expected_value)

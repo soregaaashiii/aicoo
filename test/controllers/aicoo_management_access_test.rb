@@ -46,6 +46,13 @@ class AicooManagementAccessTest < ActionDispatch::IntegrationTest
 
       assert_response :success
       assert_includes response.body, "Public LP headline"
+
+      get public_landing_pages_url
+      assert_response :success
+
+      get public_lp_url(landing_page.published_slug)
+      assert_response :success
+      assert_includes response.body, "Public LP headline"
     end
   end
 
@@ -109,6 +116,8 @@ class AicooManagementAccessTest < ActionDispatch::IntegrationTest
       body: "Public LP body",
       cta_text: "事前登録する",
       status: "published",
+      public_status: "published",
+      published_at: Time.current,
       published_slug: "public-lp-access"
     )
   end

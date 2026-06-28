@@ -220,7 +220,7 @@ class DashboardSummaryService
       proxy_score: proxy_score_total(today),
       new_candidate_count: ActionCandidate.where(created_at: Time.current.all_day).count,
       evaluated_count: ActionResult.evaluated.where(updated_at: Time.current.all_day).count,
-      published_lp_count: AicooLabLandingPage.where(status: "published").count,
+      published_lp_count: AicooLabLandingPage.publicly_available.count,
       daily_run_status: latest_daily_run&.status || "未実行"
     )
   end

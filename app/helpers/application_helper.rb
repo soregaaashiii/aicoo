@@ -6,4 +6,23 @@ module ApplicationHelper
   def render_ga4_tag?
     Rails.env.production? && ga4_measurement_id.present?
   end
+
+  def google_site_verification
+    ENV["GOOGLE_SITE_VERIFICATION"].presence
+  end
+
+  def render_google_site_verification?
+    Rails.env.production? && google_site_verification.present?
+  end
+
+  def public_site_base_url
+    ENV["AICOO_PUBLIC_BASE_URL"].presence&.delete_suffix("/")
+  end
+
+  def public_absolute_url(path)
+    base_url = public_site_base_url.presence || (request.base_url if respond_to?(:request) && request)
+    return path if base_url.blank?
+
+    "#{base_url.delete_suffix("/")}#{path.start_with?("/") ? path : "/#{path}"}"
+  end
 end

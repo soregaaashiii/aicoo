@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc><%= public_absolute_url(public_landing_pages_path) %></loc>
+    <lastmod><%= Time.current.iso8601 %></lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <% @landing_pages.each do |landing_page| %>
+    <url>
+      <loc><%= public_absolute_url(public_lp_path(landing_page.published_slug)) %></loc>
+      <lastmod><%= landing_page.updated_at.iso8601 %></lastmod>
+      <changefreq>weekly</changefreq>
+      <priority>0.7</priority>
+    </url>
+  <% end %>
+</urlset>

@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title><%= content_for(:title) || "公開LP" %></title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <% if content_for?(:meta_description) %>
+      <meta name="description" content="<%= content_for(:meta_description) %>">
+    <% end %>
+    <meta name="robots" content="<%= content_for?(:robots) ? content_for(:robots) : "index,follow" %>">
+    <% if content_for?(:canonical_url) %>
+      <link rel="canonical" href="<%= content_for(:canonical_url) %>">
+    <% end %>
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="<%= content_for?(:og_title) ? content_for(:og_title) : (content_for(:title) || "公開LP") %>">
+    <% if content_for?(:og_description) || content_for?(:meta_description) %>
+      <meta property="og:description" content="<%= content_for?(:og_description) ? content_for(:og_description) : content_for(:meta_description) %>">
+    <% end %>
+    <% if content_for?(:canonical_url) %>
+      <meta property="og:url" content="<%= content_for(:canonical_url) %>">
+    <% end %>
+    <% if content_for?(:og_image) %>
+      <meta property="og:image" content="<%= content_for(:og_image) %>">
+    <% end %>
+    <meta name="twitter:card" content="<%= content_for?(:twitter_card) ? content_for(:twitter_card) : "summary" %>">
+    <meta name="twitter:title" content="<%= content_for?(:og_title) ? content_for(:og_title) : (content_for(:title) || "公開LP") %>">
+    <% if content_for?(:og_description) || content_for?(:meta_description) %>
+      <meta name="twitter:description" content="<%= content_for?(:og_description) ? content_for(:og_description) : content_for(:meta_description) %>">
+    <% end %>
+    <% if content_for?(:og_image) %>
+      <meta name="twitter:image" content="<%= content_for(:og_image) %>">
+    <% end %>
+    <% if render_google_site_verification? %>
+      <%= tag.meta name: "google-site-verification", content: google_site_verification %>
+    <% end %>
+    <%= csrf_meta_tags %>
+    <%= csp_meta_tag %>
+
+    <% if render_ga4_tag? %>
+      <script async src="https://www.googletagmanager.com/gtag/js?id=<%= u ga4_measurement_id %>"></script>
+      <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', '<%= j ga4_measurement_id %>');
+      </script>
+    <% end %>
+
+    <%= stylesheet_link_tag :app, "data-turbo-track": "reload" %>
+  </head>
+
+  <body class="preview-body public-lp-body">
+    <%= yield %>
+  </body>
+</html>
