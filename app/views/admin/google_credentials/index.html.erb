@@ -25,6 +25,8 @@
             <th>状態</th>
             <th>有効</th>
             <th>Googleアカウント</th>
+            <th>OAuth Client</th>
+            <th>Project番号</th>
             <th>Access Token</th>
             <th>Token Expiry</th>
             <th>最終接続日時</th>
@@ -39,6 +41,8 @@
               <td><span class="pill"><%= credential.connected? ? "接続済み" : "未接続" %></span></td>
               <td><span class="pill"><%= credential.enabled? ? "有効" : "無効" %></span></td>
               <td><%= credential.google_account_email.presence || "-" %></td>
+              <td><%= credential.client_id.presence || "-" %></td>
+              <td><%= credential.oauth_project_number.presence || "不明" %></td>
               <td><span class="pill"><%= credential.access_token.present? ? "保存済み" : "未保存" %></span></td>
               <td>
                 <% if credential.token_expires_at.present? %>
@@ -59,7 +63,7 @@
             </tr>
           <% end %>
           <% if @credentials.empty? %>
-            <tr><td colspan="9">Google認証はまだありません。</td></tr>
+            <tr><td colspan="11">Google認証はまだありません。</td></tr>
           <% end %>
         </tbody>
       </table>

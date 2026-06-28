@@ -16,6 +16,10 @@ class AicooGoogleCredential < ApplicationRecord
     client_id.present? && client_secret.present? && refresh_token.present?
   end
 
+  def oauth_project_number
+    client_id.to_s.split("-").first if client_id.to_s.match?(/\A\d+-/)
+  end
+
   def token_expired?
     token_expires_at.present? && token_expires_at <= Time.current
   end

@@ -90,6 +90,27 @@ module Admin
       end
     end
 
+    test "connect with a saved google credential does not use stale env client" do
+      credential = AicooGoogleCredential.create!(
+        name: "AICOO新Google認証",
+        client_id: "999999999999-new.apps.googleusercontent.com",
+        client_secret: "new-secret",
+        enabled: true
+      )
+
+      with_google_env(
+        "GOOGLE_CLIENT_ID" => "338488400527-old.apps.googleusercontent.com",
+        "GOOGLE_CLIENT_SECRET" => "old-secret"
+      ) do
+        get admin_analytics_oauth_connect_url, params: { google_credential_id: credential.id }
+      end
+
+      assert_response :redirect
+      uri = URI.parse(response.location)
+      params = Rack::Utils.parse_nested_query(uri.query)
+      assert_equal "999999999999-new.apps.googleusercontent.com", params["client_id"]
+    end
+
     test "analytics connections page shows latest oauth connected time" do
       setting = create_gsc_setting(name: "吸えログ GSC", site_url: "sc-domain:suelog.jp")
       setting.update!(oauth_connected_at: Time.zone.local(2026, 6, 22, 12, 0, 0), refresh_token: "saved-refresh")

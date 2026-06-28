@@ -21,6 +21,8 @@ module Admin
       assert_includes response.body, "接続済み"
       assert_includes response.body, "Googleと接続"
       assert_includes response.body, "owner@example.com"
+      assert_includes response.body, "Project番号"
+      assert_includes response.body, "client"
       assert_includes response.body, "保存済み"
       assert_not_includes response.body, "client-secret-value"
       assert_not_includes response.body, "refresh-token-value"

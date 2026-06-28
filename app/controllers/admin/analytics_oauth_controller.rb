@@ -79,9 +79,16 @@ module Admin
     def oauth_credentials(credential)
       return session_oauth_credentials if session_oauth_credentials.present?
 
+      if credential.client_id.present? && credential.client_secret.present?
+        return {
+          client_id: credential.client_id,
+          client_secret: credential.client_secret
+        }
+      end
+
       {
-        client_id: ENV["GOOGLE_CLIENT_ID"].presence || credential.client_id,
-        client_secret: ENV["GOOGLE_CLIENT_SECRET"].presence || credential.client_secret
+        client_id: ENV["GOOGLE_CLIENT_ID"].presence,
+        client_secret: ENV["GOOGLE_CLIENT_SECRET"].presence
       }
     end
 
