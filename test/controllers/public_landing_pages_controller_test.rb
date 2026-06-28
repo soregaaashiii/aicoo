@@ -192,9 +192,15 @@ class PublicLandingPagesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_equal "application/xml", response.media_type
+    assert_includes response.body, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+    assert_includes response.body, "<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">"
+    assert_includes response.body, "<url>"
+    assert_includes response.body, "<loc>"
     assert_includes response.body, root_path
     assert_includes response.body, public_lp_path(landing_page.published_slug)
     assert_includes response.body, "<lastmod>"
+    assert_not_includes response.body, "<!DOCTYPE html>"
+    assert_not_includes response.body, "<html"
     assert_not_includes response.body, "draft-sitemap-lp"
     assert_not_includes response.body, "scheduled-sitemap-lp"
     assert_not_includes response.body, "archived-sitemap-lp"
