@@ -2,7 +2,7 @@ class AicooGoogleCredential < ApplicationRecord
   has_many :analytics_source_settings, foreign_key: :google_credential_id, dependent: :nullify
 
   before_validation :set_defaults
-  before_save :invalidate_oauth_tokens_when_client_id_changes
+  before_save :invalidate_oauth_tokens_when_oauth_client_changes
 
   validates :name, presence: true
 
@@ -56,8 +56,8 @@ class AicooGoogleCredential < ApplicationRecord
     self.enabled = true if enabled.nil?
   end
 
-  def invalidate_oauth_tokens_when_client_id_changes
-    return unless persisted? && will_save_change_to_client_id?
+  def invalidate_oauth_tokens_when_oauth_client_changes
+    return unless persisted? && oauth_client_changed?
     return if will_save_change_to_refresh_token? && refresh_token.present?
 
     self.refresh_token = nil
@@ -65,5 +65,11 @@ class AicooGoogleCredential < ApplicationRecord
     self.token_expires_at = nil
     self.google_account_email = nil
     self.connected_at = nil
+  end
+
+  def oauth_client_changed?
+    will_save_change_to_client_id? ||
+      will_save_change_to_client_secret? ||
+      will_save_change_to_google_cloud_project_id?
   end
 end

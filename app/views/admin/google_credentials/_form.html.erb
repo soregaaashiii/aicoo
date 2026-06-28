@@ -61,6 +61,8 @@
         <dd><span class="pill"><%= credential.access_token.present? ? "保存済み" : "未保存" %></span></dd>
         <dt>Token Expiry</dt>
         <dd><%= credential.token_expires_at ? l(credential.token_expires_at, format: :short) : "-" %></dd>
+        <dt>最終OAuth成功</dt>
+        <dd><%= credential.last_oauth_success_at ? l(credential.last_oauth_success_at, format: :short) : "-" %></dd>
       </dl>
       <% if credential.reauthentication_required? %>
         <div class="alert-banner alert-banner-warning">
@@ -76,6 +78,7 @@
   <div class="actions compact-actions">
     <%= form.submit "保存", class: "button" %>
     <% if credential.persisted? %>
+      <%= form.submit "保存してGoogleと接続", name: "connect_after_save", class: "button" %>
       <%= link_to "Googleと接続", connect_admin_google_credential_path(credential), class: "button" %>
     <% else %>
       <%= form.submit "保存してGoogleと接続", name: "connect_after_save", class: "button secondary" %>

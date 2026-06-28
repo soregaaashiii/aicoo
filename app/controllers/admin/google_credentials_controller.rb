@@ -30,7 +30,11 @@ module Admin
 
     def update
       if @credential.update(credential_params_for_update)
-        redirect_to admin_google_credentials_path, notice: "Google認証を更新しました"
+        if params[:connect_after_save].present?
+          redirect_to connect_admin_google_credential_path(@credential), notice: "Google認証を保存しました。続けてGoogleと接続します。"
+        else
+          redirect_to admin_google_credentials_path, notice: "Google認証を更新しました"
+        end
       else
         render :edit, status: :unprocessable_content
       end

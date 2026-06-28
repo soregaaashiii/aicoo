@@ -123,6 +123,66 @@ module Admin
       assert_predicate credential, :reauthentication_required?
     end
 
+    test "changing oauth client secret invalidates old tokens" do
+      credential = AicooGoogleCredential.create!(
+        name: "AICOO共通Google認証",
+        client_id: "111-client.apps.googleusercontent.com",
+        client_secret: "old-secret",
+        refresh_token: "old-refresh",
+        access_token: "old-access",
+        connected_at: Time.current
+      )
+
+      patch admin_google_credential_url(credential), params: {
+        aicoo_google_credential: {
+          name: "AICOO共通Google認証",
+          client_id: "",
+          client_secret: "new-secret",
+          refresh_token: "",
+          access_token: "",
+          token_expires_at: "",
+          google_account_email: "",
+          enabled: "1"
+        }
+      }
+
+      credential.reload
+      assert_equal "111-client.apps.googleusercontent.com", credential.client_id
+      assert_equal "new-secret", credential.client_secret
+      assert_nil credential.refresh_token
+      assert_nil credential.access_token
+      assert_nil credential.connected_at
+    end
+
+    test "updates credential and continues to google oauth" do
+      credential = AicooGoogleCredential.create!(
+        name: "AICOO共通Google認証",
+        client_id: "old-client",
+        client_secret: "old-secret",
+        refresh_token: "old-refresh"
+      )
+
+      patch admin_google_credential_url(credential), params: {
+        connect_after_save: "保存してGoogleと接続",
+        aicoo_google_credential: {
+          name: "AICOO共通Google認証",
+          google_cloud_project_id: "aicoo-500805",
+          client_id: "new-client",
+          client_secret: "new-secret",
+          refresh_token: "",
+          access_token: "",
+          token_expires_at: "",
+          google_account_email: "",
+          enabled: "1"
+        }
+      }
+
+      credential.reload
+      assert_equal "new-client", credential.client_id
+      assert_nil credential.refresh_token
+      assert_redirected_to connect_admin_google_credential_url(credential)
+    end
+
     test "shows env mismatch warning and current google cloud project" do
       AicooGoogleCredential.create!(
         name: "AICOO共通Google認証",

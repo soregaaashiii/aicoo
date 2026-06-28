@@ -5,11 +5,12 @@ module Admin
       credentials = oauth_credentials(credential)
 
       if credentials[:client_id].blank? || credentials[:client_secret].blank?
-        redirect_to admin_analytics_connections_path, alert: "Google OAuth Client ID / Secret が未設定です。ENVまたは分析設定画面から保存してください。"
+        redirect_to admin_google_credentials_path, alert: "Google OAuth Client ID / Secret が未設定です。Google認証画面から保存してください。"
         return
       end
 
       remember_oauth_credentials!(credentials, params[:business_name].presence, credential)
+      log_oauth_start!(credential:, credentials:)
       redirect_to AicooAnalytics::GoogleOauthAuthorization.authorization_uri(
         client_id: credentials[:client_id],
         redirect_uri: admin_analytics_oauth_callback_url,
@@ -19,12 +20,12 @@ module Admin
 
     def callback
       if params[:error].present?
-        redirect_to admin_analytics_connections_path, alert: "Google OAuth認証に失敗しました: #{params[:error]} #{params[:error_description]}"
+        redirect_to admin_google_credentials_path, alert: oauth_callback_error_message(params[:error], params[:error_description])
         return
       end
 
       if params[:code].blank?
-        redirect_to admin_analytics_connections_path, alert: "Google OAuth認証に失敗しました: code が返りませんでした。"
+        redirect_to admin_google_credentials_path, alert: "Google OAuth認証に失敗しました: code が返りませんでした。"
         return
       end
 
@@ -39,15 +40,15 @@ module Admin
       )
 
       if token_response.refresh_token.blank?
-        redirect_to admin_analytics_connections_path,
+        redirect_to admin_google_credentials_path,
                     alert: "Google OAuth認証は完了しましたがrefresh_tokenが返りませんでした。再度「Googleと接続」を押してください。"
         return
       end
 
       save_oauth_credentials!(settings, google_credential, credentials, token_response)
-      redirect_to admin_analytics_connections_path, notice: "Google OAuth接続が完了しました。GSC/GA4のrefresh_tokenを保存しました。"
+      redirect_to admin_google_credentials_path, notice: "Google OAuth接続が完了しました。Refresh Tokenを保存しました。"
     rescue AicooAnalytics::GoogleOauthAuthorization::Error => e
-      redirect_to admin_analytics_connections_path, alert: "Google OAuth認証に失敗しました: #{e.message}"
+      redirect_to admin_google_credentials_path, alert: "Google OAuth認証に失敗しました: #{e.message}"
     end
 
     private
@@ -86,6 +87,8 @@ module Admin
         }
       end
 
+      return { client_id: credential.client_id.presence, client_secret: credential.client_secret.presence } if credential.persisted?
+
       {
         client_id: ENV["GOOGLE_CLIENT_ID"].presence,
         client_secret: ENV["GOOGLE_CLIENT_SECRET"].presence
@@ -103,7 +106,8 @@ module Admin
         token_expires_at: token_response.token_expires_at,
         google_account_email: token_response.account_email,
         enabled: true,
-        connected_at: now
+        connected_at: now,
+        last_oauth_success_at: now
       )
       google_credential.save!
 
@@ -141,6 +145,36 @@ module Admin
       session.delete(:analytics_oauth_client_secret)
       session.delete(:analytics_oauth_business_name)
       session.delete(:analytics_oauth_google_credential_id)
+    end
+
+    def log_oauth_start!(credential:, credentials:)
+      Rails.logger.info(
+        [
+          "Google OAuth start",
+          "client_id=#{credentials[:client_id]}",
+          "project_id=#{credential.effective_google_cloud_project_id.presence || 'unknown'}",
+          "redirect_uri=#{admin_analytics_oauth_callback_url}",
+          "scope=#{AicooAnalytics::GoogleOauthAuthorization::SCOPES.join(' ')}",
+          "test_user_check=OAuth同意画面がテストモードの場合は利用するGoogleアカウントをテストユーザーに追加してください"
+        ].join(" ")
+      )
+    end
+
+    def oauth_callback_error_message(error, description)
+      base = "Google認証に失敗しました。#{error} #{description}".strip
+      return base unless error == "access_denied"
+
+      [
+        base,
+        "原因候補:",
+        "OAuth同意画面がテストモードで、現在のGoogleアカウントがテストユーザーに入っていません",
+        "古いClient IDを使っています",
+        "Redirect URIがGoogle Cloudに登録されていません",
+        "確認してください:",
+        "Google Cloud Project: aicoo-500805",
+        "テストユーザー: abclologun@gmail.com",
+        "Redirect URI: https://aicoo.onrender.com/admin/analytics_oauth/callback"
+      ].join(" ")
     end
 
     def business_name_for(name)

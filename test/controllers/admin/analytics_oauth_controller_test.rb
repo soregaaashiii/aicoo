@@ -38,7 +38,7 @@ module Admin
         end
       end
 
-      assert_redirected_to admin_analytics_connections_url
+      assert_redirected_to admin_google_credentials_url
       credential = AicooGoogleCredential.default
       assert_equal "env-client", credential.client_id
       assert_equal "env-secret", credential.client_secret
@@ -47,6 +47,7 @@ module Admin
       assert_equal "owner@example.com", credential.google_account_email
       assert credential.token_expires_at.present?
       assert credential.connected_at.present?
+      assert credential.last_oauth_success_at.present?
       [ gsc.reload, ga4.reload ].each do |setting|
         assert_equal credential, setting.google_credential
         assert_nil setting.client_id
@@ -127,7 +128,7 @@ module Admin
         get admin_analytics_oauth_connect_url
       end
 
-      assert_redirected_to admin_analytics_connections_url
+      assert_redirected_to admin_google_credentials_url
       follow_redirect!
       assert_includes response.body, "Google OAuth Client ID / Secret が未設定です"
     end
@@ -135,10 +136,22 @@ module Admin
     test "callback displays oauth error from google" do
       get admin_analytics_oauth_callback_url, params: { error: "unauthorized_client", error_description: "bad client" }
 
-      assert_redirected_to admin_analytics_connections_url
+      assert_redirected_to admin_google_credentials_url
       follow_redirect!
       assert_includes response.body, "unauthorized_client"
       assert_includes response.body, "bad client"
+    end
+
+    test "callback displays helpful access denied guidance" do
+      get admin_analytics_oauth_callback_url, params: { error: "access_denied", error_description: "審査プロセスを完了していません" }
+
+      assert_redirected_to admin_google_credentials_url
+      follow_redirect!
+      assert_includes response.body, "Google認証に失敗しました"
+      assert_includes response.body, "OAuth同意画面がテストモード"
+      assert_includes response.body, "aicoo-500805"
+      assert_includes response.body, "abclologun@gmail.com"
+      assert_includes response.body, "https://aicoo.onrender.com/admin/analytics_oauth/callback"
     end
 
     test "callback displays token exchange failure" do
@@ -153,7 +166,7 @@ module Admin
         end
       end
 
-      assert_redirected_to admin_analytics_connections_url
+      assert_redirected_to admin_google_credentials_url
       follow_redirect!
       assert_includes response.body, "invalid_grant"
     end
