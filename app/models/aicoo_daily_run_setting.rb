@@ -10,8 +10,19 @@ class AicooDailyRunSetting < ApplicationRecord
     first_or_create!
   end
 
-  def scheduled_time_for(date = Date.current)
-    zone = Time.find_zone(timezone.presence || DEFAULT_TIMEZONE) || Time.find_zone(DEFAULT_TIMEZONE)
+  def zone
+    Time.find_zone(timezone.presence || DEFAULT_TIMEZONE) || Time.find_zone(DEFAULT_TIMEZONE)
+  end
+
+  def current_date
+    zone.today
+  end
+
+  def target_date
+    current_date - 1.day
+  end
+
+  def scheduled_time_for(date = current_date)
     zone.local(date.year, date.month, date.day, run_hour, run_minute)
   end
 end

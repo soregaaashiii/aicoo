@@ -71,6 +71,37 @@ class AicooDailyRunSchedulerTest < ActiveSupport::TestCase
     end
   end
 
+  test "uses Asia Tokyo date for due and target date around UTC midnight" do
+    setting = AicooDailyRunSetting.create!(
+      enabled: true,
+      run_hour: 0,
+      run_minute: 15,
+      timezone: "Asia/Tokyo",
+      catch_up_enabled: true,
+      retry_until_success: true,
+      max_retry_per_day: 10
+    )
+    run = nil
+
+    travel_to Time.utc(2026, 6, 27, 15, 30) do
+      with_runner_stub(->(target_date:, source:) {
+        assert_equal Date.new(2026, 6, 27), target_date
+        assert_equal "cron", source
+        run = AicooDailyRun.create!(target_date:, status: "success", source:)
+        run
+      }) do
+        result = AicooDailyRunScheduler.new(setting:).check!(source: "cron")
+
+        assert_equal run, result
+      end
+    end
+  end
+
+  test "application displays times in Japan while keeping database time in UTC" do
+    assert_equal "Asia/Tokyo", Time.zone.name
+    assert_equal :utc, Rails.application.config.active_record.default_timezone
+  end
+
   private
 
   def make_due!(setting)

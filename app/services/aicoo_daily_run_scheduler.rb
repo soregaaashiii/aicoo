@@ -79,15 +79,19 @@ class AicooDailyRunScheduler
   end
 
   def scheduled_time
-    setting.scheduled_time_for(Date.current)
+    setting.scheduled_time_for(current_date)
   end
 
   def next_run_at
-    due? ? setting.scheduled_time_for(Date.current + 1.day) : scheduled_time
+    due? ? setting.scheduled_time_for(current_date + 1.day) : scheduled_time
   end
 
   def target_date
-    Date.yesterday
+    setting.target_date
+  end
+
+  def current_date
+    setting.current_date
   end
 
   def successful_today?

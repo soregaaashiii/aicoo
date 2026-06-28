@@ -316,9 +316,13 @@ class MetricActionCandidateGenerator
 
   def recent_duplicate?(spec)
     business.action_candidates
-            .where(created_at: 7.days.ago..)
+            .where(created_at: duplicate_window_start..)
             .where("title = ? OR evaluation_reason LIKE ?", spec.title, "%metric_rule:#{spec.key}%")
             .exists?
+  end
+
+  def duplicate_window_start
+    today.beginning_of_day - 7.days
   end
 
   def proxy_delta
