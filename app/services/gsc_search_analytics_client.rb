@@ -7,8 +7,9 @@ class GscSearchAnalyticsClient
 
   class Error < StandardError; end
 
-  def initialize(oauth_client: GoogleOauthClient.new)
+  def initialize(oauth_client: GoogleOauthClient.new, timeout: 20)
     @oauth_client = oauth_client
+    @timeout = timeout
   end
 
   def query(site_url:, start_date:, end_date:, dimensions: [ "query" ], row_limit: 1_000)
@@ -24,10 +25,18 @@ class GscSearchAnalyticsClient
       rowLimit: row_limit
     )
 
-    response = Net::HTTP.start(uri.host, uri.port, use_ssl: true) { |http| http.request(request) }
+    response = Net::HTTP.start(
+      uri.host,
+      uri.port,
+      use_ssl: true,
+      open_timeout: @timeout,
+      read_timeout: @timeout
+    ) { |http| http.request(request) }
     raise Error, "GSC API error: #{response.code} #{response.body}" unless response.is_a?(Net::HTTPSuccess)
 
     JSON.parse(response.body)
+  rescue Net::OpenTimeout, Net::ReadTimeout => e
+    raise Error, "GSC API timeout: #{e.message}"
   rescue JSON::ParserError => e
     raise Error, "GSC response could not be parsed: #{e.message}"
   end

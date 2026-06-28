@@ -613,6 +613,40 @@
     <p>AICOO共通Google認証またはBusiness個別設定を使い、GA4/GSC APIからBusinessMetricDailyへ直接保存します。</p>
   </div>
 
+  <% google_api_run = @google_api_import_run %>
+  <div class="metric-grid">
+    <div class="metric-card">
+      <span>取得状態</span>
+      <strong><%= google_api_run ? google_api_run.status_label : "未実行" %></strong>
+      <small><%= google_api_run&.source_types&.join(" / ") || "Google API" %></small>
+    </div>
+    <div class="metric-card">
+      <span>最終実行</span>
+      <strong><%= google_api_run&.started_at ? l(google_api_run.started_at, format: :short) : "-" %></strong>
+      <small>完了: <%= google_api_run&.finished_at ? l(google_api_run.finished_at, format: :short) : "-" %></small>
+    </div>
+    <div class="metric-card">
+      <span>更新件数</span>
+      <strong><%= google_api_run&.updated_metric_count.to_i %>件</strong>
+      <small>取得日数: <%= google_api_run&.fetched_days || GoogleApiImportRun::DEFAULT_FETCH_DAYS %>日</small>
+    </div>
+    <div class="metric-card">
+      <span>処理時間</span>
+      <strong><%= google_api_run&.duration_seconds ? "#{google_api_run.duration_seconds.to_f.round(1)}秒" : "-" %></strong>
+      <small>非同期Jobで取得します</small>
+    </div>
+  </div>
+
+  <% if google_api_run&.failed? %>
+    <div class="alert-banner alert-banner-danger">
+      Google API取得に失敗しました: <%= google_api_run.error_message.presence || "原因不明のエラー" %>
+    </div>
+  <% elsif google_api_run&.running? %>
+    <div class="alert-banner alert-banner-info">
+      Google API取得を実行中です。完了後にBusinessMetricDailyの更新件数が表示されます。
+    </div>
+  <% end %>
+
   <div class="inline-form">
     <div class="field compact-field">
       <label>GSC site_url</label>

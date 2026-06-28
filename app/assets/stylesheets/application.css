@@ -606,6 +606,28 @@ details.revenue-card > summary {
   overflow-wrap: anywhere;
 }
 
+.alert-banner {
+  border-radius: 8px;
+  margin: 1rem 0;
+  padding: 0.85rem 1rem;
+}
+
+.alert-banner-info {
+  background: #eef6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e3a8a;
+}
+
+.alert-banner-danger {
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  color: #991b1b;
+}
+
+.text-danger {
+  color: #b91c1c;
+}
+
 .system-monitor {
   background: #101820;
   border: 1px solid #263541;

@@ -7,8 +7,9 @@ module AicooAnalytics
 
     class Error < StandardError; end
 
-    def initialize(access_token:)
+    def initialize(access_token:, timeout: 20)
       @access_token = access_token
+      @timeout = timeout
     end
 
     def run_report(property_id:, start_date:, end_date:, dimensions: %w[date pagePath], metrics: default_metrics, limit: 1_000)
@@ -18,10 +19,18 @@ module AicooAnalytics
       request["Content-Type"] = "application/json"
       request.body = JSON.generate(request_body(start_date:, end_date:, dimensions:, metrics:, limit:))
 
-      response = Net::HTTP.start(uri.host, uri.port, use_ssl: true) { |http| http.request(request) }
+      response = Net::HTTP.start(
+        uri.host,
+        uri.port,
+        use_ssl: true,
+        open_timeout: @timeout,
+        read_timeout: @timeout
+      ) { |http| http.request(request) }
       raise Error, "GA4 API error: #{response.code} #{response.body}" unless response.is_a?(Net::HTTPSuccess)
 
       JSON.parse(response.body)
+    rescue Net::OpenTimeout, Net::ReadTimeout => e
+      raise Error, "GA4 API timeout: #{e.message}"
     rescue JSON::ParserError => e
       raise Error, "GA4 response could not be parsed: #{e.message}"
     end

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_28_131001) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_28_181300) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1123,6 +1123,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_28_131001) do
     t.index ["status"], name: "index_explore_observations_on_status"
   end
 
+  create_table "google_api_import_runs", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.decimal "duration_seconds", precision: 10, scale: 2
+    t.text "error_message"
+    t.integer "fetched_days", default: 28, null: false
+    t.datetime "finished_at"
+    t.jsonb "metadata", default: {}, null: false
+    t.jsonb "source_types", default: [], null: false
+    t.datetime "started_at"
+    t.string "status", default: "queued", null: false
+    t.datetime "updated_at", null: false
+    t.integer "updated_metric_count", default: 0, null: false
+    t.index ["business_id", "created_at"], name: "index_google_api_import_runs_on_business_id_and_created_at"
+    t.index ["business_id", "status"], name: "index_google_api_import_runs_on_business_id_and_status"
+    t.index ["business_id"], name: "index_google_api_import_runs_on_business_id"
+    t.index ["status"], name: "index_google_api_import_runs_on_status"
+  end
+
   create_table "meta_evaluation_snapshots", force: :cascade do |t|
     t.bigint "aicoo_daily_run_id"
     t.decimal "average_confidence_score", default: "0.0", null: false
@@ -1433,6 +1452,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_28_131001) do
   add_foreign_key "data_sources", "businesses"
   add_foreign_key "explore_observations", "explore_data_sources"
   add_foreign_key "explore_observations", "opportunity_discovery_items"
+  add_foreign_key "google_api_import_runs", "businesses"
   add_foreign_key "meta_evaluation_snapshots", "aicoo_daily_runs"
   add_foreign_key "meta_evaluation_snapshots", "businesses"
   add_foreign_key "opportunity_discovery_items", "action_candidates"

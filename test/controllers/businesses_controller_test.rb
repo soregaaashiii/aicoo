@@ -1,8 +1,20 @@
 require "test_helper"
 
 class BusinessesControllerTest < ActionDispatch::IntegrationTest
+  include ActiveJob::TestHelper
+
   setup do
+    @previous_queue_adapter = ActiveJob::Base.queue_adapter
+    ActiveJob::Base.queue_adapter = :test
+    clear_enqueued_jobs
+    clear_performed_jobs
     @business = businesses(:suelog)
+  end
+
+  teardown do
+    clear_enqueued_jobs
+    clear_performed_jobs
+    ActiveJob::Base.queue_adapter = @previous_queue_adapter
   end
 
   test "should get index" do
@@ -163,30 +175,17 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "imports google api metrics into business metric daily from business dashboard" do
-    fake_importer = Class.new do
-      Result = Data.define(:metric_count, :imported_source_labels)
-
-      def initialize(business:)
-        @business = business
-      end
-
-      def call
-        Result.new(2, %w[GSC GA4])
+    assert_difference("GoogleApiImportRun.count", 1) do
+      assert_enqueued_with(job: AicooAnalytics::BusinessGoogleApiImportJob) do
+        post import_google_api_business_url(@business)
       end
     end
-    original_new = AicooAnalytics::BusinessGoogleApiMetricImporter.method(:new)
-    AicooAnalytics::BusinessGoogleApiMetricImporter.define_singleton_method(:new) do |business:, **_kwargs|
-      fake_importer.new(business:)
-    end
 
-    post import_google_api_business_url(@business)
-
-    assert_redirected_to business_url(@business)
-    assert_equal "GSC / GA4 から直接取得しました。BusinessMetricDaily 2日分を更新しました。", flash[:notice]
-  ensure
-    AicooAnalytics::BusinessGoogleApiMetricImporter.define_singleton_method(:new) do |*args, **kwargs, &block|
-      original_new.call(*args, **kwargs, &block)
-    end
+    run = GoogleApiImportRun.last
+    assert_equal @business, run.business
+    assert_equal "queued", run.status
+    assert_redirected_to business_url(@business, anchor: "business-google")
+    assert_equal "Google API取得を開始しました。BusinessMetricDailyへの反映は完了後に表示されます。", flash[:notice]
   end
 
   test "should get edit" do
