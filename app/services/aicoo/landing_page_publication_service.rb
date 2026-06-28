@@ -12,6 +12,14 @@ module Aicoo
       new(landing_page).archive!
     end
 
+    def self.pause!(landing_page, pause_reason:, operator:, comment: nil, metadata: {})
+      Aicoo::LandingPagePauseService.pause(landing_page, pause_reason:, operator:, comment:, metadata:)
+    end
+
+    def self.resume!(landing_page, operator:, comment: nil, metadata: {})
+      Aicoo::LandingPagePauseService.resume(landing_page, operator:, comment:, metadata:)
+    end
+
     def self.update_content!(landing_page, attributes:)
       new(landing_page).update_content!(attributes:)
     end
@@ -26,7 +34,11 @@ module Aicoo
         published_at:,
         scheduled_publish_at: nil,
         status: "published",
-        public_status: "published"
+        public_status: "published",
+        pause_reason: nil,
+        pause_comment: nil,
+        paused_at: nil,
+        paused_by: nil
       )
       landing_page.aicoo_lab_experiment.mark_status!("running")
       landing_page

@@ -2,6 +2,9 @@ class RobotsController < ApplicationController
   def show
     render plain: <<~ROBOTS
       User-agent: *
+      Allow: /
+      Allow: /robots.txt
+      Allow: /sitemap.xml
       Allow: /lp
       Allow: /lp/
       Disallow: /owner

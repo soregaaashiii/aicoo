@@ -126,6 +126,82 @@ module Admin
         assert_response :not_found
       end
 
+      test "should pause and resume published landing page" do
+        experiment = AicooLabExperiment.create!(
+          title: "LP pause test",
+          experiment_type: "lp",
+          acquisition_channel: "sns",
+          status: "preview_ready",
+          approval_status: "approved"
+        )
+        landing_page = experiment.create_aicoo_lab_landing_page!(landing_page_params.merge(status: "preview_ready"))
+        landing_page.publish!
+
+        assert_difference("AicooLabLandingPagePublicationEvent.where(event_type: 'pause').count", 1) do
+          patch pause_admin_aicoo_lab_experiment_landing_page_url(experiment),
+                params: { pause_reason: "policy", pause_comment: "表現確認" }
+        end
+
+        assert_redirected_to admin_aicoo_lab_experiment_url(experiment)
+        landing_page.reload
+        assert_equal "paused", landing_page.public_status
+        assert_equal "policy", landing_page.pause_reason
+        assert_equal "表現確認", landing_page.pause_comment
+        assert_equal "admin", landing_page.paused_by
+
+        get public_lp_url(landing_page.published_slug)
+        assert_response :success
+        assert_includes response.body, "現在公開停止中です"
+
+        assert_difference("AicooLabLandingPagePublicationEvent.where(event_type: 'resume').count", 1) do
+          patch resume_admin_aicoo_lab_experiment_landing_page_url(experiment)
+        end
+
+        landing_page.reload
+        assert_equal "published", landing_page.public_status
+        assert_nil landing_page.pause_reason
+        assert_nil landing_page.paused_at
+        assert_equal "admin", landing_page.resumed_by
+      end
+
+      test "admin public landing page list shows pause details and filters" do
+        published_experiment = AicooLabExperiment.create!(
+          title: "LP list published",
+          experiment_type: "lp",
+          acquisition_channel: "sns",
+          status: "preview_ready",
+          approval_status: "approved"
+        )
+        published = published_experiment.create_aicoo_lab_landing_page!(
+          landing_page_params.merge(status: "published", public_status: "published", published_slug: "published-admin-list", published_at: Time.current)
+        )
+        paused_experiment = AicooLabExperiment.create!(
+          title: "LP list paused",
+          experiment_type: "lp",
+          acquisition_channel: "sns",
+          status: "preview_ready",
+          approval_status: "approved"
+        )
+        paused = paused_experiment.create_aicoo_lab_landing_page!(
+          landing_page_params.merge(headline: "Paused headline", status: "published", public_status: "published", published_slug: "paused-admin-list", published_at: Time.current)
+        )
+        paused.pause!(reason: "low_quality", operator: "admin", comment: "品質確認")
+
+        get admin_aicoo_lab_public_landing_pages_url
+
+        assert_response :success
+        assert_includes response.body, published.headline
+        assert_includes response.body, paused.headline
+        assert_includes response.body, "low_quality"
+        assert_includes response.body, "admin"
+
+        get admin_aicoo_lab_public_landing_pages_url(public_status: "paused")
+
+        assert_response :success
+        assert_includes response.body, paused.headline
+        assert_not_includes response.body, published.headline
+      end
+
       test "existing preview url still works" do
         experiment = AicooLabExperiment.create!(title: "LP preview intact test", experiment_type: "lp", acquisition_channel: "sns")
         landing_page = experiment.create_aicoo_lab_landing_page!(landing_page_params)

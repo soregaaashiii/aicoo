@@ -110,6 +110,21 @@ class PublicLandingPagesControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
+  test "paused landing page shows pause page without canonical and is noindex" do
+    landing_page = create_landing_page(headline: "Paused LP", published_slug: "paused-lp")
+    landing_page.pause!(reason: "manual", operator: "admin", comment: "確認中")
+
+    assert_no_difference("AicooLabLandingPageEvent.where(event_type: 'view').count") do
+      get public_lp_url(landing_page.published_slug)
+    end
+
+    assert_response :success
+    assert_includes response.body, "現在公開停止中です"
+    assert_includes response.body, "noindex,nofollow"
+    assert_not_includes response.body, "rel=\"canonical\""
+    assert_no_aicoo_management_links
+  end
+
   test "old landing page slug redirects permanently to current slug" do
     landing_page = create_landing_page(headline: "Slug LP", published_slug: "old-slug")
     landing_page.update!(published_slug: "new-slug")
@@ -155,17 +170,20 @@ class PublicLandingPagesControllerTest < ActionDispatch::IntegrationTest
     create_landing_page(headline: "Draft Sitemap LP", public_status: "draft", published_slug: "draft-sitemap-lp")
     create_landing_page(headline: "Scheduled Sitemap LP", status: "preview_ready", public_status: "scheduled", published_slug: "scheduled-sitemap-lp", scheduled_publish_at: 1.day.from_now)
     create_landing_page(headline: "Archived Sitemap LP", status: "unpublished", public_status: "archived", published_slug: "archived-sitemap-lp")
+    paused = create_landing_page(headline: "Paused Sitemap LP", published_slug: "paused-sitemap-lp")
+    paused.pause!(reason: "manual", operator: "admin")
 
     get sitemap_url(format: :xml)
 
     assert_response :success
-    assert_includes response.media_type, "xml"
+    assert_equal "application/xml", response.media_type
     assert_includes response.body, root_path
     assert_includes response.body, public_lp_path(landing_page.published_slug)
     assert_includes response.body, "<lastmod>"
     assert_not_includes response.body, "draft-sitemap-lp"
     assert_not_includes response.body, "scheduled-sitemap-lp"
     assert_not_includes response.body, "archived-sitemap-lp"
+    assert_not_includes response.body, "paused-sitemap-lp"
     assert_not_includes response.body, dashboard_url
     assert_not_includes response.body, "/admin"
     assert_not_includes response.body, "/owner"
@@ -175,6 +193,8 @@ class PublicLandingPagesControllerTest < ActionDispatch::IntegrationTest
     get robots_url
 
     assert_response :success
+    assert_includes response.body, "Allow: /"
+    assert_includes response.body, "Allow: /sitemap.xml"
     assert_includes response.body, "Allow: /lp"
     assert_includes response.body, "Disallow: /admin"
     assert_includes response.body, "Disallow: /owner"

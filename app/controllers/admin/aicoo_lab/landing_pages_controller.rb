@@ -2,7 +2,7 @@ module Admin
   module AicooLab
     class LandingPagesController < ApplicationController
       before_action :set_experiment
-      before_action :set_landing_page, only: %i[ edit update preview_ready publish unpublish ]
+      before_action :set_landing_page, only: %i[ edit update preview_ready publish pause resume unpublish ]
 
       def new
         if @experiment.aicoo_lab_landing_page
@@ -49,6 +49,27 @@ module Admin
         end
       end
 
+      def pause
+        Aicoo::LandingPagePauseService.pause(
+          @landing_page,
+          pause_reason: pause_params[:pause_reason].presence || "manual",
+          operator: "admin",
+          comment: pause_params[:pause_comment],
+          metadata: { source: "admin" }
+        )
+        redirect_to admin_aicoo_lab_experiment_path(@experiment), notice: "LPを公開停止しました。"
+      end
+
+      def resume
+        Aicoo::LandingPagePauseService.resume(
+          @landing_page,
+          operator: "admin",
+          comment: params[:resume_comment],
+          metadata: { source: "admin" }
+        )
+        redirect_to admin_aicoo_lab_experiment_path(@experiment), notice: "LPを再公開しました。"
+      end
+
       def unpublish
         @landing_page.unpublish!
         redirect_to admin_aicoo_lab_experiment_path(@experiment), notice: "LPを非公開にしました。"
@@ -73,6 +94,10 @@ module Admin
             :og_image_url, :canonical_url, :generated_at, :notes
           ]
         )
+      end
+
+      def pause_params
+        params.permit(:pause_reason, :pause_comment)
       end
     end
   end

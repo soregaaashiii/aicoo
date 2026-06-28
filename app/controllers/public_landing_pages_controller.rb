@@ -2,7 +2,8 @@ class PublicLandingPagesController < ApplicationController
   layout "public_lp"
 
   before_action :publish_due_landing_pages
-  before_action :set_landing_page, only: %i[show cta_click scroll new_signup create_signup]
+  before_action :set_show_landing_page, only: :show
+  before_action :set_active_landing_page, only: %i[cta_click scroll new_signup create_signup]
   before_action :set_rendering_context, only: %i[show new_signup create_signup]
 
   def index
@@ -18,6 +19,11 @@ class PublicLandingPagesController < ApplicationController
   end
 
   def show
+    if @landing_page.paused?
+      render :paused
+      return
+    end
+
     event_recorder.record!("view")
     @landing_page.aicoo_lab_experiment.increment!(:current_pv)
     render "aicoo_lab/previews/show"
@@ -57,13 +63,17 @@ class PublicLandingPagesController < ApplicationController
       .order(published_at: :desc, created_at: :desc)
   end
 
-  def set_landing_page
+  def visible_landing_pages
+    AicooLabLandingPage.with_public_slug.where(public_status: %w[published paused])
+  end
+
+  def set_show_landing_page
     requested_slug = params.expect(:published_slug)
-    @landing_page = published_landing_pages.find_by(published_slug: requested_slug)
+    @landing_page = visible_landing_pages.find_by(published_slug: requested_slug)
     return if @landing_page
 
     slug_history = AicooLabLandingPageSlugHistory.find_by(slug: requested_slug)
-    if slug_history&.aicoo_lab_landing_page&.publicly_visible?
+    if slug_history&.aicoo_lab_landing_page&.publicly_visible? || slug_history&.aicoo_lab_landing_page&.paused_publicly_visible?
       redirect_to public_lp_path(slug_history.aicoo_lab_landing_page.published_slug), status: :moved_permanently
       return
     end
@@ -71,9 +81,15 @@ class PublicLandingPagesController < ApplicationController
     raise ActiveRecord::RecordNotFound
   end
 
+  def set_active_landing_page
+    @landing_page = published_landing_pages.find_by!(published_slug: params.expect(:published_slug))
+  end
+
   def set_rendering_context
-    @lp_mode_label = "公開中"
+    @lp_mode_label = @landing_page.paused? ? "公開停止中" : "公開中"
     @lp_mode_description = nil
+    return if @landing_page.paused?
+
     @cta_click_path = public_lp_cta_click_path(@landing_page.published_slug)
     @scroll_event_path = public_lp_scroll_path(@landing_page.published_slug)
     @signup_path = public_lp_signup_path(@landing_page.published_slug)

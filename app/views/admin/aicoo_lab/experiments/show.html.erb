@@ -63,7 +63,20 @@
     <div class="aicoo-lab-card">
       <dl class="detail-list">
         <dt>公開状態</dt>
-        <dd><span class="pill"><%= aicoo_lab_status_label(@landing_page.status) %></span></dd>
+        <dd>
+          <span class="pill"><%= aicoo_lab_status_label(@landing_page.status) %></span>
+          <span class="pill"><%= @landing_page.public_status %></span>
+        </dd>
+        <% if @landing_page.paused? %>
+          <dt>停止理由</dt>
+          <dd><%= @landing_page.pause_reason.presence || "-" %></dd>
+          <dt>停止コメント</dt>
+          <dd><%= @landing_page.pause_comment.presence || "-" %></dd>
+          <dt>停止日時</dt>
+          <dd><%= @landing_page.paused_at ? l(@landing_page.paused_at, format: :short) : "-" %></dd>
+          <dt>停止者</dt>
+          <dd><%= @landing_page.paused_by.presence || "-" %></dd>
+        <% end %>
         <dt>確認用Preview</dt>
         <dd>
           <%= link_to aicoo_lab_preview_url(@landing_page.preview_slug), aicoo_lab_preview_path(@landing_page.preview_slug), target: "_blank", rel: "noopener" %>
@@ -87,9 +100,20 @@
         <div class="metric-card"><span>Signup率</span><strong><%= @landing_page.signup_rate ? number_to_percentage(@landing_page.signup_rate * 100, precision: 1) : "-" %></strong></div>
       </div>
       <div class="actions compact-actions">
+        <%= link_to "公開LP管理を見る", admin_aicoo_lab_public_landing_pages_path, class: "button secondary" %>
         <%= link_to "公開LP一覧を見る", public_landing_pages_path, class: "button secondary", target: "_blank", rel: "noopener" %>
         <% if @landing_page.publishable? %>
           <%= button_to "無料公開する", publish_admin_aicoo_lab_experiment_landing_page_path(@experiment), method: :patch, class: "button" %>
+        <% end %>
+        <% if @landing_page.public_status == "published" %>
+          <%= form_with url: pause_admin_aicoo_lab_experiment_landing_page_path(@experiment), method: :patch, class: "form compact-form" do |form| %>
+            <%= form.select :pause_reason, AicooLabLandingPage::PAUSE_REASONS, selected: "manual" %>
+            <%= form.text_field :pause_comment, placeholder: "停止コメント任意" %>
+            <%= form.submit "公開停止", class: "button secondary" %>
+          <% end %>
+        <% end %>
+        <% if @landing_page.paused? %>
+          <%= button_to "再公開", resume_admin_aicoo_lab_experiment_landing_page_path(@experiment), method: :patch, class: "button" %>
         <% end %>
         <% if @landing_page.status == "published" %>
           <%= button_to "非公開にする", unpublish_admin_aicoo_lab_experiment_landing_page_path(@experiment), method: :patch, class: "button secondary" %>

@@ -1,12 +1,18 @@
 class AicooLabLandingPage < ApplicationRecord
   STATUSES = %w[draft preview_ready approved rejected published unpublished].freeze
-  PUBLIC_STATUSES = %w[draft scheduled published archived].freeze
+  PUBLIC_STATUSES = %w[draft scheduled published paused archived].freeze
   GENERATION_SOURCES = %w[manual candidate_conversion].freeze
+  PAUSE_REASONS = %w[
+    manual ai_quality policy copyright spam low_quality conversion_low runtime_error other
+  ].freeze
 
   belongs_to :aicoo_lab_experiment
   has_many :aicoo_lab_landing_page_events, dependent: :destroy
   has_many :slug_histories,
            class_name: "AicooLabLandingPageSlugHistory",
+           dependent: :destroy
+  has_many :publication_events,
+           class_name: "AicooLabLandingPagePublicationEvent",
            dependent: :destroy
   has_many :aicoo_lab_signups, dependent: :destroy
 
@@ -15,6 +21,7 @@ class AicooLabLandingPage < ApplicationRecord
 
   validates :status, inclusion: { in: STATUSES }
   validates :public_status, inclusion: { in: PUBLIC_STATUSES }
+  validates :pause_reason, inclusion: { in: PAUSE_REASONS }, allow_blank: true
   validates :generation_source, inclusion: { in: GENERATION_SOURCES }
   validates :preview_slug, presence: true, uniqueness: true
   validates :assumed_price_yen, numericality: { only_integer: true, greater_than_or_equal_to: 0 }, allow_nil: true
@@ -23,6 +30,7 @@ class AicooLabLandingPage < ApplicationRecord
   scope :publicly_available, -> {
     with_public_slug.where(public_status: "published").where("published_at IS NULL OR published_at <= ?", Time.current)
   }
+  scope :paused_public_pages, -> { with_public_slug.where(public_status: "paused") }
   scope :scheduled_for_publication, -> {
     where(public_status: "scheduled").where.not(scheduled_publish_at: nil).where(scheduled_publish_at: ..Time.current)
   }
@@ -53,13 +61,17 @@ class AicooLabLandingPage < ApplicationRecord
       self.status = "published"
       self.public_status = "published"
       self.scheduled_publish_at = nil
+      clear_pause_state
       save!
+      record_publication_event!("publish", from_status: public_status_before_last_save, to_status: public_status)
       aicoo_lab_experiment.mark_status!("running")
     end
   end
 
   def unpublish!
+    previous_status = public_status
     update!(status: "unpublished", public_status: "archived")
+    record_publication_event!("archive", from_status: previous_status, to_status: "archived")
   end
 
   def schedule_publication!(scheduled_publish_at:)
@@ -68,6 +80,7 @@ class AicooLabLandingPage < ApplicationRecord
       scheduled_publish_at:,
       published_slug: published_slug.presence || unique_published_slug
     )
+    record_publication_event!("schedule", from_status: public_status_before_last_save, to_status: "scheduled")
   end
 
   def publish_scheduled!
@@ -77,13 +90,62 @@ class AicooLabLandingPage < ApplicationRecord
       self.public_status = "published"
       self.status = "published"
       self.scheduled_publish_at = nil
+      clear_pause_state
       save!
+      record_publication_event!("publish", from_status: public_status_before_last_save, to_status: public_status)
       aicoo_lab_experiment.mark_status!("running")
     end
   end
 
   def publicly_visible?
     public_status == "published" && published_slug.present? && (published_at.blank? || published_at <= Time.current)
+  end
+
+  def paused_publicly_visible?
+    public_status == "paused" && published_slug.present?
+  end
+
+  def pause!(reason:, operator:, comment: nil, metadata: {})
+    previous_status = public_status
+    update!(
+      public_status: "paused",
+      pause_reason: reason.presence || "manual",
+      pause_comment: comment,
+      paused_at: Time.current,
+      paused_by: operator.presence || "system"
+    )
+    record_publication_event!(
+      "pause",
+      from_status: previous_status,
+      to_status: "paused",
+      reason: pause_reason,
+      operator: paused_by,
+      comment: pause_comment,
+      metadata:
+    )
+  end
+
+  def resume!(operator:, comment: nil, metadata: {})
+    previous_status = public_status
+    update!(
+      status: "published",
+      public_status: "published",
+      published_at: published_at.presence || Time.current,
+      resumed_at: Time.current,
+      resumed_by: operator.presence || "system",
+      scheduled_publish_at: nil
+    )
+    record_publication_event!(
+      "resume",
+      from_status: previous_status,
+      to_status: "published",
+      reason: pause_reason,
+      operator: resumed_by,
+      comment:,
+      metadata:
+    )
+    clear_pause_state
+    save!
   end
 
   def ensure_published_slug
@@ -113,6 +175,10 @@ class AicooLabLandingPage < ApplicationRecord
 
   def effective_og_image_url
     og_image_url.presence
+  end
+
+  def paused?
+    public_status == "paused"
   end
 
   def publishable?
@@ -202,6 +268,25 @@ class AicooLabLandingPage < ApplicationRecord
 
       break slug unless self.class.exists?(published_slug: slug)
     end
+  end
+
+  def clear_pause_state
+    self.pause_reason = nil
+    self.pause_comment = nil
+    self.paused_at = nil
+    self.paused_by = nil
+  end
+
+  def record_publication_event!(event_type, from_status:, to_status:, reason: nil, operator: nil, comment: nil, metadata: {})
+    publication_events.create!(
+      event_type:,
+      from_status:,
+      to_status:,
+      reason:,
+      operator:,
+      comment:,
+      metadata:
+    )
   end
 
   def record_published_slug_history

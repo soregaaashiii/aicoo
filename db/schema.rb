@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_28_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_28_123000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -577,6 +577,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_28_120000) do
     t.index ["occurred_at"], name: "index_aicoo_lab_landing_page_events_on_occurred_at"
   end
 
+  create_table "aicoo_lab_landing_page_publication_events", force: :cascade do |t|
+    t.bigint "aicoo_lab_landing_page_id", null: false
+    t.text "comment"
+    t.datetime "created_at", null: false
+    t.string "event_type", null: false
+    t.string "from_status"
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "occurred_at", null: false
+    t.string "operator"
+    t.string "reason"
+    t.string "to_status"
+    t.datetime "updated_at", null: false
+    t.index ["aicoo_lab_landing_page_id"], name: "idx_on_aicoo_lab_landing_page_id_11ca90a8e1"
+    t.index ["event_type"], name: "index_aicoo_lab_landing_page_publication_events_on_event_type"
+    t.index ["occurred_at"], name: "index_aicoo_lab_landing_page_publication_events_on_occurred_at"
+  end
+
   create_table "aicoo_lab_landing_page_slug_histories", force: :cascade do |t|
     t.bigint "aicoo_lab_landing_page_id", null: false
     t.datetime "created_at", null: false
@@ -600,10 +617,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_28_120000) do
     t.text "og_description"
     t.string "og_image_url"
     t.string "og_title"
+    t.text "pause_comment"
+    t.string "pause_reason"
+    t.datetime "paused_at"
+    t.string "paused_by"
     t.string "preview_slug", null: false
     t.string "public_status", default: "draft", null: false
     t.datetime "published_at"
     t.string "published_slug"
+    t.datetime "resumed_at"
+    t.string "resumed_by"
     t.datetime "scheduled_publish_at"
     t.text "seo_description"
     t.string "seo_title"
@@ -613,6 +636,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_28_120000) do
     t.index ["aicoo_lab_experiment_id"], name: "index_aicoo_lab_landing_pages_on_aicoo_lab_experiment_id"
     t.index ["aicoo_lab_experiment_id"], name: "index_lab_landing_pages_on_experiment_id", unique: true
     t.index ["generation_source"], name: "index_aicoo_lab_landing_pages_on_generation_source"
+    t.index ["pause_reason"], name: "index_aicoo_lab_landing_pages_on_pause_reason"
+    t.index ["paused_at"], name: "index_aicoo_lab_landing_pages_on_paused_at"
     t.index ["preview_slug"], name: "index_aicoo_lab_landing_pages_on_preview_slug", unique: true
     t.index ["public_status"], name: "index_aicoo_lab_landing_pages_on_public_status"
     t.index ["published_slug"], name: "index_aicoo_lab_landing_pages_on_published_slug", unique: true
@@ -1353,6 +1378,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_28_120000) do
   add_foreign_key "aicoo_lab_error_metrics", "aicoo_lab_results"
   add_foreign_key "aicoo_lab_experiment_candidates", "aicoo_lab_experiments", column: "converted_experiment_id"
   add_foreign_key "aicoo_lab_landing_page_events", "aicoo_lab_landing_pages"
+  add_foreign_key "aicoo_lab_landing_page_publication_events", "aicoo_lab_landing_pages"
   add_foreign_key "aicoo_lab_landing_page_slug_histories", "aicoo_lab_landing_pages"
   add_foreign_key "aicoo_lab_landing_pages", "aicoo_lab_experiments"
   add_foreign_key "aicoo_lab_predictions", "aicoo_lab_experiments"

@@ -1,0 +1,61 @@
+<% content_for :title, "公開LP管理" %>
+
+<% header_actions = capture do %>
+  <%= link_to "新規事業へ戻る", admin_aicoo_lab_experiments_path, class: "button secondary" %>
+  <%= link_to "公開サイトを見る", public_landing_pages_path, class: "button secondary", target: "_blank", rel: "noopener" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "公開LP管理",
+             description: "公開中・停止中・アーカイブ済みLPを管理します。",
+             active_main: :lab,
+             actions: header_actions %>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>フィルタ</h2>
+      <p>公開状態ごとに公開停止・再公開対象を確認できます。</p>
+    </div>
+    <div class="actions compact-actions">
+      <%= link_to "すべて", admin_aicoo_lab_public_landing_pages_path, class: "button secondary" %>
+      <%= link_to "published", admin_aicoo_lab_public_landing_pages_path(public_status: "published"), class: "button secondary" %>
+      <%= link_to "paused", admin_aicoo_lab_public_landing_pages_path(public_status: "paused"), class: "button secondary" %>
+      <%= link_to "archived", admin_aicoo_lab_public_landing_pages_path(public_status: "archived"), class: "button secondary" %>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>LP</th>
+            <th>状態</th>
+            <th>停止理由</th>
+            <th>停止日時</th>
+            <th>停止者</th>
+            <th>公開URL</th>
+            <th>管理</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @landing_pages.each do |landing_page| %>
+            <tr>
+              <td><%= landing_page.headline %></td>
+              <td><span class="pill"><%= landing_page.public_status %></span></td>
+              <td><%= landing_page.pause_reason.presence || "-" %></td>
+              <td><%= landing_page.paused_at ? l(landing_page.paused_at, format: :short) : "-" %></td>
+              <td><%= landing_page.paused_by.presence || "-" %></td>
+              <td><%= link_to "表示", public_lp_path(landing_page.published_slug), target: "_blank", rel: "noopener" %></td>
+              <td><%= link_to "詳細", admin_aicoo_lab_experiment_path(landing_page.aicoo_lab_experiment), class: "button secondary" %></td>
+            </tr>
+          <% end %>
+          <% if @landing_pages.empty? %>
+            <tr><td colspan="7">対象の公開LPはありません。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
