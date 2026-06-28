@@ -1,0 +1,141 @@
+<% content_for :title, "SERP設定" %>
+
+<% header_actions = capture do %>
+  <%= link_to "AICOO全体設定", aicoo_setting_path, class: "button secondary" %>
+  <%= link_to "実績データ", admin_aicoo_datahub_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "SERP設定",
+             description: "SERP ProviderをAdapter経由でテストします。AICOO本体はProvider固有JSONを直接読みません。",
+             active_main: :system,
+             actions: header_actions %>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Provider状態</h2>
+      <p>Providerは <code>AICOO_SERP_PROVIDER</code> で切り替えできます。初期ProviderはSerperです。</p>
+    </div>
+
+    <div class="metric-grid">
+      <div class="metric-card">
+        <span>現在のProvider</span>
+        <strong><%= @current_provider %></strong>
+      </div>
+      <div class="metric-card">
+        <span>API Key</span>
+        <strong><%= @api_key_configured ? "設定済み" : "未設定" %></strong>
+      </div>
+      <div class="metric-card">
+        <span>実行モード</span>
+        <strong><%= @serp_profile.execution_mode %></strong>
+      </div>
+      <div class="metric-card">
+        <span>月間予算</span>
+        <strong><%= number_to_currency(@serp_profile.monthly_budget_yen, unit: "¥", precision: 0) %></strong>
+      </div>
+    </div>
+
+    <% unless @api_key_configured %>
+      <div class="error-toast">
+        SERPER_API_KEY または AICOO全体設定のSERP API Keyが未設定です。
+      </div>
+    <% end %>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>テスト検索</h2>
+      <p>Google Searchのみ実装済みです。Maps / News / Shopping / AI Overview / Images / Videos は未実装Providerとしてエラー表示します。</p>
+    </div>
+
+    <%= form_with url: test_search_admin_serp_settings_path, scope: :serp_test, method: :post, class: "form" do |form| %>
+      <div class="form-grid">
+        <div>
+          <%= form.label :provider, "Provider" %>
+          <%= form.select :provider, @provider_keys.map { |key| [key.to_s, key.to_s] }, selected: @test_params[:provider] %>
+        </div>
+        <div>
+          <%= form.label :type, "検索タイプ" %>
+          <%= form.select :type,
+                          Aicoo::Serp::Adapter::TYPES.map { |type| [type.to_s, type.to_s] },
+                          selected: @test_params[:type] %>
+        </div>
+        <div>
+          <%= form.label :query, "query" %>
+          <%= form.text_field :query, value: @test_params[:query], required: true %>
+        </div>
+        <div>
+          <%= form.label :location, "location" %>
+          <%= form.text_field :location, value: @test_params[:location] %>
+        </div>
+        <div>
+          <%= form.label :language, "language" %>
+          <%= form.text_field :language, value: @test_params[:language] %>
+        </div>
+        <div>
+          <%= form.label :limit, "limit" %>
+          <%= form.number_field :limit, value: @test_params[:limit], min: 1, max: 100 %>
+        </div>
+      </div>
+
+      <div class="actions">
+        <%= form.submit "SERP Adapterでテスト検索",
+                        class: "button",
+                        data: { aicoo_loading_label: "SERP検索中..." } %>
+      </div>
+    <% end %>
+  </section>
+
+  <% if @error_message.present? %>
+    <section class="dashboard-section">
+      <div class="error-toast"><%= @error_message %></div>
+    </section>
+  <% end %>
+
+  <% if @result.present? %>
+    <% payload = @result.to_h %>
+    <section class="dashboard-section">
+      <div class="section-heading">
+        <h2>実行結果</h2>
+        <p>Provider非依存の共通形式へ正規化済みです。</p>
+      </div>
+
+      <div class="metric-grid">
+        <div class="metric-card"><span>Provider</span><strong><%= payload["provider"] %></strong></div>
+        <div class="metric-card"><span>Type</span><strong><%= payload["type"] %></strong></div>
+        <div class="metric-card"><span>Query</span><strong><%= payload["query"] %></strong></div>
+        <div class="metric-card"><span>Organic</span><strong><%= payload["organic_results"].size %>件</strong></div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>順位</th>
+              <th>タイトル</th>
+              <th>URL</th>
+              <th>Snippet</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% payload["organic_results"].each do |row| %>
+              <tr>
+                <td><%= row["position"] %></td>
+                <td><%= row["title"] %></td>
+                <td><%= link_to row["displayed_url"].presence || row["url"], row["url"], target: "_blank", rel: "noopener" if row["url"].present? %></td>
+                <td><%= truncate(row["snippet"], length: 140) %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+
+      <details>
+        <summary>共通JSONを見る</summary>
+        <pre><%= JSON.pretty_generate(payload.except("raw_response")) %></pre>
+      </details>
+    </section>
+  <% end %>
+</div>

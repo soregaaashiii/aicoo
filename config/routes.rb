@@ -172,6 +172,9 @@ Rails.application.routes.draw do
     get "google_api_imports", to: "google_api_imports#index", as: :google_api_imports
     post "google_api_imports", to: "google_api_imports#create"
     post "google_api_imports/:business_id", to: "google_api_imports#create", as: :google_api_import
+    resource :serp_settings, only: :show do
+      post :test_search
+    end
     resources :analytics_imports, only: %i[index create] do
       post :reprocess, on: :member
     end
