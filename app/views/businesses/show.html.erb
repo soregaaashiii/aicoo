@@ -648,32 +648,12 @@
   <% end %>
 
   <% ga4_result = google_api_run&.metadata&.fetch("source_results", [])&.find { |row| row["source"] == "ga4" } %>
-  <% if ga4_result.present? %>
+  <% if ga4_result&.dig("property_id_warning").present? %>
     <div class="alert-banner alert-banner-info">
-      GA4取得診断:
-      Property <%= ga4_result["identifier"].presence || analytics.settings[:ga4_property_id].presence || "未設定" %> /
-      期間 <%= ga4_result["start_date"] || "-" %>〜<%= ga4_result["end_date"] || "-" %> /
-      API <%= ga4_result["api_row_count"] || ga4_result["row_count"] || 0 %>行 /
-      保存 <%= ga4_result["saved_day_count"] || ga4_result["row_count"] || 0 %>日 /
-      sessions <%= ga4_result.dig("totals", "sessions").to_i %> /
-      pageviews <%= ga4_result.dig("totals", "pageviews").to_i %>
-      <% if ga4_result["property_id_warning"].present? %>
-        <br><strong><%= ga4_result["property_id_warning"] %></strong>
-      <% end %>
+      <strong><%= ga4_result["property_id_warning"] %></strong>
+      <br><%= link_to "SYSTEMのGoogle取得履歴で診断を見る", admin_google_api_imports_path, class: "button secondary" %>
     </div>
   <% end %>
-
-  <% credential_snapshot = google_api_run&.metadata&.dig("google_credential_at_enqueue") || google_api_run&.metadata&.dig("google_credential_at_success") %>
-  <% if credential_snapshot.present? %>
-    <div class="alert-banner alert-banner-info">
-      直近取得で使用したGoogle Credential:
-      #<%= credential_snapshot["record_id"] || "-" %> /
-      <%= credential_snapshot["client_id"].presence || "client_id未記録" %> /
-      <%= credential_snapshot["google_cloud_project_id"].presence || "project_id未記録" %>
-    </div>
-  <% end %>
-
-  <%= render "shared/google_oauth_client_status", credential: @google_credential %>
 
   <div class="inline-form">
     <div class="field compact-field">
@@ -706,41 +686,7 @@
                   form: { data: { aicoo_submit_lock: true, aicoo_loading_label: "GA4取得中..." } },
                   disabled: analytics.settings[:ga4_property_id].blank? %>
     <%= link_to "Google紐付けを編集", edit_business_path(@business, return_to: business_path(@business, anchor: "business-google"), anchor: "data-source-link-settings"), class: "button secondary" %>
-  </div>
-
-  <div class="table-wrap">
-    <h3>直近実行履歴</h3>
-    <table>
-      <thead>
-        <tr>
-          <th>開始</th>
-          <th>終了</th>
-          <th>状態</th>
-          <th>実行時間</th>
-          <th>取得日数</th>
-          <th>更新件数</th>
-          <th>エラー</th>
-        </tr>
-      </thead>
-      <tbody>
-        <% @google_api_import_runs.each do |run| %>
-          <tr>
-            <td><%= run.started_at ? l(run.started_at, format: :short) : "-" %></td>
-            <td><%= run.finished_at ? l(run.finished_at, format: :short) : "-" %></td>
-            <td><span class="pill"><%= run.status_label %></span></td>
-            <td><%= run.duration_seconds ? "#{run.duration_seconds.to_f.round(1)}秒" : "-" %></td>
-            <td><%= run.fetched_days %>日</td>
-            <td><%= run.updated_metric_count %>件</td>
-            <td><%= run.error_message.presence || "-" %></td>
-          </tr>
-        <% end %>
-        <% if @google_api_import_runs.empty? %>
-          <tr>
-            <td colspan="7">Google API取得履歴はまだありません。</td>
-          </tr>
-        <% end %>
-      </tbody>
-    </table>
+    <%= link_to "取得履歴とAPI診断", admin_google_api_imports_path, class: "button secondary" %>
   </div>
 </section>
 

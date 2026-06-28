@@ -1,5 +1,8 @@
 class Business < ApplicationRecord
   STATUSES = %w[idea researching building launched paused sold withdrawn].freeze
+  SYSTEM_BUSINESS_NAMES = [
+    "AICOO Analytics Import"
+  ].freeze
 
   has_many :action_candidates, dependent: :destroy
   has_many :opportunity_discovery_items, dependent: :nullify
@@ -24,7 +27,14 @@ class Business < ApplicationRecord
   validates :name, presence: true
   validates :status, inclusion: { in: STATUSES }, allow_blank: true
 
+  scope :real_businesses, -> { where.not(name: SYSTEM_BUSINESS_NAMES) }
+  scope :system_businesses, -> { where(name: SYSTEM_BUSINESS_NAMES) }
+
   before_validation :set_default_status
+
+  def system_business?
+    name.in?(SYSTEM_BUSINESS_NAMES)
+  end
 
   def current_month_revenue
     revenue_amount(current_month_range)

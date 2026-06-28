@@ -6,7 +6,7 @@ module Admin
     end
 
     def action_predictions
-      @businesses = Business.order(:name)
+      @businesses = Business.real_businesses.order(:name)
       @judge_result = AicooJudge::ActionResultJudge.new(action_prediction_filters).call
     end
 

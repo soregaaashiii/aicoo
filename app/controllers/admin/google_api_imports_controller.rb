@@ -1,7 +1,7 @@
 module Admin
   class GoogleApiImportsController < ApplicationController
     def index
-      @businesses = Business.includes(:business_data_source_settings).order(:name)
+      @businesses = Business.real_businesses.includes(:business_data_source_settings).order(:name)
       @google_credential = AicooGoogleCredential.default&.reload
       @google_api_import_runs_by_business_id = GoogleApiImportRun
         .where(business_id: @businesses.map(&:id))

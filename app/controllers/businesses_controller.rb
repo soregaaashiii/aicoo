@@ -3,7 +3,7 @@ class BusinessesController < ApplicationController
 
   # GET /businesses or /businesses.json
   def index
-    @businesses = Business.includes(:business_execution_profile).order(:name)
+    @businesses = Business.real_businesses.includes(:business_execution_profile).order(:name)
     @business_integration_health = Aicoo::BusinessIntegrationHealth.new.call
     @data_source_settings_presenter = Aicoo::DataSourceSettingsPresenter.new
     @business_analytics_summaries = Aicoo::BusinessAnalyticsSummary.for_businesses(

@@ -18,6 +18,12 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "should get index" do
+    Business.create!(
+      name: "AICOO Analytics Import",
+      description: "system import folder",
+      status: "launched"
+    )
+
     get businesses_url
     assert_response :success
     assert_includes response.body, "Health"
@@ -34,6 +40,7 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "missing"
     assert_includes response.body, "Profile作成"
     assert_includes response.body, "CODEX"
+    assert_not_includes response.body, "AICOO Analytics Import"
   end
 
   test "index shows execution profile coverage status" do
@@ -170,13 +177,12 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "GSC取得"
     assert_includes response.body, "GA4取得"
     assert_includes response.body, "接続済み"
-    assert_includes response.body, "Record ID"
-    assert_includes response.body, credential.id.to_s
+    assert_includes response.body, "取得履歴とAPI診断"
     refute_includes response.body, "GSC未接続"
     refute_includes response.body, "GA4未接続"
   end
 
-  test "show displays long running operation status and google api history" do
+  test "show displays long running operation status and links google api history to system" do
     GoogleApiImportRun.create!(
       business: @business,
       status: "running",
@@ -210,9 +216,9 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "実行中の処理があります"
     assert_includes response.body, "Google API取得中"
     assert_includes response.body, "data-aicoo-auto-refresh=\"5000\""
-    assert_includes response.body, "直近実行履歴"
+    assert_includes response.body, "取得履歴とAPI診断"
     assert_includes response.body, "Refresh Tokenがありません"
-    assert_includes response.body, "更新 2件"
+    assert_not_includes response.body, "直近実行履歴"
   end
 
   test "imports google api metrics into business metric daily from business dashboard" do

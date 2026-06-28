@@ -32,7 +32,7 @@ module AicooAnalytics
 
     def analytics_data_source(source_type)
       type = source_type.presence_in(SOURCE_TYPES) || "ga4"
-      business = Business.find_or_create_by!(name: "AICOO Analytics Import") do |record|
+      business = Business.find_or_create_by!(name: Business::SYSTEM_BUSINESS_NAMES.first) do |record|
         record.description = "GA4/GSCの貼り付けデータをAICOOに取り込むための管理用フォルダです。"
         record.status = "launched"
       end

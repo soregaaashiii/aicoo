@@ -4,7 +4,7 @@ module Admin
       before_action :set_candidate, only: :create_landing_page
 
       def index
-        @businesses = Business.order(:name)
+        @businesses = Business.real_businesses.order(:name)
         @candidates = SerpLandingPageCandidate
                       .includes(:serp_analysis, :aicoo_lab_landing_page)
                       .by_expected_value

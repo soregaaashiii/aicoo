@@ -15,7 +15,7 @@
   <div class="grid">
     <div class="field">
       <%= form.label :business_id, "Business" %>
-      <%= form.collection_select :business_id, Business.order(:name), :id, :name, prompt: "選択してください" %>
+      <%= form.collection_select :business_id, Business.real_businesses.order(:name), :id, :name, prompt: "選択してください" %>
     </div>
     <div class="field">
       <%= form.label :repository_type, "Repository Type" %>

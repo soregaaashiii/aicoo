@@ -37,6 +37,11 @@ module Admin
     end
 
     test "shows google api import screen separated from csv import" do
+      Business.create!(
+        name: "AICOO Analytics Import",
+        description: "system import folder",
+        status: "launched"
+      )
       GoogleApiImportRun.create!(
         business: @business,
         status: "success",
@@ -51,8 +56,9 @@ module Admin
 
       assert_response :success
       assert_includes response.body, "Google API直取得"
-      assert_includes response.body, "CSV貼り付けは使いません"
+      assert_includes response.body, "SYSTEM側で管理します"
       assert_includes response.body, @business.name
+      assert_not_includes response.body, "AICOO Analytics Import"
       assert_includes response.body, "sc-domain:suelog.test"
       assert_includes response.body, "properties/123"
       assert_includes response.body, "Google APIから取得"

@@ -23,7 +23,7 @@
     <div class="grid">
       <div class="field">
         <%= form.label :business_id, "事業" %>
-        <%= form.collection_select :business_id, Business.order(:name), :id, :name, include_blank: "未指定" %>
+        <%= form.collection_select :business_id, Business.real_businesses.order(:name), :id, :name, include_blank: "未指定" %>
       </div>
       <div class="field">
         <%= form.label :source_type, "source_type" %>

@@ -9,14 +9,14 @@
 <div class="aicoo-page">
   <%= render "shared/aicoo_header",
              title: "Google API直取得",
-             description: "Google OAuthのRefresh Tokenを使い、BusinessごとのGA4 / GSCから直接取得してBusinessMetricDailyへ保存します。",
+             description: "SYSTEM管理のGoogle OAuthを使い、取得対象Businessを選んでGA4 / GSCからBusinessMetricDailyへ保存します。",
              active_main: :datahub,
              actions: header_actions %>
 
   <section class="dashboard-section">
     <div class="aicoo-lab-help">
       <strong>この画面でやること</strong>
-      <p>CSV貼り付けは使いません。GSC site_url / GA4 property_id とGoogle OAuth接続済みのRefresh Tokenを使って、Google APIから日次KPIを直接取得します。</p>
+      <p>Google OAuth、Google Credentials、Google API取得、Import履歴、API診断はSYSTEM側で管理します。Businessには接続状態と取得ボタンだけを表示します。</p>
     </div>
     <%= render "shared/google_oauth_client_status", credential: @google_credential %>
   </section>

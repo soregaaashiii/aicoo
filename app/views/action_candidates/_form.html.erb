@@ -16,7 +16,7 @@
 
     <div class="field">
       <%= form.label :business_id, "事業フォルダ" %>
-      <%= form.collection_select :business_id, Business.order(:name), :id, :name, prompt: "選択してください" %>
+      <%= form.collection_select :business_id, Business.real_businesses.order(:name), :id, :name, prompt: "選択してください" %>
     </div>
 
     <div class="field">

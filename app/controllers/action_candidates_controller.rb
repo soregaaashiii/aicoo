@@ -13,7 +13,7 @@ class ActionCandidatesController < ApplicationController
 
   # GET /action_candidates or /action_candidates.json
   def index
-    @businesses = Business.order(:name)
+    @businesses = Business.real_businesses.order(:name)
     @action_candidates = filtered_action_candidates
     @action_candidate_judge_scores = AicooJudge::ActionCandidateScore.new.score_map(@action_candidates)
   end
