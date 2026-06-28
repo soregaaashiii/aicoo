@@ -63,8 +63,9 @@
             </td>
             <td>
               <%= button_to "Google APIから取得",
-                            admin_google_api_import_path(business),
+                            admin_google_api_imports_path,
                             method: :post,
+                            params: { business_id: business.id },
                             class: "button",
                             disabled: gsc_site_url.blank? && ga4_property_id.blank? %>
             </td>

@@ -33,6 +33,8 @@ module Admin
       assert_includes response.body, "sc-domain:suelog.test"
       assert_includes response.body, "properties/123"
       assert_includes response.body, "Google APIから取得"
+      assert_includes response.body, "action=\"#{admin_google_api_imports_path}\""
+      refute_includes response.body, "action=\"#{admin_google_api_import_path(@business)}\""
       assert_includes response.body, admin_analytics_imports_path
     end
 
@@ -53,7 +55,7 @@ module Admin
         fake_importer.new(business:)
       end
 
-      post admin_google_api_import_url(@business)
+      post admin_google_api_imports_url, params: { business_id: @business.id }
 
       assert_redirected_to admin_google_api_imports_url
       assert_equal "#{@business.name}: GSC / GA4 から直接取得しました。BusinessMetricDaily 2日分を更新しました。", flash[:notice]
