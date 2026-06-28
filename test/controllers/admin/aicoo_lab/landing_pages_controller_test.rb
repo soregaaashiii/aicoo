@@ -202,6 +202,70 @@ module Admin
         assert_not_includes response.body, published.headline
       end
 
+      test "admin public landing page list links to standalone new page form" do
+        get admin_aicoo_lab_public_landing_pages_url
+
+        assert_response :success
+        assert_select "a[href='#{admin_aicoo_lab_new_public_landing_page_path}']", text: "LPを新規作成"
+
+        get admin_aicoo_lab_new_public_landing_page_url
+
+        assert_response :success
+        assert_includes response.body, "LPを新規作成"
+        assert_includes response.body, "SEO title"
+      end
+
+      test "admin can create draft public landing page and publish it to public lists and sitemap" do
+        assert_difference([ "AicooLabExperiment.count", "AicooLabLandingPage.count" ], 1) do
+          post admin_aicoo_lab_public_landing_pages_url, params: {
+            aicoo_lab_landing_page: {
+              headline: "管理画面作成LP",
+              published_slug: "admin-created-lp",
+              subheadline: "管理画面から作成した説明",
+              body: "管理画面から作成した本文",
+              cta_text: "申し込む",
+              seo_title: "管理画面作成LP SEO",
+              seo_description: "管理画面作成LPのSEO説明"
+            }
+          }
+        end
+
+        landing_page = AicooLabLandingPage.order(:created_at).last
+        assert_redirected_to admin_aicoo_lab_edit_public_landing_page_url(landing_page)
+        assert_equal "draft", landing_page.public_status
+        assert_equal "draft", landing_page.status
+        assert_equal "管理画面作成LP", landing_page.aicoo_lab_experiment.title
+
+        get public_landing_pages_url
+        assert_response :success
+        assert_not_includes response.body, "管理画面作成LP"
+
+        get sitemap_url(format: :xml)
+        assert_response :success
+        assert_not_includes response.body, "admin-created-lp"
+
+        patch admin_aicoo_lab_publish_public_landing_page_url(landing_page)
+
+        assert_redirected_to admin_aicoo_lab_edit_public_landing_page_url(landing_page)
+        landing_page.reload
+        assert_equal "published", landing_page.public_status
+        assert_equal "published", landing_page.status
+        assert landing_page.published_at.present?
+
+        get root_url
+        assert_response :success
+        assert_includes response.body, "管理画面作成LP"
+        assert_includes response.body, public_lp_path("admin-created-lp")
+
+        get public_landing_pages_url
+        assert_response :success
+        assert_includes response.body, "管理画面作成LP"
+
+        get sitemap_url(format: :xml)
+        assert_response :success
+        assert_includes response.body, public_lp_path("admin-created-lp")
+      end
+
       test "existing preview url still works" do
         experiment = AicooLabExperiment.create!(title: "LP preview intact test", experiment_type: "lp", acquisition_channel: "sns")
         landing_page = experiment.create_aicoo_lab_landing_page!(landing_page_params)

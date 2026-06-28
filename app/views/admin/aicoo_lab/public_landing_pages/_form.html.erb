@@ -1,0 +1,79 @@
+<%= form_with(model: landing_page, url:, class: "form") do |form| %>
+  <% if landing_page.errors.any? %>
+    <div class="errors">
+      <h2><%= pluralize(landing_page.errors.count, "error") %> prohibited this landing page from being saved:</h2>
+      <ul>
+        <% landing_page.errors.each do |error| %>
+          <li><%= error.full_message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <section>
+    <h2>基本情報</h2>
+    <div class="field">
+      <%= form.label :headline, "タイトル" %>
+      <%= form.text_field :headline, required: true %>
+    </div>
+    <div class="field">
+      <%= form.label :published_slug, "slug" %>
+      <%= form.text_field :published_slug, placeholder: "example-lp" %>
+      <p class="aicoo-lab-help">公開URLは /lp/slug になります。空の場合は公開時に自動生成されます。</p>
+    </div>
+    <div class="field">
+      <%= form.label :subheadline, "説明" %>
+      <%= form.text_area :subheadline, rows: 3 %>
+    </div>
+    <div class="field">
+      <%= form.label :body, "本文" %>
+      <%= form.text_area :body, rows: 12 %>
+    </div>
+    <div class="grid">
+      <div class="field">
+        <%= form.label :cta_text, "CTA" %>
+        <%= form.text_field :cta_text %>
+      </div>
+      <div class="field">
+        <%= form.label :assumed_price_yen, "想定単価" %>
+        <%= form.number_field :assumed_price_yen, min: 0 %>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>SEO / SNS</h2>
+    <div class="field">
+      <%= form.label :seo_title, "SEO title" %>
+      <%= form.text_field :seo_title %>
+    </div>
+    <div class="field">
+      <%= form.label :seo_description, "SEO description" %>
+      <%= form.text_area :seo_description, rows: 3 %>
+    </div>
+    <div class="grid">
+      <div class="field">
+        <%= form.label :og_title, "OG title" %>
+        <%= form.text_field :og_title %>
+      </div>
+      <div class="field">
+        <%= form.label :og_image_url, "OG image URL" %>
+        <%= form.url_field :og_image_url %>
+      </div>
+    </div>
+    <div class="field">
+      <%= form.label :og_description, "OG description" %>
+      <%= form.text_area :og_description, rows: 3 %>
+    </div>
+    <div class="field">
+      <%= form.label :canonical_url, "canonical URL" %>
+      <%= form.url_field :canonical_url %>
+      <p class="aicoo-lab-help">通常は空でOKです。公開URLをcanonicalとして自動出力します。</p>
+    </div>
+  </section>
+
+  <div class="actions">
+    <%= form.submit "保存", class: "button" %>
+    <%= link_to "公開LP管理へ戻る", admin_aicoo_lab_public_landing_pages_path, class: "button secondary" %>
+  </div>
+<% end %>

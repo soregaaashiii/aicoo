@@ -1,0 +1,41 @@
+<% content_for :title, "LP編集" %>
+
+<% header_actions = capture do %>
+  <% if @landing_page.public_status == "published" %>
+    <%= link_to "公開ページを見る", public_lp_path(@landing_page.published_slug), class: "button secondary", target: "_blank", rel: "noopener" %>
+  <% end %>
+  <%= link_to "公開LP管理へ戻る", admin_aicoo_lab_public_landing_pages_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "LP編集",
+             description: "保存はdraft/既存状態の更新のみです。公開は下の公開ボタンで実行します。",
+             active_main: :lab,
+             actions: header_actions %>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>公開状態</h2>
+      <p>
+        現在: <span class="pill"><%= @landing_page.public_status %></span>
+        <% if @landing_page.published_slug.present? %>
+          /lp/<%= @landing_page.published_slug %>
+        <% end %>
+      </p>
+    </div>
+    <div class="actions">
+      <% unless @landing_page.public_status == "published" %>
+        <%= button_to "公開", admin_aicoo_lab_publish_public_landing_page_path(@landing_page), method: :patch, class: "button" %>
+      <% end %>
+      <%= link_to "実験詳細を見る", admin_aicoo_lab_experiment_path(@landing_page.aicoo_lab_experiment), class: "button secondary" %>
+    </div>
+    <p class="aicoo-lab-help">公開すると / と /lp の一覧、および sitemap.xml に自動反映されます。</p>
+  </section>
+
+  <section class="dashboard-section">
+    <%= render "form",
+               landing_page: @landing_page,
+               url: admin_aicoo_lab_public_landing_page_path(@landing_page) %>
+  </section>
+</div>

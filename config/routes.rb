@@ -234,6 +234,11 @@ Rails.application.routes.draw do
       patch "review_queue/:experiment_id/reject", to: "review_queue#reject", as: :review_queue_reject
       patch "review_queue/:experiment_id/paused", to: "review_queue#paused", as: :review_queue_paused
       get "public_landing_pages", to: "public_landing_pages#index", as: :public_landing_pages
+      get "public_landing_pages/new", to: "public_landing_pages#new", as: :new_public_landing_page
+      post "public_landing_pages", to: "public_landing_pages#create"
+      get "public_landing_pages/:id/edit", to: "public_landing_pages#edit", as: :edit_public_landing_page
+      patch "public_landing_pages/:id", to: "public_landing_pages#update", as: :public_landing_page
+      patch "public_landing_pages/:id/publish", to: "public_landing_pages#publish", as: :publish_public_landing_page
       resource :setting, only: %i[ show update ]
       resources :generation_runs, only: %i[ index show ]
       resources :ai_candidate_imports, only: %i[ new create ]

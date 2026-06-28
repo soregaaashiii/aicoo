@@ -1,0 +1,14 @@
+<% content_for :title, "LPを新規作成" %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "LPを新規作成",
+             description: "公開前のdraftとしてLPを作成します。保存後、編集画面から1クリックで公開できます。",
+             active_main: :lab %>
+
+  <section class="dashboard-section">
+    <%= render "form",
+               landing_page: @landing_page,
+               url: admin_aicoo_lab_public_landing_pages_path %>
+  </section>
+</div>

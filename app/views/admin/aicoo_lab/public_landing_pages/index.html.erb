@@ -1,6 +1,7 @@
 <% content_for :title, "公開LP管理" %>
 
 <% header_actions = capture do %>
+  <%= link_to "LPを新規作成", admin_aicoo_lab_new_public_landing_page_path, class: "button" %>
   <%= link_to "新規事業へ戻る", admin_aicoo_lab_experiments_path, class: "button secondary" %>
   <%= link_to "公開サイトを見る", public_landing_pages_path, class: "button secondary", target: "_blank", rel: "noopener" %>
 <% end %>
@@ -19,6 +20,8 @@
     </div>
     <div class="actions compact-actions">
       <%= link_to "すべて", admin_aicoo_lab_public_landing_pages_path, class: "button secondary" %>
+      <%= link_to "draft", admin_aicoo_lab_public_landing_pages_path(public_status: "draft"), class: "button secondary" %>
+      <%= link_to "scheduled", admin_aicoo_lab_public_landing_pages_path(public_status: "scheduled"), class: "button secondary" %>
       <%= link_to "published", admin_aicoo_lab_public_landing_pages_path(public_status: "published"), class: "button secondary" %>
       <%= link_to "paused", admin_aicoo_lab_public_landing_pages_path(public_status: "paused"), class: "button secondary" %>
       <%= link_to "archived", admin_aicoo_lab_public_landing_pages_path(public_status: "archived"), class: "button secondary" %>
@@ -47,8 +50,19 @@
               <td><%= landing_page.pause_reason.presence || "-" %></td>
               <td><%= landing_page.paused_at ? l(landing_page.paused_at, format: :short) : "-" %></td>
               <td><%= landing_page.paused_by.presence || "-" %></td>
-              <td><%= link_to "表示", public_lp_path(landing_page.published_slug), target: "_blank", rel: "noopener" %></td>
-              <td><%= link_to "詳細", admin_aicoo_lab_experiment_path(landing_page.aicoo_lab_experiment), class: "button secondary" %></td>
+              <td>
+                <% if landing_page.public_status == "published" %>
+                  <%= link_to "表示", public_lp_path(landing_page.published_slug), target: "_blank", rel: "noopener" %>
+                <% elsif landing_page.paused? %>
+                  <%= link_to "停止ページ", public_lp_path(landing_page.published_slug), target: "_blank", rel: "noopener" %>
+                <% else %>
+                  -
+                <% end %>
+              </td>
+              <td>
+                <%= link_to "編集", admin_aicoo_lab_edit_public_landing_page_path(landing_page), class: "button secondary" %>
+                <%= link_to "詳細", admin_aicoo_lab_experiment_path(landing_page.aicoo_lab_experiment), class: "button secondary" %>
+              </td>
             </tr>
           <% end %>
           <% if @landing_pages.empty? %>
