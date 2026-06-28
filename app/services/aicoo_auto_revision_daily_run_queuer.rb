@@ -22,6 +22,9 @@ class AicooAutoRevisionDailyRunQueuer
       executed_at: Time.current,
       metadata: {
         "created_task_ids" => result.created_tasks.map(&:id),
+        "auto_revision_run_log_ids" => result.logs.map(&:id),
+        "auto_revision_mode_counts" => result.logs.group_by(&:auto_revision_mode).transform_values(&:size),
+        "auto_revision_status_counts" => result.logs.group_by(&:status).transform_values(&:size),
         "high_risk_candidate_ids" => result.high_risk_candidates.map(&:id),
         "minimum_final_score" => setting.minimum_final_score.to_s,
         "max_tasks_per_run" => setting.max_tasks_per_run,

@@ -1,5 +1,6 @@
 class Business < ApplicationRecord
   STATUSES = %w[idea researching building launched paused sold withdrawn].freeze
+  AUTO_REVISION_MODES = %w[manual approval automatic].freeze
   SYSTEM_BUSINESS_NAMES = [
     "AICOO Analytics Import"
   ].freeze
@@ -7,6 +8,7 @@ class Business < ApplicationRecord
   has_many :action_candidates, dependent: :destroy
   has_many :opportunity_discovery_items, dependent: :nullify
   has_many :auto_revision_tasks, dependent: :destroy
+  has_many :auto_revision_run_logs, dependent: :destroy
   has_many :codex_prompt_drafts, dependent: :nullify
   has_many :action_results, dependent: :destroy
   has_many :action_candidate_score_snapshots, dependent: :destroy
@@ -26,6 +28,7 @@ class Business < ApplicationRecord
 
   validates :name, presence: true
   validates :status, inclusion: { in: STATUSES }, allow_blank: true
+  validates :auto_revision_mode, inclusion: { in: AUTO_REVISION_MODES }
 
   scope :real_businesses, -> { where.not(name: SYSTEM_BUSINESS_NAMES) }
   scope :system_businesses, -> { where(name: SYSTEM_BUSINESS_NAMES) }
@@ -34,6 +37,18 @@ class Business < ApplicationRecord
 
   def system_business?
     name.in?(SYSTEM_BUSINESS_NAMES)
+  end
+
+  def manual_auto_revision?
+    auto_revision_mode == "manual"
+  end
+
+  def approval_auto_revision?
+    auto_revision_mode == "approval"
+  end
+
+  def automatic_auto_revision?
+    auto_revision_mode == "automatic"
   end
 
   def current_month_revenue
@@ -130,6 +145,7 @@ class Business < ApplicationRecord
 
   def set_default_status
     self.status = "idea" if status.blank?
+    self.auto_revision_mode = "manual" if auto_revision_mode.blank?
   end
 
   def current_month_range

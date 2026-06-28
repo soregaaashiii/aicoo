@@ -140,6 +140,43 @@ module Owner
       assert_includes response.body, "実行前コスト"
     end
 
+    test "shows business auto revision summary" do
+      businesses(:suelog).update!(auto_revision_mode: "automatic")
+      candidate = ActionCandidate.create!(
+        business: businesses(:suelog),
+        title: "承認待ち改訂候補",
+        status: "approved",
+        action_type: "seo_improvement",
+        immediate_value_yen: 10_000,
+        success_probability: 0.8,
+        expected_hours: 1
+      )
+      AutoRevisionTask.create!(
+        business: businesses(:suelog),
+        action_candidate: candidate,
+        title: "承認待ち改訂",
+        execution_prompt: "SEOタイトルを改善してください。",
+        status: "waiting_approval",
+        risk_level: "medium",
+        priority_score: 100
+      )
+      AutoRevisionRunLog.create!(
+        business: businesses(:suelog),
+        status: "precheck_failed",
+        auto_revision_mode: "automatic",
+        risk_level: "low",
+        message: "Google接続が未設定です"
+      )
+
+      get owner_focus_url
+
+      assert_response :success
+      assert_includes response.body, "自動改訂ON"
+      assert_includes response.body, "改訂承認待ち"
+      assert_includes response.body, "改訂停止"
+      assert_includes response.body, "自動改訂対象のBusinessがあります"
+    end
+
     test "updates serp scan limit from owner focus" do
       DataSourceCostProfile.ensure_defaults!
 

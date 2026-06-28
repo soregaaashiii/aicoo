@@ -128,6 +128,74 @@
     </div>
   </div>
 
+  <div class="aicoo-card aicoo-card-compact" id="auto-revision">
+    <div class="section-heading">
+      <div>
+        <h3>自動改訂</h3>
+        <p>このBusinessだけの改訂ループ設定です。AutomaticでもDeployは最後に承認します。</p>
+      </div>
+    </div>
+    <%= form_with model: @business, method: :patch, class: "aicoo-form" do |form| %>
+      <%= hidden_field_tag :return_to, business_path(@business, anchor: "auto-revision") %>
+      <div class="aicoo-grid aicoo-grid-3">
+        <% Business::AUTO_REVISION_MODES.each do |mode| %>
+          <label class="aicoo-card aicoo-card-compact">
+            <%= form.radio_button :auto_revision_mode, mode %>
+            <strong><%= auto_revision_mode_label(mode) %></strong>
+            <small><%= auto_revision_mode_description(mode) %></small>
+          </label>
+        <% end %>
+      </div>
+      <% if @business.automatic_auto_revision? %>
+        <div class="error-toast">現在このBusinessは自動改訂対象です。低リスクのみ自動でCodex投入準備まで進みます。</div>
+      <% end %>
+      <div class="actions compact-actions">
+        <%= form.submit "自動改訂設定を保存", class: "button secondary" %>
+        <%= link_to "承認待ちを見る", auto_revision_tasks_path(status: "waiting_approval"), class: "button secondary" %>
+      </div>
+    <% end %>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>開始</th>
+            <th>状態</th>
+            <th>Risk</th>
+            <th>Task</th>
+            <th>変更</th>
+            <th>Test</th>
+            <th>Deploy</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @auto_revision_run_logs.each do |log| %>
+            <tr>
+              <td><%= log.started_at ? l(log.started_at, format: :short) : l(log.created_at, format: :short) %></td>
+              <td><span class="pill"><%= log.status %></span></td>
+              <td><%= log.risk_level.presence || "-" %></td>
+              <td><%= log.auto_revision_task ? link_to(log.auto_revision_task.title, log.auto_revision_task) : "-" %></td>
+              <td class="number"><%= log.changed_files_count %></td>
+              <td><%= log.test_result.presence || "-" %></td>
+              <td><%= log.deploy_result.presence || "Deploy承認待ち" %></td>
+              <td>
+                <%= button_to "Rollback",
+                              admin_auto_revision_run_log_rollback_path(log),
+                              method: :patch,
+                              class: "button secondary",
+                              data: { turbo_confirm: "この自動改訂ログにRollback requestedを記録しますか？" } %>
+              </td>
+            </tr>
+          <% end %>
+          <% if @auto_revision_run_logs.empty? %>
+            <tr><td colspan="8">自動改訂ログはまだありません。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
   <div class="business-analytics-status-grid">
     <div class="aicoo-card aicoo-card-compact">
       <h3>GSC</h3>

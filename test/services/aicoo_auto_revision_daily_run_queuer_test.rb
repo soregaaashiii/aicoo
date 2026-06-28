@@ -2,10 +2,12 @@ require "test_helper"
 
 class AicooAutoRevisionDailyRunQueuerTest < ActiveSupport::TestCase
   setup do
+    AutoRevisionRunLog.delete_all
     AutoRevisionQueueRun.delete_all
     AutoRevisionTask.delete_all
     AicooAutoRevisionSetting.delete_all
     ActionCandidate.update_all(status: "done")
+    Business.update_all(auto_revision_mode: "manual")
   end
 
   test "does not run when setting is disabled" do
@@ -58,16 +60,17 @@ class AicooAutoRevisionDailyRunQueuerTest < ActiveSupport::TestCase
     assert_equal 0, AutoRevisionTask.count
   end
 
-  test "excludes high risk candidates" do
+  test "reports high risk candidates and keeps them as manual proposals" do
     AicooAutoRevisionSetting.current.update!(enabled: true)
     daily_run = create_daily_run
     create_candidate(title: "DB migrationで認証tokenを変更", execution_prompt: "DB migrationでcredentialを変更してください。")
 
     result = AicooAutoRevisionDailyRunQueuer.new.call(daily_run:)
 
-    assert_equal 0, result.queue_run.generated_tasks_count
+    assert_equal 1, result.queue_run.generated_tasks_count
     assert_equal 1, result.queue_run.high_risk_candidates_count
-    assert_equal 0, AutoRevisionTask.count
+    assert_equal 1, AutoRevisionTask.count
+    assert_equal [ AutoRevisionRunLog.last.id ], result.queue_run.metadata["auto_revision_run_log_ids"]
   end
 
   test "does not create twice for same daily run" do

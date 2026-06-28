@@ -37,6 +37,7 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Warning"
     assert_includes response.body, "Analytics"
     assert_includes response.body, "Execution Profile"
+    assert_includes response.body, "Auto Revision"
     assert_includes response.body, "missing"
     assert_includes response.body, "Profile作成"
     assert_includes response.body, "CODEX"
@@ -144,6 +145,8 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "公開LP管理"
     assert_includes response.body, "LPを新規作成"
     assert_includes response.body, "Daily Run一覧"
+    assert_includes response.body, "自動改訂"
+    assert_includes response.body, "Manual"
   end
 
   test "show treats global google credential as connected and exposes gsc ga4 fetch buttons" do
@@ -364,7 +367,8 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
         status: @business.status,
         project_key: "suelog",
         local_project_path: "/Users/example/suelog",
-        repository_name: "suelog-app"
+        repository_name: "suelog-app",
+        auto_revision_mode: "automatic"
       }
     }
     assert_redirected_to return_to
@@ -372,6 +376,7 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "suelog", @business.project_key
     assert_equal "/Users/example/suelog", @business.local_project_path
     assert_equal "suelog-app", @business.repository_name
+    assert_equal "automatic", @business.auto_revision_mode
   end
 
   test "should destroy business" do

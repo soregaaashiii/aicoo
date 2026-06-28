@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_29_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_29_101000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -842,6 +842,33 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_29_090000) do
     t.index ["executed_at"], name: "index_auto_revision_queue_runs_on_executed_at"
   end
 
+  create_table "auto_revision_run_logs", force: :cascade do |t|
+    t.string "auto_revision_mode", null: false
+    t.bigint "auto_revision_task_id"
+    t.string "base_commit_sha"
+    t.bigint "business_id", null: false
+    t.integer "changed_files_count", default: 0, null: false
+    t.decimal "codex_duration_seconds", precision: 10, scale: 2
+    t.datetime "created_at", null: false
+    t.string "deploy_result"
+    t.datetime "finished_at"
+    t.text "message"
+    t.jsonb "metadata", default: {}, null: false
+    t.string "result_commit_sha"
+    t.string "risk_level"
+    t.string "rollback_status"
+    t.datetime "started_at"
+    t.string "status", default: "pending", null: false
+    t.string "test_result"
+    t.datetime "updated_at", null: false
+    t.index ["auto_revision_mode"], name: "index_auto_revision_run_logs_on_auto_revision_mode"
+    t.index ["auto_revision_task_id"], name: "index_auto_revision_run_logs_on_auto_revision_task_id"
+    t.index ["business_id"], name: "index_auto_revision_run_logs_on_business_id"
+    t.index ["risk_level"], name: "index_auto_revision_run_logs_on_risk_level"
+    t.index ["started_at"], name: "index_auto_revision_run_logs_on_started_at"
+    t.index ["status"], name: "index_auto_revision_run_logs_on_status"
+  end
+
   create_table "auto_revision_tasks", force: :cascade do |t|
     t.bigint "action_candidate_id", null: false
     t.datetime "approved_at"
@@ -972,6 +999,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_29_090000) do
   end
 
   create_table "businesses", force: :cascade do |t|
+    t.string "auto_revision_mode", default: "manual", null: false
     t.datetime "created_at", null: false
     t.jsonb "default_verification_commands", default: [], null: false
     t.text "description"
@@ -982,6 +1010,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_29_090000) do
     t.string "repository_name"
     t.string "status"
     t.datetime "updated_at", null: false
+    t.index ["auto_revision_mode"], name: "index_businesses_on_auto_revision_mode"
     t.index ["project_key"], name: "index_businesses_on_project_key"
   end
 
@@ -1492,6 +1521,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_29_090000) do
   add_foreign_key "analytics_source_settings", "aicoo_analytics_sites"
   add_foreign_key "analytics_source_settings", "aicoo_google_credentials", column: "google_credential_id"
   add_foreign_key "auto_revision_queue_runs", "aicoo_daily_runs"
+  add_foreign_key "auto_revision_run_logs", "auto_revision_tasks"
+  add_foreign_key "auto_revision_run_logs", "businesses"
   add_foreign_key "auto_revision_tasks", "action_candidates"
   add_foreign_key "auto_revision_tasks", "businesses"
   add_foreign_key "auto_revision_tasks", "businesses", column: "target_business_id"

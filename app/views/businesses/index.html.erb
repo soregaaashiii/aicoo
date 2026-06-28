@@ -30,6 +30,7 @@
         <th>Pending Actions</th>
         <th>Warning</th>
         <th>Execution Profile</th>
+        <th>Auto Revision</th>
         <th>操作</th>
       </tr>
     </thead>
@@ -97,6 +98,10 @@
               <span class="pill">❌ missing</span>
               <small>Execution Profile未作成</small>
             <% end %>
+          </td>
+          <td>
+            <span class="pill <%= business.automatic_auto_revision? ? "status-warning" : "" %>"><%= auto_revision_mode_label(business.auto_revision_mode) %></span><br>
+            <small><%= auto_revision_mode_description(business.auto_revision_mode) %></small>
           </td>
           <td>
             <div class="actions compact-actions">

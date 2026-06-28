@@ -176,6 +176,7 @@ Rails.application.routes.draw do
     post "google_api_imports/:business_id", to: "google_api_imports#create", as: :google_api_import
     get "execution_runs", to: "execution_runs#index", as: :execution_runs
     get "execution_runs/:id", to: "execution_runs#show", as: :execution_run
+    patch "auto_revision_run_logs/:id/rollback", to: "auto_revision_run_logs#rollback", as: :auto_revision_run_log_rollback
     resources :idea_pipeline, controller: "idea_pipeline", only: %i[index show] do
       post :generate, on: :collection
       member do

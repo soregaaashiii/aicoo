@@ -240,7 +240,17 @@
       <div class="metric-card"><span>あとで処理</span><strong><%= @owner_home_summary.today_queue_count %>件</strong></div>
       <div class="metric-card"><span>処理済み</span><strong><%= @owner_home_summary.today_queue_completed_count %>件</strong></div>
       <div class="metric-card"><span>今日の判断記録</span><strong><%= @owner_decision_summary.today_count %>件</strong></div>
+      <div class="metric-card"><span>自動改訂ON</span><strong><%= @business_auto_revision_summary.automatic_business_count %>件</strong></div>
+      <div class="metric-card"><span>改訂承認待ち</span><strong><%= @business_auto_revision_summary.approval_waiting_count %>件</strong></div>
+      <div class="metric-card"><span>改訂成功</span><strong><%= @business_auto_revision_summary.today_success_count %>件</strong></div>
+      <div class="metric-card"><span>改訂失敗</span><strong><%= @business_auto_revision_summary.today_failure_count %>件</strong></div>
+      <div class="metric-card"><span>改訂停止</span><strong><%= @business_auto_revision_summary.today_stopped_count %>件</strong></div>
     </div>
+    <% if @business_auto_revision_summary.automatic_business_count.positive? %>
+      <div class="error-toast">
+        自動改訂対象のBusinessがあります。低リスクだけCodex投入準備まで進み、Deployは承認待ちになります。
+      </div>
+    <% end %>
   </section>
 
   <section class="dashboard-section">

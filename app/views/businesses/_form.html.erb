@@ -44,6 +44,23 @@
     </div>
   </fieldset>
 
+  <fieldset class="aicoo-card aicoo-card-compact">
+    <legend>自動改訂</legend>
+    <p class="aicoo-lab-help">このBusinessだけの自動改訂モードです。Automaticでも本番Deployは承認制です。</p>
+    <div class="aicoo-grid aicoo-grid-3">
+      <% Business::AUTO_REVISION_MODES.each do |mode| %>
+        <label class="aicoo-card aicoo-card-compact">
+          <%= form.radio_button :auto_revision_mode, mode %>
+          <strong><%= auto_revision_mode_label(mode) %></strong>
+          <small><%= auto_revision_mode_description(mode) %></small>
+        </label>
+      <% end %>
+    </div>
+    <% if business.automatic_auto_revision? %>
+      <div class="error-toast">現在このBusinessは自動改訂対象です。低リスクだけ自動でCodex投入準備まで進みます。</div>
+    <% end %>
+  </fieldset>
+
   <div class="actions">
     <%= form.submit %>
   </div>

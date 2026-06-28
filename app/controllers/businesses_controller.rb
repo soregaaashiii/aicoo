@@ -28,6 +28,7 @@ class BusinessesController < ApplicationController
     @business_analytics_summary = Aicoo::BusinessAnalyticsSummary.new(@business, health: @integration_health).call
     @data_source_settings_presenter = Aicoo::DataSourceSettingsPresenter.new
     @business_data_source_statuses = @data_source_settings_presenter.business_statuses(@business)
+    @auto_revision_run_logs = @business.auto_revision_run_logs.includes(:auto_revision_task).recent.limit(8)
     load_data_source_settings_context
   end
 
@@ -158,7 +159,8 @@ class BusinessesController < ApplicationController
         :gsc_site_url,
         :project_key,
         :local_project_path,
-        :repository_name
+        :repository_name,
+        :auto_revision_mode
       ])
     end
 

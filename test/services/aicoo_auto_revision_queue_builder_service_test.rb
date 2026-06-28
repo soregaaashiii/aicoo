@@ -2,11 +2,13 @@ require "test_helper"
 
 class AicooAutoRevisionQueueBuilderServiceTest < ActiveSupport::TestCase
   setup do
+    AutoRevisionRunLog.delete_all
     AutoRevisionTask.delete_all
     ActionCandidate.update_all(status: "done")
+    Business.update_all(auto_revision_mode: "manual")
   end
 
-  test "creates auto revision task from eligible action candidate" do
+  test "manual mode creates draft proposal only" do
     candidate = create_candidate(title: "SEOタイトルを改善する", execution_prompt: "SEOタイトルを改善してください。")
 
     result = AicooAutoRevisionQueueBuilderService.new.call
@@ -14,9 +16,22 @@ class AicooAutoRevisionQueueBuilderServiceTest < ActiveSupport::TestCase
     assert_equal 1, result.created_count
     task = AutoRevisionTask.last
     assert_equal candidate, task.action_candidate
-    assert_equal "waiting_approval", task.status
+    assert_equal "draft", task.status
     assert_equal "low", task.risk_level
     assert_equal candidate.reload.final_score.to_d, task.priority_score
+    assert_equal "manual_proposal", result.logs.last.metadata["action"]
+  end
+
+  test "approval mode creates approval waiting task" do
+    businesses(:suelog).update!(auto_revision_mode: "approval")
+    candidate = create_candidate(title: "SEOタイトルを改善する", execution_prompt: "SEOタイトルを改善してください。")
+
+    result = AicooAutoRevisionQueueBuilderService.new.call
+
+    assert_equal 1, result.created_count
+    assert_equal "waiting_approval", AutoRevisionTask.last.status
+    assert_equal "queued_for_approval", result.logs.last.status
+    assert_equal "approval_required", result.logs.last.metadata["action"]
   end
 
   test "excludes candidate without execution prompt" do
@@ -37,7 +52,7 @@ class AicooAutoRevisionQueueBuilderServiceTest < ActiveSupport::TestCase
     end
   end
 
-  test "excludes high risk candidates but reports them" do
+  test "high risk candidates are reported and kept for manual proposal" do
     candidate = create_candidate(
       title: "DB migrationで認証credentialを変更する",
       execution_prompt: "DB migrationを追加し、tokenを扱う設定を変更してください。"
@@ -45,8 +60,9 @@ class AicooAutoRevisionQueueBuilderServiceTest < ActiveSupport::TestCase
 
     result = AicooAutoRevisionQueueBuilderService.new.call
 
-    assert_equal 0, result.created_count
+    assert_equal 1, result.created_count
     assert_equal [ candidate ], result.high_risk_candidates
+    assert_equal "draft", AutoRevisionTask.last.status
   end
 
   test "does not duplicate existing unfinished auto revision task" do
@@ -78,13 +94,28 @@ class AicooAutoRevisionQueueBuilderServiceTest < ActiveSupport::TestCase
     assert_equal 0, AutoRevisionTask.count
   end
 
-  test "can exclude medium risk candidates" do
+  test "automatic mode sends only low risk through precheck and stops on failed precheck" do
+    businesses(:suelog).update!(auto_revision_mode: "automatic")
+    create_candidate(title: "SEOタイトル改善", execution_prompt: "SEOタイトルを改善してください。")
+
+    result = AicooAutoRevisionQueueBuilderService.new.call
+
+    assert_equal 1, result.created_count
+    assert_equal "waiting_approval", AutoRevisionTask.last.status
+    assert_equal "precheck_failed", result.logs.last.status
+    assert_includes result.logs.last.message, "Google接続"
+  end
+
+  test "automatic mode keeps medium risk waiting for approval" do
+    businesses(:suelog).update!(auto_revision_mode: "automatic")
     create_candidate(title: "管理画面の集計を改善する", execution_prompt: "serviceとviewを改修してください。")
 
     result = AicooAutoRevisionQueueBuilderService.new(allow_medium_risk: false).call
 
-    assert_equal 0, result.created_count
-    assert_equal 0, AutoRevisionTask.count
+    assert_equal 1, result.created_count
+    assert_equal "waiting_approval", AutoRevisionTask.last.status
+    assert_equal "queued_for_approval", result.logs.last.status
+    assert_equal "approval_required_due_to_risk", result.logs.last.metadata["action"]
   end
 
   private
