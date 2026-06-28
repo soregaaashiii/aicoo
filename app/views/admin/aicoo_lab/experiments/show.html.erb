@@ -87,6 +87,7 @@
         <div class="metric-card"><span>Signup率</span><strong><%= @landing_page.signup_rate ? number_to_percentage(@landing_page.signup_rate * 100, precision: 1) : "-" %></strong></div>
       </div>
       <div class="actions compact-actions">
+        <%= link_to "公開LP一覧を見る", public_landing_pages_path, class: "button secondary", target: "_blank", rel: "noopener" %>
         <% if @landing_page.publishable? %>
           <%= button_to "無料公開する", publish_admin_aicoo_lab_experiment_landing_page_path(@experiment), method: :patch, class: "button" %>
         <% end %>

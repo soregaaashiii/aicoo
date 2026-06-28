@@ -1,6 +1,6 @@
 <% content_for :title, "公開LP一覧" %>
 <% content_for :meta_description, "公開中のランディングページ一覧です。" %>
-<% content_for :canonical_url, public_absolute_url(public_landing_pages_path) %>
+<% content_for :canonical_url, public_absolute_url(@canonical_path || public_landing_pages_path) %>
 
 <main class="lp-preview">
   <section class="lp-hero">

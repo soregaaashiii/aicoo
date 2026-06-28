@@ -4,6 +4,8 @@ class PublicLandingPagesControllerTest < ActionDispatch::IntegrationTest
   test "public landing page index lists only published landing pages" do
     published = create_landing_page(headline: "公開LPタイトル", published_slug: "published-lp")
     create_landing_page(headline: "非公開LPタイトル", status: "preview_ready", public_status: "draft", published_slug: nil)
+    create_landing_page(headline: "予約中LPタイトル", status: "preview_ready", public_status: "scheduled", published_slug: "scheduled-list-lp", scheduled_publish_at: 1.day.from_now)
+    create_landing_page(headline: "アーカイブLPタイトル", status: "unpublished", public_status: "archived", published_slug: "archived-list-lp")
 
     get public_landing_pages_url
 
@@ -12,8 +14,40 @@ class PublicLandingPagesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, published.headline
     assert_includes response.body, public_lp_path(published.published_slug)
     assert_not_includes response.body, "非公開LPタイトル"
-    assert_not_includes response.body, "owner"
-    assert_not_includes response.body, "admin"
+    assert_not_includes response.body, "予約中LPタイトル"
+    assert_not_includes response.body, "アーカイブLPタイトル"
+    assert_no_aicoo_management_links
+  end
+
+  test "root path shows public landing page top without management links" do
+    published = create_landing_page(headline: "Root公開LPタイトル", published_slug: "root-published-lp")
+    create_landing_page(headline: "Root下書きLPタイトル", status: "preview_ready", public_status: "draft", published_slug: "root-draft-lp")
+
+    with_basic_auth_env do
+      get root_url
+    end
+
+    assert_response :success
+    assert_includes response.body, "公開中のランディングページ"
+    assert_includes response.body, published.headline
+    assert_includes response.body, public_lp_path(published.published_slug)
+    assert_not_includes response.body, "Root下書きLPタイトル"
+    assert_includes response.body, "index,follow"
+    assert_includes response.body, "rel=\"canonical\""
+    assert_no_aicoo_management_links
+  end
+
+  test "public lp alias shows the same published landing page list" do
+    published = create_landing_page(headline: "Alias LPタイトル", published_slug: "alias-published-lp")
+    create_landing_page(headline: "Alias Draft LP", status: "preview_ready", public_status: "draft", published_slug: "alias-draft-lp")
+
+    get public_lp_index_url
+
+    assert_response :success
+    assert_includes response.body, published.headline
+    assert_includes response.body, public_lp_path(published.published_slug)
+    assert_not_includes response.body, "Alias Draft LP"
+    assert_no_aicoo_management_links
   end
 
   test "public landing page is accessible without basic auth and records view" do
@@ -43,6 +77,7 @@ class PublicLandingPagesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "index,follow"
     assert_not_includes response.body, "CEO MODE"
     assert_not_includes response.body, "SYSTEM MODE"
+    assert_no_aicoo_management_links
   end
 
   test "scheduled landing page is published automatically when due" do
@@ -118,15 +153,19 @@ class PublicLandingPagesControllerTest < ActionDispatch::IntegrationTest
   test "sitemap includes public landing pages and excludes management urls" do
     landing_page = create_landing_page(headline: "Sitemap LP", published_slug: "sitemap-lp")
     create_landing_page(headline: "Draft Sitemap LP", public_status: "draft", published_slug: "draft-sitemap-lp")
+    create_landing_page(headline: "Scheduled Sitemap LP", status: "preview_ready", public_status: "scheduled", published_slug: "scheduled-sitemap-lp", scheduled_publish_at: 1.day.from_now)
+    create_landing_page(headline: "Archived Sitemap LP", status: "unpublished", public_status: "archived", published_slug: "archived-sitemap-lp")
 
     get sitemap_url(format: :xml)
 
     assert_response :success
     assert_includes response.media_type, "xml"
-    assert_includes response.body, public_landing_pages_path
+    assert_includes response.body, root_path
     assert_includes response.body, public_lp_path(landing_page.published_slug)
     assert_includes response.body, "<lastmod>"
     assert_not_includes response.body, "draft-sitemap-lp"
+    assert_not_includes response.body, "scheduled-sitemap-lp"
+    assert_not_includes response.body, "archived-sitemap-lp"
     assert_not_includes response.body, dashboard_url
     assert_not_includes response.body, "/admin"
     assert_not_includes response.body, "/owner"
@@ -183,5 +222,9 @@ class PublicLandingPagesControllerTest < ActionDispatch::IntegrationTest
     originals.each do |key, value|
       value.nil? ? ENV.delete(key) : ENV[key] = value
     end
+  end
+
+  def assert_no_aicoo_management_links
+    assert_no_match(/\b(?:href|action)=["']\/(?:owner|admin|settings|system|aicoo)(?:\/|["'?])/, response.body)
   end
 end

@@ -6,6 +6,7 @@ AICOO Lab LPs can be shared externally through published LP URLs while AICOO man
 
 Public paths:
 
+- `/`
 - `/lp`
 - `/lp/:slug`
 - `/lp/:slug/cta_click`
@@ -14,7 +15,7 @@ Public paths:
 - `/sitemap.xml`
 - `/robots.txt`
 
-Management paths such as `/dashboard`, `/admin/*`, `/action_candidates`, `/judge`, and `/businesses` require Basic authentication in production.
+Management paths such as `/dashboard`, `/owner`, `/admin/*`, `/action_candidates`, `/judge`, and `/businesses` require Basic authentication in production.
 
 ## Render settings
 
@@ -56,8 +57,8 @@ Optional environment variables:
 
 ## Verify after deploy
 
-1. Open `/dashboard`.
-2. Confirm Basic authentication is required.
+1. Open `/` and confirm the public LP top is visible without Basic authentication.
+2. Open `/dashboard` and confirm Basic authentication is required.
 3. Publish an AICOO Lab LP from the management screen.
 4. Open `/lp/:slug` in an incognito browser.
 5. Confirm the LP is visible without Basic authentication.

@@ -6,6 +6,7 @@ Rails.application.routes.draw do
 
   get "robots.txt", to: "robots#show", as: :robots
   get "sitemap.xml", to: "public_sitemaps#show", as: :sitemap, defaults: { format: :xml }
+  root "public_landing_pages#index"
   get "lp", to: "public_landing_pages#index", as: :public_landing_pages
   get "public_lp", to: "public_landing_pages#index", as: :public_lp_index
   get "lp/:published_slug", to: "public_landing_pages#show", as: :public_lp
@@ -14,7 +15,6 @@ Rails.application.routes.draw do
   get "lp/:published_slug/signup", to: "public_landing_pages#new_signup", as: :public_lp_signup
   post "lp/:published_slug/signup", to: "public_landing_pages#create_signup"
 
-  root "dashboard#show"
   get "owner", to: "owner/dashboard#show", as: :owner_dashboard
   get "owner/dashboard", to: "owner/dashboard#show"
   get "owner/focus", to: "owner/focus#show", as: :owner_focus

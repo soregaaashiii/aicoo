@@ -42,6 +42,10 @@ class AicooManagementAccessTest < ActionDispatch::IntegrationTest
     landing_page = create_published_landing_page
 
     with_basic_auth_env do
+      get root_url
+      assert_response :success
+      assert_includes response.body, "Public LP headline"
+
       get aicoo_lab_published_lp_url(landing_page.published_slug)
 
       assert_response :success

@@ -67,6 +67,24 @@ module Admin
         assert AicooAnalyticsSite.find_by(autolink_source_type: "AicooLabLandingPage", autolink_source_id: landing_page.id)
       end
 
+      test "admin experiment page links to public landing page list and detail" do
+        experiment = AicooLabExperiment.create!(
+          title: "LP public links test",
+          experiment_type: "lp",
+          acquisition_channel: "sns",
+          status: "preview_ready",
+          approval_status: "approved"
+        )
+        landing_page = experiment.create_aicoo_lab_landing_page!(landing_page_params.merge(status: "preview_ready"))
+        landing_page.publish!
+
+        get admin_aicoo_lab_experiment_url(experiment)
+
+        assert_response :success
+        assert_select "a[href='#{public_landing_pages_path}']"
+        assert_select "a[href$='#{public_lp_path(landing_page.published_slug)}']"
+      end
+
       test "published landing page is public and records view event" do
         experiment = AicooLabExperiment.create!(
           title: "LP public view test",

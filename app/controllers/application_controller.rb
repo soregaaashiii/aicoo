@@ -35,7 +35,8 @@ class ApplicationController < ActionController::Base
   end
 
   def public_render_path?
-    request.path == "/lp" ||
+    request.path == "/" ||
+      request.path == "/lp" ||
       request.path.start_with?("/lp/", "/aicoo_lab/lp/", "/assets/") ||
       request.path.in?([ "/robots.txt", "/sitemap.xml" ]) ||
       request.path == "/up" ||

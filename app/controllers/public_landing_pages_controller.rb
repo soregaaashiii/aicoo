@@ -6,6 +6,7 @@ class PublicLandingPagesController < ApplicationController
   before_action :set_rendering_context, only: %i[show new_signup create_signup]
 
   def index
+    @canonical_path = request.path == "/" ? root_path : public_landing_pages_path
     @landing_pages = published_landing_pages
     if params[:q].present?
       @landing_pages = @landing_pages.where(
