@@ -12,7 +12,7 @@ module Admin
 
       assert_response :success
       assert_includes response.body, "実績データ"
-      assert_includes response.body, "GA4/GSCデータ取込"
+      assert_includes response.body, "GA4/GSC CSV貼り付け取込"
       assert_includes response.body, "サイト別分析設定"
       assert_includes response.body, "Analytics取込を再処理"
       assert_not_includes response.body, "Analytics API設定"

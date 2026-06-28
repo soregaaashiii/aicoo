@@ -112,7 +112,7 @@ module Aicoo
             "clicks" => record.clicks,
             "impressions" => record.impressions,
             "ctr" => ratio(record.clicks, record.impressions),
-            "average_position" => nil
+            "average_position" => record.average_position
           }
         else
           {
@@ -188,8 +188,8 @@ module Aicoo
 
     def settings_summary
       {
-        gsc_site_url: business.gsc_site_url,
-        ga4_property_id: analytics_site&.ga4_property_id || ga4_setting&.property_id,
+        gsc_site_url: business_gsc_site_url,
+        ga4_property_id: business_ga4_property_id,
         project_key: business.project_key,
         local_project_path: business.local_project_path,
         repository_name: business.repository_name,
@@ -208,6 +208,30 @@ module Aicoo
         has_action_data: action_candidate_counts.values.any?(&:positive?),
         has_learning_data: decision_log_counts.values.any?(&:positive?) || business.business_playbook&.learned? || false
       }
+    end
+
+    def business_gsc_site_url
+      business_source_identifier("gsc").presence ||
+        business.gsc_site_url.presence ||
+        gsc_setting&.site_url
+    end
+
+    def business_ga4_property_id
+      business_source_identifier("ga4").presence ||
+        analytics_site&.ga4_property_id.presence ||
+        ga4_setting&.property_id
+    end
+
+    def business_source_identifier(source_type)
+      setting = BusinessDataSourceSetting.find_by(business:, source_key: source_type)
+      return nil unless setting&.enabled?
+
+      case source_type
+      when "gsc"
+        setting.connection_field_value("site_url").presence || setting.property_identifier.presence
+      when "ga4"
+        setting.connection_field_value("property_id").presence || setting.property_identifier.presence
+      end
     end
 
     def analysis_candidates
@@ -294,6 +318,12 @@ module Aicoo
 
     def analytics_site
       @analytics_site ||= AicooAnalyticsSite.find_by(business:)
+    end
+
+    def gsc_setting
+      @gsc_setting ||= AnalyticsSourceSetting.includes(:aicoo_analytics_site)
+        .where(source_type: "gsc")
+        .find { |setting| setting.aicoo_analytics_site&.business_id == business.id || setting.site_url == business.gsc_site_url }
     end
 
     def ga4_setting

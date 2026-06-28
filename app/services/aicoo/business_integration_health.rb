@@ -110,9 +110,9 @@ module Aicoo
       latest_success = latest_fetch_run(settings, "success")
       latest_failed = latest_fetch_run(settings, "failed")
       configured = configured_analytics?(business, source_type, setting)
-      connected = configured && setting&.enabled? && latest_success.present?
+      connected = configured && analytics_connection_available?(business, source_type, setting)
       last_fetched_at = latest_run&.finished_at || latest_run&.started_at || setting&.last_fetched_at
-      warning = analytics_warning(source_type, configured:, connected:, latest_run:, last_fetched_at:)
+      warning = analytics_warning(source_type, configured:, connected:, latest_success:, latest_run:, last_fetched_at:)
 
       SourceHealth.new(
         source: source_type,
@@ -159,20 +159,69 @@ module Aicoo
 
     def configured_analytics?(business, source_type, setting)
       if source_type == "gsc"
-        business.gsc_site_url.present? || setting&.site_url.present?
+        business.gsc_site_url.present? ||
+          setting&.site_url.present? ||
+          business_source_identifier(business, source_type).present?
       else
-        setting&.property_id.present? || AicooAnalyticsSite.where(business:).where.not(ga4_property_id: [ nil, "" ]).exists?
+        setting&.property_id.present? ||
+          AicooAnalyticsSite.where(business:).where.not(ga4_property_id: [ nil, "" ]).exists? ||
+          business_source_identifier(business, source_type).present?
       end
     end
 
-    def analytics_warning(source_type, configured:, connected:, latest_run:, last_fetched_at:)
+    def analytics_warning(source_type, configured:, connected:, latest_success:, latest_run:, last_fetched_at:)
       label = source_type.upcase
       return "#{label}未接続" unless configured
+      return "#{label}未接続" unless connected
       return "#{label}最終取得が失敗しています" if latest_run&.status == "failed"
-      return "#{label}取得成功がまだありません" unless connected
+      return "#{label}取得成功がまだありません" unless latest_success
       return "#{label}が#{WARNING_STALE_DAYS}日以上更新されていません" if stale?(last_fetched_at)
 
       nil
+    end
+
+    def google_auth_available?(setting)
+      return false unless setting
+      return setting.individual_credentials_present? if setting.individual_authentication?
+
+      setting.effective_google_credential.present? ||
+        (setting.google_credential.blank? && AicooGoogleCredential.default&.connected?) ||
+        env_google_credentials_present?
+    end
+
+    def analytics_connection_available?(business, source_type, setting)
+      return true if google_auth_available?(setting)
+      return false unless uses_global_business_source?(business, source_type)
+
+      AicooGoogleCredential.default&.connected? || env_google_credentials_present?
+    end
+
+    def uses_global_business_source?(business, source_type)
+      setting = BusinessDataSourceSetting.find_by(business:, source_key: source_type)
+      return false unless setting&.enabled?
+
+      ActiveModel::Type::Boolean.new.cast(setting.metadata.to_h.dig("source_binding", "use_global") || true)
+    end
+
+    def business_source_identifier(business, source_type)
+      setting = BusinessDataSourceSetting.find_by(business:, source_key: source_type)
+      return nil unless setting&.enabled?
+
+      case source_type
+      when "gsc"
+        setting.connection_field_value("site_url").presence ||
+          setting.property_identifier.presence ||
+          business.gsc_site_url.presence
+      when "ga4"
+        setting.connection_field_value("property_id").presence ||
+          setting.property_identifier.presence
+      end
+    end
+
+    def env_google_credentials_present?
+      ENV["GOOGLE_CLIENT_ID"].present? &&
+        ENV["GOOGLE_CLIENT_SECRET"].present? &&
+        ENV["GOOGLE_REFRESH_TOKEN"].present?
     end
 
     def serp_health(business)

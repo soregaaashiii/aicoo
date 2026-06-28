@@ -549,17 +549,23 @@
 
 <section class="dashboard-section">
   <div class="section-heading">
-    <h2>GSC自動取得</h2>
-    <p>環境変数のGoogle認証情報を使い、直近28日分の検索クエリをDataImportへ保存します。</p>
+    <h2>Google API直取得</h2>
+    <p>AICOO共通Google認証またはBusiness個別設定を使い、GA4/GSC APIからBusinessMetricDailyへ直接保存します。</p>
   </div>
 
   <div class="inline-form">
     <div class="field compact-field">
-      <label>site_url</label>
-      <input type="text" value="<%= @business.gsc_site_url %>" readonly>
+      <label>GSC site_url</label>
+      <input type="text" value="<%= analytics.settings[:gsc_site_url] %>" readonly>
     </div>
-    <%= button_to "GSC取得", import_gsc_business_path(@business), method: :post, class: "button", disabled: @business.gsc_site_url.blank? %>
-    <%= link_to "GSC設定を編集", edit_business_path(@business), class: "button secondary" %>
+    <div class="field compact-field">
+      <label>GA4 property_id</label>
+      <input type="text" value="<%= analytics.settings[:ga4_property_id] %>" readonly>
+    </div>
+    <%= button_to "Google APIから取得", import_google_api_business_path(@business), method: :post, class: "button", disabled: analytics.settings[:gsc_site_url].blank? && analytics.settings[:ga4_property_id].blank? %>
+    <%= button_to "GSCだけ取得", import_gsc_business_path(@business), method: :post, class: "button secondary", disabled: analytics.settings[:gsc_site_url].blank? %>
+    <%= button_to "GA4だけ取得", import_ga4_business_path(@business), method: :post, class: "button secondary", disabled: analytics.settings[:ga4_property_id].blank? %>
+    <%= link_to "Google設定を編集", edit_business_path(@business), class: "button secondary" %>
   </div>
 </section>
 

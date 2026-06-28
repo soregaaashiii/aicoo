@@ -120,7 +120,9 @@ Rails.application.routes.draw do
 
   resources :businesses do
     post :generate_ai_candidates, on: :member
+    post :import_google_api, on: :member
     post :import_gsc, on: :member
+    post :import_ga4, on: :member
     patch :update_data_source_settings, on: :member
     resources :data_imports, only: :create
     resources :serp_analyses, only: :create

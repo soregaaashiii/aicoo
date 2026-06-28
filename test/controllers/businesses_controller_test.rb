@@ -117,6 +117,65 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "CODEX"
   end
 
+  test "show treats global google credential as connected and exposes gsc ga4 fetch buttons" do
+    credential = AicooGoogleCredential.create!(
+      name: "AICOO共通Google認証",
+      client_id: "client",
+      client_secret: "secret",
+      refresh_token: "refresh-token",
+      connected_at: Time.current
+    )
+    site = AicooAnalyticsSite.create!(
+      business: @business,
+      name: "Suelog",
+      public_url: "https://suelog.test",
+      domain: "suelog.test",
+      gsc_site_url: "sc-domain:suelog.test",
+      ga4_property_id: "properties/123",
+      authentication_mode: "shared"
+    )
+    site.gsc_setting.update!(google_credential: credential)
+    site.ga4_setting.update!(google_credential: credential)
+
+    get business_url(@business)
+
+    assert_response :success
+    assert_includes response.body, "Google API直取得"
+    assert_includes response.body, "Google APIから取得"
+    assert_includes response.body, "GSC取得"
+    assert_includes response.body, "GA4取得"
+    assert_includes response.body, "接続済み"
+    refute_includes response.body, "GSC未接続"
+    refute_includes response.body, "GA4未接続"
+  end
+
+  test "imports google api metrics into business metric daily from business dashboard" do
+    fake_importer = Class.new do
+      Result = Data.define(:metric_count, :imported_source_labels)
+
+      def initialize(business:)
+        @business = business
+      end
+
+      def call
+        Result.new(2, %w[GSC GA4])
+      end
+    end
+    original_new = AicooAnalytics::BusinessGoogleApiMetricImporter.method(:new)
+    AicooAnalytics::BusinessGoogleApiMetricImporter.define_singleton_method(:new) do |business:, **_kwargs|
+      fake_importer.new(business:)
+    end
+
+    post import_google_api_business_url(@business)
+
+    assert_redirected_to business_url(@business)
+    assert_equal "GSC / GA4 から直接取得しました。BusinessMetricDaily 2日分を更新しました。", flash[:notice]
+  ensure
+    AicooAnalytics::BusinessGoogleApiMetricImporter.define_singleton_method(:new) do |*args, **kwargs, &block|
+      original_new.call(*args, **kwargs, &block)
+    end
+  end
+
   test "should get edit" do
     get edit_business_url(@business)
     assert_response :success

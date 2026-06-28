@@ -1,5 +1,5 @@
 class BusinessesController < ApplicationController
-  before_action :set_business, only: %i[ show edit update destroy generate_ai_candidates import_gsc update_data_source_settings ]
+  before_action :set_business, only: %i[ show edit update destroy generate_ai_candidates import_google_api import_gsc import_ga4 update_data_source_settings ]
 
   # GET /businesses or /businesses.json
   def index
@@ -118,13 +118,42 @@ class BusinessesController < ApplicationController
   end
 
   def import_gsc
-    result = GscImportService.new(@business).call
-
-    redirect_to @business, notice: "GSC imported #{result.data_import.row_count} query rows for #{@business.name}."
-  rescue GoogleOauthClient::MissingCredentialsError, GoogleOauthClient::Error, GscSearchAnalyticsClient::Error => e
+    result = AicooAnalytics::BusinessGoogleApiMetricImporter.new(business: @business, source_types: %w[gsc]).call
+    redirect_to @business, notice: "GSC APIから直接取得しました。BusinessMetricDaily #{result.metric_count}日分を更新しました。"
+  rescue AicooAnalytics::BusinessGoogleApiMetricImporter::Error,
+         GoogleOauthClient::MissingCredentialsError,
+         GoogleOauthClient::Error,
+         GscSearchAnalyticsClient::Error => e
     redirect_to @business, alert: "GSC import failed: #{e.message}"
   rescue ActiveRecord::RecordInvalid => e
     redirect_to @business, alert: "GSC import failed: #{e.record.errors.full_messages.to_sentence}"
+  end
+
+  def import_google_api
+    result = AicooAnalytics::BusinessGoogleApiMetricImporter.new(business: @business).call
+    sources = result.imported_source_labels.presence || [ "Google API" ]
+    redirect_to @business,
+                notice: "#{sources.join(' / ')} から直接取得しました。BusinessMetricDaily #{result.metric_count}日分を更新しました。"
+  rescue AicooAnalytics::BusinessGoogleApiMetricImporter::Error,
+         GoogleOauthClient::MissingCredentialsError,
+         GoogleOauthClient::Error,
+         GscSearchAnalyticsClient::Error,
+         AicooAnalytics::Ga4DataApiClient::Error => e
+    redirect_to @business, alert: "Google APIから取得できませんでした: #{e.message}"
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to @business, alert: "Google APIから取得できませんでした: #{e.record.errors.full_messages.to_sentence}"
+  end
+
+  def import_ga4
+    result = AicooAnalytics::BusinessGoogleApiMetricImporter.new(business: @business, source_types: %w[ga4]).call
+    redirect_to @business, notice: "GA4 APIから直接取得しました。BusinessMetricDaily #{result.metric_count}日分を更新しました。"
+  rescue AicooAnalytics::BusinessGoogleApiMetricImporter::Error,
+         GoogleOauthClient::MissingCredentialsError,
+         GoogleOauthClient::Error,
+         AicooAnalytics::Ga4DataApiClient::Error => e
+    redirect_to @business, alert: "GA4 import failed: #{e.message}"
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to @business, alert: "GA4 import failed: #{e.record.errors.full_messages.to_sentence}"
   end
 
   private

@@ -20,6 +20,7 @@ class BusinessMetricDaily < ApplicationRecord
     views_per_user
     engagement_rate
     bounce_rate
+    average_position
   ].freeze
   ENGAGEMENT_FIELDS = (ENGAGEMENT_COUNT_FIELDS + ENGAGEMENT_RATE_FIELDS).freeze
 

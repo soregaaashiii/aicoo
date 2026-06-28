@@ -8,7 +8,7 @@ module Admin
       get admin_analytics_imports_url
 
       assert_response :success
-      assert_includes response.body, "GA4/GSCデータ取込"
+      assert_includes response.body, "GA4/GSC CSV貼り付け取込"
       assert_includes response.body, "GA4データ貼り付け"
       assert_includes response.body, "保存後にDataHub収集とRevenue推定を更新する"
       assert_includes response.body, "再処理"

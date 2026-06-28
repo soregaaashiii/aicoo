@@ -1,4 +1,4 @@
-<% content_for :title, "GA4/GSCデータ取込" %>
+<% content_for :title, "GA4/GSC CSV貼り付け取込" %>
 
 <% header_actions = capture do %>
     <%= link_to "実績データ", admin_aicoo_datahub_path, class: "button secondary" %>
@@ -7,7 +7,7 @@
 
 <div class="aicoo-page">
   <%= render "shared/aicoo_header",
-             title: "GA4/GSCデータ取込",
+             title: "GA4/GSC CSV貼り付け取込",
              description: "外部API連携を使わず、GA4/GSCのCSVまたは貼り付けテキストをAICOOの実績データ材料として保存します。",
              active_main: :datahub,
              actions: header_actions %>

@@ -11,12 +11,12 @@ module AicooAnalytics
       @access_token = access_token
     end
 
-    def run_report(property_id:, start_date:, end_date:)
-      uri = URI("#{API_BASE}#{property_id}:runReport")
+    def run_report(property_id:, start_date:, end_date:, dimensions: %w[date pagePath], metrics: default_metrics, limit: 1_000)
+      uri = URI("#{API_BASE}#{normalized_property_id(property_id)}:runReport")
       request = Net::HTTP::Post.new(uri)
       request["Authorization"] = "Bearer #{@access_token}"
       request["Content-Type"] = "application/json"
-      request.body = JSON.generate(request_body(start_date:, end_date:))
+      request.body = JSON.generate(request_body(start_date:, end_date:, dimensions:, metrics:, limit:))
 
       response = Net::HTTP.start(uri.host, uri.port, use_ssl: true) { |http| http.request(request) }
       raise Error, "GA4 API error: #{response.code} #{response.body}" unless response.is_a?(Net::HTTPSuccess)
@@ -28,18 +28,21 @@ module AicooAnalytics
 
     private
 
-    def request_body(start_date:, end_date:)
+    def request_body(start_date:, end_date:, dimensions:, metrics:, limit:)
       {
         dateRanges: [ { startDate: start_date.to_s, endDate: end_date.to_s } ],
-        dimensions: [ { name: "date" }, { name: "pagePath" } ],
-        metrics: [
-          { name: "screenPageViews" },
-          { name: "activeUsers" },
-          { name: "sessions" },
-          { name: "eventCount" }
-        ],
-        limit: 1_000
+        dimensions: dimensions.map { |name| { name: } },
+        metrics: metrics.map { |name| { name: } },
+        limit:
       }
+    end
+
+    def default_metrics
+      %w[screenPageViews activeUsers sessions eventCount]
+    end
+
+    def normalized_property_id(property_id)
+      property_id.to_s.sub(/\Aproperties\//, "")
     end
   end
 end

@@ -19,8 +19,9 @@ class BusinessMetricDailyImporter
     event_count
     scroll_events
     internal_search_events
+    average_position
   ].freeze
-  DECIMAL_FIELDS = %i[views_per_user engagement_rate bounce_rate].freeze
+  DECIMAL_FIELDS = %i[views_per_user engagement_rate bounce_rate average_position].freeze
 
   def self.import_all!(date:)
     Business.find_each.map { |business| new(business:, date:).call }
@@ -77,7 +78,8 @@ class BusinessMetricDailyImporter
   def gsc_values
     {
       impressions: snapshot_metric_total("gsc", "impressions"),
-      clicks: snapshot_metric_total("gsc", "clicks")
+      clicks: snapshot_metric_total("gsc", "clicks"),
+      average_position: snapshot_metric_average("gsc", "average_position", "position")
     }
   end
 

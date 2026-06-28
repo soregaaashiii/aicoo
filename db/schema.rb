@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_28_131000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_28_131001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -924,6 +924,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_28_131000) do
   create_table "business_metric_dailies", force: :cascade do |t|
     t.integer "affiliate_clicks", default: 0, null: false
     t.integer "average_engagement_time_seconds", default: 0, null: false
+    t.decimal "average_position", default: "0.0", null: false
     t.decimal "bounce_rate", default: "0.0", null: false
     t.bigint "business_id", null: false
     t.integer "clicks", default: 0, null: false

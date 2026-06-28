@@ -23,7 +23,7 @@ module Aicoo
 
       assert health
       assert_operator health.health_score, :<, BusinessIntegrationHealth::LOW_HEALTH_THRESHOLD
-      assert_includes health.warnings, "GSC取得成功がまだありません"
+      assert_includes health.warnings, "GSC未接続"
       assert_includes health.warnings, "GA4未接続"
       assert_includes health.warnings, "Daily Run未実行"
       assert_includes result.critical_businesses, health
@@ -99,6 +99,9 @@ module Aicoo
         gsc_site_url: @business.gsc_site_url,
         ga4_property_id: "properties/123"
       )
+      credential = create_google_credential
+      site.gsc_setting.update!(google_credential: credential)
+      site.ga4_setting.update!(google_credential: credential)
       setting = site.gsc_setting
       setting.analytics_fetch_runs.create!(
         status: "success",
@@ -113,6 +116,63 @@ module Aicoo
       assert_equal "GSCが3日以上更新されていません", health.gsc.warning
     end
 
+    test "treats shared google credential refresh token as connected before first fetch" do
+      credential = AicooGoogleCredential.create!(
+        name: "AICOO共通Google認証",
+        client_id: "client",
+        client_secret: "secret",
+        refresh_token: "refresh-token",
+        connected_at: Time.current
+      )
+      site = AicooAnalyticsSite.create!(
+        business: @business,
+        name: "Suelog",
+        public_url: "https://suelog.test",
+        domain: "suelog.test",
+        gsc_site_url: @business.gsc_site_url,
+        ga4_property_id: "properties/123",
+        authentication_mode: "shared"
+      )
+      site.gsc_setting.update!(google_credential: credential)
+      site.ga4_setting.update!(google_credential: credential)
+
+      health = BusinessIntegrationHealth.new.call.business_healths.find { |row| row.business == @business }
+
+      assert health.gsc.connected
+      assert health.ga4.connected
+      assert_equal "GSC取得成功がまだありません", health.gsc.warning
+      assert_equal "GA4取得成功がまだありません", health.ga4.warning
+      refute_includes health.warnings, "GSC未接続"
+      refute_includes health.warnings, "GA4未接続"
+    end
+
+    test "does not treat shared google credential without refresh token as connected" do
+      credential = AicooGoogleCredential.create!(
+        name: "AICOO共通Google認証",
+        client_id: "client",
+        client_secret: "secret",
+        connected_at: Time.current
+      )
+      site = AicooAnalyticsSite.create!(
+        business: @business,
+        name: "Suelog",
+        public_url: "https://suelog.test",
+        domain: "suelog.test",
+        gsc_site_url: @business.gsc_site_url,
+        ga4_property_id: "properties/123",
+        authentication_mode: "shared"
+      )
+      site.gsc_setting.update!(google_credential: credential)
+      site.ga4_setting.update!(google_credential: credential)
+
+      health = BusinessIntegrationHealth.new.call.business_healths.find { |row| row.business == @business }
+
+      refute health.gsc.connected
+      refute health.ga4.connected
+      assert_includes health.warnings, "GSC未接続"
+      assert_includes health.warnings, "GA4未接続"
+    end
+
     private
 
     def create_successful_analytics_settings
@@ -124,6 +184,9 @@ module Aicoo
         gsc_site_url: @business.gsc_site_url,
         ga4_property_id: "properties/123"
       )
+      credential = create_google_credential
+      site.gsc_setting.update!(google_credential: credential)
+      site.ga4_setting.update!(google_credential: credential)
       [ site.gsc_setting, site.ga4_setting ].each do |setting|
         setting.analytics_fetch_runs.create!(
           status: "success",
@@ -133,6 +196,16 @@ module Aicoo
           finished_at: Time.current
         )
       end
+    end
+
+    def create_google_credential
+      AicooGoogleCredential.create!(
+        name: "AICOO共通Google認証",
+        client_id: "client",
+        client_secret: "secret",
+        refresh_token: "refresh-token",
+        connected_at: Time.current
+      )
     end
   end
 end
