@@ -51,6 +51,7 @@
           <% ga4_property_id = analytics.settings[:ga4_property_id] %>
           <% import_run = @google_api_import_runs_by_business_id[business.id] %>
           <% credential_snapshot = import_run&.metadata&.dig("google_credential_at_enqueue") || import_run&.metadata&.dig("google_credential_at_success") %>
+          <% ga4_result = import_run&.metadata&.fetch("source_results", [])&.find { |row| row["source"] == "ga4" } %>
           <tr>
             <td><%= link_to business.name, business_path(business) %></td>
             <td>
@@ -80,6 +81,17 @@
               </small>
               <% if import_run&.failed? %>
                 <br><small class="text-danger"><%= import_run.error_message %></small>
+              <% end %>
+              <% if ga4_result.present? %>
+                <br><small>
+                  GA4 API <%= ga4_result["api_row_count"] || ga4_result["row_count"] || 0 %>行 /
+                  保存 <%= ga4_result["saved_day_count"] || ga4_result["row_count"] || 0 %>日 /
+                  sessions <%= ga4_result.dig("totals", "sessions").to_i %> /
+                  pageviews <%= ga4_result.dig("totals", "pageviews").to_i %>
+                </small>
+                <% if ga4_result["property_id_warning"].present? %>
+                  <br><small class="text-danger"><%= ga4_result["property_id_warning"] %></small>
+                <% end %>
               <% end %>
             </td>
             <td>

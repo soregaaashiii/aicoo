@@ -44,6 +44,12 @@ module AicooAnalytics
         assert_equal @credential.id, result.credential_snapshots.dig("gsc", "record_id")
         assert_equal @credential.id, result.credential_snapshots.dig("ga4", "record_id")
         assert_equal "client", result.credential_snapshots.dig("gsc", "client_id")
+        ga4_result = result.source_results.find { |row| row[:source] == "ga4" }
+        assert_equal 2, ga4_result[:api_row_count]
+        assert_equal 2, ga4_result[:saved_day_count]
+        assert_equal 60, ga4_result[:totals]["sessions"]
+        assert_equal 140, ga4_result[:totals]["pageviews"]
+        assert_equal "properties/123", ga4_result[:identifier]
       end
 
       first_metric = BusinessMetricDaily.find_by!(business: @business, recorded_on: Date.new(2026, 6, 26))
@@ -87,6 +93,20 @@ module AicooAnalytics
       assert_equal 10, metric.clicks
       assert_equal 0, metric.sessions
       assert_equal %w[GSC], result.imported_source_labels
+    end
+
+    test "adds a warning when ga4 property id looks like measurement id" do
+      @site.ga4_setting.update!(property_id: "G-E5KCHJTFVP")
+
+      result = BusinessGoogleApiMetricImporter.new(
+        business: @business,
+        today: Date.new(2026, 6, 28),
+        source_types: %w[ga4],
+        ga4_client: FakeGa4Client.new
+      ).call
+
+      ga4_result = result.source_results.find { |row| row[:source] == "ga4" }
+      assert_includes ga4_result[:property_id_warning], "測定ID"
     end
 
     class FakeGscClient

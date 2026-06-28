@@ -37,6 +37,7 @@ module AicooAnalytics
       raise Error, "GSC site_url または GA4 property_id が未設定です。" unless gsc_setting || ga4_setting
 
       source_results = []
+      @source_diagnostics = {}
       credential_snapshots = {
         "gsc" => google_credential_snapshot(gsc_setting),
         "ga4" => google_credential_snapshot(ga4_setting)
@@ -65,7 +66,15 @@ module AicooAnalytics
           dimensions: %w[date],
           row_limit: 25_000
         )
-        aggregate_gsc_rows(response.fetch("rows", []))
+        rows = response.fetch("rows", [])
+        values = aggregate_gsc_rows(rows)
+        @source_diagnostics["gsc"] = source_diagnostic(
+          setting:,
+          rows:,
+          values:,
+          identifier: setting.site_url
+        )
+        values
       end
     end
 
@@ -79,7 +88,22 @@ module AicooAnalytics
           metrics: GA4_METRICS,
           limit: 10_000
         )
-        aggregate_ga4_rows(response.fetch("rows", []))
+        rows = response.fetch("rows", [])
+        values = aggregate_ga4_rows(rows)
+        @source_diagnostics["ga4"] = source_diagnostic(
+          setting:,
+          rows:,
+          values:,
+          identifier: setting.property_id,
+          metric_headers: response.fetch("metricHeaders", []).map { |header| header["name"] },
+          dimension_headers: response.fetch("dimensionHeaders", []).map { |header| header["name"] },
+          property_id_warning: ga4_property_id_warning(setting.property_id)
+        )
+        Rails.logger.info(
+          "Google API GA4 response " \
+          "#{@source_diagnostics['ga4'].compact.to_json}"
+        )
+        values
       end
     end
 
@@ -94,7 +118,12 @@ module AicooAnalytics
         updated_neglect_loss_count: 0,
         error_message: nil
       )
-      source_results << { source: source_type, status: "success", row_count: values.size, run_id: run.id }
+      source_results << {
+        source: source_type,
+        status: "success",
+        row_count: values.size,
+        run_id: run.id
+      }.merge(@source_diagnostics.fetch(source_type, {}))
       values
     rescue StandardError => e
       run&.update!(status: "failed", finished_at: Time.current, error_message: e.message)
@@ -165,6 +194,36 @@ module AicooAnalytics
           event_count: values.fetch(:event_count)
         }
       end
+    end
+
+    def source_diagnostic(setting:, rows:, values:, identifier:, metric_headers: [], dimension_headers: [], property_id_warning: nil)
+      totals = values.values.each_with_object(Hash.new(0)) do |row, memo|
+        row.each do |key, value|
+          memo[key.to_s] += numeric(value) if value.is_a?(Numeric) || value.to_s.match?(/\A-?\d+(\.\d+)?\z/)
+        end
+      end
+      {
+        setting_id: setting.id,
+        identifier:,
+        start_date: start_date.to_s,
+        end_date: end_date.to_s,
+        fetched_days: fetch_days,
+        api_row_count: rows.size,
+        saved_day_count: values.size,
+        totals: totals,
+        metric_headers:,
+        dimension_headers:,
+        property_id_warning:
+      }.compact
+    end
+
+    def ga4_property_id_warning(property_id)
+      text = property_id.to_s.strip
+      return "GA4 property_id が未設定です" if text.blank?
+      return "GA4 Data APIには測定ID(G-...)ではなく数値のProperty IDが必要です" if text.match?(/\AG-/i)
+      return "GA4 property_id は数値または properties/数値 の形式で設定してください" unless text.match?(/\A(?:properties\/)?\d+\z/)
+
+      nil
     end
 
     def weighted_average(values, key)

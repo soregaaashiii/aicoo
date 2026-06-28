@@ -647,6 +647,22 @@
     </div>
   <% end %>
 
+  <% ga4_result = google_api_run&.metadata&.fetch("source_results", [])&.find { |row| row["source"] == "ga4" } %>
+  <% if ga4_result.present? %>
+    <div class="alert-banner alert-banner-info">
+      GA4取得診断:
+      Property <%= ga4_result["identifier"].presence || analytics.settings[:ga4_property_id].presence || "未設定" %> /
+      期間 <%= ga4_result["start_date"] || "-" %>〜<%= ga4_result["end_date"] || "-" %> /
+      API <%= ga4_result["api_row_count"] || ga4_result["row_count"] || 0 %>行 /
+      保存 <%= ga4_result["saved_day_count"] || ga4_result["row_count"] || 0 %>日 /
+      sessions <%= ga4_result.dig("totals", "sessions").to_i %> /
+      pageviews <%= ga4_result.dig("totals", "pageviews").to_i %>
+      <% if ga4_result["property_id_warning"].present? %>
+        <br><strong><%= ga4_result["property_id_warning"] %></strong>
+      <% end %>
+    </div>
+  <% end %>
+
   <% credential_snapshot = google_api_run&.metadata&.dig("google_credential_at_enqueue") || google_api_run&.metadata&.dig("google_credential_at_success") %>
   <% if credential_snapshot.present? %>
     <div class="alert-banner alert-banner-info">
