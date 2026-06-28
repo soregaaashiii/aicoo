@@ -44,7 +44,7 @@ module Admin
         return
       end
 
-      save_oauth_credentials!(settings, google_credential, credentials, token_response.refresh_token)
+      save_oauth_credentials!(settings, google_credential, credentials, token_response)
       redirect_to admin_analytics_connections_path, notice: "Google OAuth接続が完了しました。GSC/GA4のrefresh_tokenを保存しました。"
     rescue AicooAnalytics::GoogleOauthAuthorization::Error => e
       redirect_to admin_analytics_connections_path, alert: "Google OAuth認証に失敗しました: #{e.message}"
@@ -85,13 +85,16 @@ module Admin
       }
     end
 
-    def save_oauth_credentials!(settings, google_credential, credentials, refresh_token)
+    def save_oauth_credentials!(settings, google_credential, credentials, token_response)
       now = Time.current
       google_credential.assign_attributes(
         name: google_credential.name.presence || "AICOO共通Google認証",
         client_id: credentials[:client_id],
         client_secret: credentials[:client_secret],
-        refresh_token:,
+        refresh_token: token_response.refresh_token,
+        access_token: token_response.access_token,
+        token_expires_at: token_response.token_expires_at,
+        google_account_email: token_response.account_email,
         enabled: true,
         connected_at: now
       )

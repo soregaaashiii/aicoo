@@ -1,6 +1,7 @@
 <% content_for :title, "Google認証" %>
 
 <% header_actions = capture do %>
+  <%= link_to "Googleと接続", admin_analytics_oauth_connect_path, class: "button" %>
   <%= link_to "サイト別分析設定", admin_analytics_sites_path, class: "button secondary" %>
 <% end %>
 
@@ -23,6 +24,9 @@
             <th>名前</th>
             <th>状態</th>
             <th>有効</th>
+            <th>Googleアカウント</th>
+            <th>Access Token</th>
+            <th>Token Expiry</th>
             <th>最終接続日時</th>
             <th>利用設定数</th>
             <th>操作</th>
@@ -34,6 +38,16 @@
               <td><%= credential.name %></td>
               <td><span class="pill"><%= credential.connected? ? "接続済み" : "未接続" %></span></td>
               <td><span class="pill"><%= credential.enabled? ? "有効" : "無効" %></span></td>
+              <td><%= credential.google_account_email.presence || "-" %></td>
+              <td><span class="pill"><%= credential.access_token.present? ? "保存済み" : "未保存" %></span></td>
+              <td>
+                <% if credential.token_expires_at.present? %>
+                  <%= l(credential.token_expires_at, format: :short) %>
+                  <span class="pill"><%= credential.token_expired? ? "期限切れ" : "有効" %></span>
+                <% else %>
+                  -
+                <% end %>
+              </td>
               <td><%= credential.connected_at ? l(credential.connected_at, format: :short) : "-" %></td>
               <td class="number"><%= credential.analytics_source_settings.count %></td>
               <td>
@@ -45,7 +59,7 @@
             </tr>
           <% end %>
           <% if @credentials.empty? %>
-            <tr><td colspan="6">Google認証はまだありません。</td></tr>
+            <tr><td colspan="9">Google認証はまだありません。</td></tr>
           <% end %>
         </tbody>
       </table>
@@ -55,7 +69,7 @@
   <section class="dashboard-section">
     <div class="section-heading">
       <h2>Google認証を追加</h2>
-      <p>Client ID / Secret を保存してから「Googleと接続」を押すとrefresh_tokenを保存できます。</p>
+      <p>Client ID / Secret を保存してから「Googleと接続」を押すと、refresh token / access token / token expiry / Googleアカウントを自動保存できます。</p>
     </div>
     <%= render "form", credential: @credential %>
   </section>

@@ -43,6 +43,9 @@ module Admin
       assert_equal "env-client", credential.client_id
       assert_equal "env-secret", credential.client_secret
       assert_equal "new-refresh-token", credential.refresh_token
+      assert_equal "access-token", credential.access_token
+      assert_equal "owner@example.com", credential.google_account_email
+      assert credential.token_expires_at.present?
       assert credential.connected_at.present?
       [ gsc.reload, ga4.reload ].each do |setting|
         assert_equal credential, setting.google_credential
@@ -159,7 +162,7 @@ module Admin
       original_exchange = AicooAnalytics::GoogleOauthAuthorization.method(:exchange_code)
       AicooAnalytics::GoogleOauthAuthorization.define_singleton_method(:exchange_code) do |**kwargs|
         captured.merge!(kwargs)
-        AicooAnalytics::GoogleOauthAuthorization::TokenResponse.new("access-token", refresh_token)
+        AicooAnalytics::GoogleOauthAuthorization::TokenResponse.new("access-token", refresh_token, 3600, "owner@example.com")
       end
       yield captured
     ensure

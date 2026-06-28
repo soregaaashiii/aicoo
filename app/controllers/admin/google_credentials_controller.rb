@@ -14,7 +14,11 @@ module Admin
     def create
       @credential = AicooGoogleCredential.new(credential_params)
       if @credential.save
-        redirect_to admin_google_credentials_path, notice: "Google認証を保存しました"
+        if params[:connect_after_save].present?
+          redirect_to connect_admin_google_credential_path(@credential), notice: "Google認証を保存しました。続けてGoogleと接続します。"
+        else
+          redirect_to admin_google_credentials_path, notice: "Google認証を保存しました"
+        end
       else
         @credentials = AicooGoogleCredential.recent
         render :index, status: :unprocessable_content
@@ -43,7 +47,7 @@ module Admin
     end
 
     def credential_params
-      params.expect(aicoo_google_credential: %i[name client_id client_secret refresh_token enabled notes])
+      params.expect(aicoo_google_credential: %i[name client_id client_secret refresh_token access_token token_expires_at google_account_email enabled notes])
     end
 
     def credential_params_for_update
@@ -51,6 +55,9 @@ module Admin
         permitted.delete(:client_id) if permitted[:client_id].blank?
         permitted.delete(:client_secret) if permitted[:client_secret].blank?
         permitted.delete(:refresh_token) if permitted[:refresh_token].blank?
+        permitted.delete(:access_token) if permitted[:access_token].blank?
+        permitted.delete(:token_expires_at) if permitted[:token_expires_at].blank?
+        permitted.delete(:google_account_email) if permitted[:google_account_email].blank?
       end
     end
   end

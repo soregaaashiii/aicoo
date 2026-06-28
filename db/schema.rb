@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_28_130000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_28_131000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -394,16 +394,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_28_130000) do
   end
 
   create_table "aicoo_google_credentials", force: :cascade do |t|
+    t.text "access_token"
     t.text "client_id"
     t.text "client_secret"
     t.datetime "connected_at"
     t.datetime "created_at", null: false
     t.boolean "enabled", default: true, null: false
+    t.string "google_account_email"
     t.string "name", null: false
     t.text "notes"
     t.text "refresh_token"
+    t.datetime "token_expires_at"
     t.datetime "updated_at", null: false
     t.index ["enabled"], name: "index_aicoo_google_credentials_on_enabled"
+    t.index ["google_account_email"], name: "index_aicoo_google_credentials_on_google_account_email"
+    t.index ["token_expires_at"], name: "index_aicoo_google_credentials_on_token_expires_at"
   end
 
   create_table "aicoo_insight_generation_runs", force: :cascade do |t|

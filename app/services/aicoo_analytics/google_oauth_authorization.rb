@@ -5,12 +5,21 @@ module AicooAnalytics
   class GoogleOauthAuthorization
     AUTH_ENDPOINT = URI("https://accounts.google.com/o/oauth2/v2/auth")
     TOKEN_ENDPOINT = URI("https://oauth2.googleapis.com/token")
+    USERINFO_ENDPOINT = URI("https://www.googleapis.com/oauth2/v2/userinfo")
     SCOPES = [
+      "openid",
+      "email",
       "https://www.googleapis.com/auth/webmasters.readonly",
       "https://www.googleapis.com/auth/analytics.readonly"
     ].freeze
 
-    TokenResponse = Data.define(:access_token, :refresh_token)
+    TokenResponse = Data.define(:access_token, :refresh_token, :expires_in, :account_email) do
+      def token_expires_at
+        return if expires_in.blank?
+
+        Time.current + expires_in.to_i.seconds
+      end
+    end
 
     class Error < StandardError; end
     class MissingCredentialsError < Error; end
@@ -49,7 +58,9 @@ module AicooAnalytics
       parsed = JSON.parse(response.body)
       TokenResponse.new(
         access_token: parsed["access_token"],
-        refresh_token: parsed["refresh_token"]
+        refresh_token: parsed["refresh_token"],
+        expires_in: parsed["expires_in"],
+        account_email: account_email_for(parsed["access_token"])
       )
     rescue JSON::ParserError => e
       raise Error, "Google OAuthレスポンスを解析できませんでした: #{e.message}"
@@ -84,6 +95,21 @@ module AicooAnalytics
       "Google OAuth token exchange failed: #{code} #{body}"
     end
 
-    private_class_method :validate_credentials!, :friendly_error_message
+    def self.account_email_for(access_token)
+      return if access_token.blank?
+
+      request = Net::HTTP::Get.new(USERINFO_ENDPOINT)
+      request["Authorization"] = "Bearer #{access_token}"
+      response = Net::HTTP.start(USERINFO_ENDPOINT.hostname, USERINFO_ENDPOINT.port, use_ssl: true) do |http|
+        http.request(request)
+      end
+      return unless response.is_a?(Net::HTTPSuccess)
+
+      JSON.parse(response.body)["email"]
+    rescue JSON::ParserError, StandardError
+      nil
+    end
+
+    private_class_method :validate_credentials!, :friendly_error_message, :account_email_for
   end
 end

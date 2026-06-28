@@ -16,6 +16,10 @@ class AicooGoogleCredential < ApplicationRecord
     client_id.present? && client_secret.present? && refresh_token.present?
   end
 
+  def token_expired?
+    token_expires_at.present? && token_expires_at <= Time.current
+  end
+
   private
 
   def set_defaults
