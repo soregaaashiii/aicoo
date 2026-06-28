@@ -2,8 +2,10 @@ class PublicSitemapsController < ApplicationController
   def show
     AicooLabLandingPage.publish_due!
     @landing_pages = AicooLabLandingPage.publicly_available.order(published_at: :desc, created_at: :desc)
+    xml = sitemap_xml
 
-    render plain: sitemap_xml, content_type: "application/xml", layout: false
+    response.headers["Content-Length"] = xml.bytesize.to_s
+    render plain: xml, content_type: "application/xml", layout: false
   end
 
   private

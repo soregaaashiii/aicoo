@@ -216,6 +216,20 @@ class PublicLandingPagesControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, "/owner"
   end
 
+  test "sitemap head request reports xml content length" do
+    create_landing_page(headline: "Sitemap Head LP", published_slug: "sitemap-head-lp")
+
+    get sitemap_url(format: :xml)
+    expected_content_length = response.body.bytesize.to_s
+
+    head sitemap_url(format: :xml)
+
+    assert_response :success
+    assert_equal "application/xml", response.media_type
+    assert_equal expected_content_length, response.headers["Content-Length"]
+    assert_empty response.body
+  end
+
   test "robots allows public landing pages and blocks management paths" do
     get robots_url
 
