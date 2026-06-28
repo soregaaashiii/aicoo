@@ -647,6 +647,8 @@
     </div>
   <% end %>
 
+  <%= render "shared/google_oauth_client_status", credential: AicooGoogleCredential.default %>
+
   <div class="inline-form">
     <div class="field compact-field">
       <label>GSC site_url</label>

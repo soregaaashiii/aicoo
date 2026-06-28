@@ -17,6 +17,7 @@
       <h2>Google認証一覧</h2>
       <p>通常は接続済みの共通Google認証を1つだけ使います。必要な場合だけサイト設定側で個別認証を上書きできます。</p>
     </div>
+    <%= render "shared/google_oauth_client_status", credential: AicooGoogleCredential.default %>
     <div class="table-wrap">
       <table>
         <thead>
@@ -25,6 +26,7 @@
             <th>状態</th>
             <th>有効</th>
             <th>Googleアカウント</th>
+            <th>Project ID</th>
             <th>OAuth Client</th>
             <th>Project番号</th>
             <th>Access Token</th>
@@ -41,6 +43,7 @@
               <td><span class="pill"><%= credential.connected? ? "接続済み" : "未接続" %></span></td>
               <td><span class="pill"><%= credential.enabled? ? "有効" : "無効" %></span></td>
               <td><%= credential.google_account_email.presence || "-" %></td>
+              <td><%= credential.effective_google_cloud_project_id.presence || "未設定" %></td>
               <td><%= credential.client_id.presence || "-" %></td>
               <td><%= credential.oauth_project_number.presence || "不明" %></td>
               <td><span class="pill"><%= credential.access_token.present? ? "保存済み" : "未保存" %></span></td>

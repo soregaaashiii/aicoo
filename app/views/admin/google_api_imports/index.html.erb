@@ -18,6 +18,7 @@
       <strong>この画面でやること</strong>
       <p>CSV貼り付けは使いません。GSC site_url / GA4 property_id とGoogle OAuth接続済みのRefresh Tokenを使って、Google APIから日次KPIを直接取得します。</p>
     </div>
+    <%= render "shared/google_oauth_client_status", credential: AicooGoogleCredential.default %>
   </section>
 </div>
 

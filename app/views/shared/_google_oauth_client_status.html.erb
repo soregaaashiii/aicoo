@@ -1,0 +1,38 @@
+<% credential ||= AicooGoogleCredential.default %>
+
+<div class="aicoo-lab-help">
+  <strong>現在使用中のGoogle OAuth Client</strong>
+  <% if credential.present? %>
+    <dl class="definition-list compact-definition-list">
+      <dt>Google Cloud Project ID</dt>
+      <dd><%= credential.effective_google_cloud_project_id.presence || "未設定" %></dd>
+      <dt>Project番号</dt>
+      <dd><%= credential.oauth_project_number.presence || "不明" %></dd>
+      <dt>OAuth Client ID</dt>
+      <dd><%= credential.client_id.presence || "未設定" %></dd>
+      <dt>Googleアカウント</dt>
+      <dd><%= credential.google_account_email.presence || "-" %></dd>
+      <dt>Refresh Token</dt>
+      <dd>
+        <span class="pill"><%= credential.refresh_token.present? ? "保存済み" : "未保存" %></span>
+        <% if credential.reauthentication_required? %>
+          <span class="pill danger">再認証が必要です</span>
+        <% end %>
+      </dd>
+    </dl>
+
+    <% if credential.env_client_id_mismatch? || credential.env_project_id_mismatch? %>
+      <div class="alert-banner alert-banner-warning">
+        ENVとDBのGoogle OAuth設定が異なります。
+        <% if credential.env_client_id_mismatch? %>
+          DBのOAuth Client IDを使用します。RenderのGOOGLE_CLIENT_IDが古い可能性があります。
+        <% end %>
+        <% if credential.env_project_id_mismatch? %>
+          DBのProject IDとENVのProject IDが異なります。
+        <% end %>
+      </div>
+    <% end %>
+  <% else %>
+    <p>Google OAuth Clientが未設定です。Google認証画面でClient ID / Secretを保存し、Googleと接続してください。</p>
+  <% end %>
+</div>

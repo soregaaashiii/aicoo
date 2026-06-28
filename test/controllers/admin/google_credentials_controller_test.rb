@@ -34,6 +34,7 @@ module Admin
         post admin_google_credentials_url, params: {
           aicoo_google_credential: {
             name: "AICOO共通Google認証",
+            google_cloud_project_id: "aicoo-500805",
             client_id: "client",
             client_secret: "secret",
             refresh_token: "refresh",
@@ -46,6 +47,7 @@ module Admin
 
       credential = AicooGoogleCredential.last
       assert_redirected_to admin_google_credentials_url
+      assert_equal "aicoo-500805", credential.google_cloud_project_id
       assert_equal "client", credential.client_id
       assert_equal "secret", credential.client_secret
       assert_equal "refresh", credential.refresh_token
@@ -82,6 +84,69 @@ module Admin
       assert_equal "refresh", credential.refresh_token
     end
 
+    test "changing oauth client id invalidates old tokens and requires reauthentication" do
+      credential = AicooGoogleCredential.create!(
+        name: "AICOO共通Google認証",
+        google_cloud_project_id: "old-project",
+        client_id: "111-old.apps.googleusercontent.com",
+        client_secret: "secret",
+        refresh_token: "old-refresh",
+        access_token: "old-access",
+        token_expires_at: 1.hour.from_now,
+        google_account_email: "owner@example.com",
+        connected_at: Time.current
+      )
+
+      patch admin_google_credential_url(credential), params: {
+        aicoo_google_credential: {
+          name: "AICOO共通Google認証",
+          google_cloud_project_id: "aicoo-500805",
+          client_id: "222-new.apps.googleusercontent.com",
+          client_secret: "",
+          refresh_token: "",
+          access_token: "",
+          token_expires_at: "",
+          google_account_email: "",
+          enabled: "1"
+        }
+      }
+
+      credential.reload
+      assert_redirected_to admin_google_credentials_url
+      assert_equal "222-new.apps.googleusercontent.com", credential.client_id
+      assert_equal "aicoo-500805", credential.google_cloud_project_id
+      assert_nil credential.refresh_token
+      assert_nil credential.access_token
+      assert_nil credential.token_expires_at
+      assert_nil credential.google_account_email
+      assert_nil credential.connected_at
+      assert_predicate credential, :reauthentication_required?
+    end
+
+    test "shows env mismatch warning and current google cloud project" do
+      AicooGoogleCredential.create!(
+        name: "AICOO共通Google認証",
+        google_cloud_project_id: "aicoo-500805",
+        client_id: "222-new.apps.googleusercontent.com",
+        client_secret: "secret",
+        refresh_token: "refresh-token-value",
+        connected_at: Time.current
+      )
+
+      with_env(
+        "GOOGLE_CLIENT_ID" => "111-old.apps.googleusercontent.com",
+        "GOOGLE_CLOUD_PROJECT" => "old-project"
+      ) do
+        get admin_google_credentials_url
+      end
+
+      assert_response :success
+      assert_includes response.body, "aicoo-500805"
+      assert_includes response.body, "222-new.apps.googleusercontent.com"
+      assert_includes response.body, "ENVとDBのGoogle OAuth設定が異なります"
+      assert_not_includes response.body, "再認証が必要です"
+    end
+
     test "can save credential and continue to google oauth" do
       post admin_google_credentials_url, params: {
         connect_after_save: "保存してGoogleと接続",
@@ -95,6 +160,16 @@ module Admin
 
       credential = AicooGoogleCredential.last
       assert_redirected_to connect_admin_google_credential_url(credential)
+    end
+
+    private
+
+    def with_env(values)
+      previous = values.keys.index_with { |key| ENV[key] }
+      values.each { |key, value| value.nil? ? ENV.delete(key) : ENV[key] = value }
+      yield
+    ensure
+      previous.each { |key, value| value.nil? ? ENV.delete(key) : ENV[key] = value }
     end
   end
 end

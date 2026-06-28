@@ -47,7 +47,7 @@ module Admin
     end
 
     def credential_params
-      params.expect(aicoo_google_credential: %i[name client_id client_secret refresh_token access_token token_expires_at google_account_email enabled notes])
+      params.expect(aicoo_google_credential: %i[name google_cloud_project_id client_id client_secret refresh_token access_token token_expires_at google_account_email enabled notes])
     end
 
     def credential_params_for_update

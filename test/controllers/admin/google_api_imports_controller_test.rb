@@ -11,9 +11,10 @@ module Admin
       clear_performed_jobs
       @business = businesses(:suelog)
       @business.update!(gsc_site_url: "sc-domain:suelog.test")
-      AicooGoogleCredential.create!(
+      @credential = AicooGoogleCredential.create!(
         name: "AICOO共通Google認証",
-        client_id: "client",
+        google_cloud_project_id: "aicoo-500805",
+        client_id: "338488400527-client.apps.googleusercontent.com",
         client_secret: "secret",
         refresh_token: "refresh-token",
         connected_at: Time.current
@@ -55,6 +56,9 @@ module Admin
       assert_includes response.body, "sc-domain:suelog.test"
       assert_includes response.body, "properties/123"
       assert_includes response.body, "Google APIから取得"
+      assert_includes response.body, "現在使用中のGoogle OAuth Client"
+      assert_includes response.body, @credential.client_id
+      assert_includes response.body, @credential.effective_google_cloud_project_id
       assert_includes response.body, "action=\"#{admin_google_api_imports_path}\""
       assert_includes response.body, "data-aicoo-submit-lock=\"true\""
       assert_includes response.body, "data-aicoo-loading-label=\"Google API取得中...\""
