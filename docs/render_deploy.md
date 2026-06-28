@@ -40,6 +40,7 @@ bin/rails db:migrate && bin/rails server -b 0.0.0.0 -p $PORT
 
 Optional environment variables:
 
+- `GA4_MEASUREMENT_ID` (example: `G-E5KCHJTFVP`)
 - `OPENAI_API_KEY`
 - `OPENAI_MODEL`
 - `GOOGLE_CLIENT_ID`

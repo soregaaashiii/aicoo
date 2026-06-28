@@ -40,4 +40,17 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Integrations"
     assert_includes response.body, "現在位置"
   end
+
+  test "ga4 tag is not rendered in test environment" do
+    previous = ENV.fetch("GA4_MEASUREMENT_ID", nil)
+    ENV["GA4_MEASUREMENT_ID"] = "G-E5KCHJTFVP"
+
+    get owner_focus_url
+
+    assert_response :success
+    assert_not_includes response.body, "googletagmanager.com/gtag/js"
+    assert_not_includes response.body, "G-E5KCHJTFVP"
+  ensure
+    previous.nil? ? ENV.delete("GA4_MEASUREMENT_ID") : ENV["GA4_MEASUREMENT_ID"] = previous
+  end
 end
