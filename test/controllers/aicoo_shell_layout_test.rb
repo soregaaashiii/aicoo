@@ -12,23 +12,29 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Search"
     assert_includes response.body, "Notifications"
     assert_includes response.body, "Profile"
-    assert_includes response.body, "今日"
-    assert_includes response.body, "確認タスク"
-    assert_includes response.body, "発見と検証"
+    assert_includes response.body, "目的から探す"
+    assert_includes response.body, "今日やる"
+    assert_includes response.body, "今日見る場所"
+    assert_includes response.body, "確認する"
+    assert_includes response.body, "事業を見る"
+    assert_includes response.body, "提案を動かす"
+    assert_includes response.body, "精度を育てる"
+    assert_includes response.body, "システムを直す"
     assert_includes response.body, "現在位置"
   end
 
-  test "system mode uses monitor sidebar and breadcrumb" do
+  test "system mode uses purpose sidebar and breadcrumb" do
     get dashboard_url
 
     assert_response :success
     assert_includes response.body, "AICOO"
     assert_includes response.body, "SYSTEM MODE"
-    assert_includes response.body, "Daily Monitor"
-    assert_includes response.body, "Deep Diagnostics"
-    assert_includes response.body, "Pipeline"
-    assert_includes response.body, "Jobs"
-    assert_includes response.body, "Queues"
+    assert_includes response.body, "今日やる"
+    assert_includes response.body, "事業を見る"
+    assert_includes response.body, "提案を動かす"
+    assert_includes response.body, "精度を育てる"
+    assert_includes response.body, "システムを直す"
+    assert_includes response.body, "状態を見る"
     assert_includes response.body, "現在位置"
   end
 
@@ -37,8 +43,9 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes response.body, "SYSTEM MODE"
-    assert_includes response.body, "Business"
-    assert_includes response.body, "Integrations"
+    assert_includes response.body, "事業を見る"
+    assert_includes response.body, "事業一覧"
+    assert_includes response.body, "Google連携"
     assert_includes response.body, "現在位置"
   end
 

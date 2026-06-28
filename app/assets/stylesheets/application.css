@@ -179,7 +179,24 @@ a:hover {
 
 .aicoo-sidebar-nav {
   display: grid;
-  gap: 6px;
+  gap: 10px;
+}
+
+.aicoo-sidebar-group {
+  border-bottom: 1px solid #eef2f6;
+  display: grid;
+  gap: 4px;
+  padding-bottom: 8px;
+}
+
+.aicoo-sidebar-group:last-child {
+  border-bottom: 0;
+}
+
+.aicoo-sidebar-children {
+  display: grid;
+  gap: 3px;
+  padding-left: 10px;
 }
 
 .aicoo-sidebar-link {
@@ -191,6 +208,22 @@ a:hover {
   min-width: 0;
   padding: 10px 11px;
   text-decoration: none;
+}
+
+.aicoo-sidebar-category {
+  font-weight: 700;
+}
+
+.aicoo-sidebar-child {
+  padding: 7px 10px;
+}
+
+.aicoo-sidebar-child strong {
+  font-size: 13px;
+}
+
+.aicoo-sidebar-child span {
+  font-size: 11px;
 }
 
 .aicoo-sidebar-link strong,

@@ -56,15 +56,25 @@
       <aside class="aicoo-sidebar" aria-label="<%= aicoo_mode_label %> navigation">
         <div class="aicoo-sidebar-mode">
           <strong><%= aicoo_mode_label %></strong>
-          <span><%= aicoo_ceo_mode? ? "Focus / Tasks / Learning" : "Monitor / Diagnostics / Settings" %></span>
+          <span>目的から探す</span>
         </div>
 
         <nav class="aicoo-sidebar-nav">
-          <% aicoo_sidebar_items.each do |item| %>
-            <%= link_to item[:path], class: ["aicoo-sidebar-link", ("active" if aicoo_sidebar_active?(item))] do %>
-              <strong><%= item[:label] %></strong>
-              <span><%= item[:description] %></span>
-            <% end %>
+          <% aicoo_sidebar_items.each do |category| %>
+            <section class="aicoo-sidebar-group <%= 'active' if aicoo_sidebar_category_active?(category) %>">
+              <%= link_to category[:path], class: ["aicoo-sidebar-link", "aicoo-sidebar-category", ("active" if aicoo_sidebar_category_active?(category))] do %>
+                <strong><%= category[:label] %></strong>
+                <span><%= category[:description] %></span>
+              <% end %>
+              <div class="aicoo-sidebar-children">
+                <% category.fetch(:children, []).each do |item| %>
+                  <%= link_to item[:path], class: ["aicoo-sidebar-link", "aicoo-sidebar-child", ("active" if aicoo_sidebar_child_active?(item))] do %>
+                    <strong><%= item[:label] %></strong>
+                    <span><%= item[:description] %></span>
+                  <% end %>
+                <% end %>
+              </div>
+            </section>
           <% end %>
         </nav>
       </aside>
