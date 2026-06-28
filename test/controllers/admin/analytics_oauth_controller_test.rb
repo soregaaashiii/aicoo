@@ -31,7 +31,8 @@ module Admin
 
       with_google_env(
         "GOOGLE_CLIENT_ID" => "env-client",
-        "GOOGLE_CLIENT_SECRET" => "env-secret"
+        "GOOGLE_CLIENT_SECRET" => "env-secret",
+        "GOOGLE_CLOUD_PROJECT" => "aicoo-500805"
       ) do
         with_oauth_exchange(refresh_token: "new-refresh-token") do
           get admin_analytics_oauth_callback_url, params: { code: "auth-code", state: "吸えログ" }
@@ -42,6 +43,7 @@ module Admin
       credential = AicooGoogleCredential.default
       assert_equal "env-client", credential.client_id
       assert_equal "env-secret", credential.client_secret
+      assert_equal "aicoo-500805", credential.google_cloud_project_id
       assert_equal "new-refresh-token", credential.refresh_token
       assert_equal "access-token", credential.access_token
       assert_equal "owner@example.com", credential.google_account_email
@@ -56,6 +58,38 @@ module Admin
         assert_nil setting.credentials_json
         assert setting.oauth_connected_at.present?
       end
+    end
+
+    test "callback persists remembered saved google credential values and reloads db state" do
+      credential = AicooGoogleCredential.create!(
+        name: "AICOO共通Google認証",
+        google_cloud_project_id: "aicoo-500805",
+        client_id: "705900000000-new.apps.googleusercontent.com",
+        client_secret: "new-secret",
+        refresh_token: nil,
+        enabled: true
+      )
+
+      get admin_analytics_oauth_connect_url, params: { google_credential_id: credential.id }
+
+      with_oauth_exchange(refresh_token: "fresh-refresh-token") do |captured|
+        get admin_analytics_oauth_callback_url, params: { code: "auth-code" }
+
+        assert_equal "705900000000-new.apps.googleusercontent.com", captured[:client_id]
+        assert_equal "new-secret", captured[:client_secret]
+      end
+
+      assert_redirected_to admin_google_credentials_url
+      credential.reload
+      assert_equal "705900000000-new.apps.googleusercontent.com", credential.client_id
+      assert_equal "new-secret", credential.client_secret
+      assert_equal "aicoo-500805", credential.google_cloud_project_id
+      assert_equal "fresh-refresh-token", credential.refresh_token
+      assert_equal "access-token", credential.access_token
+      assert credential.token_expires_at.present?
+      assert_equal "owner@example.com", credential.google_account_email
+      assert credential.last_oauth_success_at.present?
+      assert_predicate credential, :connected?
     end
 
     test "callback uses the client credentials remembered at connect time" do
@@ -218,7 +252,7 @@ module Admin
     end
 
     def with_google_env(values)
-      keys = %w[GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET GOOGLE_REFRESH_TOKEN]
+      keys = %w[GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET GOOGLE_REFRESH_TOKEN GOOGLE_CLOUD_PROJECT GOOGLE_PROJECT_ID]
       previous = keys.to_h { |key| [ key, ENV.fetch(key, nil) ] }
       keys.each { |key| ENV.delete(key) }
       values.each { |key, value| ENV[key] = value }
