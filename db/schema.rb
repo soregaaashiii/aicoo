@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_28_123000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_28_130000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1326,6 +1326,29 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_28_123000) do
     t.index ["data_import_id"], name: "index_serp_analyses_on_data_import_id"
   end
 
+  create_table "serp_landing_page_candidates", force: :cascade do |t|
+    t.bigint "aicoo_lab_landing_page_id"
+    t.text "competition_note"
+    t.datetime "created_at", null: false
+    t.string "cta_text"
+    t.decimal "expected_value_score", precision: 10, scale: 2
+    t.string "keyword", null: false
+    t.text "lp_description"
+    t.string "lp_title"
+    t.jsonb "metadata", default: {}, null: false
+    t.text "problem"
+    t.bigint "serp_analysis_id"
+    t.string "service_name"
+    t.string "status", default: "proposed", null: false
+    t.string "target_audience"
+    t.datetime "updated_at", null: false
+    t.index ["aicoo_lab_landing_page_id"], name: "idx_on_aicoo_lab_landing_page_id_6c11c07692"
+    t.index ["expected_value_score"], name: "index_serp_landing_page_candidates_on_expected_value_score"
+    t.index ["keyword"], name: "index_serp_landing_page_candidates_on_keyword"
+    t.index ["serp_analysis_id"], name: "index_serp_landing_page_candidates_on_serp_analysis_id"
+    t.index ["status"], name: "index_serp_landing_page_candidates_on_status"
+  end
+
   create_table "serp_results", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.integer "position", null: false
@@ -1421,5 +1444,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_28_123000) do
   add_foreign_key "revenue_events", "businesses"
   add_foreign_key "serp_analyses", "businesses"
   add_foreign_key "serp_analyses", "data_imports"
+  add_foreign_key "serp_landing_page_candidates", "aicoo_lab_landing_pages"
+  add_foreign_key "serp_landing_page_candidates", "serp_analyses"
   add_foreign_key "serp_results", "serp_analyses"
 end

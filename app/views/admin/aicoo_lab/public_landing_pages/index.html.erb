@@ -2,6 +2,7 @@
 
 <% header_actions = capture do %>
   <%= link_to "LPを新規作成", admin_aicoo_lab_new_public_landing_page_path, class: "button" %>
+  <%= link_to "SERPからLP候補生成", admin_aicoo_lab_serp_landing_page_candidates_path, class: "button secondary" %>
   <%= link_to "新規事業へ戻る", admin_aicoo_lab_experiments_path, class: "button secondary" %>
   <%= link_to "公開サイトを見る", public_landing_pages_path, class: "button secondary", target: "_blank", rel: "noopener" %>
 <% end %>

@@ -1,0 +1,108 @@
+<% content_for :title, "SERPからLP候補生成" %>
+
+<% header_actions = capture do %>
+  <%= link_to "公開LP管理", admin_aicoo_lab_public_landing_pages_path, class: "button secondary" %>
+  <%= link_to "新規事業へ戻る", admin_aicoo_lab_experiments_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "SERPからLP候補生成",
+             description: "キーワードと検索結果から、新規事業・公開LPの候補を作ります。",
+             active_main: :lab,
+             actions: header_actions %>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>SERP調査</h2>
+      <p>Google検索結果をCSVまたはテキストで貼り付けると、LP候補を自動生成します。</p>
+    </div>
+
+    <%= form_with url: admin_aicoo_lab_serp_landing_page_candidates_path, scope: :serp_research, multipart: true, class: "form" do |form| %>
+      <div class="grid">
+        <div class="field">
+          <%= form.label :keyword, "キーワード" %>
+          <%= form.text_field :keyword, required: true, placeholder: "例: 梅田 喫煙 カフェ" %>
+        </div>
+        <div class="field">
+          <%= form.label :business_id, "紐付けBusiness" %>
+          <%= form.collection_select :business_id, @businesses, :id, :name, include_blank: "未指定" %>
+        </div>
+        <div class="field">
+          <%= form.label :location, "地域" %>
+          <%= form.text_field :location, placeholder: "例: Osaka / Japan" %>
+        </div>
+        <div class="field">
+          <%= form.label :device, "デバイス" %>
+          <%= form.select :device, SerpAnalysis::DEVICES.map { |device| [device.humanize, device] } %>
+        </div>
+      </div>
+
+      <div class="field">
+        <%= form.label :file, "CSV/TXTファイル" %>
+        <%= form.file_field :file, accept: ".csv,.txt,text/csv,text/plain" %>
+        <p class="aicoo-lab-help">CSVは position,title,url,snippet のヘッダー推奨です。</p>
+      </div>
+
+      <div class="field">
+        <%= form.label :raw_text, "検索結果テキスト" %>
+        <%= form.text_area :raw_text, rows: 8, placeholder: "1行に1検索結果。title,url,snippet の順にカンマまたはタブ区切りでもOKです。" %>
+      </div>
+
+      <div class="actions">
+        <%= form.submit "SERP調査してLP候補を生成", class: "button" %>
+      </div>
+    <% end %>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>LP候補一覧</h2>
+      <p>良さそうな候補はdraft LPとして作成し、公開LP編集画面で内容を整えて公開できます。</p>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>状態</th>
+            <th>キーワード</th>
+            <th>LPタイトル案</th>
+            <th>ターゲット</th>
+            <th>課題</th>
+            <th>期待値</th>
+            <th>競合メモ</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @candidates.each do |candidate| %>
+            <tr>
+              <td><span class="pill"><%= candidate.status %></span></td>
+              <td><%= candidate.keyword %></td>
+              <td class="wide-text">
+                <strong><%= candidate.lp_title %></strong><br>
+                <small><%= candidate.lp_description %></small><br>
+                <small>CTA: <%= candidate.cta_text %></small>
+              </td>
+              <td class="wide-text"><%= candidate.target_audience %></td>
+              <td class="wide-text"><%= candidate.problem %></td>
+              <td class="number"><%= number_with_precision(candidate.expected_value_score, precision: 1) %></td>
+              <td class="wide-text"><%= simple_format(candidate.competition_note.to_s.truncate(400)) %></td>
+              <td>
+                <% if candidate.aicoo_lab_landing_page %>
+                  <%= link_to "LP編集", admin_aicoo_lab_edit_public_landing_page_path(candidate.aicoo_lab_landing_page), class: "button secondary" %>
+                <% else %>
+                  <%= button_to "LP作成", admin_aicoo_lab_serp_landing_page_candidate_create_landing_page_path(candidate), method: :post, class: "button" %>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+          <% if @candidates.empty? %>
+            <tr><td colspan="8">SERP由来のLP候補はまだありません。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
