@@ -9,13 +9,17 @@ class PublicSitemapsController < ApplicationController
   private
 
   def sitemap_xml
-    <<~XML
-      <?xml version="1.0" encoding="UTF-8"?>
-      <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-      #{sitemap_url_node(public_url_for(root_path), Time.current, "daily", "0.8")}
-      #{@landing_pages.map { |landing_page| landing_page_url_node(landing_page) }.join}
-      </urlset>
-    XML
+    [
+      "<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+      "<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">",
+      sitemap_url_node(public_url_for(root_path), sitemap_root_last_modified_at, "daily", "0.8"),
+      @landing_pages.map { |landing_page| landing_page_url_node(landing_page) }.join,
+      "</urlset>"
+    ].join("\n")
+  end
+
+  def sitemap_root_last_modified_at
+    @landing_pages.maximum(:updated_at) || AicooLabLandingPage.maximum(:updated_at) || Time.current
   end
 
   def landing_page_url_node(landing_page)

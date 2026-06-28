@@ -1,4 +1,5 @@
 require "test_helper"
+require "rexml/document"
 
 class PublicLandingPagesControllerTest < ActionDispatch::IntegrationTest
   test "public landing page index lists only published landing pages" do
@@ -192,7 +193,12 @@ class PublicLandingPagesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_equal "application/xml", response.media_type
-    assert_includes response.body, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+    assert response.body.start_with?("<?xml version=\"1.0\" encoding=\"UTF-8\"?>")
+    assert_not_equal [ 0xEF, 0xBB, 0xBF ], response.body.bytes.first(3)
+    assert_equal 0, response.body.index("<?xml version=\"1.0\" encoding=\"UTF-8\"?>")
+    document = REXML::Document.new(response.body)
+    assert_equal "urlset", document.root.name
+    assert_equal "http://www.sitemaps.org/schemas/sitemap/0.9", document.root.namespace
     assert_includes response.body, "<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">"
     assert_includes response.body, "<url>"
     assert_includes response.body, "<loc>"
