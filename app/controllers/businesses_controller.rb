@@ -249,6 +249,11 @@ class BusinessesController < ApplicationController
     end
 
     def enqueue_google_api_import!(source_types:, label:)
+      if @business.system_business?
+        redirect_to businesses_path, alert: "Google API取得は実事業だけが対象です。"
+        return
+      end
+
       credential = current_google_credential
       if google_credential_reauthentication_required?(credential)
         redirect_to business_path(@business, anchor: "business-google"),

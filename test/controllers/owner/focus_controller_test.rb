@@ -79,6 +79,74 @@ module Owner
       assert_includes response.body, "今すぐ処理すべき作業はありません。"
     end
 
+    test "does not show system business in critical integration warnings" do
+      Business.create!(
+        name: "AICOO Analytics Import",
+        description: "system import holder",
+        status: "launched"
+      )
+
+      get owner_focus_url
+
+      assert_response :success
+      assert_not_includes response.body, "AICOO Analytics Import"
+    end
+
+    test "does not show recent execution result cards or full errors at top" do
+      GoogleApiImportRun.create!(
+        business: businesses(:suelog),
+        status: "failed",
+        source_types: %w[ga4],
+        fetched_days: 1,
+        started_at: 10.minutes.ago,
+        finished_at: 9.minutes.ago,
+        error_message: "GA4 metric名が無効です\nraw error full payload should stay out of focus"
+      )
+
+      get owner_focus_url
+
+      assert_response :success
+      assert_not_includes response.body, "直近の実行結果"
+      assert_not_includes response.body, "raw error full payload should stay out of focus"
+      assert_includes response.body, "実行履歴"
+      assert_includes response.body, admin_execution_runs_path
+      assert_includes response.body, "SERP走査"
+    end
+
+    test "shows serp scan card and settings link" do
+      DataSourceCostProfile.ensure_defaults!
+      DataSourceCostProfile.find_by!(source_key: "serp").update!(api_key: "serper-key")
+
+      get owner_focus_url
+
+      assert_response :success
+      assert_includes response.body, "SERP走査"
+      assert_includes response.body, "SERP走査を開始"
+      assert_includes response.body, admin_serp_settings_path
+      assert_includes response.body, owner_serp_scan_path
+      assert_includes response.body, "設定済み"
+    end
+
+    test "serp scan start posts through owner focus route" do
+      result = Aicoo::Serp::ScanRunner::Result.new(
+        started_at: Time.current,
+        finished_at: Time.current,
+        provider: "serper",
+        target_business_count: 1,
+        query_count: 1,
+        success_count: 1,
+        failed_count: 0,
+        analyses: []
+      )
+
+      with_serp_scan_runner(result) do
+        post owner_serp_scan_path
+      end
+
+      assert_redirected_to owner_focus_path
+      assert_equal "SERP走査が完了しました。1 Business / 1クエリを確認しました。", flash[:notice]
+    end
+
     test "shows pending opportunity as next action with opportunity quick actions" do
       ActionCandidate.update_all(status: "done")
       ActionExecution.delete_all
@@ -282,6 +350,16 @@ module Owner
       assert_includes response.body, "Focus queue item"
       assert_includes response.body, skip_owner_execution_queue_item_path(item)
       assert_not_includes response.body, complete_owner_execution_queue_item_path(item)
+    end
+
+    private
+
+    def with_serp_scan_runner(result)
+      original_call = Aicoo::Serp::ScanRunner.instance_method(:call)
+      Aicoo::Serp::ScanRunner.define_method(:call) { result }
+      yield
+    ensure
+      Aicoo::Serp::ScanRunner.define_method(:call, original_call)
     end
   end
 end

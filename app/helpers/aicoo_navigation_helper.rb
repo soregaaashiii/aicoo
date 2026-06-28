@@ -152,6 +152,7 @@ module AicooNavigationHelper
         path: dashboard_path,
         matchers: [
           %r{\A/dashboard},
+          %r{\A/admin/execution_runs},
           %r{\A/admin/(analytics|google|aicoo_datahub|aicoo_daily_run_settings|aicoo_auto_revision_settings|business_execution_profiles|explore)},
           %r{\A/admin/serp_settings},
           %r{\A/aicoo_setting},
@@ -159,6 +160,7 @@ module AicooNavigationHelper
         ],
         children: [
           { label: "状態を見る", description: "エラーと実行状況", path: dashboard_path, matchers: [ %r{\A/dashboard}, %r{\A/codex_quality_checks} ] },
+          { label: "実行履歴", description: "処理結果を確認", path: admin_execution_runs_path, matchers: [ %r{\A/admin/execution_runs} ] },
           { label: "Google連携", description: "GA4/GSC設定", path: admin_google_credentials_path, matchers: [ %r{\A/admin/(analytics|google)} ] },
           { label: "設定を直す", description: "API・安全設定", path: aicoo_setting_path, matchers: [ %r{\A/aicoo_setting}, %r{\A/admin/(serp_settings|aicoo_daily_run_settings|aicoo_auto_revision_settings|business_execution_profiles)} ] },
           { label: "詳しく診る", description: "データ・発見", path: admin_aicoo_datahub_path, matchers: [ %r{\A/admin/(aicoo_datahub|explore)} ] }

@@ -51,7 +51,7 @@ module AicooInsight
       created = []
       skipped = []
 
-      Business.find_each do |business|
+      Business.real_businesses.find_each do |business|
         result = new(business:).call
         created.concat(result.created)
         skipped.concat(result.skipped)

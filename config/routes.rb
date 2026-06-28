@@ -21,6 +21,7 @@ Rails.application.routes.draw do
   patch "owner/focus/defer", to: "owner/focus#defer", as: :defer_owner_focus
   patch "owner/focus/restore", to: "owner/focus#restore", as: :restore_owner_focus
   get "owner/tasks", to: "owner/tasks#index", as: :owner_tasks
+  post "owner/serp_scan", to: "owner/serp_scans#create", as: :owner_serp_scan
   patch "owner/execution_queue_items/:id/complete", to: "owner/execution_queue_items#complete", as: :complete_owner_execution_queue_item
   patch "owner/execution_queue_items/:id/skip", to: "owner/execution_queue_items#skip", as: :skip_owner_execution_queue_item
   patch "owner/execution_queue_items/:id/restore", to: "owner/execution_queue_items#restore", as: :restore_owner_execution_queue_item
@@ -172,6 +173,8 @@ Rails.application.routes.draw do
     get "google_api_imports", to: "google_api_imports#index", as: :google_api_imports
     post "google_api_imports", to: "google_api_imports#create"
     post "google_api_imports/:business_id", to: "google_api_imports#create", as: :google_api_import
+    get "execution_runs", to: "execution_runs#index", as: :execution_runs
+    get "execution_runs/:id", to: "execution_runs#show", as: :execution_run
     resource :serp_settings, only: :show do
       post :test_search
     end

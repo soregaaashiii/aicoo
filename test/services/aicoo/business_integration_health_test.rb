@@ -29,6 +29,19 @@ module Aicoo
       assert_includes result.critical_businesses, health
     end
 
+    test "excludes system businesses from health result" do
+      system_business = Business.create!(
+        name: "AICOO Analytics Import",
+        description: "system import holder",
+        status: "launched"
+      )
+
+      result = BusinessIntegrationHealth.new.call
+
+      assert_not_includes result.business_healths.map(&:business), system_business
+      assert_not_includes result.critical_businesses.map(&:business), system_business
+    end
+
     test "aggregates configured integrations and lowers warnings for healthy data" do
       create_successful_analytics_settings
       @business.serp_analyses.create!(

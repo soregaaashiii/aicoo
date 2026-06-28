@@ -1,0 +1,68 @@
+<% mode = local_assigns.fetch(:mode, :compact).to_sym %>
+<% status_class = operation.running? ? "running" : operation.failed? ? "failed" : "success" %>
+<% compact_message = operation.compact_message %>
+
+<% if mode == :compact %>
+  <tr class="operation-row operation-row-<%= status_class %>">
+    <td><span class="progress-indicator progress-indicator-<%= status_class %>"><%= operation.status_label %></span></td>
+    <td><strong><%= operation.kind %></strong></td>
+    <td><%= operation.business_name.presence || "-" %></td>
+    <td><%= operation.started_at ? l(operation.started_at, format: :short) : "-" %></td>
+    <td><%= operation.duration_label %></td>
+    <td><%= operation.detail.presence || "-" %></td>
+    <td><%= compact_message.presence || "-" %></td>
+    <td>
+      <div class="actions compact-actions">
+        <%= link_to "詳細", admin_execution_run_path(operation.key), class: "button secondary" %>
+        <% if operation.failed? && operation.retry_path.present? %>
+          <%= link_to "再実行", operation.retry_path, class: "button" %>
+        <% end %>
+      </div>
+    </td>
+  </tr>
+<% else %>
+  <article class="execution-card execution-card-<%= status_class %>">
+    <div class="execution-card-header">
+      <span class="progress-indicator progress-indicator-<%= status_class %>"><%= operation.status_label %></span>
+      <strong><%= operation.title %></strong>
+    </div>
+    <dl class="execution-card-details">
+      <div>
+        <dt>処理名</dt>
+        <dd><%= operation.kind %></dd>
+      </div>
+      <div>
+        <dt>対象</dt>
+        <dd><%= operation.business_name.presence || "-" %></dd>
+      </div>
+      <div>
+        <dt>開始時刻</dt>
+        <dd><%= operation.started_at ? l(operation.started_at, format: :long) : "-" %></dd>
+      </div>
+      <div>
+        <dt>終了時刻</dt>
+        <dd><%= operation.finished_at ? l(operation.finished_at, format: :long) : "-" %></dd>
+      </div>
+      <div>
+        <dt>実行時間</dt>
+        <dd><%= operation.duration_label %></dd>
+      </div>
+      <div>
+        <dt>進捗</dt>
+        <dd><%= operation.detail.presence || "-" %></dd>
+      </div>
+    </dl>
+    <% if operation.error_message.present? %>
+      <div class="error-toast">
+        <strong>原因全文</strong>
+        <pre class="aicoo-code-block"><%= operation.error_message %></pre>
+      </div>
+    <% end %>
+    <div class="execution-card-actions">
+      <%= link_to "対象画面を開く", operation.path, class: "button secondary" if operation.path.present? %>
+      <% if operation.failed? && operation.retry_path.present? %>
+        <%= link_to "再実行", operation.retry_path, class: "button" %>
+      <% end %>
+    </div>
+  </article>
+<% end %>

@@ -51,7 +51,7 @@ class AicooCompletionLevelSummary
   private
 
   def business_management_level
-    count = Business.count
+    count = Business.real_businesses.count
     if count.positive?
       build(
         1,
@@ -81,7 +81,7 @@ class AicooCompletionLevelSummary
     count = BusinessMetricDaily.count + DataImport.count + AicooAnalyticsSite.count
     status = if count.positive?
       "complete"
-    elsif Business.exists?
+    elsif Business.real_businesses.exists?
       "partial"
     else
       "pending"
@@ -103,7 +103,7 @@ class AicooCompletionLevelSummary
     count = ActionCandidate.count
     status = if count.positive?
       "complete"
-    elsif Business.exists?
+    elsif Business.real_businesses.exists?
       "partial"
     else
       "pending"

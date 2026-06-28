@@ -16,7 +16,7 @@ module Admin
     end
 
     def create
-      business = Business.find(params.expect(:business_id))
+      business = Business.real_businesses.find(params.expect(:business_id))
       credential = current_google_credential
       if google_credential_reauthentication_required?(credential)
         redirect_to admin_google_api_imports_path,

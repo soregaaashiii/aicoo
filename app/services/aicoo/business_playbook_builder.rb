@@ -5,7 +5,7 @@ module Aicoo
     def self.update_all!(collect_records: true)
       playbooks = []
       updated_count = 0
-      Business.find_each do |business|
+      Business.real_businesses.find_each do |business|
         playbook = new(business).update!
         updated_count += 1
         playbooks << playbook if collect_records

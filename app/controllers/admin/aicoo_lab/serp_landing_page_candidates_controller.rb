@@ -49,7 +49,7 @@ module Admin
       end
 
       def selected_business
-        Business.find_by(id: serp_params[:business_id].presence)
+        Business.real_businesses.find_by(id: serp_params[:business_id].presence)
       end
 
       def raw_text

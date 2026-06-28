@@ -40,7 +40,7 @@ module Aicoo
     end
 
     def target_business
-      business || Business.order(:created_at).first || Business.create!(name: "AICOO SERP Research")
+      business || Business.real_businesses.order(:created_at).first || Business.create!(name: "AICOO SERP Research")
     end
 
     def build_candidates(serp_analysis)

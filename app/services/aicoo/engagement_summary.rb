@@ -54,7 +54,7 @@ module Aicoo
     attr_reader :today, :days
 
     def business_rows
-      Business.order(:name).map do |business|
+      Business.real_businesses.order(:name).map do |business|
         records = metrics_by_business_id.fetch(business.id, [])
         sessions = records.sum(&:sessions)
         row = BusinessRow.new(

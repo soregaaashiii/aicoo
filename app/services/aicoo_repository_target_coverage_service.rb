@@ -36,7 +36,7 @@ class AicooRepositoryTargetCoverageService
   end
 
   def call
-    businesses = Business.includes(:business_execution_profile).order(:name)
+    businesses = Business.real_businesses.includes(:business_execution_profile).order(:name)
     items = businesses.map { |business| build_item(business) }
     total = items.size
     configured = items.count { |item| item.status == "configured" }

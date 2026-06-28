@@ -36,7 +36,7 @@ module AicooAnalytics
     attr_reader :base_url
 
     def link_businesses
-      Business.find_each { |business| link!(business) }
+      Business.real_businesses.find_each { |business| link!(business) }
     end
 
     def link_experiments

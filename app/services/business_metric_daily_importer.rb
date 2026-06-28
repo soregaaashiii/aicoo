@@ -24,7 +24,7 @@ class BusinessMetricDailyImporter
   DECIMAL_FIELDS = %i[views_per_user engagement_rate bounce_rate average_position].freeze
 
   def self.import_all!(date:)
-    Business.find_each.map { |business| new(business:, date:).call }
+    Business.real_businesses.find_each.map { |business| new(business:, date:).call }
   end
 
   def self.import_range!(business:, start_date:, end_date:)
@@ -34,7 +34,7 @@ class BusinessMetricDailyImporter
   end
 
   def self.import_all_range!(start_date:, end_date:)
-    Business.find_each.flat_map do |business|
+    Business.real_businesses.find_each.flat_map do |business|
       import_range!(business:, start_date:, end_date:)
     end
   end

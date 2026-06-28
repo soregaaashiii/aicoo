@@ -1343,14 +1343,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_28_181300) do
     t.datetime "created_at", null: false
     t.bigint "data_import_id"
     t.string "device"
+    t.text "error_message"
     t.string "keyword", null: false
     t.string "location"
+    t.string "provider", default: "manual", null: false
+    t.jsonb "raw_summary", default: {}, null: false
     t.integer "result_count"
     t.string "search_engine", default: "google", null: false
+    t.string "status", default: "success", null: false
     t.text "summary"
     t.datetime "updated_at", null: false
     t.index ["business_id"], name: "index_serp_analyses_on_business_id"
     t.index ["data_import_id"], name: "index_serp_analyses_on_data_import_id"
+    t.index ["provider"], name: "index_serp_analyses_on_provider"
+    t.index ["status"], name: "index_serp_analyses_on_status"
   end
 
   create_table "serp_landing_page_candidates", force: :cascade do |t|

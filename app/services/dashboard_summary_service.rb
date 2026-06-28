@@ -235,7 +235,7 @@ class DashboardSummaryService
   end
 
   def owner_business_rankings
-    Business.includes(:action_candidates).order(:name).map do |business|
+    Business.real_businesses.includes(:action_candidates).order(:name).map do |business|
       active_actions = business.action_candidates.reject { |candidate| ActionCandidate::INACTIVE_STATUSES.include?(candidate.status) }
       BusinessRanking.new(
         business:,
@@ -412,7 +412,7 @@ class DashboardSummaryService
   end
 
   def create_owner_readiness_candidates!
-    business = Business.order(:created_at).first
+    business = Business.real_businesses.order(:created_at).first
     return unless business
 
     owner_readiness_templates.first(3).each do |template|

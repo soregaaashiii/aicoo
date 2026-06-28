@@ -796,6 +796,30 @@ details.revenue-card > summary {
   margin-bottom: 10px;
 }
 
+.operation-history summary .button {
+  margin-left: 10px;
+}
+
+.operation-table-wrap {
+  margin-top: 10px;
+}
+
+.operation-table td {
+  vertical-align: middle;
+}
+
+.operation-row-failed {
+  background: #fff7f7;
+}
+
+.operation-row-running {
+  background: #f8fbff;
+}
+
+.operation-row-success {
+  background: #fbfefc;
+}
+
 .execution-card-actions {
   display: flex;
   flex-wrap: wrap;

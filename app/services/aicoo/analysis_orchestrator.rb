@@ -24,7 +24,7 @@ module Aicoo
       updated_count = 0
       skipped_count = 0
 
-      Business.find_each do |business|
+      Business.real_businesses.find_each do |business|
         result = new(business:, today:).call(limit: limit_per_business)
         candidates.concat(result.candidates) if collect_records
         created_count += result.created_count

@@ -152,7 +152,7 @@ module Aicoo
 
     def matched_business(observation)
       text = "#{observation.title} #{observation.description}".downcase
-      Business.order(:name).find { |business| text.include?(business.name.to_s.downcase) }
+      Business.real_businesses.order(:name).find { |business| text.include?(business.name.to_s.downcase) }
     end
 
     def opportunity_type_for(observation)

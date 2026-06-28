@@ -40,7 +40,7 @@ module Aicoo
     ATTENTION_HEALTH_THRESHOLD = 80
 
     def call
-      rows = Business.includes(:business_playbook).order(:name).map do |business|
+      rows = Business.real_businesses.includes(:business_playbook).order(:name).map do |business|
         build_business_health(business)
       end
       Result.new(

@@ -36,7 +36,7 @@ class AiCrossBusinessTopActionsService
   attr_reader :client
 
   def businesses
-    @businesses ||= Business.includes(:data_imports, :serp_analyses, :action_candidates).order(:name).to_a
+    @businesses ||= Business.real_businesses.includes(:data_imports, :serp_analyses, :action_candidates).order(:name).to_a
   end
 
   def businesses_by_id

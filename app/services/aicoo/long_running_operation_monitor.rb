@@ -47,6 +47,11 @@ module Aicoo
 
         "#{hours}時間#{remaining_minutes}分"
       end
+
+      def compact_message
+        source = failed? ? error_message : detail
+        source.to_s.lines.first.to_s.strip.truncate(80)
+      end
     end
 
     Result = Data.define(:running_operations, :recent_operations) do
@@ -78,7 +83,12 @@ module Aicoo
     private
 
     def google_api_operations
-      GoogleApiImportRun.includes(:business).recent.limit(10).map do |run|
+      GoogleApiImportRun.includes(:business)
+        .joins(:business)
+        .merge(Business.real_businesses)
+        .recent
+        .limit(10)
+        .map do |run|
         Operation.new(
           key: "google-api-#{run.id}",
           kind: "Google API取得",
@@ -140,18 +150,23 @@ module Aicoo
     end
 
     def serp_operations
-      SerpAnalysis.includes(:business).order(analyzed_at: :desc, created_at: :desc).limit(5).map do |analysis|
+      SerpAnalysis.includes(:business)
+        .joins(:business)
+        .merge(Business.real_businesses)
+        .order(analyzed_at: :desc, created_at: :desc)
+        .limit(5)
+        .map do |analysis|
         Operation.new(
           key: "serp-#{analysis.id}",
           kind: "SERP取得",
-          title: "SERP分析完了",
-          status: "success",
+          title: analysis.running? ? "SERP走査中" : "SERP走査",
+          status: analysis.status,
           business_name: analysis.business.name,
           started_at: analysis.analyzed_at,
           finished_at: analysis.analyzed_at,
           duration_seconds: nil,
           detail: "#{analysis.keyword} / #{analysis.result_count.to_i}件",
-          error_message: nil,
+          error_message: analysis.error_message,
           path: business_path(analysis.business, anchor: "business-serp"),
           retry_path: business_path(analysis.business, anchor: "business-serp")
         )
@@ -159,7 +174,12 @@ module Aicoo
     end
 
     def data_import_operations
-      DataImport.includes(:business, :data_source).recent.limit(5).map do |data_import|
+      DataImport.includes(:business, :data_source)
+        .joins(:business)
+        .merge(Business.real_businesses)
+        .recent
+        .limit(5)
+        .map do |data_import|
         Operation.new(
           key: "data-import-#{data_import.id}",
           kind: "データ取込",

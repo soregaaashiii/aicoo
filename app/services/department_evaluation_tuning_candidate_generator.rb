@@ -130,7 +130,7 @@ class DepartmentEvaluationTuningCandidateGenerator
 
   def representative_business(department)
     records_for(department).max_by { |record| record.prediction_error_yen.to_i }&.business ||
-      Business.order(:name).first
+      Business.real_businesses.order(:name).first
   end
 
   def records_for(department)

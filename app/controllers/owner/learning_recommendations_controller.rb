@@ -1,7 +1,8 @@
 module Owner
   class LearningRecommendationsController < ApplicationController
     def create_action_candidate
-      business = Business.find_by(id: recommendation_params[:business_id].presence) || Business.order(:name).first
+      business = Business.real_businesses.find_by(id: recommendation_params[:business_id].presence) ||
+                 Business.real_businesses.order(:name).first
       unless business
         redirect_to owner_learning_report_path, alert: "ActionCandidate化にはBusinessが必要です。"
         return
@@ -29,7 +30,7 @@ module Owner
 
     def create_opportunity
       opportunity = OpportunityDiscoveryItem.create!(
-        business: Business.find_by(id: recommendation_params[:business_id].presence),
+        business: Business.real_businesses.find_by(id: recommendation_params[:business_id].presence),
         title: recommendation_params[:title],
         description: "#{recommendation_params[:reason]}\n\nRecommended Action:\n#{recommendation_params[:recommended_action]}",
         source_type: "learning_report",

@@ -6,7 +6,7 @@ class ProxyScoreWeightAdjuster
   REVENUE_NEAR_WEIGHT_COLUMNS = %i[phone_clicks_weight map_clicks_weight affiliate_clicks_weight].freeze
 
   def adjust_all_businesses!(start_date:, end_date:)
-    Business.find_each.map do |business|
+    Business.real_businesses.find_each.map do |business|
       adjust_business!(business:, start_date:, end_date:)
     end
   end

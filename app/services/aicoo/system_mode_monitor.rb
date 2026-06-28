@@ -258,7 +258,7 @@ module Aicoo
         key: "playbook_confidence",
         title: "Playbook Confidence",
         unit: "",
-        points: Business.includes(:business_playbook).order(:name).map do |business|
+        points: Business.real_businesses.includes(:business_playbook).order(:name).map do |business|
           score = business.business_playbook&.confidence_score.to_d
           ChartPoint.new(label: business.name, value: score.round(1), status: status_for_score(score))
         end

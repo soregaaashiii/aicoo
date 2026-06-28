@@ -36,7 +36,7 @@ class MetricActionCandidateGenerator
   ].freeze
 
   def self.generate_all!
-    Business.find_each.map { |business| new(business:).call }
+    Business.real_businesses.find_each.map { |business| new(business:).call }
   end
 
   def initialize(business:, today: Date.current)
@@ -45,6 +45,7 @@ class MetricActionCandidateGenerator
   end
 
   def call
+    return skipped_result("system/internal BusinessのためActionCandidate生成対象外です") if business.system_business?
     return skipped_result("データ不足: BusinessMetricDaily が7日未満です") if metric_days_count < 7
 
     specs = candidate_specs

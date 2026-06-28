@@ -50,12 +50,22 @@ class ApplicationController < ActionController::Base
 
   def load_long_running_operation_monitor
     return if public_render_path?
+    return if owner_focus_path?
+    return if execution_runs_path?
     return unless request.format.html?
 
     @long_running_operation_monitor = Aicoo::LongRunningOperationMonitor.new.call
   rescue StandardError => e
     Rails.logger.warn("Long running operation monitor unavailable: #{e.class}: #{e.message}")
     @long_running_operation_monitor = nil
+  end
+
+  def owner_focus_path?
+    request.path == "/owner/focus"
+  end
+
+  def execution_runs_path?
+    request.path.start_with?("/admin/execution_runs")
   end
 
   def secure_basic_auth_match?(provided_value, expected_value)

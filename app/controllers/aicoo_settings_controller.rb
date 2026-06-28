@@ -34,7 +34,7 @@ class AicooSettingsController < ApplicationController
     DataSourceCostProfile.ensure_defaults!
     @cost_summary = Aicoo::CostEngine.new.call
     @data_source_cost_profiles = @cost_summary.profiles
-    @businesses = Business.order(:name)
+    @businesses = Business.real_businesses.order(:name)
     @business_data_source_settings = BusinessDataSourceSetting.all.index_by { |setting| [ setting.business_id, setting.source_key ] }
     @data_source_settings_presenter = Aicoo::DataSourceSettingsPresenter.new(
       profiles: @data_source_cost_profiles,

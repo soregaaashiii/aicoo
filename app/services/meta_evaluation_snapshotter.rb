@@ -8,7 +8,7 @@ class MetaEvaluationSnapshotter
   def snapshot!(date: Date.current, aicoo_daily_run: nil)
     snapshots = []
     snapshots.concat(snapshot_scope!(scope: ActionCandidate.active_for_ranking.includes(:business), date:, aicoo_daily_run:, business: nil))
-    Business.find_each do |business|
+    Business.real_businesses.find_each do |business|
       snapshots.concat(snapshot_business!(business:, date:, aicoo_daily_run:))
     end
 

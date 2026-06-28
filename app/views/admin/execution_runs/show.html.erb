@@ -1,0 +1,13 @@
+<% content_for :title, "実行履歴詳細" %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "実行履歴詳細",
+             description: "実行結果の原因全文と復旧導線を確認します。",
+             active_main: :system,
+             actions: link_to("一覧へ戻る", admin_execution_runs_path, class: "button secondary") %>
+
+  <section class="dashboard-section">
+    <%= render "shared/operation_status", operation: @operation, mode: :full %>
+  </section>
+</div>

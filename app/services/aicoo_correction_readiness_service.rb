@@ -35,7 +35,7 @@ class AicooCorrectionReadinessService
       item(:action_results, "ActionResult不足", ActionResult.count, ACTION_RESULT_REQUIRED),
       item(:evaluated, "evaluated不足", ActionResult.evaluated.count, EVALUATED_REQUIRED),
       item(:revenue, "revenue不足", RevenueEvent.revenue.count, REVENUE_EVENT_REQUIRED),
-      item(:business_metric_daily, "BusinessMetricDaily不足", BusinessMetricDaily.count, Business.count * BUSINESS_METRIC_DAILY_REQUIRED)
+      item(:business_metric_daily, "BusinessMetricDaily不足", BusinessMetricDaily.count, Business.real_businesses.count * BUSINESS_METRIC_DAILY_REQUIRED)
     ]
   end
 
@@ -50,7 +50,7 @@ class AicooCorrectionReadinessService
   end
 
   def business_items
-    Business.includes(:action_results, :revenue_events, :business_metric_dailies).order(:name).map do |business|
+    Business.real_businesses.includes(:action_results, :revenue_events, :business_metric_dailies).order(:name).map do |business|
       messages = []
       missing_keys = []
       append_message(messages, missing_keys, :action_results, business.action_results.count, ACTION_RESULT_REQUIRED, "#{business.name}: ActionResult")

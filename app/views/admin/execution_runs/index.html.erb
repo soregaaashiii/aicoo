@@ -1,0 +1,42 @@
+<% content_for :title, "実行履歴" %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "実行履歴",
+             description: "長時間処理の実行中・完了・失敗を1行で確認します。",
+             active_main: :system %>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <div>
+        <h2>実行結果一覧</h2>
+        <p>原因全文やraw errorは詳細画面だけに表示します。</p>
+      </div>
+    </div>
+
+    <div class="table-wrap operation-table-wrap">
+      <table class="operation-table">
+        <thead>
+          <tr>
+            <th>状態</th>
+            <th>処理名</th>
+            <th>対象</th>
+            <th>開始時刻</th>
+            <th>実行時間</th>
+            <th>進捗</th>
+            <th>簡易メッセージ</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @operations.each do |operation| %>
+            <%= render "shared/operation_status", operation:, mode: :compact %>
+          <% end %>
+          <% if @operations.empty? %>
+            <tr><td colspan="8">実行履歴はまだありません。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>

@@ -3,6 +3,7 @@
 <% header_actions = capture do %>
   <%= link_to "全タスク", owner_tasks_path, class: "button secondary" %>
   <%= link_to "運用状態", dashboard_path, class: "button secondary" %>
+  <%= link_to "実行履歴", admin_execution_runs_path, class: "button secondary" %>
 <% end %>
 
 <div class="aicoo-page">
@@ -100,6 +101,37 @@
       <h2>追加で確認すること</h2>
       <p>必要な分析だけを選びます。作業の主役は上のランキングです。</p>
     </div>
+    <div class="aicoo-card aicoo-card-compact">
+      <div class="section-heading">
+        <div>
+          <h3>SERP走査</h3>
+          <p>検索結果を確認して、事業ごとの競合状況とLP/改善候補の材料にします。</p>
+        </div>
+      </div>
+      <div class="metric-grid aicoo-owner-secondary">
+        <div class="metric-card"><span>提供元</span><strong><%= @serp_scan_status.provider %></strong></div>
+        <div class="metric-card"><span>APIキー</span><strong><%= @serp_scan_status.api_key_configured ? "設定済み" : "未設定" %></strong></div>
+        <div class="metric-card"><span>最終走査</span><strong><%= @serp_scan_status.last_scanned_at ? l(@serp_scan_status.last_scanned_at, format: :short) : "未実行" %></strong></div>
+        <div class="metric-card"><span>対象事業</span><strong><%= @serp_scan_status.target_business_count %>件</strong></div>
+        <div class="metric-card"><span>候補KW</span><strong><%= @serp_scan_status.candidate_keyword_count %>件</strong></div>
+        <div class="metric-card"><span>実行状態</span><strong><%= @serp_scan_status.execution_status %></strong></div>
+      </div>
+      <% if @serp_scan_status.latest_analysis&.failed? %>
+        <div class="error-toast">直近のSERP走査に失敗しました: <%= @serp_scan_status.latest_analysis.error_message.presence || "原因不明" %></div>
+      <% end %>
+      <div class="actions compact-actions">
+        <%= button_to "SERP走査を開始",
+                      owner_serp_scan_path,
+                      method: :post,
+                      class: "button",
+                      data: { aicoo_loading_label: "SERP走査中..." },
+                      form: { data: { aicoo_submit_lock: true, aicoo_loading_label: "SERP走査中..." } },
+                      disabled: !@serp_scan_status.api_key_configured %>
+        <%= link_to "SERP設定", admin_serp_settings_path, class: "button secondary" %>
+        <%= link_to "SERP結果を見る", businesses_path(anchor: "business-serp"), class: "button secondary" %>
+      </div>
+    </div>
+
     <div class="metric-grid aicoo-owner-secondary">
       <div class="metric-card"><span>確認候補</span><strong><%= @analysis_monitor.today_count %>件</strong></div>
       <div class="metric-card"><span>人の確認が必要</span><strong><%= @analysis_monitor.manual_count %>件</strong></div>
