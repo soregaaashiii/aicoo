@@ -36,6 +36,7 @@ class BusinessesController < ApplicationController
   # GET /businesses/1/edit
   def edit
     load_data_source_settings_context
+    load_google_source_options
     @return_to = safe_return_to || edit_business_path(@business)
   end
 
@@ -77,11 +78,17 @@ class BusinessesController < ApplicationController
         setting = BusinessDataSourceSetting.find_or_initialize_by(business: @business, source_key:)
         connection_fields = setting.connection_field_values.merge(attributes[:connection_fields].to_h)
         source_binding = setting.metadata.to_h.fetch("source_binding", {}).merge(attributes[:source_binding].to_h)
+        connection_status = auto_connection_status_for(profile_key: source_key, attributes:, connection_fields:)
+        property_identifier = if source_key.in?(%w[gsc ga4])
+          google_identifier_for(source_key, attributes:, connection_fields:)
+        else
+          attributes[:property_identifier]
+        end
         setting.assign_attributes(
           enabled: ActiveModel::Type::Boolean.new.cast(attributes[:enabled]),
-          connection_status: attributes[:connection_status],
+          connection_status:,
         external_account_id: attributes[:external_account_id],
-        property_identifier: attributes[:property_identifier],
+        property_identifier:,
           endpoint_url: attributes[:endpoint_url],
           credential_reference: attributes[:credential_reference],
           notes: attributes[:notes],
@@ -92,6 +99,7 @@ class BusinessesController < ApplicationController
         )
         setting.save!
       end
+      sync_business_google_site!
 
     redirect_to safe_return_to || edit_business_path(@business, anchor: "data-source-link-settings"),
                 notice: "Data Source紐付け設定を保存しました。"
@@ -185,8 +193,78 @@ class BusinessesController < ApplicationController
       @data_source_settings_presenter = Aicoo::DataSourceSettingsPresenter.new(profiles: @data_source_cost_profiles, settings: @business.business_data_source_settings)
     end
 
+    def load_google_source_options
+      @ga4_property_options = google_source_options("ga4")
+      @gsc_site_options = google_source_options("gsc")
+    end
+
+    def google_source_options(source_type)
+      rows = AnalyticsSourceSetting
+        .where(source_type:, enabled: true)
+        .order(:name, :created_at)
+        .filter_map do |setting|
+          identifier = source_type == "ga4" ? setting.property_id : setting.site_url
+          next if identifier.blank?
+
+          [ "#{setting.name} - #{identifier}", identifier ]
+        end
+
+      site_rows = AicooAnalyticsSite
+        .where.not(source_type == "ga4" ? { ga4_property_id: [ nil, "" ] } : { gsc_site_url: [ nil, "" ] })
+        .order(:name, :created_at)
+        .filter_map do |site|
+          identifier = source_type == "ga4" ? site.ga4_property_id : site.gsc_site_url
+          next if identifier.blank?
+
+          [ "#{site.name} - #{identifier}", identifier ]
+        end
+
+      (rows + site_rows).uniq { |_label, value| value }
+    end
+
     def business_data_source_setting_params
       params.fetch(:business_data_source_settings, {}).permit!.to_h
+    end
+
+    def auto_connection_status_for(profile_key:, attributes:, connection_fields:)
+      return attributes[:connection_status] unless profile_key.in?(%w[gsc ga4])
+      return "unlinked" unless ActiveModel::Type::Boolean.new.cast(attributes[:enabled])
+
+      identifier = google_identifier_for(profile_key, attributes:, connection_fields:)
+      return "unlinked" if identifier.blank?
+
+      google_connection_available? ? "linked" : "needs_attention"
+    end
+
+    def google_identifier_for(profile_key, attributes:, connection_fields:)
+      key = profile_key == "gsc" ? "site_url" : "property_id"
+      connection_fields[key].presence || attributes[:property_identifier].presence
+    end
+
+    def google_connection_available?
+      AicooGoogleCredential.default&.connected? ||
+        ENV["GOOGLE_CLIENT_ID"].present? &&
+          ENV["GOOGLE_CLIENT_SECRET"].present? &&
+          ENV["GOOGLE_REFRESH_TOKEN"].present?
+    end
+
+    def sync_business_google_site!
+      gsc_setting = @business.business_data_source_settings.find_by(source_key: "gsc")
+      ga4_setting = @business.business_data_source_settings.find_by(source_key: "ga4")
+      gsc_site_url = gsc_setting&.connection_field_value("site_url").presence || gsc_setting&.property_identifier.presence || @business.gsc_site_url.presence
+      ga4_property_id = ga4_setting&.connection_field_value("property_id").presence || ga4_setting&.property_identifier.presence
+      return if gsc_site_url.blank? && ga4_property_id.blank?
+
+      @business.update!(gsc_site_url:) if gsc_site_url.present? && @business.gsc_site_url != gsc_site_url
+      site = AicooAnalyticsSite.where(business: @business).recent.first || AicooAnalyticsSite.new(business: @business)
+      site.assign_attributes(
+        name: @business.name,
+        gsc_site_url: gsc_site_url.presence || site.gsc_site_url,
+        ga4_property_id: ga4_property_id.presence || site.ga4_property_id,
+        authentication_mode: "shared",
+        enabled: true
+      )
+      site.save!
     end
 
     def ai_action_count

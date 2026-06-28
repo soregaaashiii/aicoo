@@ -28,11 +28,6 @@
     <%= form.select :status, Business::STATUSES.map { |status| [status.humanize, status] } %>
   </div>
 
-  <div class="field">
-    <%= form.label :gsc_site_url, "GSC site_url" %>
-    <%= form.text_field :gsc_site_url, placeholder: "例: sc-domain:suelog.jp" %>
-  </div>
-
   <fieldset class="aicoo-card aicoo-card-compact">
     <legend>Codex対象プロジェクト</legend>
     <div class="field">

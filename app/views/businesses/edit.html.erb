@@ -68,6 +68,11 @@
               <% source_binding = setting.metadata.to_h.fetch("source_binding", {}) %>
               <% use_global = ActiveModel::Type::Boolean.new.cast(source_binding.fetch("use_global", true)) %>
               <% status = @data_source_settings_presenter.business_status(@business, profile.source_key) %>
+              <% google_source = profile.source_key.in?(%w[gsc ga4]) %>
+              <% google_identifier_key = profile.source_key == "gsc" ? "site_url" : "property_id" %>
+              <% google_options = profile.source_key == "gsc" ? @gsc_site_options : @ga4_property_options %>
+              <% selected_google_identifier = setting.connection_field_value(google_identifier_key).presence || setting.property_identifier.presence %>
+              <% google_options = google_options + [[selected_google_identifier, selected_google_identifier]] if google_source && selected_google_identifier.present? && google_options.none? { |_label, value| value == selected_google_identifier } %>
               <tr>
                 <td>
                   <strong><%= profile.name %></strong><br>
@@ -81,7 +86,7 @@
                   <% if status.warning.present? %>
                     <small><%= status.warning %></small>
                   <% else %>
-                    <small><%= status.uses_global ? "AICOO全体設定を利用" : "Business個別設定" %></small>
+                    <small><%= google_source ? "保存値から自動判定" : (status.uses_global ? "AICOO全体設定を利用" : "Business個別設定") %></small>
                   <% end %>
                 </td>
                 <td>
@@ -89,11 +94,16 @@
                   <%= check_box_tag "business_data_source_settings[#{profile.source_key}][enabled]", "1", setting.enabled? %>
                 </td>
                 <td>
-                  <label>
-                    <%= hidden_field_tag "business_data_source_settings[#{profile.source_key}][source_binding][use_global]", "0" %>
-                    <%= check_box_tag "business_data_source_settings[#{profile.source_key}][source_binding][use_global]", "1", use_global %>
-                    AICOO全体設定を使う
-                  </label>
+                  <% if google_source %>
+                    <%= hidden_field_tag "business_data_source_settings[#{profile.source_key}][source_binding][use_global]", "1" %>
+                    <small>OAuth取得済みGoogleアカウントを使用</small>
+                  <% else %>
+                    <label>
+                      <%= hidden_field_tag "business_data_source_settings[#{profile.source_key}][source_binding][use_global]", "0" %>
+                      <%= check_box_tag "business_data_source_settings[#{profile.source_key}][source_binding][use_global]", "1", use_global %>
+                      AICOO全体設定を使う
+                    </label>
+                  <% end %>
                 </td>
                 <td>
                   <div class="field compact-field">
@@ -110,13 +120,27 @@
                   </div>
                 </td>
                 <td>
-                  <%= select_tag "business_data_source_settings[#{profile.source_key}][connection_status]",
-                                 options_for_select(BusinessDataSourceSetting::CONNECTION_STATUS_LABELS.map { |value, label| [label, value] }, setting.connection_status) %>
+                  <% if google_source %>
+                    <small>状態は保存後に自動判定されます。</small>
+                  <% else %>
+                    <%= select_tag "business_data_source_settings[#{profile.source_key}][connection_status]",
+                                   options_for_select(BusinessDataSourceSetting::CONNECTION_STATUS_LABELS.map { |value, label| [label, value] }, setting.connection_status) %>
+                  <% end %>
                 </td>
                 <td>
-                  <%= text_field_tag "business_data_source_settings[#{profile.source_key}][property_identifier]",
-                                     setting.property_identifier,
-                                     placeholder: "例: sc-domain / GA4 property / KW group" %>
+                  <% if google_source %>
+                    <%= hidden_field_tag "business_data_source_settings[#{profile.source_key}][property_identifier]", selected_google_identifier %>
+                    <%= select_tag "business_data_source_settings[#{profile.source_key}][connection_fields][#{google_identifier_key}]",
+                                   options_for_select([[profile.source_key == "gsc" ? "GSC Siteを選択" : "GA4 Propertyを選択", ""]] + google_options, selected_google_identifier),
+                                   class: "input" %>
+                    <% if google_options.empty? %>
+                      <small>OAuth取得済みの<%= profile.source_key == "gsc" ? "GSC Site" : "GA4 Property" %>がまだありません。先にGoogleと接続し、Analytics設定を作成してください。</small>
+                    <% end %>
+                  <% else %>
+                    <%= text_field_tag "business_data_source_settings[#{profile.source_key}][property_identifier]",
+                                       setting.property_identifier,
+                                       placeholder: "例: sc-domain / GA4 property / KW group" %>
+                  <% end %>
                 </td>
                 <td>
                   <%= text_field_tag "business_data_source_settings[#{profile.source_key}][external_account_id]",
@@ -134,16 +158,20 @@
                                      placeholder: "例: AICOO共通Google認証" %>
                 </td>
                 <td>
-                  <% setting.connection_fields.each do |field| %>
-                    <div class="field compact-field">
-                      <label><%= field.label %></label>
-                      <%= text_field_tag "business_data_source_settings[#{profile.source_key}][connection_fields][#{field.key}]",
-                                         setting.connection_field_value(field.key),
-                                         placeholder: field.placeholder %>
-                    </div>
-                  <% end %>
-                  <% if setting.connection_fields.empty? %>
-                    <small>追加必須項目なし</small>
+                  <% if google_source %>
+                    <small><%= profile.source_key == "gsc" ? "GSC Siteは左の一覧から選択します。" : "GA4 Propertyは左の一覧から選択します。" %></small>
+                  <% else %>
+                    <% setting.connection_fields.each do |field| %>
+                      <div class="field compact-field">
+                        <label><%= field.label %></label>
+                        <%= text_field_tag "business_data_source_settings[#{profile.source_key}][connection_fields][#{field.key}]",
+                                           setting.connection_field_value(field.key),
+                                           placeholder: field.placeholder %>
+                      </div>
+                    <% end %>
+                    <% if setting.connection_fields.empty? %>
+                      <small>追加必須項目なし</small>
+                    <% end %>
                   <% end %>
                 </td>
                 <td>

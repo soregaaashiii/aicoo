@@ -202,7 +202,9 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Budget override"
     assert_includes response.body, "Property / Target"
     assert_includes response.body, "Credential参照"
-    assert_includes response.body, "GSC site_url"
+    assert_includes response.body, "GA4 Propertyを選択"
+    assert_includes response.body, "GSC Siteを選択"
+    assert_includes response.body, "状態は保存後に自動判定されます。"
     assert_includes response.body, "customer_id"
     assert_includes response.body, "Test connection"
     assert_includes response.body, "CODEX"
@@ -210,6 +212,13 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
 
   test "updates business data source connection settings" do
     DataSourceCostProfile.ensure_defaults!
+    AicooGoogleCredential.create!(
+      name: "AICOO共通Google認証",
+      client_id: "client",
+      client_secret: "secret",
+      refresh_token: "refresh-token",
+      connected_at: Time.current
+    )
 
     patch update_data_source_settings_business_url(@business), params: {
       business_data_source_settings: {
@@ -238,6 +247,7 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "1200", setting.metadata.dig("source_binding", "monthly_budget_yen")
     assert_equal "AICOO共通Google認証", setting.credential_reference
     assert setting.last_connected_at.present?
+    assert_equal "properties/536889590", AicooAnalyticsSite.where(business: @business).recent.first.ga4_property_id
   end
 
   test "updates business data source connection settings and returns to requested tab" do
