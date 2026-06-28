@@ -1,0 +1,16 @@
+<% current_section ||= "概要" %>
+
+<nav class="aicoo-card aicoo-card-compact" aria-label="Business navigation">
+  <p class="aicoo-kicker">
+    Business &gt; <%= link_to business.name, business_path(business) %> &gt; <%= current_section %>
+  </p>
+  <div class="actions compact-actions">
+    <%= link_to "概要", business_path(business, anchor: "business-overview"), class: "button secondary" %>
+    <%= link_to "Google", business_path(business, anchor: "business-google"), class: "button secondary" %>
+    <%= link_to "SERP", business_path(business, anchor: "business-serp"), class: "button secondary" %>
+    <%= link_to "LP", business_path(business, anchor: "business-lp"), class: "button secondary" %>
+    <%= link_to "Daily Run", business_path(business, anchor: "business-daily-run"), class: "button secondary" %>
+    <%= link_to "Learning", business_path(business, anchor: "business-learning"), class: "button secondary" %>
+    <%= link_to "設定", edit_business_path(business, return_to: business_path(business, anchor: "business-settings")), class: "button secondary" %>
+  </div>
+</nav>

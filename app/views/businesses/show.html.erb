@@ -14,22 +14,31 @@
 <div class="aicoo-page">
   <%= render "shared/aicoo_header",
              title: @business.name,
-             description: "この Business はフォルダです。判断の主役は下の行動候補です。",
+             description: "このBusinessのGoogle連携、SERP、LP、Daily Run、Learningをここから運用します。",
              active_main: :revenue,
              actions: header_actions %>
 
+<%= render "navigation", business: @business, current_section: "概要" %>
+<%= render "setup_wizard",
+           business: @business,
+           analytics: @business_analytics_summary,
+           recent_serp_analyses: @recent_serp_analyses,
+           landing_page_counts: @landing_page_counts %>
+
 <%= render @business %>
 
-<section class="dashboard-section" id="analytics">
+<section class="dashboard-section" id="business-overview">
   <div class="section-heading">
     <div>
-      <h2>Business Analytics Dashboard</h2>
-      <p>GSC / GA4 / Revenue / Action / Learning をこのBusiness単位で確認します。</p>
+      <h2>概要</h2>
+      <p>Business Analytics Dashboard: GSC / GA4 / Revenue / Action / Learning をこのBusiness単位で確認します。</p>
     </div>
     <div class="actions compact-actions">
-      <%= link_to "Actions", "#business-actions", class: "button secondary" %>
+      <%= link_to "Google", "#business-google", class: "button secondary" %>
+      <%= link_to "SERP", "#business-serp", class: "button secondary" %>
+      <%= link_to "LP", "#business-lp", class: "button secondary" %>
+      <%= link_to "Daily Run", "#business-daily-run", class: "button secondary" %>
       <%= link_to "Learning", "#business-learning", class: "button secondary" %>
-      <%= link_to "Settings", "#business-settings", class: "button secondary" %>
     </div>
   </div>
 
@@ -547,7 +556,58 @@
   </div>
 </section>
 
-<section class="dashboard-section">
+<section class="dashboard-section" id="business-lp">
+  <div class="section-heading">
+    <div>
+      <h2>LP</h2>
+      <p>公開LPの作成、公開停止、SERPからのLP候補生成をこのBusinessの運用導線として扱います。</p>
+    </div>
+    <div class="actions compact-actions">
+      <%= link_to "公開LP管理", admin_aicoo_lab_public_landing_pages_path, class: "button secondary" %>
+      <%= link_to "LPを新規作成", admin_aicoo_lab_new_public_landing_page_path, class: "button" %>
+      <%= link_to "SERPからLP候補生成", admin_aicoo_lab_serp_landing_page_candidates_path, class: "button secondary" %>
+    </div>
+  </div>
+  <div class="metric-grid">
+    <% AicooLabLandingPage::PUBLIC_STATUSES.each do |public_status| %>
+      <div class="metric-card">
+        <span><%= public_status %></span>
+        <strong><%= @landing_page_counts.fetch(public_status, 0) %>件</strong>
+        <small>公開LP基盤</small>
+      </div>
+    <% end %>
+  </div>
+  <p class="aicoo-help-text">
+    LPの公開状態は draft / scheduled / published / paused / archived で管理します。公開中LPだけが / と /lp と sitemap.xml に反映されます。
+  </p>
+</section>
+
+<section class="dashboard-section" id="business-daily-run">
+  <div class="section-heading">
+    <div>
+      <h2>Daily Run</h2>
+      <p>このBusinessのデータ取得、提案、学習に関わる日次実行の状態を確認します。</p>
+    </div>
+    <div class="actions compact-actions">
+      <%= link_to "Daily Run一覧", aicoo_daily_runs_path, class: "button secondary" %>
+      <% if @latest_daily_run %>
+        <%= link_to "最新Run詳細", aicoo_daily_run_path(@latest_daily_run), class: "button secondary" %>
+      <% end %>
+    </div>
+  </div>
+  <% if @latest_daily_run %>
+    <div class="metric-grid">
+      <div class="metric-card"><span>最新Status</span><strong><%= @latest_daily_run.status %></strong></div>
+      <div class="metric-card"><span>対象日</span><strong><%= @latest_daily_run.target_date %></strong></div>
+      <div class="metric-card"><span>開始</span><strong><%= @latest_daily_run.started_at ? l(@latest_daily_run.started_at, format: :short) : "-" %></strong></div>
+      <div class="metric-card"><span>終了</span><strong><%= @latest_daily_run.finished_at ? l(@latest_daily_run.finished_at, format: :short) : "-" %></strong></div>
+    </div>
+  <% else %>
+    <p class="aicoo-empty-state">Daily Runはまだありません。</p>
+  <% end %>
+</section>
+
+<section class="dashboard-section" id="business-google">
   <div class="section-heading">
     <h2>Google API直取得</h2>
     <p>AICOO共通Google認証またはBusiness個別設定を使い、GA4/GSC APIからBusinessMetricDailyへ直接保存します。</p>
@@ -565,11 +625,11 @@
     <%= button_to "Google APIから取得", import_google_api_business_path(@business), method: :post, class: "button", disabled: analytics.settings[:gsc_site_url].blank? && analytics.settings[:ga4_property_id].blank? %>
     <%= button_to "GSCだけ取得", import_gsc_business_path(@business), method: :post, class: "button secondary", disabled: analytics.settings[:gsc_site_url].blank? %>
     <%= button_to "GA4だけ取得", import_ga4_business_path(@business), method: :post, class: "button secondary", disabled: analytics.settings[:ga4_property_id].blank? %>
-    <%= link_to "Google設定を編集", edit_business_path(@business), class: "button secondary" %>
+    <%= link_to "Google紐付けを編集", edit_business_path(@business, return_to: business_path(@business, anchor: "business-google"), anchor: "data-source-link-settings"), class: "button secondary" %>
   </div>
 </section>
 
-<section class="dashboard-section">
+<section class="dashboard-section" id="business-serp">
   <div class="section-heading">
     <h2>SERP競合分析</h2>
     <p>検索結果を手入力またはCSV/TXTで保存し、競合強度をsuccess_probabilityの判断材料にします。</p>

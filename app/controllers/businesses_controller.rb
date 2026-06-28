@@ -18,6 +18,8 @@ class BusinessesController < ApplicationController
     @data_sources = @business.data_sources.includes(:data_imports).order(:name)
     @recent_data_imports = @business.data_imports.includes(:data_source).recent.limit(5)
     @recent_serp_analyses = @business.serp_analyses.order(analyzed_at: :desc).limit(10)
+    @latest_daily_run = AicooDailyRun.recent.first
+    @landing_page_counts = AicooLabLandingPage.group(:public_status).count
     @business_playbook = @business.business_playbook
     @integration_health = Aicoo::BusinessIntegrationHealth.new.call.business_healths.find { |row| row.business == @business }
     @business_analytics_summary = Aicoo::BusinessAnalyticsSummary.new(@business, health: @integration_health).call
@@ -34,6 +36,7 @@ class BusinessesController < ApplicationController
   # GET /businesses/1/edit
   def edit
     load_data_source_settings_context
+    @return_to = safe_return_to || edit_business_path(@business)
   end
 
   # POST /businesses or /businesses.json
@@ -55,7 +58,7 @@ class BusinessesController < ApplicationController
   def update
     respond_to do |format|
       if @business.update(business_params)
-        format.html { redirect_to @business, notice: "Business was successfully updated.", status: :see_other }
+        format.html { redirect_to safe_return_to || @business, notice: "Business was successfully updated.", status: :see_other }
         format.json { render :show, status: :ok, location: @business }
       else
         format.html do
@@ -90,10 +93,10 @@ class BusinessesController < ApplicationController
         setting.save!
       end
 
-    redirect_to edit_business_path(@business, anchor: "data-source-link-settings"),
+    redirect_to safe_return_to || edit_business_path(@business, anchor: "data-source-link-settings"),
                 notice: "Data Source紐付け設定を保存しました。"
   rescue ActiveRecord::RecordInvalid => e
-    redirect_to edit_business_path(@business, anchor: "data-source-link-settings"),
+    redirect_to safe_return_to || edit_business_path(@business, anchor: "data-source-link-settings"),
                 alert: "Data Source紐付け設定を保存できませんでした: #{e.record.errors.full_messages.to_sentence}"
   end
 
@@ -189,5 +192,17 @@ class BusinessesController < ApplicationController
     def ai_action_count
       count = params[:action_count].to_i
       [ 3, 5, 10 ].include?(count) ? count : 5
+    end
+
+    def safe_return_to
+      raw_return_to = params[:return_to].to_s
+      return if raw_return_to.blank?
+
+      uri = URI.parse(raw_return_to)
+      return if uri.host.present? || uri.scheme.present?
+
+      uri.to_s
+    rescue URI::InvalidURIError
+      nil
     end
 end

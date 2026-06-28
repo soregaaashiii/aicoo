@@ -1,4 +1,6 @@
 <%= form_with(model: business, class: "form") do |form| %>
+  <%= hidden_field_tag :return_to, local_assigns[:return_to] if local_assigns[:return_to].present? %>
+
   <% if business.errors.any? %>
     <div class="errors">
       <h2><%= pluralize(business.errors.count, "error") %> prohibited this business from being saved:</h2>

@@ -1,0 +1,33 @@
+<% analytics ||= nil %>
+<% google_connected = AicooGoogleCredential.default&.connected? %>
+<% ga4_configured = analytics&.settings&.dig(:ga4_property_id).present? %>
+<% gsc_configured = analytics&.settings&.dig(:gsc_site_url).present? || business.gsc_site_url.present? %>
+<% serp_configured = recent_serp_analyses.any? || business.business_data_source_settings.find { |setting| setting.source_key == "serp" }&.property_identifier.present? %>
+<% lp_ready = landing_page_counts.values.sum.positive? %>
+<% steps = [
+  [ "Google接続", google_connected, aicoo_setting_path(anchor: "google-settings"), "AICOO全体OAuthを接続" ],
+  [ "GA4", ga4_configured, edit_business_path(business, return_to: business_path(business, anchor: "business-google"), anchor: "data-source-link-settings"), "Property IDを紐付け" ],
+  [ "GSC", gsc_configured, edit_business_path(business, return_to: business_path(business, anchor: "business-google"), anchor: "data-source-link-settings"), "Site URLを紐付け" ],
+  [ "SERP", serp_configured, business_path(business, anchor: "business-serp"), "キーワードを登録/取得" ],
+  [ "LP", lp_ready, admin_aicoo_lab_public_landing_pages_path, "公開LPを作成/公開" ]
+] %>
+
+<section class="dashboard-section" id="business-setup">
+  <div class="section-heading">
+    <div>
+      <h2>初回設定ウィザード</h2>
+      <p>このBusinessを動かすための順番です。設定場所はこのBusiness内に集約しています。</p>
+    </div>
+  </div>
+
+  <div class="metric-grid aicoo-owner-secondary">
+    <% steps.each_with_index do |(label, done, path, description), index| %>
+      <div class="metric-card">
+        <span><%= index + 1 %>. <%= label %></span>
+        <strong><%= done ? "完了" : "未設定" %></strong>
+        <small><%= description %></small><br>
+        <%= link_to(done ? "確認する" : "設定する", path, class: "button secondary") %>
+      </div>
+    <% end %>
+  </div>
+</section>

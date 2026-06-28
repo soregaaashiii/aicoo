@@ -77,6 +77,13 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes response.body, "Business Analytics Dashboard"
+    assert_includes response.body, "初回設定ウィザード"
+    assert_includes response.body, "Business &gt;"
+    assert_includes response.body, "概要"
+    assert_includes response.body, "Google"
+    assert_includes response.body, "SERP"
+    assert_includes response.body, "LP"
+    assert_includes response.body, "Daily Run"
     assert_includes response.body, "Connection Status"
     assert_includes response.body, "GSCグラフ"
     assert_includes response.body, "GA4グラフ"
@@ -115,6 +122,9 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Data Source紐付けを編集"
     assert_includes response.body, "紐付け設定"
     assert_includes response.body, "CODEX"
+    assert_includes response.body, "公開LP管理"
+    assert_includes response.body, "LPを新規作成"
+    assert_includes response.body, "Daily Run一覧"
   end
 
   test "show treats global google credential as connected and exposes gsc ga4 fetch buttons" do
@@ -142,6 +152,7 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.body, "Google API直取得"
     assert_includes response.body, "Google APIから取得"
+    assert_includes response.body, "Google紐付けを編集"
     assert_includes response.body, "GSC取得"
     assert_includes response.body, "GA4取得"
     assert_includes response.body, "接続済み"
@@ -179,7 +190,13 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
   test "should get edit" do
     get edit_business_url(@business)
     assert_response :success
-    assert_includes response.body, "Data Source紐付け詳細"
+    assert_includes response.body, "Business個別紐付け設定"
+    assert_includes response.body, "Business &gt;"
+    assert_includes response.body, "概要"
+    assert_includes response.body, "Google"
+    assert_includes response.body, "SERP"
+    assert_includes response.body, "LP"
+    assert_includes response.body, "Daily Run"
     assert_includes response.body, "AICOO全体設定を使う"
     assert_includes response.body, "Execution mode override"
     assert_includes response.body, "Budget override"
@@ -223,8 +240,35 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert setting.last_connected_at.present?
   end
 
+  test "updates business data source connection settings and returns to requested tab" do
+    DataSourceCostProfile.ensure_defaults!
+    return_to = business_path(@business, anchor: "business-google")
+
+    patch update_data_source_settings_business_url(@business), params: {
+      return_to:,
+      business_data_source_settings: {
+        "gsc" => {
+          enabled: "1",
+          connection_status: "linked",
+          property_identifier: "sc-domain:suelog.jp",
+          external_account_id: "",
+          endpoint_url: "",
+          credential_reference: "AICOO共通Google認証",
+          connection_fields: { site_url: "sc-domain:suelog.jp" },
+          source_binding: { use_global: "1", execution_mode: "", monthly_budget_yen: "" },
+          notes: ""
+        }
+      }
+    }
+
+    assert_redirected_to return_to
+  end
+
   test "should update business" do
+    return_to = business_path(@business, anchor: "business-settings")
+
     patch business_url(@business), params: {
+      return_to:,
       business: {
         description: @business.description,
         gsc_site_url: "sc-domain:suelog.jp",
@@ -235,7 +279,7 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
         repository_name: "suelog-app"
       }
     }
-    assert_redirected_to business_url(@business)
+    assert_redirected_to return_to
     assert_equal "sc-domain:suelog.jp", @business.reload.gsc_site_url
     assert_equal "suelog", @business.project_key
     assert_equal "/Users/example/suelog", @business.local_project_path

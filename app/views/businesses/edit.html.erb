@@ -1,22 +1,24 @@
-<% content_for :title, "事業を編集" %>
+<% content_for :title, "#{@business.name} - Business設定" %>
 
 <% header_actions = capture do %>
-  <%= link_to "詳細を見る", @business, class: "button secondary" %>
+  <%= link_to "Business詳細へ戻る", @business, class: "button secondary" %>
   <%= link_to "事業一覧に戻る", businesses_path, class: "button secondary" %>
 <% end %>
 
 <div class="aicoo-page">
   <%= render "shared/aicoo_header",
-             title: "事業を編集",
-             description: "事業フォルダの名前・説明・状態を更新します。",
+             title: "#{@business.name} のBusiness設定",
+             description: "このBusinessが使うGoogle / SERP / Codexなどの紐付けをここで管理します。保存後は元の画面へ戻ります。",
              active_main: :revenue,
              actions: header_actions %>
-  <%= render "form", business: @business %>
+  <%= render "navigation", business: @business, current_section: "設定" %>
+
+  <%= render "form", business: @business, return_to: @return_to %>
 
   <section class="dashboard-section" id="data-source-link-settings">
     <div class="section-heading">
       <div>
-        <h2>Data Source紐付け詳細</h2>
+        <h2>Business個別紐付け設定</h2>
         <p>このBusinessがどのProperty / Account / Keyword / Handleを使うかを管理します。API KeyやOAuthはAICOO全体設定、ここでは事業固有の紐付けを設定します。</p>
       </div>
       <%= link_to "全体Data Source設定", aicoo_setting_path(anchor: "data-source-costs"), class: "button secondary" %>
@@ -40,6 +42,7 @@
     </div>
 
     <%= form_with url: update_data_source_settings_business_path(@business), method: :patch, class: "aicoo-form" do %>
+      <%= hidden_field_tag :return_to, @return_to.presence || edit_business_path(@business, anchor: "data-source-link-settings") %>
       <div class="table-wrap">
         <table>
           <thead>
