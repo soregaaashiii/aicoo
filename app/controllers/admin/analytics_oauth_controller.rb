@@ -19,12 +19,23 @@ module Admin
     end
 
     def callback
+      log_oauth_callback_event!(
+        "callback_start",
+        code_present: params[:code].present?,
+        error: params[:error].presence,
+        state: params[:state].presence,
+        session_credential_id: session[:analytics_oauth_google_credential_id].presence,
+        session_client_id: session[:analytics_oauth_client_id].presence
+      )
+
       if params[:error].present?
+        log_oauth_callback_event!("callback_google_error", error: params[:error], description: params[:error_description])
         redirect_to admin_google_credentials_path, alert: oauth_callback_error_message(params[:error], params[:error_description])
         return
       end
 
       if params[:code].blank?
+        log_oauth_callback_event!("callback_missing_code")
         redirect_to admin_google_credentials_path, alert: "Google OAuth認証に失敗しました: code が返りませんでした。"
         return
       end
@@ -32,22 +43,49 @@ module Admin
       settings = target_settings(params[:state].presence)
       google_credential = target_google_credential_from_session
       credentials = oauth_credentials(google_credential)
+      log_oauth_callback_event!(
+        "callback_target_resolved",
+        credential_id: google_credential.id,
+        credential_persisted: google_credential.persisted?,
+        credential_client_id_before: google_credential.client_id,
+        credential_project_id_before: google_credential.google_cloud_project_id,
+        credential_project_number_before: google_credential.oauth_project_number,
+        credentials_client_id: credentials[:client_id],
+        credentials_project_id: credentials[:google_cloud_project_id],
+        settings_count: settings.size
+      )
       token_response = AicooAnalytics::GoogleOauthAuthorization.exchange_code(
         code: params[:code],
         client_id: credentials[:client_id],
         client_secret: credentials[:client_secret],
         redirect_uri: admin_analytics_oauth_callback_url
       )
+      log_oauth_callback_event!(
+        "callback_token_received",
+        access_token_present: token_response.access_token.present?,
+        refresh_token_present: token_response.refresh_token.present?,
+        token_expires_at: token_response.token_expires_at,
+        google_account_email: token_response.account_email
+      )
 
       if token_response.refresh_token.blank?
+        log_oauth_callback_event!("callback_missing_refresh_token")
         redirect_to admin_google_credentials_path,
                     alert: "Google OAuth認証は完了しましたがrefresh_tokenが返りませんでした。再度「Googleと接続」を押してください。"
         return
       end
 
-      save_oauth_credentials!(settings, google_credential, credentials, token_response)
+      result = save_oauth_credentials!(settings, google_credential, credentials, token_response)
+      log_oauth_callback_event!(
+        "callback_finish",
+        credential_id: result[:credential_id],
+        credential_updated: result[:credential_updated],
+        settings_updated_count: result[:settings_updated_count],
+        total_updated_count: result[:total_updated_count]
+      )
       redirect_to admin_google_credentials_path, notice: "Google OAuth接続が完了しました。Refresh Tokenを保存しました。"
     rescue AicooAnalytics::GoogleOauthAuthorization::Error => e
+      log_oauth_callback_event!("callback_failed", error_class: e.class.name, error_message: e.message)
       redirect_to admin_google_credentials_path, alert: "Google OAuth認証に失敗しました: #{e.message}"
     end
 
@@ -108,23 +146,46 @@ module Admin
       before_snapshot = google_credential.persisted? ? google_credential.reload : google_credential
       log_oauth_save_snapshot!("Before", before_snapshot)
 
-      save_oauth_credential_record!(google_credential, credentials, token_response, now)
+      result = nil
+      ActiveRecord::Base.transaction do
+        credential_updated = save_oauth_credential_record!(google_credential, credentials, token_response, now)
+        google_credential.reload
+        log_oauth_save_snapshot!("After", google_credential)
+        verify_oauth_credentials_saved!(google_credential, credentials, token_response)
 
-      google_credential.reload
-      log_oauth_save_snapshot!("After", google_credential)
-      verify_oauth_credentials_saved!(google_credential, credentials, token_response)
+        settings_updated_count = 0
+        settings.each do |setting|
+          log_oauth_callback_event!("callback_setting_update_before", setting_id: setting.id, source_type: setting.source_type)
+          setting.update!(
+            google_credential:,
+            client_id: nil,
+            client_secret: nil,
+            refresh_token: nil,
+            credentials_json: nil,
+            oauth_connected_at: now
+          )
+          settings_updated_count += 1
+          log_oauth_callback_event!("callback_setting_update_after", setting_id: setting.id, source_type: setting.source_type)
+        end
 
-      settings.each do |setting|
-        setting.update!(
-          google_credential:,
-          client_id: nil,
-          client_secret: nil,
-          refresh_token: nil,
-          credentials_json: nil,
-          oauth_connected_at: now
-        )
+        total_updated_count = (credential_updated ? 1 : 0) + settings_updated_count
+        if total_updated_count.zero?
+          raise AicooAnalytics::GoogleOauthAuthorization::Error, "Google OAuth認証情報の更新件数が0件でした。"
+        end
+
+        result = {
+          credential_id: google_credential.id,
+          credential_updated:,
+          settings_updated_count:,
+          total_updated_count:
+        }
       end
+      log_oauth_callback_event!("callback_transaction_committed", **result)
       clear_remembered_oauth_credentials!
+      result
+    rescue StandardError => e
+      log_oauth_callback_event!("callback_transaction_rolled_back", error_class: e.class.name, error_message: e.message)
+      raise
     end
 
     def save_oauth_credential_record!(google_credential, credentials, token_response, now)
@@ -132,10 +193,12 @@ module Admin
         google_credential.with_lock do
           assign_oauth_credential_attributes!(google_credential, credentials, token_response, now)
           google_credential.save!
+          google_credential.previous_changes.except("updated_at").present?
         end
       else
         assign_oauth_credential_attributes!(google_credential, credentials, token_response, now)
         google_credential.save!
+        true
       end
     end
 
@@ -205,6 +268,10 @@ module Admin
           "last_oauth_success_at=#{credential.last_oauth_success_at || 'blank'}"
         ].join(" ")
       )
+    end
+
+    def log_oauth_callback_event!(event, **payload)
+      Rails.logger.info("Google OAuth #{event} #{payload.compact.to_json}")
     end
 
     def verify_oauth_credentials_saved!(credential, credentials, token_response)
