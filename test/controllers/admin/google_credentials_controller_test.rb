@@ -179,8 +179,25 @@ module Admin
 
       credential.reload
       assert_equal "new-client", credential.client_id
+      assert_equal "new-secret", credential.client_secret
+      assert_equal "aicoo-500805", credential.google_cloud_project_id
       assert_nil credential.refresh_token
       assert_redirected_to connect_admin_google_credential_url(credential)
+    end
+
+    test "edit form shows saved client id so connect flow does not submit a blank old value" do
+      credential = AicooGoogleCredential.create!(
+        name: "AICOO共通Google認証",
+        google_cloud_project_id: "aicoo-500805",
+        client_id: "705900000000-new.apps.googleusercontent.com",
+        client_secret: "secret"
+      )
+
+      get edit_admin_google_credential_url(credential)
+
+      assert_response :success
+      assert_includes response.body, "value=\"705900000000-new.apps.googleusercontent.com\""
+      assert_includes response.body, "value=\"aicoo-500805\""
     end
 
     test "shows env mismatch warning and current google cloud project" do

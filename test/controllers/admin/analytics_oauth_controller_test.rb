@@ -151,6 +151,62 @@ module Admin
       assert_equal "999999999999-new.apps.googleusercontent.com", params["client_id"]
     end
 
+    test "connect generates oauth url from the requested credential record" do
+      old_credential = AicooGoogleCredential.create!(
+        name: "古いGoogle認証",
+        client_id: "338488400527-old.apps.googleusercontent.com",
+        client_secret: "old-secret",
+        enabled: true
+      )
+      new_credential = AicooGoogleCredential.create!(
+        name: "新しいGoogle認証",
+        google_cloud_project_id: "aicoo-500805",
+        client_id: "705900000000-new.apps.googleusercontent.com",
+        client_secret: "new-secret",
+        enabled: true
+      )
+
+      get admin_analytics_oauth_connect_url, params: { google_credential_id: new_credential.id }
+
+      assert_response :redirect
+      uri = URI.parse(response.location)
+      params = Rack::Utils.parse_nested_query(uri.query)
+      assert_equal "705900000000-new.apps.googleusercontent.com", params["client_id"]
+      assert_not_equal old_credential.client_id, params["client_id"]
+      assert_equal new_credential.id, session[:analytics_oauth_google_credential_id]
+      assert_equal "705900000000-new.apps.googleusercontent.com", session[:analytics_oauth_client_id]
+      assert_equal "aicoo-500805", session[:analytics_oauth_google_cloud_project_id]
+    end
+
+    test "connect ignores stale remembered client when a credential record is requested" do
+      old_credential = AicooGoogleCredential.create!(
+        name: "古いGoogle認証",
+        client_id: "338488400527-old.apps.googleusercontent.com",
+        client_secret: "old-secret",
+        enabled: true
+      )
+      new_credential = AicooGoogleCredential.create!(
+        name: "新しいGoogle認証",
+        google_cloud_project_id: "aicoo-500805",
+        client_id: "705900000000-new.apps.googleusercontent.com",
+        client_secret: "new-secret",
+        enabled: true
+      )
+
+      get admin_analytics_oauth_connect_url, params: { google_credential_id: old_credential.id }
+      assert_equal old_credential.client_id, session[:analytics_oauth_client_id]
+
+      get admin_analytics_oauth_connect_url, params: { google_credential_id: new_credential.id }
+
+      assert_response :redirect
+      uri = URI.parse(response.location)
+      params = Rack::Utils.parse_nested_query(uri.query)
+      assert_equal "705900000000-new.apps.googleusercontent.com", params["client_id"]
+      assert_equal new_credential.id, session[:analytics_oauth_google_credential_id]
+      assert_equal "705900000000-new.apps.googleusercontent.com", session[:analytics_oauth_client_id]
+      assert_equal "aicoo-500805", session[:analytics_oauth_google_cloud_project_id]
+    end
+
     test "analytics connections page shows latest oauth connected time" do
       setting = create_gsc_setting(name: "吸えログ GSC", site_url: "sc-domain:suelog.jp")
       setting.update!(oauth_connected_at: Time.zone.local(2026, 6, 22, 12, 0, 0), refresh_token: "saved-refresh")

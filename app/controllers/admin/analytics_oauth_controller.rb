@@ -2,7 +2,8 @@ module Admin
   class AnalyticsOauthController < ApplicationController
     def connect
       credential = target_google_credential
-      credentials = oauth_credentials(credential)
+      credentials = oauth_credentials(credential, allow_session: false)
+      log_oauth_connect_credential!(credential:, credentials:)
 
       if credentials[:client_id].blank? || credentials[:client_secret].blank?
         redirect_to admin_google_credentials_path, alert: "Google OAuth Client ID / Secret が未設定です。Google認証画面から保存してください。"
@@ -118,8 +119,8 @@ module Admin
       end
     end
 
-    def oauth_credentials(credential)
-      return session_oauth_credentials if session_oauth_credentials.present?
+    def oauth_credentials(credential, allow_session: true)
+      return session_oauth_credentials if allow_session && session_oauth_credentials.present?
 
       if credential.client_id.present? && credential.client_secret.present?
         return {
@@ -262,6 +263,20 @@ module Admin
           "oauth_url=#{authorization_uri}",
           "test_user_check=OAuth同意画面がテストモードの場合は利用するGoogleアカウントをテストユーザーに追加してください"
         ].join(" ")
+      )
+    end
+
+    def log_oauth_connect_credential!(credential:, credentials:)
+      Rails.logger.info(
+        "Google OAuth connect_credential " \
+        "#{{
+          credential_id: credential.id,
+          credential_persisted: credential.persisted?,
+          credential_client_id: credential.client_id,
+          credential_project_id: credential.google_cloud_project_id,
+          credentials_client_id: credentials[:client_id],
+          credentials_project_id: credentials[:google_cloud_project_id]
+        }.compact.to_json}"
       )
     end
 

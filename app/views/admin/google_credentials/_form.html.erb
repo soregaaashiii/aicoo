@@ -29,7 +29,7 @@
     <% if credential.client_id.present? %>
       <p class="aicoo-lab-help">設定済み</p>
     <% end %>
-    <%= form.text_field :client_id, value: nil, autocomplete: "off", placeholder: "設定済みなら空欄でOK" %>
+    <%= form.text_field :client_id, autocomplete: "off", placeholder: "Google CloudのOAuth Client ID" %>
   </div>
   <div class="field">
     <%= form.label :client_secret, "Client Secret" %>
