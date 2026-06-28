@@ -4,6 +4,22 @@ module Admin
       load_settings
     end
 
+    def update
+      load_settings
+      @serp_profile.update!(
+        monthly_budget_yen: serp_settings_params[:monthly_budget_yen].to_i,
+        monthly_spend_yen: serp_settings_params[:monthly_spend_yen].to_i,
+        metadata: @serp_profile.metadata.to_h.merge(
+          Aicoo::Serp::ScanPlan::METADATA_UNIT_COST_KEY => serp_settings_params[:unit_result_cost_yen].presence || Aicoo::Serp::ScanPlan::DEFAULT_UNIT_RESULT_COST_YEN
+        )
+      )
+      redirect_to admin_serp_settings_path, notice: "SERP予算設定を保存しました。"
+    rescue ActiveRecord::RecordInvalid => e
+      load_settings
+      flash.now[:alert] = "SERP予算設定を保存できませんでした: #{e.record.errors.full_messages.to_sentence}"
+      render :show, status: :unprocessable_entity
+    end
+
     def test_search
       load_settings
       @test_params = test_search_params.to_h.symbolize_keys
@@ -50,6 +66,10 @@ module Admin
 
     def test_search_params
       params.fetch(:serp_test, {}).permit(:provider, :type, :query, :location, :language, :limit)
+    end
+
+    def serp_settings_params
+      params.fetch(:serp_settings, {}).permit(:monthly_budget_yen, :monthly_spend_yen, :unit_result_cost_yen)
     end
   end
 end

@@ -115,7 +115,15 @@ module Owner
 
     test "shows serp scan card and settings link" do
       DataSourceCostProfile.ensure_defaults!
-      DataSourceCostProfile.find_by!(source_key: "serp").update!(api_key: "serper-key")
+      DataSourceCostProfile.find_by!(source_key: "serp").update!(
+        api_key: "serper-key",
+        monthly_budget_yen: 10,
+        monthly_spend_yen: 9,
+        metadata: {
+          Aicoo::Serp::ScanPlan::METADATA_LIMIT_KEY => 60,
+          Aicoo::Serp::ScanPlan::METADATA_UNIT_COST_KEY => 1
+        }
+      )
 
       get owner_focus_url
 
@@ -124,7 +132,74 @@ module Owner
       assert_includes response.body, "SERP走査を開始"
       assert_includes response.body, admin_serp_settings_path
       assert_includes response.body, owner_serp_scan_path
+      assert_includes response.body, owner_serp_scan_settings_path
       assert_includes response.body, "設定済み"
+      assert_includes response.body, "Limit"
+      assert_includes response.body, "高コストです"
+      assert_includes response.body, "今回の実行で月予算を超えます"
+      assert_includes response.body, "実行前コスト"
+    end
+
+    test "updates serp scan limit from owner focus" do
+      DataSourceCostProfile.ensure_defaults!
+
+      patch owner_serp_scan_settings_path, params: { serp_scan: { limit: "25" } }
+
+      assert_redirected_to owner_focus_path
+      assert_equal "SERP走査Limitを25に保存しました。", flash[:notice]
+      assert_equal 25, Aicoo::Serp::ScanPlan.configured_limit(DataSourceCostProfile.find_by!(source_key: "serp"))
+    end
+
+    test "shows serp running status on owner focus" do
+      businesses(:suelog).serp_analyses.create!(
+        keyword: "大阪 喫煙 カフェ",
+        search_engine: "google",
+        location: "Japan",
+        device: "desktop",
+        provider: "serper",
+        status: "running",
+        analyzed_at: 1.minute.ago,
+        result_count: 0,
+        raw_summary: {
+          "scan_batch_id" => "running-batch",
+          "scan_started_at" => 1.minute.ago.iso8601,
+          "limit" => 10
+        }
+      )
+
+      get owner_focus_url
+
+      assert_response :success
+      assert_includes response.body, "SERP走査中..."
+      assert_includes response.body, "現在 吸えログ"
+      assert_includes response.body, "対象 1事業"
+    end
+
+    test "shows latest serp completion summary on owner focus" do
+      businesses(:suelog).serp_analyses.create!(
+        keyword: "大阪 喫煙 カフェ",
+        search_engine: "google",
+        location: "Japan",
+        device: "desktop",
+        provider: "serper",
+        status: "success",
+        analyzed_at: 2.minutes.ago,
+        result_count: 8,
+        raw_summary: {
+          "scan_batch_id" => "success-batch",
+          "scan_started_at" => 3.minutes.ago.iso8601,
+          "scan_finished_at" => 2.minutes.ago.iso8601,
+          "limit" => 10
+        }
+      )
+
+      get owner_focus_url
+
+      assert_response :success
+      assert_includes response.body, "最新のSERP走査"
+      assert_includes response.body, "SERP走査が完了しました"
+      assert_includes response.body, "取得 8件"
+      assert_includes response.body, "実行時間"
     end
 
     test "serp scan start posts through owner focus route" do
@@ -136,6 +211,11 @@ module Owner
         query_count: 1,
         success_count: 1,
         failed_count: 0,
+        result_count: 10,
+        duration_seconds: 1.2,
+        estimated_cost_yen: 3,
+        limit: 10,
+        scan_batch_id: "test-batch",
         analyses: []
       )
 
@@ -144,7 +224,7 @@ module Owner
       end
 
       assert_redirected_to owner_focus_path
-      assert_equal "SERP走査が完了しました。1 Business / 1クエリを確認しました。", flash[:notice]
+      assert_equal "SERP走査が完了しました。1 Business / 1クエリ / 10件取得 / 約3円 / 1.2秒", flash[:notice]
     end
 
     test "shows pending opportunity as next action with opportunity quick actions" do

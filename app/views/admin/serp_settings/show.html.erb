@@ -46,6 +46,36 @@
 
   <section class="dashboard-section">
     <div class="section-heading">
+      <h2>SERP月予算</h2>
+      <p>CEO MODEの実行前コストと月予算警告に使います。</p>
+    </div>
+
+    <%= form_with url: admin_serp_settings_path, scope: :serp_settings, method: :patch, class: "form" do |form| %>
+      <div class="form-grid">
+        <div>
+          <%= form.label :monthly_budget_yen, "月予算" %>
+          <%= form.number_field :monthly_budget_yen, value: @serp_profile.monthly_budget_yen, min: 0 %>
+        </div>
+        <div>
+          <%= form.label :monthly_spend_yen, "今月使用額" %>
+          <%= form.number_field :monthly_spend_yen, value: @serp_profile.monthly_spend_yen, min: 0 %>
+        </div>
+        <div>
+          <%= form.label :unit_result_cost_yen, "1取得あたり概算単価" %>
+          <%= form.number_field :unit_result_cost_yen,
+                                value: @serp_profile.metadata.to_h.fetch(Aicoo::Serp::ScanPlan::METADATA_UNIT_COST_KEY, Aicoo::Serp::ScanPlan::DEFAULT_UNIT_RESULT_COST_YEN),
+                                min: 0,
+                                step: 0.01 %>
+        </div>
+      </div>
+      <div class="actions">
+        <%= form.submit "SERP予算を保存", class: "button" %>
+      </div>
+    <% end %>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
       <h2>テスト検索</h2>
       <p>Google Searchのみ実装済みです。Maps / News / Shopping / AI Overview / Images / Videos は未実装Providerとしてエラー表示します。</p>
     </div>

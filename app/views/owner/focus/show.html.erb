@@ -110,12 +110,62 @@
       </div>
       <div class="metric-grid aicoo-owner-secondary">
         <div class="metric-card"><span>提供元</span><strong><%= @serp_scan_status.provider %></strong></div>
+        <div class="metric-card"><span>Limit</span><strong><%= @serp_scan_status.limit %></strong></div>
         <div class="metric-card"><span>APIキー</span><strong><%= @serp_scan_status.api_key_configured ? "設定済み" : "未設定" %></strong></div>
-        <div class="metric-card"><span>最終走査</span><strong><%= @serp_scan_status.last_scanned_at ? l(@serp_scan_status.last_scanned_at, format: :short) : "未実行" %></strong></div>
+        <div class="metric-card"><span>前回実行日時</span><strong><%= @serp_scan_status.last_scanned_at ? l(@serp_scan_status.last_scanned_at, format: :short) : "未実行" %></strong></div>
+        <div class="metric-card"><span>前回実行時間</span><strong><%= @serp_scan_status.last_duration_seconds ? "#{@serp_scan_status.last_duration_seconds}秒" : "-" %></strong></div>
         <div class="metric-card"><span>対象事業</span><strong><%= @serp_scan_status.target_business_count %>件</strong></div>
-        <div class="metric-card"><span>候補KW</span><strong><%= @serp_scan_status.candidate_keyword_count %>件</strong></div>
+        <div class="metric-card"><span>予定検索クエリ</span><strong><%= @serp_scan_status.candidate_keyword_count %>件</strong></div>
         <div class="metric-card"><span>実行状態</span><strong><%= @serp_scan_status.execution_status %></strong></div>
       </div>
+
+      <%= form_with url: owner_serp_scan_settings_path, scope: :serp_scan, method: :patch, class: "aicoo-form serp-limit-form" do |form| %>
+        <div class="form-row">
+          <%= form.label :limit, "Limit" %>
+          <%= form.number_field :limit,
+                                value: @serp_scan_status.limit,
+                                min: 1,
+                                max: 500,
+                                data: { serp_limit_input: true } %>
+          <p class="aicoo-lab-help" data-serp-limit-warning data-warning-level="<%= @serp_scan_status.limit_warning_level %>">
+            <%= @serp_scan_status.limit_warning_message %>
+          </p>
+        </div>
+        <div class="actions compact-actions">
+          <%= form.submit "Limitを保存", class: "button secondary" %>
+        </div>
+      <% end %>
+
+      <%= render "shared/execution_cost_estimate", estimate: @serp_scan_status, title: "実行前コスト" %>
+
+      <% if @serp_scan_status.execution_status == "SERP走査中" %>
+        <div class="status-banner status-banner-running">
+          <span class="aicoo-spinner" aria-hidden="true"></span>
+          <div>
+            <strong>SERP走査中...</strong>
+            <p>
+              開始時刻 <%= @serp_scan_status.running_started_at ? l(@serp_scan_status.running_started_at, format: :short) : "-" %>
+              / 経過 <%= @serp_scan_status.running_started_at ? "#{(Time.current - @serp_scan_status.running_started_at).to_i}秒" : "-" %>
+              / 対象 <%= @serp_scan_status.target_business_count %>事業
+              / 現在 <%= @serp_scan_status.current_business_name.presence || "-" %>
+              / 完了 <%= @serp_scan_status.completed_count %>件
+              / 失敗 <%= @serp_scan_status.failed_count %>件
+            </p>
+          </div>
+        </div>
+      <% elsif @serp_scan_status.latest_analysis.present? %>
+        <div class="success-toast">
+          最新のSERP走査:
+          <%= @serp_scan_status.execution_status %>
+          / Business <%= @serp_scan_status.target_business_count %>件
+          / 検索 <%= @serp_scan_status.latest_query_count %>件
+          / 取得 <%= @serp_scan_status.latest_result_count %>件
+          / 失敗 <%= @serp_scan_status.failed_count %>件
+          / 実行時間 <%= @serp_scan_status.last_duration_seconds ? "#{@serp_scan_status.last_duration_seconds}秒" : "-" %>
+          / 概算 <%= number_to_currency(@serp_scan_status.latest_estimated_cost_yen, unit: "約¥", precision: 0) %>
+        </div>
+      <% end %>
+
       <% if @serp_scan_status.latest_analysis&.failed? %>
         <div class="error-toast">直近のSERP走査に失敗しました: <%= @serp_scan_status.latest_analysis.error_message.presence || "原因不明" %></div>
       <% end %>
@@ -127,10 +177,31 @@
                       data: { aicoo_loading_label: "SERP走査中..." },
                       form: { data: { aicoo_submit_lock: true, aicoo_loading_label: "SERP走査中..." } },
                       disabled: !@serp_scan_status.api_key_configured %>
-        <%= link_to "SERP設定", admin_serp_settings_path, class: "button secondary" %>
+        <%= link_to "詳細設定", admin_serp_settings_path, class: "button secondary" %>
         <%= link_to "SERP結果を見る", businesses_path(anchor: "business-serp"), class: "button secondary" %>
       </div>
     </div>
+
+    <script>
+      (() => {
+        const input = document.querySelector("[data-serp-limit-input]");
+        const warning = document.querySelector("[data-serp-limit-warning]");
+        if (!input || !warning) return;
+
+        const messageFor = (value) => {
+          if (value <= 20) return "推奨範囲です";
+          if (value <= 50) return "API消費が増えます";
+          if (value <= 100) return "高コストです";
+          return "本当に実行しますか？";
+        };
+
+        input.addEventListener("input", () => {
+          const value = Number(input.value || 0);
+          warning.textContent = messageFor(value);
+          warning.dataset.warningLevel = value <= 20 ? "safe" : value <= 50 ? "notice" : value <= 100 ? "warning" : "danger";
+        });
+      })();
+    </script>
 
     <div class="metric-grid aicoo-owner-secondary">
       <div class="metric-card"><span>確認候補</span><strong><%= @analysis_monitor.today_count %>件</strong></div>

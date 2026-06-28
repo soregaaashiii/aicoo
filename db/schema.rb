@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_28_181300) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_29_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1144,6 +1144,53 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_28_181300) do
     t.index ["status"], name: "index_google_api_import_runs_on_status"
   end
 
+  create_table "idea_pipeline_items", force: :cascade do |t|
+    t.decimal "ai_implementation_score"
+    t.bigint "aicoo_lab_experiment_id"
+    t.bigint "aicoo_lab_landing_page_id"
+    t.decimal "automation_score"
+    t.bigint "business_id"
+    t.decimal "competition_score"
+    t.datetime "created_at", null: false
+    t.string "current_stage", default: "idea", null: false
+    t.decimal "development_hours"
+    t.decimal "difficulty_score"
+    t.datetime "evaluated_at"
+    t.integer "expected_profit_yen"
+    t.decimal "final_score"
+    t.datetime "learning_evaluated_at"
+    t.jsonb "learning_snapshot", default: {}, null: false
+    t.text "lp_concept"
+    t.datetime "lp_generated_at"
+    t.decimal "maintenance_cost_score"
+    t.decimal "market_score"
+    t.jsonb "metadata", default: {}, null: false
+    t.decimal "monetization_score"
+    t.text "mvp_concept"
+    t.datetime "mvp_decided_at"
+    t.string "mvp_decision"
+    t.text "mvp_specification"
+    t.text "problem"
+    t.datetime "published_at"
+    t.text "revenue_model"
+    t.decimal "serp_difficulty_score"
+    t.datetime "serp_evaluated_at"
+    t.jsonb "serp_snapshot", default: {}, null: false
+    t.text "short_description"
+    t.string "status", default: "idea", null: false
+    t.text "target_user"
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.index ["aicoo_lab_experiment_id"], name: "index_idea_pipeline_items_on_aicoo_lab_experiment_id"
+    t.index ["aicoo_lab_landing_page_id"], name: "index_idea_pipeline_items_on_aicoo_lab_landing_page_id"
+    t.index ["business_id"], name: "index_idea_pipeline_items_on_business_id"
+    t.index ["created_at"], name: "index_idea_pipeline_items_on_created_at"
+    t.index ["current_stage"], name: "index_idea_pipeline_items_on_current_stage"
+    t.index ["final_score"], name: "index_idea_pipeline_items_on_final_score"
+    t.index ["mvp_decision"], name: "index_idea_pipeline_items_on_mvp_decision"
+    t.index ["status"], name: "index_idea_pipeline_items_on_status"
+  end
+
   create_table "meta_evaluation_snapshots", force: :cascade do |t|
     t.bigint "aicoo_daily_run_id"
     t.decimal "average_confidence_score", default: "0.0", null: false
@@ -1461,6 +1508,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_28_181300) do
   add_foreign_key "explore_observations", "explore_data_sources"
   add_foreign_key "explore_observations", "opportunity_discovery_items"
   add_foreign_key "google_api_import_runs", "businesses"
+  add_foreign_key "idea_pipeline_items", "aicoo_lab_experiments"
+  add_foreign_key "idea_pipeline_items", "aicoo_lab_landing_pages"
+  add_foreign_key "idea_pipeline_items", "businesses"
   add_foreign_key "meta_evaluation_snapshots", "aicoo_daily_runs"
   add_foreign_key "meta_evaluation_snapshots", "businesses"
   add_foreign_key "opportunity_discovery_items", "action_candidates"

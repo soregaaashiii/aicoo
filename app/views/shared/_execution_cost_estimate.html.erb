@@ -1,0 +1,21 @@
+<% estimate = local_assigns.fetch(:estimate) %>
+<% title = local_assigns.fetch(:title, "実行前コスト") %>
+
+<div class="aicoo-card aicoo-card-compact execution-cost-estimate">
+  <h3><%= title %></h3>
+  <div class="metric-grid aicoo-owner-secondary">
+    <div class="metric-card"><span>Business</span><strong><%= estimate.target_business_count %>件</strong></div>
+    <div class="metric-card"><span>検索クエリ</span><strong><%= estimate.candidate_keyword_count %>件</strong></div>
+    <div class="metric-card"><span>Limit</span><strong><%= estimate.limit %></strong></div>
+    <div class="metric-card"><span>検索回数</span><strong><%= estimate.estimated_api_calls %>回</strong></div>
+    <div class="metric-card"><span>今回概算</span><strong><%= number_to_currency(estimate.estimated_cost_yen, unit: "約¥", precision: 0) %></strong></div>
+    <div class="metric-card"><span>実行後累計</span><strong><%= number_to_currency(estimate.projected_month_spend_yen, unit: "¥", precision: 0) %></strong></div>
+  </div>
+  <div class="metric-grid aicoo-owner-secondary">
+    <div class="metric-card"><span>月予算</span><strong><%= number_to_currency(estimate.monthly_budget_yen, unit: "¥", precision: 0) %></strong></div>
+    <div class="metric-card"><span>現在使用</span><strong><%= number_to_currency(estimate.current_month_spend_yen, unit: "¥", precision: 0) %></strong></div>
+  </div>
+  <% if estimate.budget_exceeded %>
+    <div class="error-toast">今回の実行で月予算を超えます。</div>
+  <% end %>
+</div>

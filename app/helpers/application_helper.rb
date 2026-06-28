@@ -25,4 +25,16 @@ module ApplicationHelper
 
     "#{base_url.delete_suffix("/")}#{path.start_with?("/") ? path : "/#{path}"}"
   end
+
+  def stage_label(stage)
+    {
+      "idea" => "Idea",
+      "score" => "Score",
+      "serp" => "SERP",
+      "lp" => "LP",
+      "publish" => "公開",
+      "learning" => "Learning",
+      "mvp" => "MVP"
+    }.fetch(stage.to_s, stage.to_s)
+  end
 end

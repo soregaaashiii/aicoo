@@ -820,6 +820,31 @@ details.revenue-card > summary {
   background: #fbfefc;
 }
 
+.serp-limit-form {
+  margin: 14px 0;
+}
+
+[data-serp-limit-warning] {
+  font-weight: 800;
+}
+
+[data-serp-limit-warning][data-warning-level="safe"] {
+  color: #166534;
+}
+
+[data-serp-limit-warning][data-warning-level="notice"] {
+  color: #854d0e;
+}
+
+[data-serp-limit-warning][data-warning-level="warning"],
+[data-serp-limit-warning][data-warning-level="danger"] {
+  color: #991b1b;
+}
+
+.execution-cost-estimate {
+  margin: 14px 0;
+}
+
 .execution-card-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1847,4 +1872,39 @@ textarea {
     flex-basis: auto;
     min-width: 0;
   }
+}
+
+.idea-pipeline-flow {
+  align-items: stretch;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+}
+
+.idea-stage-node {
+  background: #fff;
+  border: 1px solid var(--border, #d9e2ef);
+  border-radius: 8px;
+  padding: 0.85rem;
+}
+
+.idea-stage-node span {
+  color: var(--muted, #64748b);
+  display: block;
+  font-size: 0.82rem;
+}
+
+.idea-stage-node strong {
+  display: block;
+  margin-top: 0.25rem;
+}
+
+.idea-stage-node.done {
+  background: rgba(34, 197, 94, 0.07);
+  border-color: rgba(34, 197, 94, 0.45);
+}
+
+.idea-stage-node.active {
+  border-color: rgba(37, 99, 235, 0.45);
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.12);
 }

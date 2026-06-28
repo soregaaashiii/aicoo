@@ -22,6 +22,7 @@ Rails.application.routes.draw do
   patch "owner/focus/restore", to: "owner/focus#restore", as: :restore_owner_focus
   get "owner/tasks", to: "owner/tasks#index", as: :owner_tasks
   post "owner/serp_scan", to: "owner/serp_scans#create", as: :owner_serp_scan
+  patch "owner/serp_scan_settings", to: "owner/serp_scans#update_settings", as: :owner_serp_scan_settings
   patch "owner/execution_queue_items/:id/complete", to: "owner/execution_queue_items#complete", as: :complete_owner_execution_queue_item
   patch "owner/execution_queue_items/:id/skip", to: "owner/execution_queue_items#skip", as: :skip_owner_execution_queue_item
   patch "owner/execution_queue_items/:id/restore", to: "owner/execution_queue_items#restore", as: :restore_owner_execution_queue_item
@@ -175,7 +176,19 @@ Rails.application.routes.draw do
     post "google_api_imports/:business_id", to: "google_api_imports#create", as: :google_api_import
     get "execution_runs", to: "execution_runs#index", as: :execution_runs
     get "execution_runs/:id", to: "execution_runs#show", as: :execution_run
-    resource :serp_settings, only: :show do
+    resources :idea_pipeline, controller: "idea_pipeline", only: %i[index show] do
+      post :generate, on: :collection
+      member do
+        post :score
+        post :run_serp
+        post :generate_lp
+        post :publish_lp
+        post :evaluate_learning
+        post :build_mvp_spec
+        post :run_pipeline
+      end
+    end
+    resource :serp_settings, only: %i[show update] do
       post :test_search
     end
     resources :analytics_imports, only: %i[index create] do
