@@ -23,6 +23,11 @@ module Admin
       assert_equal "consent", params["prompt"]
       assert_includes scopes, "https://www.googleapis.com/auth/webmasters.readonly"
       assert_includes scopes, "https://www.googleapis.com/auth/analytics.readonly"
+      assert_equal response.location, flash[:notice].match(/OAuth開始URL: (.+)\z/m)[1]
+      assert_includes flash[:notice], "Client ID: env-client"
+      assert_includes flash[:notice], "Redirect URI: #{admin_analytics_oauth_callback_url}"
+      assert_includes flash[:notice], "access_type: offline"
+      assert_includes flash[:notice], "prompt: consent"
     end
 
     test "callback saves refresh token to gsc and ga4 settings for selected business" do

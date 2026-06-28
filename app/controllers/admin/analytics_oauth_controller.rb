@@ -9,13 +9,16 @@ module Admin
         return
       end
 
-      remember_oauth_credentials!(credentials, params[:business_name].presence, credential)
-      log_oauth_start!(credential:, credentials:)
-      redirect_to AicooAnalytics::GoogleOauthAuthorization.authorization_uri(
+      state = params[:business_name].presence
+      authorization_uri = AicooAnalytics::GoogleOauthAuthorization.authorization_uri(
         client_id: credentials[:client_id],
         redirect_uri: admin_analytics_oauth_callback_url,
-        state: params[:business_name].presence
-      ).to_s, allow_other_host: true
+        state:
+      )
+      remember_oauth_credentials!(credentials, state, credential)
+      log_oauth_start!(credential:, credentials:, authorization_uri:, state:)
+      flash[:notice] = oauth_start_debug_message(authorization_uri)
+      redirect_to authorization_uri.to_s, allow_other_host: true
     end
 
     def callback
@@ -244,17 +247,36 @@ module Admin
       session.delete(:analytics_oauth_google_credential_id)
     end
 
-    def log_oauth_start!(credential:, credentials:)
+    def log_oauth_start!(credential:, credentials:, authorization_uri:, state:)
+      query = Rack::Utils.parse_nested_query(authorization_uri.query)
       Rails.logger.info(
         [
           "Google OAuth start",
           "client_id=#{credentials[:client_id]}",
           "project_id=#{credentials[:google_cloud_project_id].presence || credential.effective_google_cloud_project_id.presence || 'unknown'}",
-          "redirect_uri=#{admin_analytics_oauth_callback_url}",
-          "scope=#{AicooAnalytics::GoogleOauthAuthorization::SCOPES.join(' ')}",
+          "redirect_uri=#{query['redirect_uri']}",
+          "scope=#{query['scope']}",
+          "access_type=#{query['access_type']}",
+          "prompt=#{query['prompt']}",
+          "state=#{state.presence || 'blank'}",
+          "oauth_url=#{authorization_uri}",
           "test_user_check=OAuth同意画面がテストモードの場合は利用するGoogleアカウントをテストユーザーに追加してください"
         ].join(" ")
       )
+    end
+
+    def oauth_start_debug_message(authorization_uri)
+      query = Rack::Utils.parse_nested_query(authorization_uri.query)
+      [
+        "Google OAuthを開始します。",
+        "Client ID: #{query['client_id']}",
+        "Redirect URI: #{query['redirect_uri']}",
+        "Scope: #{query['scope']}",
+        "access_type: #{query['access_type']}",
+        "prompt: #{query['prompt']}",
+        "state: #{query['state'].presence || '-'}",
+        "OAuth開始URL: #{authorization_uri}"
+      ].join("\n")
     end
 
     def log_oauth_save_snapshot!(label, credential)
