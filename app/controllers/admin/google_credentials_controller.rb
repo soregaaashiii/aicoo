@@ -3,7 +3,9 @@ module Admin
     before_action :set_credential, only: %i[edit update connect]
 
     def index
-      @credentials = AicooGoogleCredential.recent
+      @credentials = AicooGoogleCredential.recent.to_a.each(&:reload)
+      @current_credential = AicooGoogleCredential.default&.reload
+      log_google_credential_display_event!
       @credential = AicooGoogleCredential.new(name: "AICOO共通Google認証", enabled: true)
     end
 
@@ -87,6 +89,19 @@ module Admin
           refresh_token_present: credential.refresh_token.present?,
           last_oauth_success_at: credential.last_oauth_success_at
         }.merge(sanitized_log_extra(extra)).compact.to_json}"
+      )
+    end
+
+    def log_google_credential_display_event!
+      Rails.logger.info(
+        "Google Credential display " \
+        "#{{
+          current_credential_id: @current_credential&.id,
+          list_credential_ids: @credentials.map(&:id),
+          current_client_id: @current_credential&.client_id,
+          current_project_id: @current_credential&.google_cloud_project_id,
+          current_refresh_token_present: @current_credential&.refresh_token.present?
+        }.compact.to_json}"
       )
     end
 

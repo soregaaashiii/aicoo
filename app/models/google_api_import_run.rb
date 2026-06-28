@@ -74,7 +74,8 @@ class GoogleApiImportRun < ApplicationRecord
       metadata: metadata.merge(
         "imported_source_labels" => result.imported_source_labels,
         "start_date" => result.start_date.to_s,
-        "end_date" => result.end_date.to_s
+        "end_date" => result.end_date.to_s,
+        "google_credential_at_success" => result.credential_snapshots
       )
     )
   end

@@ -266,6 +266,27 @@ module Admin
       assert_includes response.body, "invalid_grant"
     end
 
+    test "callback does not succeed when refresh token is missing" do
+      credential = AicooGoogleCredential.create!(
+        name: "AICOO共通Google認証",
+        client_id: "705900000000-new.apps.googleusercontent.com",
+        client_secret: "new-secret",
+        enabled: true
+      )
+
+      get admin_analytics_oauth_connect_url, params: { google_credential_id: credential.id }
+
+      with_oauth_exchange(refresh_token: nil) do
+        get admin_analytics_oauth_callback_url, params: { code: "auth-code" }
+      end
+
+      assert_redirected_to admin_google_credentials_url
+      follow_redirect!
+      assert_includes response.body, "Refresh Tokenが保存されませんでした"
+      assert_nil credential.reload.refresh_token
+      assert_nil credential.last_oauth_success_at
+    end
+
     private
 
     def create_gsc_setting(name:, site_url:)

@@ -75,7 +75,7 @@ module Admin
       if token_response.refresh_token.blank?
         log_oauth_callback_event!("callback_missing_refresh_token")
         redirect_to admin_google_credentials_path,
-                    alert: "Google OAuth認証は完了しましたがrefresh_tokenが返りませんでした。再度「Googleと接続」を押してください。"
+                    alert: "Refresh Tokenが保存されませんでした。Google OAuth認証は完了しましたがrefresh_tokenが返りませんでした。再度「Googleと接続」を押してください。"
         return
       end
 
@@ -90,7 +90,7 @@ module Admin
       redirect_to admin_google_credentials_path, notice: "Google OAuth接続が完了しました。Refresh Tokenを保存しました。"
     rescue AicooAnalytics::GoogleOauthAuthorization::Error => e
       log_oauth_callback_event!("callback_failed", error_class: e.class.name, error_message: e.message)
-      redirect_to admin_google_credentials_path, alert: "Google OAuth認証に失敗しました: #{e.message}"
+      redirect_to admin_google_credentials_path, alert: "Refresh Tokenが保存されませんでした。Google OAuth認証に失敗しました: #{e.message}"
     end
 
     private

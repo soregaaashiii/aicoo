@@ -57,6 +57,8 @@ module Admin
       assert_includes response.body, "properties/123"
       assert_includes response.body, "Google APIから取得"
       assert_includes response.body, "現在使用中のGoogle OAuth Client"
+      assert_includes response.body, "Record ID"
+      assert_includes response.body, "##{@credential.id}"
       assert_includes response.body, @credential.client_id
       assert_includes response.body, @credential.effective_google_cloud_project_id
       assert_includes response.body, "action=\"#{admin_google_api_imports_path}\""
@@ -81,6 +83,10 @@ module Admin
       assert_equal @business, run.business
       assert_equal "queued", run.status
       assert_equal %w[gsc ga4], run.source_types
+      assert_equal @credential.id, run.metadata.dig("google_credential_at_enqueue", "record_id")
+      assert_equal @credential.client_id, run.metadata.dig("google_credential_at_enqueue", "client_id")
+      assert_equal "aicoo-500805", run.metadata.dig("google_credential_at_enqueue", "google_cloud_project_id")
+      assert_equal true, run.metadata.dig("google_credential_at_enqueue", "refresh_token_saved")
       assert_redirected_to admin_google_api_imports_url
       assert_equal "#{@business.name}: Google API取得を開始しました。BusinessMetricDailyへの反映は完了後に表示されます。", flash[:notice]
     end

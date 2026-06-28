@@ -1,7 +1,9 @@
 <% content_for :title, "Google認証" %>
 
 <% header_actions = capture do %>
-  <%= link_to "Googleと接続", admin_analytics_oauth_connect_path, class: "button" %>
+  <% if @current_credential.present? %>
+    <%= link_to "Googleと接続", connect_admin_google_credential_path(@current_credential), class: "button" %>
+  <% end %>
   <%= link_to "サイト別分析設定", admin_analytics_sites_path, class: "button secondary" %>
 <% end %>
 
@@ -17,11 +19,12 @@
       <h2>Google認証一覧</h2>
       <p>通常は接続済みの共通Google認証を1つだけ使います。必要な場合だけサイト設定側で個別認証を上書きできます。</p>
     </div>
-    <%= render "shared/google_oauth_client_status", credential: AicooGoogleCredential.default %>
+    <%= render "shared/google_oauth_client_status", credential: @current_credential %>
     <div class="table-wrap">
       <table>
         <thead>
           <tr>
+            <th>Record ID</th>
             <th>名前</th>
             <th>状態</th>
             <th>有効</th>
@@ -30,8 +33,11 @@
             <th>OAuth Client</th>
             <th>Project番号</th>
             <th>Access Token</th>
+            <th>Refresh Token</th>
             <th>Token Expiry</th>
             <th>最終接続日時</th>
+            <th>last_oauth_success_at</th>
+            <th>updated_at</th>
             <th>利用設定数</th>
             <th>操作</th>
           </tr>
@@ -39,6 +45,12 @@
         <tbody>
           <% @credentials.each do |credential| %>
             <tr>
+              <td>
+                #<%= credential.id %>
+                <% if @current_credential&.id == credential.id %>
+                  <br><span class="pill">現在使用中</span>
+                <% end %>
+              </td>
               <td><%= credential.name %></td>
               <td><span class="pill"><%= credential.connected? ? "接続済み" : "未接続" %></span></td>
               <td><span class="pill"><%= credential.enabled? ? "有効" : "無効" %></span></td>
@@ -47,6 +59,7 @@
               <td><%= credential.client_id.presence || "-" %></td>
               <td><%= credential.oauth_project_number.presence || "不明" %></td>
               <td><span class="pill"><%= credential.access_token.present? ? "保存済み" : "未保存" %></span></td>
+              <td><span class="pill"><%= credential.refresh_token.present? ? "保存済み" : "未保存" %></span></td>
               <td>
                 <% if credential.token_expires_at.present? %>
                   <%= l(credential.token_expires_at, format: :short) %>
@@ -56,6 +69,8 @@
                 <% end %>
               </td>
               <td><%= credential.connected_at ? l(credential.connected_at, format: :short) : "-" %></td>
+              <td><%= credential.last_oauth_success_at ? l(credential.last_oauth_success_at, format: :short) : "-" %></td>
+              <td><%= credential.updated_at ? l(credential.updated_at, format: :short) : "-" %></td>
               <td class="number"><%= credential.analytics_source_settings.count %></td>
               <td>
                 <div class="actions compact-actions">
@@ -66,7 +81,7 @@
             </tr>
           <% end %>
           <% if @credentials.empty? %>
-            <tr><td colspan="11">Google認証はまだありません。</td></tr>
+            <tr><td colspan="16">Google認証はまだありません。</td></tr>
           <% end %>
         </tbody>
       </table>

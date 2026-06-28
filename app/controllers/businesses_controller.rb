@@ -21,6 +21,7 @@ class BusinessesController < ApplicationController
     @latest_daily_run = AicooDailyRun.recent.first
     @landing_page_counts = AicooLabLandingPage.group(:public_status).count
     @business_playbook = @business.business_playbook
+    @google_credential = AicooGoogleCredential.default&.reload
     @google_api_import_run = GoogleApiImportRun.latest_for(@business)
     @google_api_import_runs = GoogleApiImportRun.where(business: @business).recent.limit(8)
     @integration_health = Aicoo::BusinessIntegrationHealth.new.call.business_healths.find { |row| row.business == @business }
@@ -248,7 +249,8 @@ class BusinessesController < ApplicationController
     end
 
     def enqueue_google_api_import!(source_types:, label:)
-      if google_credential_reauthentication_required?
+      credential = current_google_credential
+      if google_credential_reauthentication_required?(credential)
         redirect_to business_path(@business, anchor: "business-google"),
                     alert: "Google OAuth Clientが変更されています。Google認証画面で再認証してください。"
         return
@@ -263,16 +265,42 @@ class BusinessesController < ApplicationController
         business: @business,
         status: "queued",
         source_types:,
-        fetched_days: GoogleApiImportRun.next_fetch_days_for(@business, full_fetch: params[:full_fetch].present?)
+        fetched_days: GoogleApiImportRun.next_fetch_days_for(@business, full_fetch: params[:full_fetch].present?),
+        metadata: {
+          "google_credential_at_enqueue" => credential.diagnostic_snapshot
+        }
       )
+      log_google_api_import_credential!("enqueue", run:, credential:, source_types:)
       AicooAnalytics::BusinessGoogleApiImportJob.perform_later(run.id)
       redirect_to business_path(@business, anchor: "business-google"),
                   notice: "#{label}取得を開始しました。BusinessMetricDailyへの反映は完了後に表示されます。"
     end
 
-    def google_credential_reauthentication_required?
-      credential = AicooGoogleCredential.default
-      credential.present? && !credential.connected?
+    def current_google_credential
+      AicooGoogleCredential.default&.reload
+    end
+
+    def google_credential_reauthentication_required?(credential)
+      credential.blank? || !credential.connected?
+    end
+
+    def log_google_api_import_credential!(event, run:, credential:, source_types:)
+      Rails.logger.info(
+        "Business Google API import #{event} " \
+        "#{{
+          business_id: @business.id,
+          business_name: @business.name,
+          run_id: run.id,
+          source_types:,
+          credential_record_id: credential.id,
+          credential_client_id: credential.client_id,
+          credential_project_id: credential.google_cloud_project_id,
+          credential_project_number: credential.oauth_project_number,
+          refresh_token_saved: credential.refresh_token.present?,
+          access_token_saved: credential.access_token.present?,
+          last_oauth_success_at: credential.last_oauth_success_at
+        }.compact.to_json}"
+      )
     end
 
     def safe_return_to

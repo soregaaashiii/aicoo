@@ -18,7 +18,7 @@
       <strong>この画面でやること</strong>
       <p>CSV貼り付けは使いません。GSC site_url / GA4 property_id とGoogle OAuth接続済みのRefresh Tokenを使って、Google APIから日次KPIを直接取得します。</p>
     </div>
-    <%= render "shared/google_oauth_client_status", credential: AicooGoogleCredential.default %>
+    <%= render "shared/google_oauth_client_status", credential: @google_credential %>
   </section>
 </div>
 
@@ -36,6 +36,7 @@
           <th>GSC</th>
           <th>GA4</th>
           <th>最終同期</th>
+          <th>使用Credential</th>
           <th>取得状態</th>
           <th>Warning</th>
           <th>取得</th>
@@ -49,6 +50,7 @@
           <% gsc_site_url = analytics.settings[:gsc_site_url] %>
           <% ga4_property_id = analytics.settings[:ga4_property_id] %>
           <% import_run = @google_api_import_runs_by_business_id[business.id] %>
+          <% credential_snapshot = import_run&.metadata&.dig("google_credential_at_enqueue") || import_run&.metadata&.dig("google_credential_at_success") %>
           <tr>
             <td><%= link_to business.name, business_path(business) %></td>
             <td>
@@ -60,6 +62,15 @@
               <small><%= ga4_property_id.presence || "property_id未設定" %></small>
             </td>
             <td><%= analytics.last_sync_at ? l(analytics.last_sync_at, format: :short) : "-" %></td>
+            <td>
+              <% if credential_snapshot.present? %>
+                #<%= credential_snapshot["record_id"] || "-" %><br>
+                <small><%= credential_snapshot["client_id"].presence || "client_id未記録" %></small><br>
+                <small><%= credential_snapshot["google_cloud_project_id"].presence || "project_id未記録" %></small>
+              <% else %>
+                <span class="pill"><%= @google_credential.present? ? "現在使用中 ##{@google_credential.id}" : "未設定" %></span>
+              <% end %>
+            </td>
             <td>
               <span class="pill"><%= import_run ? import_run.status_label : "未実行" %></span><br>
               <small>

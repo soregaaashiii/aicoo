@@ -1,6 +1,6 @@
 module AicooAnalytics
   class BusinessGoogleApiMetricImporter
-    Result = Data.define(:business, :start_date, :end_date, :metrics, :source_results) do
+    Result = Data.define(:business, :start_date, :end_date, :metrics, :source_results, :credential_snapshots) do
       def metric_count
         metrics.size
       end
@@ -37,11 +37,15 @@ module AicooAnalytics
       raise Error, "GSC site_url または GA4 property_id が未設定です。" unless gsc_setting || ga4_setting
 
       source_results = []
+      credential_snapshots = {
+        "gsc" => google_credential_snapshot(gsc_setting),
+        "ga4" => google_credential_snapshot(ga4_setting)
+      }.compact
       gsc_values = fetch_gsc(gsc_setting, source_results) if gsc_setting
       ga4_values = fetch_ga4(ga4_setting, source_results) if ga4_setting
       metrics = save_metrics(gsc_values || {}, ga4_values || {})
 
-      Result.new(business:, start_date:, end_date:, metrics:, source_results:)
+      Result.new(business:, start_date:, end_date:, metrics:, source_results:, credential_snapshots:)
     end
 
     private
@@ -236,6 +240,13 @@ module AicooAnalytics
           AicooAnalytics::GoogleAccessToken.new(setting).call
         end
       end.new(setting)
+    end
+
+    def google_credential_snapshot(setting)
+      return if setting.blank?
+
+      credential = setting.effective_google_credential || AicooGoogleCredential.default
+      credential&.reload&.diagnostic_snapshot
     end
 
     def start_date

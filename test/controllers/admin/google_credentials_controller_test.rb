@@ -3,8 +3,9 @@ require "test_helper"
 module Admin
   class GoogleCredentialsControllerTest < ActionDispatch::IntegrationTest
     test "shows google credentials index" do
-      AicooGoogleCredential.create!(
+      credential = AicooGoogleCredential.create!(
         name: "AICOO共通Google認証",
+        google_cloud_project_id: "aicoo-500805",
         client_id: "client",
         client_secret: "client-secret-value",
         refresh_token: "refresh-token-value",
@@ -20,10 +21,16 @@ module Admin
       assert_includes response.body, "Google認証一覧"
       assert_includes response.body, "接続済み"
       assert_includes response.body, "Googleと接続"
+      assert_includes response.body, "Record ID"
+      assert_includes response.body, "##{credential.id}"
+      assert_includes response.body, "現在使用中"
       assert_includes response.body, "owner@example.com"
       assert_includes response.body, "Project番号"
+      assert_includes response.body, "aicoo-500805"
       assert_includes response.body, "client"
       assert_includes response.body, "保存済み"
+      assert_includes response.body, "last_oauth_success_at"
+      assert_includes response.body, "updated_at"
       assert_not_includes response.body, "client-secret-value"
       assert_not_includes response.body, "refresh-token-value"
       assert_not_includes response.body, "access-token-value"

@@ -50,6 +50,21 @@ class AicooGoogleCredential < ApplicationRecord
     token_expires_at.present? && token_expires_at <= Time.current
   end
 
+  def diagnostic_snapshot
+    {
+      "record_id" => id,
+      "client_id" => client_id,
+      "google_cloud_project_id" => google_cloud_project_id,
+      "project_number" => oauth_project_number,
+      "refresh_token_saved" => refresh_token.present?,
+      "access_token_saved" => access_token.present?,
+      "google_account_email" => google_account_email,
+      "connected_at" => connected_at&.iso8601,
+      "last_oauth_success_at" => last_oauth_success_at&.iso8601,
+      "updated_at" => updated_at&.iso8601
+    }
+  end
+
   private
 
   def set_defaults

@@ -647,7 +647,17 @@
     </div>
   <% end %>
 
-  <%= render "shared/google_oauth_client_status", credential: AicooGoogleCredential.default %>
+  <% credential_snapshot = google_api_run&.metadata&.dig("google_credential_at_enqueue") || google_api_run&.metadata&.dig("google_credential_at_success") %>
+  <% if credential_snapshot.present? %>
+    <div class="alert-banner alert-banner-info">
+      直近取得で使用したGoogle Credential:
+      #<%= credential_snapshot["record_id"] || "-" %> /
+      <%= credential_snapshot["client_id"].presence || "client_id未記録" %> /
+      <%= credential_snapshot["google_cloud_project_id"].presence || "project_id未記録" %>
+    </div>
+  <% end %>
+
+  <%= render "shared/google_oauth_client_status", credential: @google_credential %>
 
   <div class="inline-form">
     <div class="field compact-field">

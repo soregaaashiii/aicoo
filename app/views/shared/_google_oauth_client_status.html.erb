@@ -1,9 +1,11 @@
-<% credential ||= AicooGoogleCredential.default %>
+<% credential ||= AicooGoogleCredential.default&.reload %>
 
 <div class="aicoo-lab-help">
   <strong>現在使用中のGoogle OAuth Client</strong>
   <% if credential.present? %>
     <dl class="definition-list compact-definition-list">
+      <dt>Record ID</dt>
+      <dd><%= credential.id %></dd>
       <dt>Google Cloud Project ID</dt>
       <dd><%= credential.effective_google_cloud_project_id.presence || "未設定" %></dd>
       <dt>Project番号</dt>
@@ -19,6 +21,14 @@
           <span class="pill danger">再認証が必要です</span>
         <% end %>
       </dd>
+      <dt>Access Token</dt>
+      <dd><span class="pill"><%= credential.access_token.present? ? "保存済み" : "未保存" %></span></dd>
+      <dt>connected_at</dt>
+      <dd><%= credential.connected_at ? l(credential.connected_at, format: :short) : "-" %></dd>
+      <dt>last_oauth_success_at</dt>
+      <dd><%= credential.last_oauth_success_at ? l(credential.last_oauth_success_at, format: :short) : "-" %></dd>
+      <dt>updated_at</dt>
+      <dd><%= credential.updated_at ? l(credential.updated_at, format: :short) : "-" %></dd>
     </dl>
 
     <% if credential.env_client_id_mismatch? || credential.env_project_id_mismatch? %>

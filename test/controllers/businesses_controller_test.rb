@@ -170,6 +170,8 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "GSC取得"
     assert_includes response.body, "GA4取得"
     assert_includes response.body, "接続済み"
+    assert_includes response.body, "Record ID"
+    assert_includes response.body, credential.id.to_s
     refute_includes response.body, "GSC未接続"
     refute_includes response.body, "GA4未接続"
   end
@@ -214,6 +216,15 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "imports google api metrics into business metric daily from business dashboard" do
+    credential = AicooGoogleCredential.create!(
+      name: "AICOO共通Google認証",
+      google_cloud_project_id: "aicoo-500805",
+      client_id: "705900000000-new.apps.googleusercontent.com",
+      client_secret: "secret",
+      refresh_token: "refresh-token",
+      connected_at: Time.current
+    )
+
     assert_difference("GoogleApiImportRun.count", 1) do
       assert_enqueued_with(job: AicooAnalytics::BusinessGoogleApiImportJob) do
         post import_google_api_business_url(@business)
@@ -223,6 +234,9 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     run = GoogleApiImportRun.last
     assert_equal @business, run.business
     assert_equal "queued", run.status
+    assert_equal credential.id, run.metadata.dig("google_credential_at_enqueue", "record_id")
+    assert_equal "705900000000-new.apps.googleusercontent.com", run.metadata.dig("google_credential_at_enqueue", "client_id")
+    assert_equal "aicoo-500805", run.metadata.dig("google_credential_at_enqueue", "google_cloud_project_id")
     assert_redirected_to business_url(@business, anchor: "business-google")
     assert_equal "Google API取得を開始しました。BusinessMetricDailyへの反映は完了後に表示されます。", flash[:notice]
   end

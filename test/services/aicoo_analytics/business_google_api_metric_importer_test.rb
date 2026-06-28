@@ -41,6 +41,9 @@ module AicooAnalytics
 
         assert_equal 2, result.metric_count
         assert_equal %w[GSC GA4], result.imported_source_labels
+        assert_equal @credential.id, result.credential_snapshots.dig("gsc", "record_id")
+        assert_equal @credential.id, result.credential_snapshots.dig("ga4", "record_id")
+        assert_equal "client", result.credential_snapshots.dig("gsc", "client_id")
       end
 
       first_metric = BusinessMetricDaily.find_by!(business: @business, recorded_on: Date.new(2026, 6, 26))
