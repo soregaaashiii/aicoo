@@ -174,6 +174,45 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     refute_includes response.body, "GA4未接続"
   end
 
+  test "show displays long running operation status and google api history" do
+    GoogleApiImportRun.create!(
+      business: @business,
+      status: "running",
+      source_types: %w[gsc ga4],
+      fetched_days: 3,
+      started_at: 5.minutes.ago
+    )
+    GoogleApiImportRun.create!(
+      business: @business,
+      status: "success",
+      source_types: %w[gsc],
+      fetched_days: 1,
+      started_at: 30.minutes.ago,
+      finished_at: 29.minutes.ago,
+      duration_seconds: 60,
+      updated_metric_count: 2
+    )
+    GoogleApiImportRun.create!(
+      business: @business,
+      status: "failed",
+      source_types: %w[ga4],
+      fetched_days: 1,
+      started_at: 45.minutes.ago,
+      finished_at: 44.minutes.ago,
+      error_message: "Refresh Tokenがありません"
+    )
+
+    get business_url(@business)
+
+    assert_response :success
+    assert_includes response.body, "実行中の処理があります"
+    assert_includes response.body, "Google API取得中"
+    assert_includes response.body, "data-aicoo-auto-refresh=\"5000\""
+    assert_includes response.body, "直近実行履歴"
+    assert_includes response.body, "Refresh Tokenがありません"
+    assert_includes response.body, "更新 2件"
+  end
+
   test "imports google api metrics into business metric daily from business dashboard" do
     assert_difference("GoogleApiImportRun.count", 1) do
       assert_enqueued_with(job: AicooAnalytics::BusinessGoogleApiImportJob) do

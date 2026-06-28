@@ -1,0 +1,51 @@
+<% status_class = if operation.running?
+  "running"
+elsif operation.failed?
+  "failed"
+else
+  "success"
+end %>
+
+<article class="execution-card execution-card-<%= status_class %> <%= "execution-card-emphasized" if local_assigns[:emphasized] %>">
+  <div class="execution-card-header">
+    <span class="progress-indicator progress-indicator-<%= status_class %>"><%= operation.status_label %></span>
+    <strong><%= operation.title %></strong>
+  </div>
+  <dl class="execution-card-details">
+    <div>
+      <dt>処理</dt>
+      <dd><%= operation.kind %></dd>
+    </div>
+    <div>
+      <dt>対象</dt>
+      <dd><%= operation.business_name %></dd>
+    </div>
+    <div>
+      <dt>開始</dt>
+      <dd><%= operation.started_at ? l(operation.started_at, format: :short) : "-" %></dd>
+    </div>
+    <div>
+      <dt>終了</dt>
+      <dd><%= operation.finished_at ? l(operation.finished_at, format: :short) : "-" %></dd>
+    </div>
+    <div>
+      <dt>実行時間</dt>
+      <dd><%= operation.duration_label %></dd>
+    </div>
+    <div>
+      <dt>進捗</dt>
+      <dd><%= operation.detail.presence || "-" %></dd>
+    </div>
+  </dl>
+  <% if operation.failed? && operation.error_message.present? %>
+    <div class="error-toast">原因: <%= operation.error_message %></div>
+  <% elsif operation.succeeded? %>
+    <div class="success-toast"><%= operation.kind %>が完了しました。</div>
+  <% end %>
+  <div class="execution-card-actions">
+    <%= link_to "詳細を見る", operation.path, class: "button secondary" if operation.path.present? %>
+    <% if operation.failed? && operation.retry_path.present? %>
+      <%= link_to "再実行へ", operation.retry_path, class: "button" %>
+    <% end %>
+  </div>
+</article>

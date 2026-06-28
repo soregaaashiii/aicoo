@@ -22,6 +22,7 @@ class BusinessesController < ApplicationController
     @landing_page_counts = AicooLabLandingPage.group(:public_status).count
     @business_playbook = @business.business_playbook
     @google_api_import_run = GoogleApiImportRun.latest_for(@business)
+    @google_api_import_runs = GoogleApiImportRun.where(business: @business).recent.limit(8)
     @integration_health = Aicoo::BusinessIntegrationHealth.new.call.business_healths.find { |row| row.business == @business }
     @business_analytics_summary = Aicoo::BusinessAnalyticsSummary.new(@business, health: @integration_health).call
     @data_source_settings_presenter = Aicoo::DataSourceSettingsPresenter.new

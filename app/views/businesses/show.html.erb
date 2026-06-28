@@ -679,6 +679,41 @@
                   disabled: analytics.settings[:ga4_property_id].blank? %>
     <%= link_to "Google紐付けを編集", edit_business_path(@business, return_to: business_path(@business, anchor: "business-google"), anchor: "data-source-link-settings"), class: "button secondary" %>
   </div>
+
+  <div class="table-wrap">
+    <h3>直近実行履歴</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>開始</th>
+          <th>終了</th>
+          <th>状態</th>
+          <th>実行時間</th>
+          <th>取得日数</th>
+          <th>更新件数</th>
+          <th>エラー</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @google_api_import_runs.each do |run| %>
+          <tr>
+            <td><%= run.started_at ? l(run.started_at, format: :short) : "-" %></td>
+            <td><%= run.finished_at ? l(run.finished_at, format: :short) : "-" %></td>
+            <td><span class="pill"><%= run.status_label %></span></td>
+            <td><%= run.duration_seconds ? "#{run.duration_seconds.to_f.round(1)}秒" : "-" %></td>
+            <td><%= run.fetched_days %>日</td>
+            <td><%= run.updated_metric_count %>件</td>
+            <td><%= run.error_message.presence || "-" %></td>
+          </tr>
+        <% end %>
+        <% if @google_api_import_runs.empty? %>
+          <tr>
+            <td colspan="7">Google API取得履歴はまだありません。</td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
 </section>
 
 <section class="dashboard-section" id="business-serp">

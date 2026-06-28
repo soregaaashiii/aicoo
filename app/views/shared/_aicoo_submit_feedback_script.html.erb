@@ -101,7 +101,36 @@
       }, true);
     }
 
+    function refreshOperationPanel() {
+      var panel = document.querySelector("[data-aicoo-operation-panel]");
+      if (!panel) return;
+
+      var interval = parseInt(panel.dataset.aicooAutoRefresh || "0", 10);
+      if (!interval || window.__aicooOperationPanelRefreshBound) return;
+      window.__aicooOperationPanelRefreshBound = true;
+
+      window.setInterval(function () {
+        var currentPanel = document.querySelector("[data-aicoo-operation-panel]");
+        if (!currentPanel || !currentPanel.dataset.aicooAutoRefresh) return;
+
+        fetch(window.location.href, {
+          headers: { "X-Requested-With": "XMLHttpRequest" },
+          credentials: "same-origin"
+        })
+          .then(function (response) { return response.text(); })
+          .then(function (html) {
+            var parser = new DOMParser();
+            var doc = parser.parseFromString(html, "text/html");
+            var replacement = doc.querySelector("[data-aicoo-operation-panel]");
+            if (replacement && currentPanel) currentPanel.replaceWith(replacement);
+          })
+          .catch(function () {});
+      }, interval);
+    }
+
     ready(bind);
+    ready(refreshOperationPanel);
     document.addEventListener("turbo:load", bind);
+    document.addEventListener("turbo:load", refreshOperationPanel);
   })();
 </script>

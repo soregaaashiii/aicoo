@@ -100,6 +100,8 @@
           <% end %>
         </div>
 
+        <%= render "shared/operation_status_panel", monitor: @long_running_operation_monitor %>
+
         <%= yield %>
       </main>
     </div>

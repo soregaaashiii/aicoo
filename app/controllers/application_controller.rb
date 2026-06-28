@@ -6,6 +6,7 @@ class ApplicationController < ActionController::Base
 
   before_action :protect_aicoo_management_area
   before_action :set_robots_header
+  before_action :load_long_running_operation_monitor
 
   # Changes to the importmap will invalidate the etag for HTML responses
   stale_when_importmap_changes
@@ -45,6 +46,16 @@ class ApplicationController < ActionController::Base
 
   def set_robots_header
     response.set_header("X-Robots-Tag", "noindex, nofollow") unless public_render_path?
+  end
+
+  def load_long_running_operation_monitor
+    return if public_render_path?
+    return unless request.format.html?
+
+    @long_running_operation_monitor = Aicoo::LongRunningOperationMonitor.new.call
+  rescue StandardError => e
+    Rails.logger.warn("Long running operation monitor unavailable: #{e.class}: #{e.message}")
+    @long_running_operation_monitor = nil
   end
 
   def secure_basic_auth_match?(provided_value, expected_value)

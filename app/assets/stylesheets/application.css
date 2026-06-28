@@ -628,6 +628,147 @@ details.revenue-card > summary {
   color: #b91c1c;
 }
 
+.operation-status-panel {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.operation-status-panel.is-empty {
+  display: none;
+}
+
+.status-banner {
+  align-items: center;
+  border-radius: 8px;
+  display: flex;
+  gap: 12px;
+  padding: 14px 16px;
+}
+
+.status-banner p {
+  margin: 4px 0 0;
+}
+
+.status-banner-running {
+  background: #eef6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e3a8a;
+}
+
+.execution-card-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.execution-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left-width: 4px;
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.execution-card-running {
+  border-left-color: #2563eb;
+}
+
+.execution-card-success {
+  border-left-color: #16a34a;
+}
+
+.execution-card-failed {
+  border-left-color: #dc2626;
+}
+
+.execution-card-emphasized {
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+}
+
+.execution-card-header {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.execution-card-header strong {
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.execution-card-details {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 12px 0;
+}
+
+.execution-card-details dt {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.execution-card-details dd {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.progress-indicator {
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 4px 9px;
+  white-space: nowrap;
+}
+
+.progress-indicator-running {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.progress-indicator-success {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.progress-indicator-failed {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.success-toast,
+.error-toast {
+  border-radius: 8px;
+  margin: 10px 0;
+  padding: 8px 10px;
+}
+
+.success-toast {
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.error-toast {
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.operation-history summary {
+  cursor: pointer;
+  font-weight: 800;
+  margin-bottom: 10px;
+}
+
+.execution-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .system-monitor {
   background: #101820;
   border: 1px solid #263541;
