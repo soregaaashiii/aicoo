@@ -67,6 +67,8 @@
                             method: :post,
                             params: { business_id: business.id },
                             class: "button",
+                            data: { aicoo_loading_label: "Google API取得中..." },
+                            form: { data: { aicoo_submit_lock: true, aicoo_loading_label: "Google API取得中..." } },
                             disabled: gsc_site_url.blank? && ga4_property_id.blank? %>
             </td>
             <td><%= link_to "紐付け設定", edit_business_path(business, anchor: "data-source-link-settings"), class: "button secondary" %></td>

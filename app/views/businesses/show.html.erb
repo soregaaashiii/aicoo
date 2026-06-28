@@ -622,9 +622,27 @@
       <label>GA4 property_id</label>
       <input type="text" value="<%= analytics.settings[:ga4_property_id] %>" readonly>
     </div>
-    <%= button_to "Google APIから取得", import_google_api_business_path(@business), method: :post, class: "button", disabled: analytics.settings[:gsc_site_url].blank? && analytics.settings[:ga4_property_id].blank? %>
-    <%= button_to "GSCだけ取得", import_gsc_business_path(@business), method: :post, class: "button secondary", disabled: analytics.settings[:gsc_site_url].blank? %>
-    <%= button_to "GA4だけ取得", import_ga4_business_path(@business), method: :post, class: "button secondary", disabled: analytics.settings[:ga4_property_id].blank? %>
+    <%= button_to "Google APIから取得",
+                  import_google_api_business_path(@business),
+                  method: :post,
+                  class: "button",
+                  data: { aicoo_loading_label: "Google API取得中..." },
+                  form: { data: { aicoo_submit_lock: true, aicoo_loading_label: "Google API取得中..." } },
+                  disabled: analytics.settings[:gsc_site_url].blank? && analytics.settings[:ga4_property_id].blank? %>
+    <%= button_to "GSCだけ取得",
+                  import_gsc_business_path(@business),
+                  method: :post,
+                  class: "button secondary",
+                  data: { aicoo_loading_label: "GSC取得中..." },
+                  form: { data: { aicoo_submit_lock: true, aicoo_loading_label: "GSC取得中..." } },
+                  disabled: analytics.settings[:gsc_site_url].blank? %>
+    <%= button_to "GA4だけ取得",
+                  import_ga4_business_path(@business),
+                  method: :post,
+                  class: "button secondary",
+                  data: { aicoo_loading_label: "GA4取得中..." },
+                  form: { data: { aicoo_submit_lock: true, aicoo_loading_label: "GA4取得中..." } },
+                  disabled: analytics.settings[:ga4_property_id].blank? %>
     <%= link_to "Google紐付けを編集", edit_business_path(@business, return_to: business_path(@business, anchor: "business-google"), anchor: "data-source-link-settings"), class: "button secondary" %>
   </div>
 </section>

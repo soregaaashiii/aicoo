@@ -1,0 +1,107 @@
+<script>
+  (function () {
+    function ready(callback) {
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", callback, { once: true });
+      } else {
+        callback();
+      }
+    }
+
+    function loadingFeedback() {
+      return document.getElementById("aicoo-loading-feedback");
+    }
+
+    function showLoading(message) {
+      var feedback = loadingFeedback();
+      if (!feedback) return;
+
+      var label = feedback.querySelector("span:last-child");
+      if (label) label.textContent = message || "実行中...";
+      feedback.classList.remove("is-hidden");
+    }
+
+    function lockButton(button, message) {
+      if (!button || button.dataset.aicooLocked === "true") return;
+
+      button.dataset.aicooLocked = "true";
+      button.dataset.aicooOriginalText = button.tagName === "INPUT" ? button.value : button.textContent;
+      button.setAttribute("aria-busy", "true");
+      button.disabled = true;
+      button.classList.add("is-submitting");
+
+      var loadingText = button.dataset.aicooLoadingLabel || message || "実行中...";
+      if (button.tagName === "INPUT") {
+        button.value = loadingText;
+      } else {
+        button.textContent = loadingText;
+      }
+      showLoading(loadingText);
+    }
+
+    function preserveSubmitterValue(form, submitter) {
+      if (!form || !submitter || !submitter.name || submitter.disabled) return;
+
+      var hidden = document.createElement("input");
+      hidden.type = "hidden";
+      hidden.name = submitter.name;
+      hidden.value = submitter.value || submitter.textContent || "1";
+      hidden.dataset.aicooSubmitterCopy = "true";
+      form.appendChild(hidden);
+    }
+
+    function submitButtonFor(form, event) {
+      if (event.submitter) return event.submitter;
+      return form.querySelector("button[type='submit'], input[type='submit'], input[type='image']");
+    }
+
+    function lockForm(form, event) {
+      if (!form || form.dataset.aicooSubmitting === "true") {
+        if (event) event.preventDefault();
+        return;
+      }
+
+      form.dataset.aicooSubmitting = "true";
+      form.setAttribute("aria-busy", "true");
+      var submitter = submitButtonFor(form, event || {});
+      preserveSubmitterValue(form, submitter);
+      lockButton(submitter, form.dataset.aicooLoadingLabel);
+
+      form.querySelectorAll("button[type='submit'], input[type='submit']").forEach(function (button) {
+        if (button !== submitter) lockButton(button, "実行中...");
+      });
+    }
+
+    function lockLink(link, event) {
+      if (!link || link.dataset.aicooLocked === "true") {
+        if (event) event.preventDefault();
+        return;
+      }
+      link.dataset.aicooLocked = "true";
+      link.setAttribute("aria-disabled", "true");
+      link.setAttribute("aria-busy", "true");
+      link.classList.add("is-submitting");
+      showLoading(link.dataset.aicooLoadingLabel || "実行中...");
+    }
+
+    function bind() {
+      if (window.__aicooSubmitFeedbackBound) return;
+      window.__aicooSubmitFeedbackBound = true;
+
+      document.addEventListener("submit", function (event) {
+        var form = event.target;
+        if (!(form instanceof HTMLFormElement)) return;
+        lockForm(form, event);
+      }, true);
+
+      document.addEventListener("click", function (event) {
+        var link = event.target.closest("a[data-aicoo-loading]");
+        if (!link) return;
+        lockLink(link, event);
+      }, true);
+    }
+
+    ready(bind);
+    document.addEventListener("turbo:load", bind);
+  })();
+</script>

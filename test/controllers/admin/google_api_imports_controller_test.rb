@@ -34,6 +34,9 @@ module Admin
       assert_includes response.body, "properties/123"
       assert_includes response.body, "Google APIから取得"
       assert_includes response.body, "action=\"#{admin_google_api_imports_path}\""
+      assert_includes response.body, "data-aicoo-submit-lock=\"true\""
+      assert_includes response.body, "data-aicoo-loading-label=\"Google API取得中...\""
+      assert_includes response.body, "aicoo-loading-feedback"
       refute_includes response.body, "action=\"#{admin_google_api_import_path(@business)}\""
       assert_includes response.body, admin_analytics_imports_path
     end
@@ -59,6 +62,22 @@ module Admin
 
       assert_redirected_to admin_google_api_imports_url
       assert_equal "#{@business.name}: GSC / GA4 から直接取得しました。BusinessMetricDaily 2日分を更新しました。", flash[:notice]
+    ensure
+      AicooAnalytics::BusinessGoogleApiMetricImporter.define_singleton_method(:new) do |*args, **kwargs, &block|
+        original_new.call(*args, **kwargs, &block)
+      end
+    end
+
+    test "shows google api error message on failure" do
+      original_new = AicooAnalytics::BusinessGoogleApiMetricImporter.method(:new)
+      AicooAnalytics::BusinessGoogleApiMetricImporter.define_singleton_method(:new) do |business:, **_kwargs|
+        raise AicooAnalytics::BusinessGoogleApiMetricImporter::Error, "#{business.name} GA4 Property IDが未設定です"
+      end
+
+      post admin_google_api_imports_url, params: { business_id: @business.id }
+
+      assert_redirected_to admin_google_api_imports_url
+      assert_equal "Google APIから取得できませんでした: #{@business.name} GA4 Property IDが未設定です", flash[:alert]
     ensure
       AicooAnalytics::BusinessGoogleApiMetricImporter.define_singleton_method(:new) do |*args, **kwargs, &block|
         original_new.call(*args, **kwargs, &block)

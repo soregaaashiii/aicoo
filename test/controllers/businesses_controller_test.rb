@@ -153,6 +153,8 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Google API直取得"
     assert_includes response.body, "Google APIから取得"
     assert_includes response.body, "Google紐付けを編集"
+    assert_includes response.body, "data-aicoo-submit-lock=\"true\""
+    assert_includes response.body, "data-aicoo-loading-label=\"Google API取得中...\""
     assert_includes response.body, "GSC取得"
     assert_includes response.body, "GA4取得"
     assert_includes response.body, "接続済み"
