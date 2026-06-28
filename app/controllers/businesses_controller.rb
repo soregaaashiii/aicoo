@@ -248,6 +248,12 @@ class BusinessesController < ApplicationController
     end
 
     def enqueue_google_api_import!(source_types:, label:)
+      if google_credential_reauthentication_required?
+        redirect_to business_path(@business, anchor: "business-google"),
+                    alert: "Google OAuth Clientが変更されています。Google認証画面で再認証してください。"
+        return
+      end
+
       if GoogleApiImportRun.running_for?(@business)
         redirect_to business_path(@business, anchor: "business-google"), alert: "#{@business.name} はすでに取得中です。"
         return
@@ -262,6 +268,11 @@ class BusinessesController < ApplicationController
       AicooAnalytics::BusinessGoogleApiImportJob.perform_later(run.id)
       redirect_to business_path(@business, anchor: "business-google"),
                   notice: "#{label}取得を開始しました。BusinessMetricDailyへの反映は完了後に表示されます。"
+    end
+
+    def google_credential_reauthentication_required?
+      credential = AicooGoogleCredential.default
+      credential.present? && !credential.connected?
     end
 
     def safe_return_to

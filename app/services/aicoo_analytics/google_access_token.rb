@@ -80,7 +80,7 @@ module AicooAnalytics
     end
 
     def shared_credential_set
-      if common_google_credential.present?
+      if configured_google_credential.present?
         google_credential_credentials
       elsif env_credentials_present?
         env_credentials
@@ -90,7 +90,7 @@ module AicooAnalytics
     end
 
     def shared_credential_source
-      if common_google_credential.present?
+      if configured_google_credential.present?
         "google_credential"
       elsif env_credentials_present?
         "env"
@@ -103,11 +103,11 @@ module AicooAnalytics
       setting.client_id.present? && setting.client_secret.present? && setting.refresh_token.present?
     end
 
-    def common_google_credential
-      @common_google_credential ||= begin
+    def configured_google_credential
+      @configured_google_credential ||= begin
         credential = setting.google_credential
-        credential = AicooGoogleCredential.default unless credential&.enabled? && credential.connected?
-        credential if credential&.enabled? && credential.connected?
+        credential = AicooGoogleCredential.default unless credential&.enabled?
+        credential if credential&.enabled?
       end
     end
 
@@ -125,9 +125,9 @@ module AicooAnalytics
 
     def google_credential_credentials
       {
-        client_id: common_google_credential.client_id,
-        client_secret: common_google_credential.client_secret,
-        refresh_token: common_google_credential.refresh_token
+        client_id: configured_google_credential.client_id,
+        client_secret: configured_google_credential.client_secret,
+        refresh_token: configured_google_credential.refresh_token
       }
     end
 

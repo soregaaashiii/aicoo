@@ -16,6 +16,12 @@ module Admin
 
     def create
       business = Business.find(params.expect(:business_id))
+      if google_credential_reauthentication_required?
+        redirect_to admin_google_api_imports_path,
+                    alert: "Google OAuth Clientが変更されています。Google認証画面で再認証してください。"
+        return
+      end
+
       if GoogleApiImportRun.running_for?(business)
         redirect_to admin_google_api_imports_path, alert: "#{business.name} はすでに取得中です。"
         return
@@ -33,6 +39,13 @@ module Admin
                   notice: "#{business.name}: Google API取得を開始しました。BusinessMetricDailyへの反映は完了後に表示されます。"
     rescue ActiveRecord::RecordInvalid => e
       redirect_to admin_google_api_imports_path, alert: "Google APIから取得できませんでした: #{e.record.errors.full_messages.to_sentence}"
+    end
+
+    private
+
+    def google_credential_reauthentication_required?
+      credential = AicooGoogleCredential.default
+      credential.present? && !credential.connected?
     end
   end
 end

@@ -139,6 +139,39 @@ module AicooAnalytics
       )
     end
 
+    test "does not fall back to stale env when configured google credential needs reauthentication" do
+      AicooGoogleCredential.create!(
+        name: "Common Google",
+        client_id: "new-client",
+        client_secret: "new-secret",
+        refresh_token: nil
+      )
+      setting = AnalyticsSourceSetting.create!(
+        source_type: "ga4",
+        name: "Suelog GA4",
+        property_id: "536889590"
+      )
+      fake_client = FakeOauthClient.new
+
+      with_google_env(
+        "GOOGLE_CLIENT_ID" => "old-env-client",
+        "GOOGLE_CLIENT_SECRET" => "old-env-secret",
+        "GOOGLE_REFRESH_TOKEN" => "old-env-refresh-token"
+      ) do
+        with_oauth_client(fake_client) do
+          assert_equal "access-token", GoogleAccessToken.new(setting).call
+        end
+      end
+
+      assert_equal "new-client", fake_client.kwargs[:client_id]
+      assert_equal "new-secret", fake_client.kwargs[:client_secret]
+      assert_nil fake_client.kwargs[:refresh_token]
+      assert_equal(
+        "client_id_source=google_credential client_secret_source=google_credential refresh_token_source=google_credential credentials_json_source=missing oauth_connected_at=missing",
+        fake_client.kwargs[:credential_source_summary]
+      )
+    end
+
     test "credential source summary includes oauth connected status" do
       setting = AnalyticsSourceSetting.create!(
         source_type: "gsc",

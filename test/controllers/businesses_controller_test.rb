@@ -227,6 +227,24 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Google API取得を開始しました。BusinessMetricDailyへの反映は完了後に表示されます。", flash[:notice]
   end
 
+  test "does not enqueue google api import from business dashboard when google credential needs reauthentication" do
+    AicooGoogleCredential.create!(
+      name: "AICOO共通Google認証",
+      client_id: "new-client",
+      client_secret: "secret",
+      refresh_token: nil
+    )
+
+    assert_no_difference("GoogleApiImportRun.count") do
+      assert_no_enqueued_jobs do
+        post import_google_api_business_url(@business)
+      end
+    end
+
+    assert_redirected_to business_url(@business, anchor: "business-google")
+    assert_equal "Google OAuth Clientが変更されています。Google認証画面で再認証してください。", flash[:alert]
+  end
+
   test "should get edit" do
     get edit_business_url(@business)
     assert_response :success

@@ -102,5 +102,18 @@ module Admin
       assert_redirected_to admin_google_api_imports_url
       assert_equal "#{@business.name} はすでに取得中です。", flash[:alert]
     end
+
+    test "does not enqueue google api import when google credential needs reauthentication" do
+      @credential.update!(refresh_token: nil, access_token: nil, connected_at: nil)
+
+      assert_no_difference("GoogleApiImportRun.count") do
+        assert_no_enqueued_jobs do
+          post admin_google_api_imports_url, params: { business_id: @business.id }
+        end
+      end
+
+      assert_redirected_to admin_google_api_imports_url
+      assert_equal "Google OAuth Clientが変更されています。Google認証画面で再認証してください。", flash[:alert]
+    end
   end
 end
