@@ -1,6 +1,7 @@
 <% content_for :title, "GA4/GSC CSV貼り付け取込" %>
 
 <% header_actions = capture do %>
+    <%= link_to "Google API直取得", admin_google_api_imports_path, class: "button" %>
     <%= link_to "実績データ", admin_aicoo_datahub_path, class: "button secondary" %>
     <%= link_to "サイト別分析設定", admin_analytics_sites_path, class: "button secondary" %>
 <% end %>

@@ -169,6 +169,8 @@ Rails.application.routes.draw do
     end
     get "analytics_oauth/connect", to: "analytics_oauth#connect", as: :analytics_oauth_connect
     get "analytics_oauth/callback", to: "analytics_oauth#callback", as: :analytics_oauth_callback
+    get "google_api_imports", to: "google_api_imports#index", as: :google_api_imports
+    post "google_api_imports/:business_id", to: "google_api_imports#create", as: :google_api_import
     resources :analytics_imports, only: %i[index create] do
       post :reprocess, on: :member
     end
