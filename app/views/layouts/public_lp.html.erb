@@ -41,7 +41,11 @@
         window.dataLayer = window.dataLayer || [];
         function gtag(){dataLayer.push(arguments);}
         gtag('js', new Date());
-        gtag('config', '<%= j ga4_measurement_id %>');
+        gtag('config', '<%= j ga4_measurement_id %>', { send_page_view: false });
+        gtag('event', 'page_view', {
+          page_location: window.location.href,
+          page_title: document.title
+        });
       </script>
     <% end %>
 

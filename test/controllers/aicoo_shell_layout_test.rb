@@ -1,4 +1,5 @@
 require "test_helper"
+require "base64"
 
 class AicooShellLayoutTest < ActionDispatch::IntegrationTest
   test "ceo mode uses unified header sidebar and breadcrumb" do
@@ -54,6 +55,23 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
     previous.nil? ? ENV.delete("GA4_MEASUREMENT_ID") : ENV["GA4_MEASUREMENT_ID"] = previous
   end
 
+  test "ga4 tag is not rendered on management layout even in production" do
+    with_env_values(
+      "GA4_MEASUREMENT_ID" => "G-E5KCHJTFVP",
+      "AICOO_BASIC_AUTH_USERNAME" => "aicoo-admin",
+      "AICOO_BASIC_AUTH_PASSWORD" => "secret-password"
+    ) do
+      with_rails_env("production") do
+        get owner_focus_url, headers: basic_auth_headers("aicoo-admin", "secret-password")
+      end
+    end
+
+    assert_response :success
+    assert_not_includes response.body, "googletagmanager.com/gtag/js"
+    assert_not_includes response.body, "G-E5KCHJTFVP"
+    assert_not_includes response.body, "gtag('event', 'page_view'"
+  end
+
   test "google site verification is not rendered in test environment" do
     previous = ENV.fetch("GOOGLE_SITE_VERIFICATION", nil)
     ENV["GOOGLE_SITE_VERIFICATION"] = "google-token"
@@ -65,5 +83,28 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, "google-token"
   ensure
     previous.nil? ? ENV.delete("GOOGLE_SITE_VERIFICATION") : ENV["GOOGLE_SITE_VERIFICATION"] = previous
+  end
+
+  private
+
+  def basic_auth_headers(username, password)
+    credentials = Base64.strict_encode64("#{username}:#{password}")
+    { "HTTP_AUTHORIZATION" => "Basic #{credentials}" }
+  end
+
+  def with_env_values(values)
+    originals = values.keys.to_h { |key| [ key, ENV[key] ] }
+    values.each { |key, value| value.nil? ? ENV.delete(key) : ENV[key] = value }
+    yield
+  ensure
+    originals.each { |key, value| value.nil? ? ENV.delete(key) : ENV[key] = value }
+  end
+
+  def with_rails_env(name)
+    original = Rails.method(:env)
+    Rails.define_singleton_method(:env) { ActiveSupport::StringInquirer.new(name) }
+    yield
+  ensure
+    Rails.define_singleton_method(:env) { original.call }
   end
 end

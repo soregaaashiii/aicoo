@@ -37,6 +37,21 @@ class PublicLandingPagesControllerTest < ActionDispatch::IntegrationTest
     assert_no_aicoo_management_links
   end
 
+  test "public layout renders ga4 tag and explicit page view in production" do
+    create_landing_page(headline: "GA4公開LPタイトル", published_slug: "ga4-public-lp")
+
+    with_env_values("GA4_MEASUREMENT_ID" => "G-E5KCHJTFVP") do
+      with_rails_env("production") do
+        get root_url
+      end
+    end
+
+    assert_response :success
+    assert_includes response.body, "https://www.googletagmanager.com/gtag/js?id=G-E5KCHJTFVP"
+    assert_includes response.body, "gtag('config', 'G-E5KCHJTFVP', { send_page_view: false });"
+    assert_includes response.body, "gtag('event', 'page_view'"
+  end
+
   test "public lp alias shows the same published landing page list" do
     published = create_landing_page(headline: "Alias LPタイトル", published_slug: "alias-published-lp")
     create_landing_page(headline: "Alias Draft LP", status: "preview_ready", public_status: "draft", published_slug: "alias-draft-lp")
@@ -242,6 +257,22 @@ class PublicLandingPagesControllerTest < ActionDispatch::IntegrationTest
     originals.each do |key, value|
       value.nil? ? ENV.delete(key) : ENV[key] = value
     end
+  end
+
+  def with_env_values(values, &)
+    originals = values.keys.to_h { |key| [ key, ENV[key] ] }
+    values.each { |key, value| value.nil? ? ENV.delete(key) : ENV[key] = value }
+    yield
+  ensure
+    originals.each { |key, value| value.nil? ? ENV.delete(key) : ENV[key] = value }
+  end
+
+  def with_rails_env(name)
+    original = Rails.method(:env)
+    Rails.define_singleton_method(:env) { ActiveSupport::StringInquirer.new(name) }
+    yield
+  ensure
+    Rails.define_singleton_method(:env) { original.call }
   end
 
   def assert_no_aicoo_management_links
