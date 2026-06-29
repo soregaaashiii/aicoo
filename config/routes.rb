@@ -186,6 +186,7 @@ Rails.application.routes.draw do
         post :publish_lp
         post :evaluate_learning
         post :build_mvp_spec
+        post :recover_business
         post :run_pipeline
       end
     end

@@ -7,13 +7,16 @@ module Aicoo
 
       def call
         decision = decision_for_item
+        business = business_for(decision)
         item.update!(
           status: decision == "develop" ? "mvp_spec_ready" : status_for(decision),
           current_stage: "mvp",
+          business: business || item.business,
           mvp_decision: decision,
           mvp_specification: decision == "develop" ? specification : item.mvp_specification,
           mvp_decided_at: Time.current,
           metadata: item.metadata.to_h.merge(
+            "business_id" => (business || item.business)&.id,
             "mvp_decision" => decision,
             "mvp_decided_at" => Time.current.iso8601
           )
@@ -24,6 +27,13 @@ module Aicoo
       private
 
       attr_reader :item
+
+      def business_for(decision)
+        return item.business if item.business
+        return if decision == "end" && !item.aicoo_lab_landing_page&.publicly_visible?
+
+        Aicoo::IdeaPipeline::BusinessLinker.new(item).call
+      end
 
       def decision_for_item
         recommendation = item.learning_snapshot.to_h["recommendation"]

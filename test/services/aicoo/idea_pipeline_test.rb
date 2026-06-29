@@ -182,6 +182,15 @@ module Aicoo
 
       IdeaPipeline::Publisher.new(item).call
       assert_equal "published", landing_page.reload.public_status
+      item.reload
+      assert item.business
+      assert_equal item.business, landing_page.reload.business
+      assert_equal "idea_pipeline", item.business.source
+      assert_equal item.id, item.business.idea_id
+      assert item.business.created_by_aicoo?
+      assert item.business.launched?
+      assert item.business.daily_run_enabled?
+      assert item.business.serp_enabled?
 
       3.times { landing_page.aicoo_lab_landing_page_events.create!(event_type: "view") }
       landing_page.aicoo_lab_landing_page_events.create!(event_type: "cta_click")
@@ -193,6 +202,44 @@ module Aicoo
       assert item.learning_snapshot["pv"].positive?
       assert_includes IdeaPipelineItem::MVP_DECISIONS, item.mvp_decision
       assert item.mvp_specification.present? if item.mvp_decision == "develop"
+    end
+
+    test "mvp completion creates business when lp is not published" do
+      item = create_item
+      item.update!(final_score: 70, learning_snapshot: { "recommendation" => "continue_lp" })
+
+      assert_difference("Business.count", 1) do
+        IdeaPipeline::MvpSpecBuilder.new(item).call
+      end
+
+      item.reload
+      assert_equal "continuing", item.status
+      assert_equal "continue_lp", item.mvp_decision
+      assert item.business
+      assert_equal "idea_pipeline", item.business.source
+      assert_equal item.id, item.business.idea_id
+      assert item.business.launched?
+      assert_includes Business.real_businesses, item.business
+    end
+
+    test "business linker repairs published pipeline landing page without business" do
+      item = create_item
+      item.update!(status: "owner_approved", final_score: 75)
+      landing_page = IdeaPipeline::LandingPageBuilder.new(item).call
+      landing_page.update!(
+        status: "published",
+        public_status: "published",
+        published_at: Time.current,
+        published_slug: "pipeline-repair-test"
+      )
+      item.update!(business: nil)
+
+      assert_difference("Business.count", 1) do
+        Aicoo::IdeaPipeline::BusinessLinker.new(item).call
+      end
+
+      assert_equal item.reload.business, landing_page.reload.business
+      assert item.business.launched?
     end
 
     private

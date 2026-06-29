@@ -1,6 +1,6 @@
 module Admin
   class IdeaPipelineController < ApplicationController
-    before_action :set_item, only: %i[show score run_serp generate_lp publish_lp evaluate_learning build_mvp_spec run_pipeline]
+    before_action :set_item, only: %i[show score run_serp generate_lp publish_lp evaluate_learning build_mvp_spec recover_business run_pipeline]
 
     def index
       @items = IdeaPipelineItem.includes(:aicoo_lab_landing_page).by_priority
@@ -49,6 +49,17 @@ module Admin
     def build_mvp_spec
       Aicoo::IdeaPipeline::MvpSpecBuilder.new(@item).call
       redirect_to admin_idea_pipeline_path(@item), notice: "MVP判断とCodex向け仕様書を生成しました。"
+    end
+
+    def recover_business
+      business = Aicoo::IdeaPipeline::BusinessLinker.new(@item).call
+      redirect_to admin_idea_pipeline_path(@item),
+                  notice: helpers.safe_join([
+                    "Businessを作成/紐付けしました。 ",
+                    helpers.link_to("Business詳細へ", business_path(business))
+                  ])
+    rescue ActiveRecord::RecordInvalid => e
+      redirect_to admin_idea_pipeline_path(@item), alert: "Businessを作成/紐付けできませんでした: #{e.record.errors.full_messages.to_sentence}"
     end
 
     def run_pipeline

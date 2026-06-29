@@ -98,6 +98,29 @@ module Admin
       Rails.logger = previous_logger if previous_logger
     end
 
+    test "recover business creates and links business" do
+      item = create_item
+      item.update!(status: "owner_approved", final_score: 75)
+      landing_page = Aicoo::IdeaPipeline::LandingPageBuilder.new(item).call
+      landing_page.update!(
+        status: "published",
+        public_status: "published",
+        published_at: Time.current,
+        published_slug: "controller-pipeline-business"
+      )
+
+      assert_difference("Business.count", 1) do
+        post recover_business_admin_idea_pipeline_url(item)
+      end
+
+      item.reload
+      assert_redirected_to admin_idea_pipeline_url(item)
+      assert item.business
+      assert_equal item.business, landing_page.reload.business
+      assert_equal "idea_pipeline", item.business.source
+      assert_equal item.id, item.business.idea_id
+    end
+
     private
 
     def create_item

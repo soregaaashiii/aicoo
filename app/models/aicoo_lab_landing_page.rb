@@ -275,6 +275,7 @@ class AicooLabLandingPage < ApplicationRecord
 
   def ensure_business!(source: "published_landing_page_recovery")
     return business if business
+    return Aicoo::IdeaPipeline::BusinessLinker.new(idea_pipeline_item).call if idea_pipeline_item
 
     recovered_business = recover_existing_business || create_business_from_landing_page!(source:)
     update!(business: recovered_business)
@@ -344,16 +345,21 @@ class AicooLabLandingPage < ApplicationRecord
     @candidate ||= AicooLabExperimentCandidate.find_by(converted_experiment: aicoo_lab_experiment)
   end
 
+  def idea_pipeline_item
+    @idea_pipeline_item ||= IdeaPipelineItem.find_by(aicoo_lab_landing_page: self) ||
+                            IdeaPipelineItem.find_by(aicoo_lab_experiment: aicoo_lab_experiment)
+  end
+
   def create_business_from_landing_page!(source:)
     Business.create!(
       name: public_headline,
       description: public_subheadline.presence || public_body.truncate(240),
       category: aicoo_lab_experiment.market_category.presence || aicoo_lab_experiment.experiment_type,
-      status: "idea",
+      status: "launched",
       source:,
       idea_id: aicoo_lab_experiment.id,
       created_by_aicoo: true,
-      launched: false,
+      launched: true,
       daily_run_enabled: true,
       serp_enabled: true,
       auto_revision_mode: "manual"

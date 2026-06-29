@@ -5,6 +5,11 @@
   <% if @item.aicoo_lab_landing_page %>
     <%= link_to "LP編集", admin_aicoo_lab_edit_public_landing_page_path(@item.aicoo_lab_landing_page), class: "button secondary" %>
   <% end %>
+  <% if @item.business %>
+    <%= link_to "Business詳細", business_path(@item.business), class: "button secondary" %>
+  <% elsif @item.aicoo_lab_landing_page&.publicly_visible? || @item.mvp_decided_at.present? %>
+    <%= button_to "Businessを作成して紐付け", recover_business_admin_idea_pipeline_path(@item), method: :post, class: "button" %>
+  <% end %>
 <% end %>
 
 <div class="aicoo-page">
@@ -39,6 +44,16 @@
       <div class="metric-card"><span>Score</span><strong><%= number_with_precision(@item.final_score, precision: 1) || "-" %></strong></div>
       <div class="metric-card"><span>期待利益</span><strong><%= @item.expected_profit_yen ? number_to_currency(@item.expected_profit_yen, unit: "¥", precision: 0) : "-" %></strong></div>
       <div class="metric-card"><span>MVP判断</span><strong><%= @item.mvp_decision.presence || "-" %></strong></div>
+      <div class="metric-card">
+        <span>Business</span>
+        <strong>
+          <% if @item.business %>
+            <%= link_to @item.business.name, business_path(@item.business) %>
+          <% else %>
+            未紐付け
+          <% end %>
+        </strong>
+      </div>
     </div>
     <div class="aicoo-card">
       <p><strong>解決課題:</strong> <%= @item.problem %></p>

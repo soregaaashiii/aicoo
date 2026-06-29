@@ -73,6 +73,50 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "AICOO本体Repository"
   end
 
+  test "index shows published lp idea pipeline business and still hides analytics import business" do
+    Business.create!(
+      name: "AICOO Analytics Import",
+      description: "system import folder",
+      status: "launched"
+    )
+    pipeline_business = Business.create!(
+      name: "Pipelineから公開された事業",
+      description: "published LP由来",
+      status: "launched",
+      source: "idea_pipeline",
+      idea_id: 12_345,
+      created_by_aicoo: true,
+      launched: true,
+      daily_run_enabled: true,
+      serp_enabled: true,
+      auto_revision_mode: "manual"
+    )
+    experiment = AicooLabExperiment.create!(
+      title: "Pipeline LP",
+      experiment_type: "lp",
+      acquisition_channel: "seo",
+      status: "running",
+      approval_status: "approved"
+    )
+    experiment.create_aicoo_lab_landing_page!(
+      business: pipeline_business,
+      headline: "Pipeline LP",
+      subheadline: "公開LP",
+      body: "本文",
+      cta_text: "登録する",
+      status: "published",
+      public_status: "published",
+      published_slug: "pipeline-business-visible",
+      published_at: Time.current
+    )
+
+    get businesses_url
+
+    assert_response :success
+    assert_includes response.body, "Pipelineから公開された事業"
+    assert_not_includes response.body, "AICOO Analytics Import"
+  end
+
   test "should get new" do
     get new_business_url
     assert_response :success
