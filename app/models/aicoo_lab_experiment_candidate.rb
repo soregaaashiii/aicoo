@@ -120,12 +120,22 @@ class AicooLabExperimentCandidate < ApplicationRecord
   def ensure_business!
     return business if business
 
-    Business.real_businesses.find_by(name: business_name) ||
-      Business.create!(
-        name: business_name,
-        description: business_description,
-        status: "idea"
-      )
+    existing_business = Business.real_businesses.find_by(name: business_name)
+    return existing_business if existing_business
+
+    Business.create!(
+      name: business_name,
+      description: business_description,
+      category: market_category.presence || experiment_type,
+      status: "idea",
+      source: "aicoo_lab_candidate",
+      idea_id: id,
+      created_by_aicoo: true,
+      launched: false,
+      daily_run_enabled: true,
+      serp_enabled: true,
+      auto_revision_mode: "manual"
+    )
   end
 
   def business_name

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_29_102000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_29_103000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1002,17 +1002,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_29_102000) do
 
   create_table "businesses", force: :cascade do |t|
     t.string "auto_revision_mode", default: "manual", null: false
+    t.string "category"
     t.datetime "created_at", null: false
+    t.boolean "created_by_aicoo", default: false, null: false
+    t.boolean "daily_run_enabled", default: true, null: false
     t.jsonb "default_verification_commands", default: [], null: false
     t.text "description"
     t.string "gsc_site_url"
+    t.integer "idea_id"
+    t.boolean "launched", default: false, null: false
     t.string "local_project_path"
     t.string "name"
     t.string "project_key"
     t.string "repository_name"
+    t.boolean "serp_enabled", default: true, null: false
+    t.string "source"
     t.string "status"
     t.datetime "updated_at", null: false
     t.index ["auto_revision_mode"], name: "index_businesses_on_auto_revision_mode"
+    t.index ["created_by_aicoo"], name: "index_businesses_on_created_by_aicoo"
+    t.index ["idea_id"], name: "index_businesses_on_idea_id"
+    t.index ["launched"], name: "index_businesses_on_launched"
     t.index ["project_key"], name: "index_businesses_on_project_key"
   end
 

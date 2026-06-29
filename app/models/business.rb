@@ -35,8 +35,14 @@ class Business < ApplicationRecord
 
   before_validation :set_default_status
 
+  scope :aicoo_created_unlaunched, -> { real_businesses.where(created_by_aicoo: true, launched: false) }
+
   def system_business?
     name.in?(SYSTEM_BUSINESS_NAMES)
+  end
+
+  def setup_incomplete?
+    created_by_aicoo? && !launched?
   end
 
   def manual_auto_revision?

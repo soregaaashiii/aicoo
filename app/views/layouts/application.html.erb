@@ -105,7 +105,7 @@
               else "info"
               end %>
             <div class="flash-message flash-<%= flash_level %>" role="<%= flash_level == "error" ? "alert" : "status" %>">
-              <%= message %>
+              <%= sanitize(message.to_s, tags: %w[a], attributes: %w[href]) %>
             </div>
           <% end %>
         </div>

@@ -7,6 +7,7 @@ module Aicoo
       calibration_approval
       codex_prompt_draft_needed
       opportunity_review
+      new_business_setup
       explore_daily_routine
       daily_run_failure
       daily_run_step_recovery
@@ -61,12 +62,13 @@ module Aicoo
       return 4 if task.task_type == "calibration_approval"
       return 5 if task.task_type == "opportunity_review" && task.priority == "high"
       return 6 if task.task_type == "opportunity_review"
-      return 7 if task.task_type == "codex_prompt_draft_needed"
-      return 8 if task.task_type == "explore_daily_routine"
-      return 9 if task.task_type == "learning_recommendation"
-      return 10 if task.task_type == "daily_run_step_recovery"
+      return 7 if task.task_type == "new_business_setup"
+      return 8 if task.task_type == "codex_prompt_draft_needed"
+      return 9 if task.task_type == "explore_daily_routine"
+      return 10 if task.task_type == "learning_recommendation"
+      return 11 if task.task_type == "daily_run_step_recovery"
 
-      11 + OwnerTaskInbox::PRIORITY_ORDER.fetch(task.priority, 99)
+      12 + OwnerTaskInbox::PRIORITY_ORDER.fetch(task.priority, 99)
     end
 
     def summary_message
@@ -74,6 +76,7 @@ module Aicoo
       return "Daily Runに異常があります。最優先で確認してください。" if focus_tasks.first.task_type == "daily_run_failure"
       return "結果未登録が滞留しています。学習ループを止めないために登録してください。" if focus_tasks.first.task_type == "action_result_registration"
       return "Exploreで見つかった事業機会を確認してください。" if focus_tasks.first.task_type == "opportunity_review"
+      return "承認済みの新規事業を初期設定してください。" if focus_tasks.first.task_type == "new_business_setup"
 
       "次に押すべき1件を表示しています。"
     end

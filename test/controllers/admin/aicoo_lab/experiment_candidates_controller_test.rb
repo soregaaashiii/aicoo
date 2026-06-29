@@ -67,14 +67,52 @@ module Admin
 
         business = candidate.reload.business
         assert_redirected_to business_url(business)
-        assert_equal "事業を作成しました。", flash[:notice]
+        assert_includes flash[:notice].to_s, "事業を作成しました"
+        assert_includes flash[:notice].to_s, business_path(business)
         assert_equal "承認で作る新規事業", business.name
         assert_equal "idea", business.status
+        assert_equal "smoke test", business.category
+        assert_equal "aicoo_lab_candidate", business.source
+        assert_equal candidate.id, business.idea_id
+        assert business.created_by_aicoo?
+        assert_not business.launched?
+        assert business.daily_run_enabled?
+        assert business.serp_enabled?
+        assert_equal "manual", business.auto_revision_mode
         assert_not business.system_business?
 
         get businesses_url
         assert_response :success
         assert_includes response.body, "承認で作る新規事業"
+      end
+
+      test "approved candidate business appears in CEO mode setup tasks" do
+        candidate = AicooLabExperimentCandidate.create!(candidate_params.merge(title: "CEOに出る新規事業"))
+        patch approve_admin_aicoo_lab_candidate_url(candidate)
+
+        get owner_focus_url
+
+        assert_response :success
+        assert_includes response.body, "CEOに出る新規事業"
+        assert_includes response.body, "Google連携"
+        assert_includes response.body, "SERP走査"
+        assert_includes response.body, "LP未作成"
+      end
+
+      test "business list excludes analytics import but keeps approved candidate business" do
+        Business.create!(
+          name: "AICOO Analytics Import",
+          description: "system import holder",
+          status: "idea"
+        )
+        candidate = AicooLabExperimentCandidate.create!(candidate_params.merge(title: "除外されない通常事業"))
+        patch approve_admin_aicoo_lab_candidate_url(candidate)
+
+        get businesses_url
+
+        assert_response :success
+        assert_includes response.body, "除外されない通常事業"
+        assert_not_includes response.body, "AICOO Analytics Import"
       end
 
       test "approve does not duplicate business when candidate already linked" do

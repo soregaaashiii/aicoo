@@ -46,7 +46,11 @@ module Admin
 
       def approve
         business = @candidate.approve!
-        redirect_to business_path(business), notice: "事業を作成しました。"
+        redirect_to business_path(business),
+                    notice: helpers.safe_join([
+                      "事業を作成しました。 ",
+                      helpers.link_to("作成されたBusiness詳細へ", business_path(business))
+                    ])
       rescue ActiveRecord::RecordInvalid => e
         redirect_to admin_aicoo_lab_candidate_path(@candidate),
                     alert: "事業を作成できませんでした: #{e.record.errors.full_messages.to_sentence}"

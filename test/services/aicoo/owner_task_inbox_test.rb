@@ -257,6 +257,26 @@ module Aicoo
       assert_equal [ "Focusで処理", "Approve", "Convert", "Opportunityを見る" ], task.quick_actions.map(&:label)
     end
 
+    test "returns new business setup tasks for approved aicoo businesses" do
+      business = Business.create!(
+        name: "Inbox new business",
+        description: "承認済み新規事業",
+        status: "idea",
+        created_by_aicoo: true,
+        launched: false,
+        daily_run_enabled: true,
+        serp_enabled: true
+      )
+
+      task = OwnerTaskInbox.new.call.tasks.find { |item| item.task_type == "new_business_setup" && item.target_label == business.name }
+
+      assert task
+      assert_equal "high", task.priority
+      assert_includes task.title, business.name
+      assert_equal Rails.application.routes.url_helpers.business_path(business), task.target_path
+      assert_equal [ "Google連携", "SERP走査", "LP作成", "Businessを見る" ], task.quick_actions.map(&:label)
+    end
+
     test "returns codex prompt draft needed tasks" do
       candidate = action_candidates(:nagazakicho_article)
       candidate.update!(status: "approved")

@@ -19,6 +19,7 @@ module Aicoo
       "explore_signal_review" => "Explore Signal確認",
       "explore_daily_routine" => "Explore日次確認",
       "analysis_review" => "分析実行判断",
+      "new_business_setup" => "新規事業初期設定",
       "discovery_source_warning" => "発見源警告",
       "calibration_approval" => "評価式承認",
       "daily_run_failure" => "Daily Run失敗",
@@ -69,6 +70,7 @@ module Aicoo
         explore_daily_routine_tasks +
         explore_signal_review_tasks +
         analysis_review_tasks +
+        new_business_setup_tasks +
         discovery_source_warning_tasks +
         calibration_approval_tasks +
         daily_run_step_recovery_tasks +
@@ -396,6 +398,30 @@ module Aicoo
       return "medium" if candidate.smart? || candidate.roi.to_d >= 3
 
       "low"
+    end
+
+    def new_business_setup_tasks
+      Business.aicoo_created_unlaunched
+              .order(created_at: :desc)
+              .limit(10)
+              .map do |business|
+        Task.new(
+          priority: "high",
+          task_type: "new_business_setup",
+          title: "#{business.name} の初期設定を進める",
+          description: "承認済みの新規事業です。Google連携、SERP走査、LP作成へ進めます。",
+          target_label: business.name,
+          target_path: routes.business_path(business),
+          reason: "Google連携未設定 / LP未作成 / SERP対象ON",
+          created_at: business.created_at,
+          quick_actions: [
+            quick_action("Google連携", :get, routes.edit_business_path(business, anchor: "data-source-link-settings"), style: "primary"),
+            quick_action("SERP走査", :get, routes.owner_focus_path(anchor: "serp-scan"), style: "secondary"),
+            quick_action("LP作成", :get, routes.admin_aicoo_lab_public_landing_pages_path, style: "secondary"),
+            quick_action("Businessを見る", :get, routes.business_path(business), style: "secondary")
+          ]
+        )
+      end
     end
 
     def daily_run_tasks
