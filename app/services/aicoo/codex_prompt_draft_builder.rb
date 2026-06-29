@@ -39,6 +39,20 @@ module Aicoo
       business&.codex_repository_name
     end
 
+    def execution_target_config
+      business&.codex_execution_target_config || {
+        execution_type: "aicoo_internal",
+        github_repo: nil,
+        local_project_path: nil,
+        target_slug: nil,
+        target_paths: [],
+        test_command: nil,
+        deploy_command: nil,
+        default_branch: "main",
+        auto_deploy_enabled: false
+      }
+    end
+
     def verification_commands
       business&.codex_verification_commands || CodexPromptDraft::DEFAULT_VERIFICATION_COMMANDS
     end
@@ -89,6 +103,21 @@ module Aicoo
         - project_key: #{project_key.presence || "未設定"}
         - local_project_path: #{local_project_path.presence || "未設定"}
         - repository_name: #{repository_name.presence || "未設定"}
+
+        Codex実行先設定:
+        - execution_type: #{execution_target_config[:execution_type]}
+        - github_repo: #{execution_target_config[:github_repo].presence || "未設定"}
+        - local_project_path: #{execution_target_config[:local_project_path].presence || "未設定"}
+        - target_slug: #{execution_target_config[:target_slug].presence || "未設定"}
+        - target_paths:
+        #{target_paths_prompt_lines}
+        - test_command: #{execution_target_config[:test_command].presence || "未設定"}
+        - deploy_command: #{execution_target_config[:deploy_command].presence || "未設定"}
+        - default_branch: #{execution_target_config[:default_branch].presence || "main"}
+        - auto_deploy_enabled: #{execution_target_config[:auto_deploy_enabled] ? "true" : "false"}
+
+        実行先の扱い:
+        #{execution_target_description}
 
         対象Business:
         #{business&.name || "未設定"}
@@ -150,8 +179,25 @@ module Aicoo
         "final_score" => action_candidate.final_score&.to_s,
         "expected_value_yen" => expected_value_yen,
         "action_expansion" => action_expansion,
-        "project_configured" => project_key.present? && local_project_path.present?
+        "project_configured" => project_key.present? && local_project_path.present?,
+        "codex_execution_target" => execution_target_config.stringify_keys
       }
+    end
+
+    def target_paths_prompt_lines
+      paths = Array(execution_target_config[:target_paths])
+      return "        - 未設定" if paths.empty?
+
+      paths.map { |path| "        - #{path}" }.join("\n")
+    end
+
+    def execution_target_description
+      case execution_target_config[:execution_type]
+      when "external_repo"
+        "external_repo: 別サービスのリポジトリを対象にする。対象repo/path/branchを確認してから変更する。"
+      else
+        "aicoo_internal: AICOO本体のLP、Business、設定、管理画面を対象にする。公開LPと管理画面の境界を壊さない。"
+      end
     end
 
     def execution_guide_text

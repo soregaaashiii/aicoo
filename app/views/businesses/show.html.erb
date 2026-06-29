@@ -478,12 +478,21 @@
 
   <% if (profile = @business.business_execution_profile) %>
     <div class="metric-grid">
+      <div class="metric-card"><span>execution_type</span><strong><%= profile.execution_type %></strong></div>
       <div class="metric-card"><span>Repository</span><strong><%= profile.display_repository_name %></strong></div>
       <div class="metric-card"><span>Type</span><strong><%= profile.repository_type %></strong></div>
+      <div class="metric-card"><span>target_slug</span><strong><%= profile.target_slug.presence || "-" %></strong></div>
       <div class="metric-card"><span>Production URL</span><strong><%= profile.production_url.presence || "-" %></strong></div>
       <div class="metric-card"><span>Active</span><strong><%= profile.active? ? "有効" : "無効" %></strong></div>
+      <div class="metric-card"><span>auto_deploy_enabled</span><strong><%= profile.auto_deploy_enabled? ? "有効" : "無効" %></strong></div>
     </div>
     <dl class="detail-list">
+      <dt>github_repo</dt>
+      <dd><%= profile.github_repo.presence || "-" %></dd>
+      <dt>local_project_path</dt>
+      <dd><%= profile.local_project_path.presence || "-" %></dd>
+      <dt>target_paths</dt>
+      <dd><%= simple_format(profile.target_paths_text.presence || "-") %></dd>
       <dt>Test Command</dt>
       <dd><%= profile.test_command.presence || "-" %></dd>
       <dt>Lint Command</dt>

@@ -17,6 +17,7 @@
       <thead>
         <tr>
           <th>Business</th>
+          <th>Execution</th>
           <th>Repository</th>
           <th>Type</th>
           <th>GitHub</th>
@@ -30,6 +31,7 @@
         <% @business_execution_profiles.each do |profile| %>
           <tr>
             <td><%= link_to profile.business.name, profile.business %></td>
+            <td><span class="pill"><%= profile.execution_type %></span></td>
             <td><%= profile.display_repository_name %></td>
             <td><span class="pill"><%= profile.repository_type %></span></td>
             <td><%= profile.github_repository.presence || "-" %></td>
@@ -40,7 +42,7 @@
           </tr>
         <% end %>
         <% if @business_execution_profiles.empty? %>
-          <tr><td colspan="8">まだExecution Profileはありません。</td></tr>
+          <tr><td colspan="9">まだExecution Profileはありません。</td></tr>
         <% end %>
       </tbody>
     </table>

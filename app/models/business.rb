@@ -144,6 +144,22 @@ class Business < ApplicationRecord
       CodexPromptDraft::DEFAULT_VERIFICATION_COMMANDS
   end
 
+  def codex_execution_target_config
+    profile = business_execution_profile
+
+    {
+      execution_type: profile&.execution_type.presence || "aicoo_internal",
+      github_repo: profile&.github_repo.presence || repository_name.presence,
+      local_project_path: profile&.local_project_path.presence || local_project_path.presence,
+      target_slug: profile&.target_slug.presence,
+      target_paths: Array(profile&.target_paths),
+      test_command: profile&.test_command.presence || codex_verification_commands.first,
+      deploy_command: profile&.deploy_command.presence,
+      default_branch: profile&.default_branch.presence || "main",
+      auto_deploy_enabled: profile&.auto_deploy_enabled? || false
+    }
+  end
+
   def current_proxy_score_weight
     ProxyScoreWeight.for_business(self)
   end

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_29_105000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_29_110000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -937,11 +937,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_29_105000) do
 
   create_table "business_execution_profiles", force: :cascade do |t|
     t.boolean "active", default: true, null: false
+    t.boolean "auto_deploy_enabled", default: false, null: false
     t.bigint "business_id", null: false
     t.text "codex_instructions"
     t.datetime "created_at", null: false
     t.string "default_branch", default: "main", null: false
     t.text "deploy_command"
+    t.string "execution_type", default: "aicoo_internal", null: false
     t.text "forbidden_patterns"
     t.string "github_repository"
     t.text "lint_command"
@@ -949,6 +951,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_29_105000) do
     t.string "repository_name"
     t.string "repository_path"
     t.string "repository_type", default: "other", null: false
+    t.jsonb "target_paths", default: [], null: false
+    t.string "target_slug"
     t.text "test_command"
     t.datetime "updated_at", null: false
     t.index ["business_id"], name: "index_business_execution_profiles_on_business_id", unique: true

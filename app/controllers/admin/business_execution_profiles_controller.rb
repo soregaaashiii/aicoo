@@ -41,10 +41,13 @@ module Admin
       params.expect(
         business_execution_profile: [
           :business_id,
+          :execution_type,
           :repository_name,
           :repository_type,
           :repository_path,
           :github_repository,
+          :target_slug,
+          :target_paths_text,
           :default_branch,
           :test_command,
           :lint_command,
@@ -52,6 +55,7 @@ module Admin
           :production_url,
           :codex_instructions,
           :forbidden_patterns,
+          :auto_deploy_enabled,
           :active
         ]
       )

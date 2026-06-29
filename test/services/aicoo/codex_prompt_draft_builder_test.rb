@@ -22,6 +22,38 @@ module Aicoo
       assert_includes draft.prompt_body, "repository_name: suelog-app"
     end
 
+    test "includes business codex execution target settings" do
+      business = businesses(:suelog)
+      BusinessExecutionProfile.create!(
+        business:,
+        execution_type: "external_repo",
+        repository_name: "service-app",
+        github_repository: "owner/service-app",
+        repository_path: "/apps/service-app",
+        target_slug: "service-lp",
+        target_paths_text: "app/views/public\napp/services/service",
+        test_command: "bin/test",
+        deploy_command: "bin/deploy",
+        default_branch: "develop",
+        auto_deploy_enabled: true
+      )
+      candidate = action_candidates(:nagazakicho_article)
+
+      draft = CodexPromptDraftBuilder.new(candidate).call
+
+      assert_includes draft.prompt_body, "Codex実行先設定"
+      assert_includes draft.prompt_body, "execution_type: external_repo"
+      assert_includes draft.prompt_body, "github_repo: owner/service-app"
+      assert_includes draft.prompt_body, "local_project_path: /apps/service-app"
+      assert_includes draft.prompt_body, "target_slug: service-lp"
+      assert_includes draft.prompt_body, "- app/views/public"
+      assert_includes draft.prompt_body, "test_command: bin/test"
+      assert_includes draft.prompt_body, "deploy_command: bin/deploy"
+      assert_includes draft.prompt_body, "default_branch: develop"
+      assert_includes draft.prompt_body, "auto_deploy_enabled: true"
+      assert_equal "external_repo", draft.metadata.dig("codex_execution_target", "execution_type")
+    end
+
     test "creates draft without project settings" do
       business = businesses(:suelog)
       business.update!(project_key: nil, local_project_path: nil, repository_name: nil)

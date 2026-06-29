@@ -18,6 +18,13 @@
       <%= form.collection_select :business_id, Business.real_businesses.order(:name), :id, :name, prompt: "選択してください" %>
     </div>
     <div class="field">
+      <%= form.label :execution_type, "execution_type" %>
+      <%= form.select :execution_type, [
+        [ "AICOO本体のLP/Business/設定を対象にする", "aicoo_internal" ],
+        [ "別サービスの外部リポジトリを対象にする", "external_repo" ]
+      ] %>
+    </div>
+    <div class="field">
       <%= form.label :repository_type, "Repository Type" %>
       <%= form.select :repository_type, BusinessExecutionProfile::REPOSITORY_TYPES.map { |type| [type, type] } %>
     </div>
@@ -26,12 +33,16 @@
       <%= form.text_field :repository_name, placeholder: "例: suelog" %>
     </div>
     <div class="field">
-      <%= form.label :github_repository, "GitHub Repository" %>
+      <%= form.label :github_repository, "github_repo" %>
       <%= form.text_field :github_repository, placeholder: "例: owner/suelog" %>
     </div>
     <div class="field">
-      <%= form.label :repository_path, "Repository Path" %>
+      <%= form.label :repository_path, "local_project_path" %>
       <%= form.text_field :repository_path, placeholder: "例: /Users/.../suelog" %>
+    </div>
+    <div class="field">
+      <%= form.label :target_slug, "target_slug" %>
+      <%= form.text_field :target_slug, placeholder: "例: suelog / public-lp-slug" %>
     </div>
     <div class="field">
       <%= form.label :default_branch, "Default Branch" %>
@@ -59,6 +70,11 @@
   </div>
 
   <div class="field">
+    <%= form.label :target_paths_text, "target_paths" %>
+    <%= form.text_area :target_paths_text, rows: 4, placeholder: "1行に1つずつ入力\n例: app/views/public_landing_pages\n例: app/services/aicoo" %>
+  </div>
+
+  <div class="field">
     <%= form.label :codex_instructions, "Codex Instructions" %>
     <%= form.text_area :codex_instructions, rows: 5, placeholder: "この事業の改修時にCodexへ必ず伝える指示" %>
   </div>
@@ -71,6 +87,11 @@
   <label class="checkbox">
     <%= form.check_box :active %>
     有効
+  </label>
+
+  <label class="checkbox">
+    <%= form.check_box :auto_deploy_enabled %>
+    auto_deploy_enabled
   </label>
 
   <div class="actions">
