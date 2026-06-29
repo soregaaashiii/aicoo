@@ -10,7 +10,7 @@ module Aicoo
       end
 
       def call
-        return mark_skipped!("final_scoreが低いためSERPを実行しません。") if item.final_score.to_d < MIN_SCORE_FOR_SERP
+        return mark_skipped!("final_scoreが低いためSERPはスキップしました。", reason_code: "score_below_serp_threshold") if item.final_score.to_d < MIN_SCORE_FOR_SERP
 
         mark_running!
         result = Aicoo::Serp::Adapter.call(
@@ -75,7 +75,7 @@ module Aicoo
         item
       end
 
-      def mark_skipped!(message)
+      def mark_skipped!(message, reason_code:)
         item.update!(
           status: "serp_skipped",
           current_stage: "serp",
@@ -84,6 +84,7 @@ module Aicoo
             "status" => "skipped",
             "passed" => false,
             "reason" => message,
+            "reason_code" => reason_code,
             "cost_optimization" => true,
             "evaluated_at" => Time.current.iso8601
           }

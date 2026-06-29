@@ -49,6 +49,8 @@ module Aicoo
 
       assert_equal "serp_skipped", item.reload.status
       assert_equal "skipped", item.serp_snapshot["status"]
+      assert_equal "score_below_serp_threshold", item.serp_snapshot["reason_code"]
+      assert_includes item.serp_snapshot["reason"], "final_scoreが低いためSERPはスキップしました"
       assert item.serp_snapshot["cost_optimization"]
     end
 
@@ -102,6 +104,20 @@ module Aicoo
       end
     end
 
+    test "landing page can be generated when low score serp is skipped after owner approval" do
+      item = create_item
+      item.update!(status: "owner_approved", final_score: 40)
+
+      IdeaPipeline::SerpEvaluator.new(item).call
+
+      assert_equal "serp_skipped", item.reload.status
+      assert_equal "score_below_serp_threshold", item.serp_snapshot["reason_code"]
+      assert_includes item.serp_warning_for_lp_generation, "承認済みのためLP生成は可能です"
+      assert_difference("AicooLabLandingPage.count", 1) do
+        IdeaPipeline::LandingPageBuilder.new(item).call
+      end
+    end
+
     test "landing page can be generated when serp skipped" do
       item = create_item
       item.update!(status: "serp_skipped", final_score: 30, serp_snapshot: { "status" => "skipped" })
@@ -120,6 +136,17 @@ module Aicoo
         assert_equal status, item.lp_generation_block_reason
         assert error.message.present?
       end
+    end
+
+    test "already converted idea cannot generate another landing page" do
+      item = create_item
+      item.update!(status: "owner_approved", final_score: 90)
+      IdeaPipeline::LandingPageBuilder.new(item).call
+
+      error = assert_raises(ArgumentError) { IdeaPipeline::LandingPageBuilder.new(item.reload).call }
+
+      assert_equal "already_converted", item.lp_generation_block_reason
+      assert_includes error.message, "すでにLP生成済み"
     end
 
     test "fallback failure reason is never blank" do

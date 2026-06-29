@@ -99,6 +99,11 @@ class IdeaPipelineItem < ApplicationRecord
 
   def serp_warning_for_lp_generation
     return if serp_passed?
+    if serp_snapshot.to_h["reason_code"] == "score_below_serp_threshold"
+      return "final_scoreが低いためSERPはスキップしました。承認済みのためLP生成は可能です。" if lp_generation_approval_state != "not_approved"
+
+      return "final_scoreが低いためSERPはスキップしました。Owner承認後にLP生成できます。"
+    end
 
     "SERP検証は未実行です。精度は下がりますが、LP生成は可能です。"
   end
