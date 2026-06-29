@@ -57,16 +57,16 @@ module Aicoo
 
       def landing_page_attributes
         {
-          headline: item.lp_concept.presence || item.title,
-          subheadline: item.short_description,
+          headline: public_copy(item.lp_concept.presence || item.title),
+          subheadline: public_copy(item.short_description),
           body: landing_page_body,
           cta_text: cta_text,
           assumed_price_yen: assumed_price_yen,
           published_slug: unique_slug,
-          seo_title: item.title,
-          seo_description: item.short_description,
-          og_title: item.title,
-          og_description: item.short_description,
+          seo_title: public_copy(item.title),
+          seo_description: public_copy(item.short_description),
+          og_title: public_copy(item.title),
+          og_description: public_copy(item.short_description),
           notes: "Idea Pipeline ID: #{item.id}",
           status: "draft",
           public_status: "draft",
@@ -75,26 +75,27 @@ module Aicoo
       end
 
       def landing_page_body
-        <<~BODY.strip
+        public_copy(<<~BODY.strip)
           #{item.problem}
 
-          想定ユーザー:
+          こんな方におすすめ:
           #{item.target_user}
 
-          提案する解決策:
+          解決できること:
           #{item.lp_concept}
 
-          MVP案:
+          まず使える機能:
           #{item.mvp_concept}
 
-          収益モデル:
+          料金の考え方:
           #{item.revenue_model}
 
-          SERP検証:
-          競合強度 #{item.serp_snapshot.to_h["competition_strength"] || "-"} / 市場性 #{item.serp_snapshot.to_h["market_signal"] || "-"} / 差別化 #{item.serp_snapshot.to_h["differentiation_score"] || "-"}
-
-          まずはLPで反応を測定し、PV・CTA・滞在・検索流入からMVP開発判断を行います。
+          必要な情報をまとめ、準備ができ次第ご案内します。
         BODY
+      end
+
+      def public_copy(value)
+        AicooLabLandingPage.public_copy(value, fallback: "サービスのご案内")
       end
 
       def experiment_notes

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title><%= content_for(:title) || "公開LP" %></title>
+    <title><%= content_for(:title) || "サービスのご案内" %></title>
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <% if content_for?(:meta_description) %>
       <meta name="description" content="<%= content_for(:meta_description) %>">
@@ -11,7 +11,7 @@
       <link rel="canonical" href="<%= content_for(:canonical_url) %>">
     <% end %>
     <meta property="og:type" content="website">
-    <meta property="og:title" content="<%= content_for?(:og_title) ? content_for(:og_title) : (content_for(:title) || "公開LP") %>">
+    <meta property="og:title" content="<%= content_for?(:og_title) ? content_for(:og_title) : (content_for(:title) || "サービスのご案内") %>">
     <% if content_for?(:og_description) || content_for?(:meta_description) %>
       <meta property="og:description" content="<%= content_for?(:og_description) ? content_for(:og_description) : content_for(:meta_description) %>">
     <% end %>
@@ -22,7 +22,7 @@
       <meta property="og:image" content="<%= content_for(:og_image) %>">
     <% end %>
     <meta name="twitter:card" content="<%= content_for?(:twitter_card) ? content_for(:twitter_card) : "summary" %>">
-    <meta name="twitter:title" content="<%= content_for?(:og_title) ? content_for(:og_title) : (content_for(:title) || "公開LP") %>">
+    <meta name="twitter:title" content="<%= content_for?(:og_title) ? content_for(:og_title) : (content_for(:title) || "サービスのご案内") %>">
     <% if content_for?(:og_description) || content_for?(:meta_description) %>
       <meta name="twitter:description" content="<%= content_for?(:og_description) ? content_for(:og_description) : content_for(:meta_description) %>">
     <% end %>

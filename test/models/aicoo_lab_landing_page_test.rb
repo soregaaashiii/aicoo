@@ -15,11 +15,29 @@ class AicooLabLandingPageTest < ActiveSupport::TestCase
     landing_page = AicooLabLandingPage.build_from_experiment(experiment)
     landing_page.save!
 
-    assert_equal "美容室向けの予約管理の需要検証", landing_page.headline
+    assert_equal "美容室向けの予約管理の需要", landing_page.headline
     assert_equal "事前登録する", landing_page.cta_text
     assert_equal 9_800, landing_page.assumed_price_yen
     assert landing_page.preview_slug.present?
-    assert_includes landing_page.body, "予約管理を楽にするLP実験です。"
+    assert_includes landing_page.body, "予約管理を楽にします。"
+    assert_not_includes landing_page.headline, "検証"
+    assert_not_includes landing_page.body, "LP実験"
+    assert_not_includes landing_page.body, "AICOO"
+  end
+
+  test "cleans public copy from internal labels and duplicated experiment wording" do
+    copy = AicooLabLandingPage.public_copy(<<~TEXT)
+      フリーランス向けのフリーランス向け請求前チェックリストLP実験
+      Target user: Freelancer
+      Expected learning: demand
+      公開中
+    TEXT
+
+    assert_includes copy, "フリーランス向け請求前チェックリスト"
+    assert_not_includes copy, "LP実験"
+    assert_not_includes copy, "Target user"
+    assert_not_includes copy, "Expected learning"
+    assert_not_includes copy, "公開中"
   end
 
   test "marks landing page and experiment preview ready" do

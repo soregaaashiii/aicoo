@@ -5,6 +5,30 @@ class AicooLabLandingPage < ApplicationRecord
   PAUSE_REASONS = %w[
     manual ai_quality policy copyright spam low_quality conversion_low runtime_error other
   ].freeze
+  PUBLIC_COPY_BANNED_TERMS = [
+    "AICOO Lab",
+    "AICOO",
+    "LP実験",
+    "低コストLP",
+    "成果検証",
+    "実験",
+    "検証",
+    "仮説",
+    "Target user",
+    "Problem",
+    "Hypothesis",
+    "Validation method",
+    "Expected learning",
+    "Rejection condition",
+    "internal note",
+    "admin note",
+    "public_status",
+    "公開中",
+    "draft",
+    "preview",
+    "published",
+    "archived"
+  ].freeze
 
   belongs_to :aicoo_lab_experiment
   has_many :aicoo_lab_landing_page_events, dependent: :destroy
@@ -38,8 +62,8 @@ class AicooLabLandingPage < ApplicationRecord
   def self.build_from_experiment(experiment)
     new(
       aicoo_lab_experiment: experiment,
-      headline: "#{experiment.market_category.presence || "検証市場"}向けの#{experiment.title}",
-      subheadline: "面倒な作業を減らし、低コストで成果検証できるサービスです。",
+      headline: public_copy("#{experiment.market_category.presence || "市場"}向けの#{experiment.title}", fallback: experiment.title),
+      subheadline: public_copy("面倒な作業を減らし、必要な準備をスムーズに進められるサービスです。"),
       body: template_body(experiment),
       cta_text: "事前登録する",
       assumed_price_yen: experiment.assumed_price_yen,
@@ -177,6 +201,41 @@ class AicooLabLandingPage < ApplicationRecord
     og_image_url.presence
   end
 
+  def public_headline
+    self.class.public_copy(headline, fallback: "サービスのご案内")
+  end
+
+  def public_subheadline
+    self.class.public_copy(subheadline, fallback: "必要な準備をスムーズに進められるサービスです。")
+  end
+
+  def public_body
+    self.class.public_copy(body, fallback: "詳しい内容を確認し、準備ができ次第ご案内します。")
+  end
+
+  def public_cta_text
+    self.class.public_copy(cta_text, fallback: "事前登録する")
+  end
+
+  def public_seo_title
+    self.class.public_copy(seo_title.presence || headline, fallback: public_headline)
+  end
+
+  def public_seo_description
+    self.class.public_copy(
+      seo_description.presence || og_description.presence || subheadline.presence || body.to_s.truncate(155),
+      fallback: public_subheadline
+    )
+  end
+
+  def public_og_title
+    self.class.public_copy(og_title.presence || public_seo_title, fallback: public_headline)
+  end
+
+  def public_og_description
+    self.class.public_copy(og_description.presence || public_seo_description, fallback: public_subheadline)
+  end
+
   def paused?
     public_status == "paused"
   end
@@ -210,16 +269,49 @@ class AicooLabLandingPage < ApplicationRecord
   end
 
   def self.template_body(experiment)
-    description = experiment.description.presence || "この実験では、対象市場の課題に対して最小限のLPで需要を検証します。"
-    notes = experiment.notes.presence || "LP公開後、PV・CTA反応・90日期待利益とのズレを記録して、AICOOの予測精度向上に使います。"
+    description = public_copy(
+      experiment.description.presence || "お困りごとを整理し、必要な準備をスムーズに進められるサービスです。",
+      fallback: "お困りごとを整理し、必要な準備をスムーズに進められるサービスです。"
+    )
+    notes = if internal_public_copy?(experiment.notes)
+      nil
+    else
+      public_copy(experiment.notes, fallback: nil)
+    end
 
-    <<~BODY.strip
-      #{description}
+    [
+      description,
+      notes,
+      "まずは事前登録からお知らせを受け取れます。準備ができ次第、順番にご案内します。"
+    ].compact_blank.join("\n\n")
+  end
 
-      #{notes}
+  def self.public_copy(value, fallback: "")
+    text = value.to_s.dup
+    return fallback if text.blank?
 
-      まずは小さく公開し、十分なサンプルが集まった段階で結果を採点します。
-    BODY
+    PUBLIC_COPY_BANNED_TERMS.sort_by { |term| -term.length }.each do |term|
+      text.gsub!(/#{Regexp.escape(term)}\s*[:：]?/i, "")
+    end
+
+    text.gsub!(/\b(?:draft|preview|published|archived)\b/i, "")
+    text.gsub!(/(.{2,30}?向け)の\1/, '\1')
+    text.gsub!("するです", "します")
+    text.gsub!(/[ \t]+/, " ")
+    text.gsub!(/[ \t]*\n[ \t]*/, "\n")
+    text.gsub!(/\n{3,}/, "\n\n")
+    text.gsub!(/\A[\s、。・:：-]+/, "")
+    text.gsub!(/[\s、・:：-]+\z/, "")
+    text.strip!
+
+    text.presence || fallback
+  end
+
+  def self.internal_public_copy?(value)
+    text = value.to_s
+    return false if text.blank?
+
+    PUBLIC_COPY_BANNED_TERMS.any? { |term| text.match?(/#{Regexp.escape(term)}/i) }
   end
 
   private

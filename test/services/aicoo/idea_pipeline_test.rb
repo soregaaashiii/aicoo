@@ -70,6 +70,10 @@ module Aicoo
 
       assert_equal "draft", landing_page.public_status
       assert_equal landing_page, item.reload.aicoo_lab_landing_page
+      assert_not_includes landing_page.headline, "LP実験"
+      assert_not_includes landing_page.body, "SERP検証"
+      assert_not_includes landing_page.body, "AICOO"
+      assert_not_includes landing_page.body, "Target user"
 
       IdeaPipeline::Publisher.new(item).call
       assert_equal "published", landing_page.reload.public_status

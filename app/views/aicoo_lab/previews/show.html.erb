@@ -1,8 +1,13 @@
-<% content_for :title, @landing_page.effective_seo_title %>
-<% content_for :meta_description, @landing_page.effective_seo_description %>
+<% public_lp = local_assigns.fetch(:public_lp, @public_lp_rendering) %>
+<% headline = public_lp ? @landing_page.public_headline : @landing_page.headline %>
+<% subheadline = public_lp ? @landing_page.public_subheadline : @landing_page.subheadline %>
+<% body = public_lp ? @landing_page.public_body : @landing_page.body %>
+<% cta_text = public_lp ? @landing_page.public_cta_text : @landing_page.cta_text %>
+<% content_for :title, public_lp ? @landing_page.public_seo_title : @landing_page.effective_seo_title %>
+<% content_for :meta_description, public_lp ? @landing_page.public_seo_description : @landing_page.effective_seo_description %>
 <% content_for :canonical_url, @canonical_url if @canonical_url.present? %>
-<% content_for :og_title, @landing_page.effective_og_title %>
-<% content_for :og_description, @landing_page.effective_og_description %>
+<% content_for :og_title, public_lp ? @landing_page.public_og_title : @landing_page.effective_og_title %>
+<% content_for :og_description, public_lp ? @landing_page.public_og_description : @landing_page.effective_og_description %>
 <% if @landing_page.effective_og_image_url.present? %>
   <% content_for :og_image, @landing_page.effective_og_image_url %>
   <% content_for :twitter_card, "summary_large_image" %>
@@ -10,14 +15,16 @@
 
 <main class="lp-preview">
   <section class="lp-hero">
-    <p class="lp-eyebrow"><%= @lp_mode_label || "確認用" %></p>
-    <h1><%= @landing_page.headline %></h1>
-    <p class="lp-subheadline"><%= @landing_page.subheadline %></p>
+    <% unless public_lp %>
+      <p class="lp-eyebrow"><%= @lp_mode_label || "確認用" %></p>
+    <% end %>
+    <h1><%= headline %></h1>
+    <p class="lp-subheadline"><%= subheadline %></p>
     <% if @lp_mode_description.present? %>
       <p class="lp-subheadline"><%= @lp_mode_description %></p>
     <% end %>
     <div class="lp-actions">
-      <%= button_to @landing_page.cta_text, @cta_click_path || aicoo_lab_preview_cta_click_path(@landing_page.preview_slug), method: :post, class: "button" %>
+      <%= button_to cta_text, @cta_click_path || aicoo_lab_preview_cta_click_path(@landing_page.preview_slug), method: :post, class: "button" %>
       <% if @landing_page.assumed_price_yen.present? %>
         <span class="lp-price"><%= number_to_currency(@landing_page.assumed_price_yen, unit: "¥", precision: 0) %></span>
       <% end %>
@@ -25,13 +32,13 @@
   </section>
 
   <section class="lp-content">
-    <%= simple_format(@landing_page.body) %>
+    <%= simple_format(body) %>
   </section>
 
   <section id="cta" class="lp-cta">
-    <h2><%= @landing_page.cta_text %></h2>
-    <p>興味があれば事前登録に進んでください。登録処理はAICOO Lab内だけに保存され、外部送信は行いません。</p>
-    <%= button_to @landing_page.cta_text, @cta_click_path || aicoo_lab_preview_cta_click_path(@landing_page.preview_slug), method: :post, class: "button" %>
+    <h2><%= cta_text %></h2>
+    <p><%= public_lp ? "登録後、準備ができ次第ご案内します。" : "興味があれば事前登録に進んでください。登録内容は管理画面で確認できます。" %></p>
+    <%= button_to cta_text, @cta_click_path || aicoo_lab_preview_cta_click_path(@landing_page.preview_slug), method: :post, class: "button" %>
   </section>
 </main>
 

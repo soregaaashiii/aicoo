@@ -11,7 +11,7 @@ class PublicLandingPagesControllerTest < ActionDispatch::IntegrationTest
     get public_landing_pages_url
 
     assert_response :success
-    assert_includes response.body, "公開中のランディングページ"
+    assert_includes response.body, "サービス一覧"
     assert_includes response.body, published.headline
     assert_includes response.body, public_lp_path(published.published_slug)
     assert_not_includes response.body, "非公開LPタイトル"
@@ -29,7 +29,7 @@ class PublicLandingPagesControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :success
-    assert_includes response.body, "公開中のランディングページ"
+    assert_includes response.body, "サービス一覧"
     assert_includes response.body, published.headline
     assert_includes response.body, public_lp_path(published.published_slug)
     assert_not_includes response.body, "Root下書きLPタイトル"
@@ -94,6 +94,82 @@ class PublicLandingPagesControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, "CEO MODE"
     assert_not_includes response.body, "SYSTEM MODE"
     assert_no_aicoo_management_links
+  end
+
+  test "public landing page hides internal lab wording" do
+    landing_page = create_landing_page(
+      headline: "フリーランス向けのフリーランス向け請求前チェックリストLP実験",
+      published_slug: "clean-public-copy-lp",
+      subheadline: "Target user: フリーランス向けの仮説検証ページ",
+      body: <<~BODY,
+        AICOO Labで管理するLP実験です。
+        Problem: 請求前の確認漏れ
+        Hypothesis: チェックリストでミスを減らせる
+        Validation method: CTAで成果検証
+        Expected learning: 需要を確認
+        Rejection condition: 反応が弱い
+        public_status: published
+        公開中
+      BODY
+      seo_title: "AICOO LP実験",
+      seo_description: "Target user: 公開中",
+      og_title: "Hypothesis LP実験",
+      og_description: "Expected learning"
+    )
+
+    get public_lp_url(landing_page.published_slug)
+
+    assert_response :success
+    assert_includes response.body, "フリーランス向け請求前チェックリスト"
+    assert_includes response.body, "登録後、準備ができ次第ご案内します。"
+    [
+      "AICOO",
+      "AICOO Lab",
+      "LP実験",
+      "Target user",
+      "Problem",
+      "Hypothesis",
+      "Validation method",
+      "Expected learning",
+      "Rejection condition",
+      "public_status",
+      "公開中",
+      "published"
+    ].each do |term|
+      assert_not_includes response.body, term
+    end
+    assert_no_aicoo_management_links
+  end
+
+  test "public landing page index hides internal lab wording" do
+    create_landing_page(
+      headline: "AICOO Lab LP実験",
+      published_slug: "clean-index-lp",
+      subheadline: "Target user: 事業者"
+    )
+
+    get public_landing_pages_url
+
+    assert_response :success
+    assert_includes response.body, "サービス一覧"
+    assert_not_includes response.body, "AICOO"
+    assert_not_includes response.body, "LP実験"
+    assert_not_includes response.body, "Target user"
+    assert_not_includes response.body, "公開中"
+  end
+
+  test "admin edit still shows internal landing page information" do
+    landing_page = create_landing_page(
+      headline: "AICOO Lab LP実験",
+      published_slug: "admin-keeps-internal-copy",
+      body: "Target user: 管理画面では確認できる"
+    )
+
+    get admin_aicoo_lab_edit_public_landing_page_url(landing_page)
+
+    assert_response :success
+    assert_includes response.body, "AICOO Lab LP実験"
+    assert_includes response.body, "Target user: 管理画面では確認できる"
   end
 
   test "scheduled landing page is published automatically when due" do
@@ -161,6 +237,9 @@ class PublicLandingPagesControllerTest < ActionDispatch::IntegrationTest
 
     get public_lp_signup_url(landing_page.published_slug)
     assert_response :success
+    assert_not_includes response.body, "確認用"
+    assert_not_includes response.body, "公開中"
+    assert_not_includes response.body, "AICOO"
 
     assert_difference("AicooLabSignup.count", 1) do
       post public_lp_signup_url(landing_page.published_slug), params: {
@@ -168,6 +247,9 @@ class PublicLandingPagesControllerTest < ActionDispatch::IntegrationTest
       }
     end
     assert_response :success
+    assert_includes response.body, "登録後、準備ができ次第ご案内します。"
+    assert_not_includes response.body, "AICOO"
+    assert_not_includes response.body, "実験"
   end
 
   test "public landing page records scroll event" do

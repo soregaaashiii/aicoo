@@ -86,7 +86,8 @@ class PublicLandingPagesController < ApplicationController
   end
 
   def set_rendering_context
-    @lp_mode_label = @landing_page.paused? ? "公開停止中" : "公開中"
+    @public_lp_rendering = true
+    @lp_mode_label = nil
     @lp_mode_description = nil
     return if @landing_page.paused?
 

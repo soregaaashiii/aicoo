@@ -102,7 +102,7 @@ module Admin
 
         assert_response :success
         assert_includes response.body, "LP headline"
-        assert_includes response.body, "公開中"
+        assert_not_includes response.body, "公開中"
         assert_equal 1, experiment.reload.current_pv
       end
 

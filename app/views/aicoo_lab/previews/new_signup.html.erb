@@ -1,10 +1,15 @@
-<% content_for :title, "#{@landing_page.headline} - Signup" %>
+<% public_lp = local_assigns.fetch(:public_lp, @public_lp_rendering) %>
+<% headline = public_lp ? @landing_page.public_headline : @landing_page.headline %>
+<% cta_text = public_lp ? @landing_page.public_cta_text : @landing_page.cta_text %>
+<% content_for :title, "#{headline} - 事前登録" %>
 
 <main class="lp-preview">
   <section class="lp-hero">
-    <p class="lp-eyebrow"><%= @lp_mode_label || "確認用" %></p>
-    <h1><%= @landing_page.cta_text %></h1>
-    <p class="lp-subheadline"><%= @landing_page.headline %></p>
+    <% unless public_lp %>
+      <p class="lp-eyebrow"><%= @lp_mode_label || "確認用" %></p>
+    <% end %>
+    <h1><%= cta_text %></h1>
+    <p class="lp-subheadline"><%= headline %></p>
   </section>
 
   <section class="lp-content">

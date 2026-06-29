@@ -74,7 +74,7 @@ module Admin
 
       def experiment_attributes
         {
-          title: landing_page_params[:headline].presence || "公開LP",
+          title: landing_page_params[:headline].presence || "サービスのご案内",
           description: landing_page_params[:subheadline],
           notes: landing_page_params[:body],
           experiment_type: "lp",

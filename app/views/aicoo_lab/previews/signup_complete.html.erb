@@ -1,14 +1,17 @@
-<% content_for :title, "Signup Complete" %>
+<% public_lp = local_assigns.fetch(:public_lp, @public_lp_rendering) %>
+<% content_for :title, "登録完了" %>
 
 <main class="lp-preview">
   <section class="lp-hero">
-    <p class="lp-eyebrow"><%= @lp_mode_label || "確認用" %></p>
+    <% unless public_lp %>
+      <p class="lp-eyebrow"><%= @lp_mode_label || "確認用" %></p>
+    <% end %>
     <h1>登録ありがとうございます</h1>
-    <p class="lp-subheadline">この登録はAICOO Lab内の実験データとして保存されました。</p>
+    <p class="lp-subheadline"><%= public_lp ? "登録後、準備ができ次第ご案内します。" : "登録内容は管理画面で確認できます。" %></p>
   </section>
 
   <section class="lp-content">
-    <p>本番公開、課金、外部送信は行っていません。</p>
+    <p><%= public_lp ? "ご入力ありがとうございました。" : "プレビュー環境の登録として保存されました。" %></p>
     <%= link_to "LPに戻る", @back_path || aicoo_lab_preview_path(@landing_page.preview_slug), class: "button secondary" %>
   </section>
 </main>

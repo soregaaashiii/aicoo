@@ -56,16 +56,16 @@ class SerpLandingPageCandidate < ApplicationRecord
 
   def landing_page_attributes
     {
-      headline: lp_title,
-      subheadline: lp_description,
+      headline: public_copy(lp_title),
+      subheadline: public_copy(lp_description),
       body: landing_page_body,
       cta_text:,
       assumed_price_yen: 9_800,
       published_slug: suggested_slug,
-      seo_title: lp_title,
-      seo_description: lp_description,
-      og_title: lp_title,
-      og_description: lp_description,
+      seo_title: public_copy(lp_title),
+      seo_description: public_copy(lp_description),
+      og_title: public_copy(lp_title),
+      og_description: public_copy(lp_description),
       notes: competition_note,
       status: "draft",
       public_status: "draft",
@@ -91,13 +91,17 @@ class SerpLandingPageCandidate < ApplicationRecord
   end
 
   def landing_page_body
-    <<~BODY.strip
+    public_copy(<<~BODY.strip)
       #{problem}
 
       #{lp_description}
 
-      まずは小さく検証し、検索流入・CTAクリック・登録反応をAICOOで記録します。
+      必要な情報をまとめ、準備ができ次第ご案内します。
     BODY
+  end
+
+  def public_copy(value)
+    AicooLabLandingPage.public_copy(value, fallback: "サービスのご案内")
   end
 
   def suggested_slug

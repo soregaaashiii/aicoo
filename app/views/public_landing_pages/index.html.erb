@@ -1,12 +1,11 @@
-<% content_for :title, "公開LP一覧" %>
-<% content_for :meta_description, "公開中のランディングページ一覧です。" %>
+<% content_for :title, "サービス一覧" %>
+<% content_for :meta_description, "現在ご案内しているサービス一覧です。" %>
 <% content_for :canonical_url, public_absolute_url(@canonical_path || public_landing_pages_path) %>
 
 <main class="lp-preview">
   <section class="lp-hero">
-    <p class="lp-eyebrow">公開LP</p>
-    <h1>公開中のランディングページ</h1>
-    <p class="lp-subheadline">現在公開されているLPだけを掲載しています。</p>
+    <h1>サービス一覧</h1>
+    <p class="lp-subheadline">現在ご案内しているサービスを掲載しています。</p>
   </section>
 
   <section class="lp-content">
@@ -33,15 +32,15 @@
         <tbody>
           <% @landing_pages.each do |landing_page| %>
             <tr>
-              <td><%= landing_page.headline %></td>
-              <td><%= truncate(landing_page.subheadline.presence || landing_page.body.to_s, length: 120) %></td>
+              <td><%= landing_page.public_headline %></td>
+              <td><%= truncate(landing_page.public_subheadline.presence || landing_page.public_body.to_s, length: 120) %></td>
               <td><%= l(landing_page.created_at.to_date, format: :default) %></td>
               <td><%= landing_page.published_at ? l(landing_page.published_at.to_date, format: :default) : "-" %></td>
               <td><%= link_to "見る", public_lp_path(landing_page.published_slug), class: "button secondary" %></td>
             </tr>
           <% end %>
           <% if @landing_pages.empty? %>
-            <tr><td colspan="5">公開中のLPはまだありません。</td></tr>
+            <tr><td colspan="5">現在ご案内できるサービスはまだありません。</td></tr>
           <% end %>
         </tbody>
       </table>

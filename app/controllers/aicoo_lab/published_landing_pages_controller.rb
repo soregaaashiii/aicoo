@@ -39,8 +39,9 @@ module AicooLab
     end
 
     def set_rendering_context
-      @lp_mode_label = "公開中"
-      @lp_mode_description = "公開中。このURLをSNSや外部に貼って検証できます"
+      @public_lp_rendering = true
+      @lp_mode_label = nil
+      @lp_mode_description = nil
       @cta_click_path = aicoo_lab_published_lp_cta_click_path(@landing_page.published_slug)
       @signup_path = aicoo_lab_published_lp_signup_path(@landing_page.published_slug)
       @back_path = aicoo_lab_published_lp_path(@landing_page.published_slug)
