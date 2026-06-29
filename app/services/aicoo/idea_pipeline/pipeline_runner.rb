@@ -29,6 +29,7 @@ module Aicoo
           previous_state = [ item.current_stage, item.status, item.updated_at ]
           run_next!
           item.reload
+          Aicoo::PipelineEngine.new(item).call
           break if blocked?
           break if previous_state == [ item.current_stage, item.status, item.updated_at ]
         end

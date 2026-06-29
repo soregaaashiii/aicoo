@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_29_133000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_29_142000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -712,6 +712,45 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_29_133000) do
     t.text "user_agent"
     t.index ["aicoo_lab_landing_page_id"], name: "index_aicoo_lab_signups_on_aicoo_lab_landing_page_id"
     t.index ["email"], name: "index_aicoo_lab_signups_on_email"
+  end
+
+  create_table "aicoo_pipeline_runs", force: :cascade do |t|
+    t.decimal "actual_cost_yen"
+    t.bigint "aicoo_lab_landing_page_id"
+    t.jsonb "budget_snapshot", default: {}, null: false
+    t.bigint "business_id"
+    t.decimal "confidence"
+    t.datetime "created_at", null: false
+    t.string "current_stage", default: "discovery", null: false
+    t.decimal "estimated_cost_yen"
+    t.decimal "expected_value_yen"
+    t.datetime "finished_at"
+    t.jsonb "gate_snapshot", default: {}, null: false
+    t.string "halted_reason"
+    t.bigint "idea_pipeline_item_id"
+    t.text "last_error"
+    t.jsonb "metadata", default: {}, null: false
+    t.string "next_stage"
+    t.string "pipeline_type", default: "idea_pipeline", null: false
+    t.string "pivot_decision"
+    t.integer "retry_count", default: 0, null: false
+    t.jsonb "retry_schedule", default: {}, null: false
+    t.jsonb "stage_states", default: {}, null: false
+    t.datetime "started_at"
+    t.string "status", default: "running", null: false
+    t.datetime "updated_at", null: false
+    t.string "waiting_reason"
+    t.datetime "waiting_until"
+    t.index ["aicoo_lab_landing_page_id"], name: "index_aicoo_pipeline_runs_on_aicoo_lab_landing_page_id"
+    t.index ["business_id"], name: "index_aicoo_pipeline_runs_on_business_id"
+    t.index ["current_stage"], name: "index_aicoo_pipeline_runs_on_current_stage"
+    t.index ["idea_pipeline_item_id"], name: "index_aicoo_pipeline_runs_on_idea_pipeline_item_id"
+    t.index ["next_stage"], name: "index_aicoo_pipeline_runs_on_next_stage"
+    t.index ["pipeline_type", "idea_pipeline_item_id"], name: "idx_pipeline_runs_on_type_and_idea_item", unique: true
+    t.index ["pipeline_type"], name: "index_aicoo_pipeline_runs_on_pipeline_type"
+    t.index ["pivot_decision"], name: "index_aicoo_pipeline_runs_on_pivot_decision"
+    t.index ["status"], name: "index_aicoo_pipeline_runs_on_status"
+    t.index ["waiting_until"], name: "index_aicoo_pipeline_runs_on_waiting_until"
   end
 
   create_table "aicoo_revenue_executions", force: :cascade do |t|
@@ -1536,6 +1575,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_29_133000) do
   add_foreign_key "aicoo_lab_predictions", "aicoo_lab_experiments"
   add_foreign_key "aicoo_lab_results", "aicoo_lab_experiments"
   add_foreign_key "aicoo_lab_signups", "aicoo_lab_landing_pages"
+  add_foreign_key "aicoo_pipeline_runs", "aicoo_lab_landing_pages"
+  add_foreign_key "aicoo_pipeline_runs", "businesses"
+  add_foreign_key "aicoo_pipeline_runs", "idea_pipeline_items"
   add_foreign_key "analysis_candidates", "businesses"
   add_foreign_key "analytics_fetch_runs", "analytics_source_settings"
   add_foreign_key "analytics_source_settings", "aicoo_analytics_sites"

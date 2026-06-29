@@ -24,6 +24,7 @@ module Aicoo
             "published_at" => Time.current.iso8601
           )
         )
+        Aicoo::PipelineEngine.new(item).call
         item
       end
 

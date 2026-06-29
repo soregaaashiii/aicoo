@@ -22,6 +22,7 @@ class Business < ApplicationRecord
   has_many :business_metric_dailies, dependent: :destroy
   has_many :analysis_candidates, dependent: :destroy
   has_many :aicoo_lab_landing_pages, dependent: :nullify
+  has_many :aicoo_pipeline_runs, dependent: :nullify
   has_one :business_execution_profile, dependent: :destroy
   has_one :business_playbook, dependent: :destroy
   has_one :proxy_score_weight, dependent: :destroy

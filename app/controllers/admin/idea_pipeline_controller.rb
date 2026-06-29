@@ -6,9 +6,11 @@ module Admin
       @items = IdeaPipelineItem.includes(:aicoo_lab_landing_page).by_priority
       @stage_counts = IdeaPipelineItem.group(:current_stage).count
       @latest_items = @items.limit(50)
+      @pipeline_runs_by_item = Aicoo::PipelineEngine.sync_idea_pipeline_scope(@latest_items)
     end
 
     def show
+      @pipeline_run = Aicoo::PipelineEngine.new(@item).call
     end
 
     def generate

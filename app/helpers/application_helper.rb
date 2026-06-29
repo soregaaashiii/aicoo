@@ -29,12 +29,17 @@ module ApplicationHelper
   def stage_label(stage)
     {
       "idea" => "Idea",
+      "discovery" => "Discovery",
       "score" => "Score",
       "serp" => "SERP",
       "lp" => "LP",
       "publish" => "公開",
+      "measure" => "Measure",
+      "improve" => "Improve",
+      "deploy" => "Deploy",
       "learning" => "Learning",
-      "mvp" => "MVP"
+      "mvp" => "MVP",
+      "decision" => "Continue / Pivot / End"
     }.fetch(stage.to_s, stage.to_s)
   end
 end

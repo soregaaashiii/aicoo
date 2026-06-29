@@ -96,6 +96,39 @@
     <% end %>
   </section>
 
+  <% if @stopped_pipeline_runs.any? %>
+    <section class="dashboard-section">
+      <div class="section-heading">
+        <h2>止まっているPipeline</h2>
+        <p>承認待ち・予算超過・Retry待ち・待機中だけを表示します。</p>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>状態</th>
+              <th>対象</th>
+              <th>現在位置</th>
+              <th>理由</th>
+              <th>次にやる</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @stopped_pipeline_runs.each do |run| %>
+              <tr>
+                <td><span class="pill"><%= run.status %></span></td>
+                <td><%= link_to run.display_title, run.target_path %></td>
+                <td><%= stage_label(run.current_stage) %></td>
+                <td><%= run.halted_reason.presence || run.current_stage_state["message"].presence || "-" %></td>
+                <td><%= link_to "確認する", run.target_path, class: "button secondary" %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  <% end %>
+
   <section class="dashboard-section">
     <div class="section-heading">
       <h2>追加で確認すること</h2>

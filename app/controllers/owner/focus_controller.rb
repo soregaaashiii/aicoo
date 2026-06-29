@@ -17,6 +17,8 @@ module Owner
       @analysis_monitor = Aicoo::AnalysisMonitor.new.call
       @serp_scan_status = Aicoo::Serp::ScanStatus.new.call
       @business_auto_revision_summary = Aicoo::BusinessAutoRevisionSummary.new.call
+      sync_pipeline_runs
+      @stopped_pipeline_runs = AicooPipelineRun.stopped_for_owner.includes(:business, :idea_pipeline_item).recent.limit(5)
       @running_daily_run = AicooDailyRun.running.includes(:aicoo_daily_run_steps).recent.first
       @top_task_evidence = evidence_for_top_task
       @top_task_expansion = expansion_for_top_task
@@ -99,6 +101,10 @@ module Owner
       else
         @top_task.target_path
       end
+    end
+
+    def sync_pipeline_runs
+      IdeaPipelineItem.recent.limit(25).each { |item| Aicoo::PipelineEngine.new(item).call }
     end
   end
 end

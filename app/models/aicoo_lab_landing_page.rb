@@ -40,6 +40,7 @@ class AicooLabLandingPage < ApplicationRecord
            class_name: "AicooLabLandingPagePublicationEvent",
            dependent: :destroy
   has_many :aicoo_lab_signups, dependent: :destroy
+  has_many :aicoo_pipeline_runs, dependent: :nullify
 
   before_validation :set_defaults
   before_update :record_published_slug_history, if: :will_save_change_to_published_slug?

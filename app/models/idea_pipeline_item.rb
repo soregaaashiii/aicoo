@@ -11,6 +11,7 @@ class IdeaPipelineItem < ApplicationRecord
   belongs_to :business, optional: true
   belongs_to :aicoo_lab_experiment, optional: true
   belongs_to :aicoo_lab_landing_page, optional: true
+  has_one :aicoo_pipeline_run, dependent: :destroy
 
   validates :title, presence: true
   validates :status, inclusion: { in: STATUSES }

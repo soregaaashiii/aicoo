@@ -21,6 +21,7 @@ module Aicoo
             "mvp_decided_at" => Time.current.iso8601
           )
         )
+        Aicoo::PipelineEngine.new(item).call
         item
       end
 

@@ -21,13 +21,13 @@
   <section class="dashboard-section">
     <div class="section-heading">
       <h2>Pipeline状態</h2>
-      <p>高コストなSERPやMVP化は、AI評価で絞り込んでから実行します。</p>
+      <p>DiscoveryからLearningまでを統一Pipelineとして同期します。</p>
     </div>
     <div class="idea-pipeline-flow">
-      <% IdeaPipelineItem::STAGES.each do |stage| %>
+      <% AicooPipelineRun::STAGES.each do |stage| %>
         <div class="idea-stage-node">
           <span><%= stage_label(stage) %></span>
-          <strong><%= @stage_counts[stage].to_i %></strong>
+          <strong><%= @pipeline_runs_by_item.values.count { |run| run.current_stage == stage } %></strong>
         </div>
       <% end %>
     </div>
@@ -49,6 +49,7 @@
             <th>期待利益</th>
             <th>SERP</th>
             <th>LP</th>
+            <th>Pipeline</th>
             <th>MVP判断</th>
             <th>操作</th>
           </tr>
@@ -71,6 +72,11 @@
                   -
                 <% end %>
               </td>
+              <% run = @pipeline_runs_by_item[item] %>
+              <td>
+                <span class="pill"><%= run&.status || "-" %></span><br>
+                <small><%= run ? stage_label(run.current_stage) : "-" %></small>
+              </td>
               <td><%= item.mvp_decision.presence || "-" %></td>
               <td>
                 <%= button_to "次へ進める", run_pipeline_admin_idea_pipeline_path(item),
@@ -82,7 +88,7 @@
             </tr>
           <% end %>
           <% if @latest_items.empty? %>
-            <tr><td colspan="8">Ideaはまだありません。まず「Ideaを生成」を押してください。</td></tr>
+            <tr><td colspan="9">Ideaはまだありません。まず「Ideaを生成」を押してください。</td></tr>
           <% end %>
         </tbody>
       </table>

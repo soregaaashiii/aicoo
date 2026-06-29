@@ -21,16 +21,28 @@
 
   <section class="dashboard-section">
     <div class="section-heading">
-      <h2>Stage</h2>
-      <p>どこで止まっているかを確認し、必要なStageだけ手動で進められます。</p>
+      <h2>Pipeline状態遷移</h2>
+      <p>DiscoveryからContinue / Pivot / Endまでを、Gate・Waiting・Budget込みで管理します。</p>
     </div>
     <div class="idea-pipeline-flow">
-      <% IdeaPipelineItem::STAGES.each do |stage| %>
-        <div class="idea-stage-node <%= 'done' if @item.stage_done?(stage) %> <%= 'active' if @item.current_stage == stage %>">
+      <% AicooPipelineRun::STAGES.each do |stage| %>
+        <% state = @pipeline_run.stage_state(stage) %>
+        <div class="idea-stage-node <%= 'done' if state['status'].in?(%w[done skipped]) %> <%= 'active' if @pipeline_run.current_stage == stage %>">
           <span><%= stage_label(stage) %></span>
-          <strong><%= @item.stage_done?(stage) ? "完了" : (@item.current_stage == stage ? "現在" : "待機") %></strong>
+          <strong><%= state["status"].presence || "pending" %></strong>
+          <% if @pipeline_run.current_stage == stage && state["message"].present? %>
+            <small><%= state["message"] %></small>
+          <% end %>
         </div>
       <% end %>
+    </div>
+    <div class="metric-grid">
+      <div class="metric-card"><span>Pipeline</span><strong><%= @pipeline_run.status %></strong></div>
+      <div class="metric-card"><span>現在位置</span><strong><%= stage_label(@pipeline_run.current_stage) %></strong></div>
+      <div class="metric-card"><span>次</span><strong><%= @pipeline_run.next_stage ? stage_label(@pipeline_run.next_stage) : "-" %></strong></div>
+      <div class="metric-card"><span>Pivot判断</span><strong><%= @pipeline_run.pivot_decision.presence || "-" %></strong></div>
+      <div class="metric-card"><span>予想コスト</span><strong><%= number_to_currency(@pipeline_run.estimated_cost_yen || 0, unit: "¥", precision: 0) %></strong></div>
+      <div class="metric-card"><span>実コスト</span><strong><%= number_to_currency(@pipeline_run.actual_cost_yen || 0, unit: "¥", precision: 0) %></strong></div>
     </div>
   </section>
 
