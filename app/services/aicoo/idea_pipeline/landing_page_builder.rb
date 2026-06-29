@@ -70,7 +70,8 @@ module Aicoo
           notes: "Idea Pipeline ID: #{item.id}",
           status: "draft",
           public_status: "draft",
-          generation_source: "manual"
+          generation_source: "manual",
+          business: item.business
         }
       end
 

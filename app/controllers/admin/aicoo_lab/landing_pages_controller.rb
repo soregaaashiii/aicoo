@@ -41,6 +41,7 @@ module Admin
 
       def publish
         if @landing_page.publishable?
+          @landing_page.ensure_business!(source: "lab_landing_page_publish")
           @landing_page.publish!
           AicooAnalytics::SiteAutolinker.new(base_url: request.base_url).link!(@landing_page)
           redirect_to admin_aicoo_lab_experiment_path(@experiment), notice: "LPを無料公開しました。"

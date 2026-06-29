@@ -69,7 +69,8 @@ class SerpLandingPageCandidate < ApplicationRecord
       notes: competition_note,
       status: "draft",
       public_status: "draft",
-      generation_source: "manual"
+      generation_source: "manual",
+      business: serp_analysis&.business
     }
   end
 

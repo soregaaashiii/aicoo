@@ -31,12 +31,16 @@ module Admin
         assert_redirected_to admin_aicoo_lab_serp_landing_page_candidates_url
         candidate = SerpLandingPageCandidate.order(:created_at).last
         assert_equal "梅田 喫煙 カフェ", candidate.keyword
+        assert_equal business, candidate.serp_analysis.business
         assert candidate.lp_title.present?
         assert candidate.target_audience.present?
         assert candidate.problem.present?
         assert candidate.lp_description.present?
         assert candidate.cta_text.present?
         assert candidate.competition_note.include?("競合強度")
+
+        landing_page = candidate.create_draft_landing_page!
+        assert_equal business, landing_page.business
       end
 
       test "creates draft public landing page from serp candidate and publishes into public surfaces" do
@@ -61,6 +65,7 @@ module Admin
         assert_equal "converted", candidate.status
         assert_equal "draft", landing_page.public_status
         assert_equal "難波で喫煙できる居酒屋を探す", landing_page.headline
+        assert_nil landing_page.business
 
         get public_landing_pages_url
         assert_response :success

@@ -22,11 +22,23 @@
         <% if @landing_page.published_slug.present? %>
           /lp/<%= @landing_page.published_slug %>
         <% end %>
+        / Business:
+        <% if @landing_page.business %>
+          <%= link_to @landing_page.business.name, business_path(@landing_page.business) %>
+        <% else %>
+          未紐付け
+        <% end %>
       </p>
     </div>
     <div class="actions">
       <% unless @landing_page.public_status == "published" %>
         <%= button_to "公開", admin_aicoo_lab_publish_public_landing_page_path(@landing_page), method: :patch, class: "button" %>
+      <% end %>
+      <% if @landing_page.business.blank? && @landing_page.public_status == "published" %>
+        <%= button_to "Businessを作成/紐付け",
+                      admin_aicoo_lab_recover_public_landing_page_business_path(@landing_page),
+                      method: :post,
+                      class: "button" %>
       <% end %>
       <%= link_to "実験詳細を見る", admin_aicoo_lab_experiment_path(@landing_page.aicoo_lab_experiment), class: "button secondary" %>
     </div>

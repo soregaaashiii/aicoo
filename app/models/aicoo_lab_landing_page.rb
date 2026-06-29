@@ -31,6 +31,7 @@ class AicooLabLandingPage < ApplicationRecord
   ].freeze
 
   belongs_to :aicoo_lab_experiment
+  belongs_to :business, optional: true
   has_many :aicoo_lab_landing_page_events, dependent: :destroy
   has_many :slug_histories,
            class_name: "AicooLabLandingPageSlugHistory",
@@ -268,6 +269,18 @@ class AicooLabLandingPage < ApplicationRecord
     aicoo_lab_experiment.current_pv.to_i >= aicoo_lab_experiment.sample_pv_threshold.to_i
   end
 
+  def orphan_published?
+    publicly_visible? && business.blank?
+  end
+
+  def ensure_business!(source: "published_landing_page_recovery")
+    return business if business
+
+    recovered_business = recover_existing_business || create_business_from_landing_page!(source:)
+    update!(business: recovered_business)
+    recovered_business
+  end
+
   def self.template_body(experiment)
     description = public_copy(
       experiment.description.presence || "お困りごとを整理し、必要な準備をスムーズに進められるサービスです。",
@@ -315,6 +328,32 @@ class AicooLabLandingPage < ApplicationRecord
   end
 
   private
+
+  def recover_existing_business
+    candidate_business ||
+      Business.real_businesses.find_by(name: public_headline) ||
+      Business.real_businesses.find_by(name: aicoo_lab_experiment.title)
+  end
+
+  def candidate_business
+    AicooLabExperimentCandidate.find_by(converted_experiment: aicoo_lab_experiment)&.business
+  end
+
+  def create_business_from_landing_page!(source:)
+    Business.create!(
+      name: public_headline,
+      description: public_subheadline.presence || public_body.truncate(240),
+      category: aicoo_lab_experiment.market_category.presence || aicoo_lab_experiment.experiment_type,
+      status: "idea",
+      source:,
+      idea_id: aicoo_lab_experiment.id,
+      created_by_aicoo: true,
+      launched: false,
+      daily_run_enabled: true,
+      serp_enabled: true,
+      auto_revision_mode: "manual"
+    )
+  end
 
   def event_count(event_type)
     aicoo_lab_landing_page_events.where(event_type:).count

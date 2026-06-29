@@ -202,6 +202,67 @@ module Admin
         assert_not_includes response.body, published.headline
       end
 
+      test "admin public landing page list warns about published lp without business" do
+        experiment = AicooLabExperiment.create!(
+          title: "Orphan published LP",
+          experiment_type: "lp",
+          acquisition_channel: "sns",
+          status: "preview_ready",
+          approval_status: "approved"
+        )
+        landing_page = experiment.create_aicoo_lab_landing_page!(
+          landing_page_params.merge(status: "published", public_status: "published", published_slug: "orphan-business-lp", published_at: Time.current)
+        )
+
+        get admin_aicoo_lab_public_landing_pages_url
+
+        assert_response :success
+        assert_includes response.body, "published の公開LPに対応するBusinessがありません"
+        assert_includes response.body, landing_page.headline
+        assert_select "form[action='#{admin_aicoo_lab_recover_public_landing_page_business_path(landing_page)}']"
+      end
+
+      test "recover button creates business for orphan published landing page" do
+        experiment = AicooLabExperiment.create!(
+          title: "Recover LP Business",
+          experiment_type: "lp",
+          market_category: "recover category",
+          acquisition_channel: "sns",
+          status: "preview_ready",
+          approval_status: "approved"
+        )
+        landing_page = experiment.create_aicoo_lab_landing_page!(
+          landing_page_params.merge(headline: "復旧対象LP", status: "published", public_status: "published", published_slug: "recover-business-lp", published_at: Time.current)
+        )
+
+        assert_difference("Business.count", 1) do
+          post admin_aicoo_lab_recover_public_landing_page_business_url(landing_page)
+        end
+
+        business = landing_page.reload.business
+        assert_redirected_to admin_aicoo_lab_edit_public_landing_page_url(landing_page)
+        assert_includes flash[:notice].to_s, "公開LPをBusinessへ紐付けました"
+        assert_equal "復旧対象LP", business.name
+        assert_equal "published_landing_page_recovery", business.source
+        assert_equal experiment.id, business.idea_id
+        assert business.created_by_aicoo?
+        assert_not business.system_business?
+
+        get businesses_url
+        assert_response :success
+        assert_includes response.body, "復旧対象LP"
+        assert_not_includes response.body, "AICOO Analytics Import"
+
+        get business_url(business)
+        assert_response :success
+        assert_includes response.body, "recover-business-lp"
+        assert_includes response.body, "LP編集"
+
+        get admin_aicoo_lab_public_landing_pages_url
+        assert_response :success
+        assert_includes response.body, business_path(business)
+      end
+
       test "admin public landing page list links to standalone new page form" do
         get admin_aicoo_lab_public_landing_pages_url
 
@@ -251,6 +312,8 @@ module Admin
         assert_equal "published", landing_page.public_status
         assert_equal "published", landing_page.status
         assert landing_page.published_at.present?
+        assert landing_page.business.present?
+        assert_equal "public_landing_page_publish", landing_page.business.source
 
         get root_url
         assert_response :success

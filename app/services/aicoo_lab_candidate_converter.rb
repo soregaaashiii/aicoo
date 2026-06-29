@@ -24,15 +24,16 @@ class AicooLabCandidateConverter
     candidate.transaction do
       experiment = candidate.convert_to_experiment!
       experiment.mark_status!("preview_ready")
-      create_landing_page!(experiment)
+      create_landing_page!(candidate, experiment)
       create_profit_prediction!(candidate, experiment)
       experiment
     end
   end
 
-  def create_landing_page!(experiment)
+  def create_landing_page!(candidate, experiment)
     landing_page = experiment.aicoo_lab_landing_page || AicooLabLandingPage.build_from_experiment(experiment)
     landing_page.generation_source = LANDING_PAGE_SOURCE
+    landing_page.business ||= candidate.business
     landing_page.status = "preview_ready"
     landing_page.save!
   end

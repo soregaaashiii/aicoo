@@ -14,6 +14,39 @@
              active_main: :lab,
              actions: header_actions %>
 
+  <% if @orphan_published_landing_pages.any? %>
+    <section class="dashboard-section">
+      <div class="error-toast">
+        published の公開LPに対応するBusinessがありません。復旧ボタンでBusinessを作成/紐付けしてください。
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>孤立LP</th>
+              <th>公開URL</th>
+              <th>復旧</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @orphan_published_landing_pages.each do |landing_page| %>
+              <tr>
+                <td><%= landing_page.headline %></td>
+                <td><%= link_to public_lp_path(landing_page.published_slug), public_lp_path(landing_page.published_slug), target: "_blank", rel: "noopener" %></td>
+                <td>
+                  <%= button_to "Businessを作成/紐付け",
+                                admin_aicoo_lab_recover_public_landing_page_business_path(landing_page),
+                                method: :post,
+                                class: "button" %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  <% end %>
+
   <section class="dashboard-section">
     <div class="section-heading">
       <h2>フィルタ</h2>
@@ -40,6 +73,7 @@
             <th>停止日時</th>
             <th>停止者</th>
             <th>公開URL</th>
+            <th>Business</th>
             <th>管理</th>
           </tr>
         </thead>
@@ -61,13 +95,25 @@
                 <% end %>
               </td>
               <td>
+                <% if landing_page.business %>
+                  <%= link_to landing_page.business.name, business_path(landing_page.business), class: "button secondary" %>
+                <% elsif landing_page.public_status == "published" %>
+                  <%= button_to "復旧",
+                                admin_aicoo_lab_recover_public_landing_page_business_path(landing_page),
+                                method: :post,
+                                class: "button" %>
+                <% else %>
+                  -
+                <% end %>
+              </td>
+              <td>
                 <%= link_to "編集", admin_aicoo_lab_edit_public_landing_page_path(landing_page), class: "button secondary" %>
                 <%= link_to "詳細", admin_aicoo_lab_experiment_path(landing_page.aicoo_lab_experiment), class: "button secondary" %>
               </td>
             </tr>
           <% end %>
           <% if @landing_pages.empty? %>
-            <tr><td colspan="7">対象の公開LPはありません。</td></tr>
+            <tr><td colspan="8">対象の公開LPはありません。</td></tr>
           <% end %>
         </tbody>
       </table>

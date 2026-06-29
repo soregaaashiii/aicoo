@@ -19,7 +19,8 @@ class BusinessesController < ApplicationController
     @recent_data_imports = @business.data_imports.includes(:data_source).recent.limit(5)
     @recent_serp_analyses = @business.serp_analyses.order(analyzed_at: :desc).limit(10)
     @latest_daily_run = AicooDailyRun.recent.first
-    @landing_page_counts = AicooLabLandingPage.group(:public_status).count
+    @business_landing_pages = @business.aicoo_lab_landing_pages.order(updated_at: :desc)
+    @landing_page_counts = @business.aicoo_lab_landing_pages.group(:public_status).count
     @business_playbook = @business.business_playbook
     @google_credential = AicooGoogleCredential.default&.reload
     @google_api_import_run = GoogleApiImportRun.latest_for(@business)

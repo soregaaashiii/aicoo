@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_29_103000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_29_104000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -616,6 +616,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_29_103000) do
     t.bigint "aicoo_lab_experiment_id", null: false
     t.integer "assumed_price_yen"
     t.text "body"
+    t.bigint "business_id"
     t.string "canonical_url"
     t.datetime "created_at", null: false
     t.string "cta_text"
@@ -644,6 +645,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_29_103000) do
     t.datetime "updated_at", null: false
     t.index ["aicoo_lab_experiment_id"], name: "index_aicoo_lab_landing_pages_on_aicoo_lab_experiment_id"
     t.index ["aicoo_lab_experiment_id"], name: "index_lab_landing_pages_on_experiment_id", unique: true
+    t.index ["business_id"], name: "index_aicoo_lab_landing_pages_on_business_id"
     t.index ["generation_source"], name: "index_aicoo_lab_landing_pages_on_generation_source"
     t.index ["pause_reason"], name: "index_aicoo_lab_landing_pages_on_pause_reason"
     t.index ["paused_at"], name: "index_aicoo_lab_landing_pages_on_paused_at"
@@ -1526,6 +1528,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_29_103000) do
   add_foreign_key "aicoo_lab_landing_page_publication_events", "aicoo_lab_landing_pages"
   add_foreign_key "aicoo_lab_landing_page_slug_histories", "aicoo_lab_landing_pages"
   add_foreign_key "aicoo_lab_landing_pages", "aicoo_lab_experiments"
+  add_foreign_key "aicoo_lab_landing_pages", "businesses"
   add_foreign_key "aicoo_lab_predictions", "aicoo_lab_experiments"
   add_foreign_key "aicoo_lab_results", "aicoo_lab_experiments"
   add_foreign_key "aicoo_lab_signups", "aicoo_lab_landing_pages"

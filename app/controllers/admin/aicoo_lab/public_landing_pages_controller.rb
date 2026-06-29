@@ -1,14 +1,15 @@
 module Admin
   module AicooLab
     class PublicLandingPagesController < ApplicationController
-      before_action :set_landing_page, only: %i[edit update publish]
+      before_action :set_landing_page, only: %i[edit update publish recover_business]
 
       def index
         @status_filter = params[:public_status].presence
         @landing_pages = AicooLabLandingPage
-                         .includes(:aicoo_lab_experiment)
+                         .includes(:aicoo_lab_experiment, :business)
                          .where(public_status: visible_statuses)
                          .order(updated_at: :desc)
+        @orphan_published_landing_pages = orphan_published_landing_pages
       end
 
       def new
@@ -45,12 +46,25 @@ module Admin
         @landing_page.transaction do
           @landing_page.aicoo_lab_experiment.update!(status: "preview_ready", approval_status: "approved")
           @landing_page.update!(status: "preview_ready")
+          @landing_page.ensure_business!(source: "public_landing_page_publish")
           @landing_page.publish!
         end
         AicooAnalytics::SiteAutolinker.new(base_url: request.base_url).link!(@landing_page)
         redirect_to admin_aicoo_lab_edit_public_landing_page_path(@landing_page), notice: "LPを公開しました。/ と /lp と sitemap.xml に自動反映されます。"
       rescue ActiveRecord::RecordInvalid => error
         redirect_to admin_aicoo_lab_edit_public_landing_page_path(@landing_page), alert: "LPを公開できませんでした: #{error.record.errors.full_messages.to_sentence}"
+      end
+
+      def recover_business
+        business = @landing_page.ensure_business!
+        redirect_to admin_aicoo_lab_edit_public_landing_page_path(@landing_page),
+                    notice: helpers.safe_join([
+                      "公開LPをBusinessへ紐付けました。 ",
+                      helpers.link_to("Business詳細へ", business_path(business))
+                    ])
+      rescue ActiveRecord::RecordInvalid => error
+        redirect_to admin_aicoo_lab_edit_public_landing_page_path(@landing_page),
+                    alert: "Business紐付けに失敗しました: #{error.record.errors.full_messages.to_sentence}"
       end
 
       private
@@ -63,6 +77,12 @@ module Admin
         return @status_filter if @status_filter.in?(AicooLabLandingPage::PUBLIC_STATUSES)
 
         AicooLabLandingPage::PUBLIC_STATUSES
+      end
+
+      def orphan_published_landing_pages
+        return AicooLabLandingPage.none if @status_filter.present? && @status_filter != "published"
+
+        AicooLabLandingPage.publicly_available.where(business_id: nil).order(updated_at: :desc)
       end
 
       def build_landing_page_from_params

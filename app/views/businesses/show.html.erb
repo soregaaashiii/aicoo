@@ -645,6 +645,38 @@
       </div>
     <% end %>
   </div>
+  <% if @business_landing_pages.any? %>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>LP</th>
+            <th>状態</th>
+            <th>公開URL</th>
+            <th>管理</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @business_landing_pages.limit(10).each do |landing_page| %>
+            <tr>
+              <td><%= landing_page.headline %></td>
+              <td><span class="pill"><%= landing_page.public_status %></span></td>
+              <td>
+                <% if landing_page.public_status.in?(%w[published paused]) && landing_page.published_slug.present? %>
+                  <%= link_to public_lp_path(landing_page.published_slug), public_lp_path(landing_page.published_slug), target: "_blank", rel: "noopener" %>
+                <% else %>
+                  -
+                <% end %>
+              </td>
+              <td><%= link_to "LP編集", admin_aicoo_lab_edit_public_landing_page_path(landing_page), class: "button secondary" %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% else %>
+    <p class="aicoo-empty-state">このBusinessに紐づく公開LPはまだありません。</p>
+  <% end %>
   <p class="aicoo-help-text">
     LPの公開状態は draft / scheduled / published / paused / archived で管理します。公開中LPだけが / と /lp と sitemap.xml に反映されます。
   </p>

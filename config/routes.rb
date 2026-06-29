@@ -264,6 +264,7 @@ Rails.application.routes.draw do
       get "public_landing_pages/:id/edit", to: "public_landing_pages#edit", as: :edit_public_landing_page
       patch "public_landing_pages/:id", to: "public_landing_pages#update", as: :public_landing_page
       patch "public_landing_pages/:id/publish", to: "public_landing_pages#publish", as: :publish_public_landing_page
+      post "public_landing_pages/:id/recover_business", to: "public_landing_pages#recover_business", as: :recover_public_landing_page_business
       get "serp_landing_page_candidates", to: "serp_landing_page_candidates#index", as: :serp_landing_page_candidates
       post "serp_landing_page_candidates", to: "serp_landing_page_candidates#create"
       post "serp_landing_page_candidates/:id/create_landing_page", to: "serp_landing_page_candidates#create_landing_page", as: :serp_landing_page_candidate_create_landing_page
