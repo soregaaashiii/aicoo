@@ -45,6 +45,7 @@ module Admin
 
         patch approve_admin_aicoo_lab_candidate_url(candidate)
         assert_equal "approved", candidate.reload.status
+        assert candidate.business.present?
 
         patch reject_admin_aicoo_lab_candidate_url(candidate)
         assert_equal "rejected", candidate.reload.status
@@ -55,6 +56,51 @@ module Admin
         assert_equal "converted", candidate.reload.status
         assert_equal candidate.neglect_loss_90d_yen, candidate.converted_experiment.neglect_loss_90d_yen
         assert_equal candidate.neglect_loss_reason, candidate.converted_experiment.neglect_loss_reason
+      end
+
+      test "approve creates business and shows it in business list" do
+        candidate = AicooLabExperimentCandidate.create!(candidate_params.merge(title: "承認で作る新規事業"))
+
+        assert_difference("Business.count", 1) do
+          patch approve_admin_aicoo_lab_candidate_url(candidate)
+        end
+
+        business = candidate.reload.business
+        assert_redirected_to business_url(business)
+        assert_equal "事業を作成しました。", flash[:notice]
+        assert_equal "承認で作る新規事業", business.name
+        assert_equal "idea", business.status
+        assert_not business.system_business?
+
+        get businesses_url
+        assert_response :success
+        assert_includes response.body, "承認で作る新規事業"
+      end
+
+      test "approve does not duplicate business when candidate already linked" do
+        candidate = AicooLabExperimentCandidate.create!(candidate_params.merge(title: "重複防止事業"))
+
+        patch approve_admin_aicoo_lab_candidate_url(candidate)
+        business = candidate.reload.business
+
+        assert_no_difference("Business.count") do
+          patch approve_admin_aicoo_lab_candidate_url(candidate)
+        end
+
+        assert_equal business, candidate.reload.business
+        assert_redirected_to business_url(business)
+      end
+
+      test "approve reuses existing business with same name" do
+        existing_business = Business.create!(name: "既存同名事業", status: "launched")
+        candidate = AicooLabExperimentCandidate.create!(candidate_params.merge(title: "既存同名事業"))
+
+        assert_no_difference("Business.count") do
+          patch approve_admin_aicoo_lab_candidate_url(candidate)
+        end
+
+        assert_equal existing_business, candidate.reload.business
+        assert_redirected_to business_url(existing_business)
       end
 
       test "should generate candidates" do

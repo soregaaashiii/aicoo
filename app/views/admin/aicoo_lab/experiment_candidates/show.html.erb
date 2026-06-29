@@ -64,6 +64,14 @@
   <dd><%= number_with_precision(@candidate.scoring_speed_score, precision: 4) || "-" %></dd>
   <dt>新規事業優先度</dt>
   <dd><%= number_with_precision(@candidate.lab_priority_score, precision: 4) || "-" %></dd>
+  <dt>作成Business</dt>
+  <dd>
+    <% if @candidate.business %>
+      <%= link_to @candidate.business.name, business_path(@candidate.business) %>
+    <% else %>
+      未作成
+    <% end %>
+  </dd>
   <dt>特徴量</dt>
   <dd>
     price: <%= @candidate.assumed_price_yen || "-" %>,

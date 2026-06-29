@@ -44,4 +44,47 @@ class AicooLabExperimentCandidateTest < ActiveSupport::TestCase
       assert_includes experiment.notes, "Rejection condition: Rejection condition"
     end
   end
+
+  test "approve creates and links a business" do
+    candidate = AicooLabExperimentCandidate.create!(
+      title: "Model approve business",
+      experiment_type: "lp",
+      acquisition_channel: "seo",
+      expected_90d_profit_yen: 40_000,
+      success_probability: 0.3,
+      budget_yen: 1_000,
+      estimated_work_minutes: 120,
+      description: "Business description",
+      target_user: "Target user",
+      problem_statement: "Problem statement",
+      hypothesis: "Hypothesis text",
+      validation_method: "Validation method"
+    )
+
+    assert_difference("Business.count", 1) do
+      business = candidate.approve!
+      assert_equal "Model approve business", business.name
+      assert_equal "idea", business.status
+    end
+
+    assert_equal "approved", candidate.reload.status
+    assert_equal "Model approve business", candidate.business.name
+    assert_includes candidate.business.description, "Problem statement"
+  end
+
+  test "approve reuses linked business and avoids duplicate creation" do
+    business = Business.create!(name: "Linked business", status: "launched")
+    candidate = AicooLabExperimentCandidate.create!(
+      title: "Different candidate title",
+      business:,
+      experiment_type: "lp",
+      acquisition_channel: "seo"
+    )
+
+    assert_no_difference("Business.count") do
+      assert_equal business, candidate.approve!
+    end
+
+    assert_equal business, candidate.reload.business
+  end
 end

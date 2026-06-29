@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_29_101000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_29_102000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -463,6 +463,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_29_101000) do
     t.string "acquisition_channel", null: false
     t.integer "assumed_price_yen"
     t.integer "budget_yen"
+    t.bigint "business_id"
     t.bigint "converted_experiment_id"
     t.datetime "created_at", null: false
     t.integer "cta_count"
@@ -494,6 +495,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_29_101000) do
     t.datetime "updated_at", null: false
     t.text "validation_method"
     t.index ["acquisition_channel"], name: "index_aicoo_lab_experiment_candidates_on_acquisition_channel"
+    t.index ["business_id"], name: "index_aicoo_lab_experiment_candidates_on_business_id"
     t.index ["experiment_type"], name: "index_aicoo_lab_experiment_candidates_on_experiment_type"
     t.index ["generation_source"], name: "index_aicoo_lab_experiment_candidates_on_generation_source"
     t.index ["lab_priority_score"], name: "index_aicoo_lab_experiment_candidates_on_lab_priority_score"
@@ -1509,6 +1511,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_29_101000) do
   add_foreign_key "aicoo_lab_error_metrics", "aicoo_lab_predictions"
   add_foreign_key "aicoo_lab_error_metrics", "aicoo_lab_results"
   add_foreign_key "aicoo_lab_experiment_candidates", "aicoo_lab_experiments", column: "converted_experiment_id"
+  add_foreign_key "aicoo_lab_experiment_candidates", "businesses"
   add_foreign_key "aicoo_lab_landing_page_events", "aicoo_lab_landing_pages"
   add_foreign_key "aicoo_lab_landing_page_publication_events", "aicoo_lab_landing_pages"
   add_foreign_key "aicoo_lab_landing_page_slug_histories", "aicoo_lab_landing_pages"

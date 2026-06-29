@@ -45,8 +45,11 @@ module Admin
       end
 
       def approve
-        @candidate.approve!
-        redirect_to admin_aicoo_lab_candidate_path(@candidate), notice: "Experiment candidate was approved."
+        business = @candidate.approve!
+        redirect_to business_path(business), notice: "事業を作成しました。"
+      rescue ActiveRecord::RecordInvalid => e
+        redirect_to admin_aicoo_lab_candidate_path(@candidate),
+                    alert: "事業を作成できませんでした: #{e.record.errors.full_messages.to_sentence}"
       end
 
       def reject

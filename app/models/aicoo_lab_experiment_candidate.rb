@@ -73,6 +73,7 @@ class AicooLabExperimentCandidate < ApplicationRecord
   }.freeze
 
   belongs_to :converted_experiment, class_name: "AicooLabExperiment", optional: true
+  belongs_to :business, optional: true
 
   before_validation :set_defaults
   before_save :calculate_scores
@@ -95,7 +96,11 @@ class AicooLabExperimentCandidate < ApplicationRecord
   end
 
   def approve!
-    update!(status: "approved")
+    transaction do
+      created_business = ensure_business!
+      update!(status: "approved", business: created_business)
+      created_business
+    end
   end
 
   def reject!
@@ -111,6 +116,35 @@ class AicooLabExperimentCandidate < ApplicationRecord
   end
 
   private
+
+  def ensure_business!
+    return business if business
+
+    Business.real_businesses.find_by(name: business_name) ||
+      Business.create!(
+        name: business_name,
+        description: business_description,
+        status: "idea"
+      )
+  end
+
+  def business_name
+    name = title.to_s.strip.presence || "新規事業候補"
+    return "#{name} 事業" if name.in?(Business::SYSTEM_BUSINESS_NAMES)
+
+    name
+  end
+
+  def business_description
+    [
+      description,
+      labeled_text("対象ユーザー", target_user),
+      labeled_text("解決課題", problem_statement),
+      labeled_text("仮説", hypothesis),
+      labeled_text("検証方法", validation_method),
+      labeled_text("収益モデル", assumed_price_yen.present? ? "想定単価 #{assumed_price_yen}円" : nil)
+    ].compact_blank.join("\n\n")
+  end
 
   def set_defaults
     self.experiment_type = "lp" if experiment_type.blank?
