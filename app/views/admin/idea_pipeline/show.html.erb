@@ -45,12 +45,12 @@
       <div class="metric-card"><span>期待利益</span><strong><%= @item.expected_profit_yen ? number_to_currency(@item.expected_profit_yen, unit: "¥", precision: 0) : "-" %></strong></div>
       <div class="metric-card"><span>MVP判断</span><strong><%= @item.mvp_decision.presence || "-" %></strong></div>
       <div class="metric-card">
-        <span>Business</span>
+        <span>Business化</span>
         <strong>
           <% if @item.business %>
-            <%= link_to @item.business.name, business_path(@item.business) %>
+            作成済み / <%= link_to "Business詳細へ", business_path(@item.business) %>
           <% else %>
-            未紐付け
+            未作成
           <% end %>
         </strong>
       </div>
