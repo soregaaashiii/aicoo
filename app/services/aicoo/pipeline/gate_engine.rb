@@ -73,10 +73,60 @@ module Aicoo
       end
 
       def deploy_gate
-        return gate("approval", "deploy_requires_approval", "初期段階ではDeployは承認制です。") if business&.automatic_auto_revision?
+        return gate("waiting", "deploy_not_required", "Deploy待ちではありません。") unless business
+        latest_log = business.auto_revision_run_logs.recent.first
+        return gate("done", "deploy_succeeded", "Deploy成功済みです。", event: "DeploySucceeded") if latest_log&.deploy_result == "succeeded"
+        return gate("approval", "deploy_failed", "Deploy失敗の確認待ちです。", event: "DeployFailed") if latest_log&.deploy_result == "failed"
 
-        gate("waiting", "deploy_not_required", "Deploy待ちではありません。")
+        case business.auto_deploy_mode
+        when "manual"
+          gate("waiting", "manual_deploy_mode", "Deploy提案のみ作成します。", event: "DeploySkipped")
+        when "approval"
+          gate("approval", "deploy_approval_required", "Deploy承認待ちにします。", event: "DeployApprovalRequired")
+        when "automatic"
+          automatic_deploy_gate
+        else
+          gate("waiting", "deploy_not_required", "Deploy待ちではありません。")
+        end
       end
+
+      def automatic_deploy_gate
+        latest_log = business.auto_revision_run_logs.recent.first
+        precheck = Aicoo::DeployPrecheck.new(
+          business,
+          risk_level: latest_log&.risk_level,
+          tests_passed: latest_log&.test_result == "passed" || latest_log&.metadata.to_h["tests_passed"],
+          git_clean: latest_log&.metadata.to_h["git_clean"],
+          target_branch: latest_log&.metadata.to_h["target_branch"],
+          rollback_commit: latest_log&.base_commit_sha || latest_log&.metadata.to_h["rollback_commit"],
+          previous_deploy_failed: latest_log&.deploy_result == "failed"
+        ).call
+
+        if precheck.ok
+          latest_log&.update!(
+            status: "deploy_pending",
+            deploy_result: "started",
+            base_commit_sha: precheck.rollback_commit,
+            metadata: latest_log.metadata.to_h.merge(
+              "deploy_event" => "DeployStarted",
+              "deploy_precheck" => precheck.checks,
+              "deploy_precheck_warnings" => precheck.warnings
+            )
+          )
+          gate("open", "automatic_deploy_ready", "Precheck通過。低リスクのため自動Deploy候補に進めます。", event: "DeployStarted")
+        else
+          latest_log&.update!(
+            status: "deploy_pending",
+            metadata: latest_log.metadata.to_h.merge(
+              "deploy_event" => "DeployApprovalRequired",
+              "deploy_precheck" => precheck.checks,
+              "deploy_precheck_errors" => precheck.errors
+            )
+          )
+          gate("approval", "deploy_precheck_failed", "Precheck未通過のためDeploy承認待ちにします。", event: "DeployApprovalRequired")
+        end
+      end
+
 
       def learning_gate
         return gate("open", "result_ready", "結果を学習へ反映できます。") if idea_item&.learning_evaluated_at.present?
@@ -93,12 +143,13 @@ module Aicoo
         landing_page.view_count >= 1_000
       end
 
-      def gate(status, reason, message)
+      def gate(status, reason, message, event: nil)
         {
           "status" => status,
           "reason" => reason,
-          "message" => message
-        }
+          "message" => message,
+          "event" => event
+        }.compact
       end
     end
   end

@@ -161,7 +161,8 @@ class BusinessesController < ApplicationController
         :project_key,
         :local_project_path,
         :repository_name,
-        :auto_revision_mode
+        :auto_revision_mode,
+        :auto_deploy_mode
       ])
     end
 

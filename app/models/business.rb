@@ -1,6 +1,7 @@
 class Business < ApplicationRecord
   STATUSES = %w[idea researching building launched paused sold withdrawn].freeze
   AUTO_REVISION_MODES = %w[manual approval automatic].freeze
+  AUTO_DEPLOY_MODES = %w[manual approval automatic].freeze
   SYSTEM_BUSINESS_NAMES = [
     "AICOO Analytics Import"
   ].freeze
@@ -31,6 +32,7 @@ class Business < ApplicationRecord
   validates :name, presence: true
   validates :status, inclusion: { in: STATUSES }, allow_blank: true
   validates :auto_revision_mode, inclusion: { in: AUTO_REVISION_MODES }
+  validates :auto_deploy_mode, inclusion: { in: AUTO_DEPLOY_MODES }
 
   scope :real_businesses, -> { where.not(name: SYSTEM_BUSINESS_NAMES) }
   scope :system_businesses, -> { where(name: SYSTEM_BUSINESS_NAMES) }
@@ -71,6 +73,18 @@ class Business < ApplicationRecord
 
   def automatic_auto_revision?
     auto_revision_mode == "automatic"
+  end
+
+  def manual_auto_deploy?
+    auto_deploy_mode == "manual"
+  end
+
+  def approval_auto_deploy?
+    auto_deploy_mode == "approval"
+  end
+
+  def automatic_auto_deploy?
+    auto_deploy_mode == "automatic"
   end
 
   def current_month_revenue
@@ -203,6 +217,7 @@ class Business < ApplicationRecord
   def set_default_status
     self.status = "idea" if status.blank?
     self.auto_revision_mode = "manual" if auto_revision_mode.blank?
+    self.auto_deploy_mode = "manual" if auto_deploy_mode.blank?
   end
 
   def current_month_range

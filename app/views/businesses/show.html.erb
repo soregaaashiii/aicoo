@@ -133,12 +133,13 @@
   <div class="aicoo-card aicoo-card-compact" id="auto-revision">
     <div class="section-heading">
       <div>
-        <h3>自動改訂</h3>
-        <p>このBusinessだけの改訂ループ設定です。AutomaticでもDeployは最後に承認します。</p>
+        <h3>自動改訂 / 自動デプロイ</h3>
+        <p>このBusinessだけの改訂・Deployループ設定です。AutomaticでもDeploy Precheckに失敗した場合は承認待ちへ落とします。</p>
       </div>
     </div>
     <%= form_with model: @business, method: :patch, class: "aicoo-form" do |form| %>
       <%= hidden_field_tag :return_to, business_path(@business, anchor: "auto-revision") %>
+      <h4>Auto Revision Mode</h4>
       <div class="aicoo-grid aicoo-grid-3">
         <% Business::AUTO_REVISION_MODES.each do |mode| %>
           <label class="aicoo-card aicoo-card-compact">
@@ -151,8 +152,22 @@
       <% if @business.automatic_auto_revision? %>
         <div class="error-toast">現在このBusinessは自動改訂対象です。低リスクのみ自動でCodex投入準備まで進みます。</div>
       <% end %>
+
+      <h4>Auto Deploy Mode</h4>
+      <div class="aicoo-grid aicoo-grid-3">
+        <% Business::AUTO_DEPLOY_MODES.each do |mode| %>
+          <label class="aicoo-card aicoo-card-compact">
+            <%= form.radio_button :auto_deploy_mode, mode %>
+            <strong><%= auto_deploy_mode_label(mode) %></strong>
+            <small><%= auto_deploy_mode_description(mode) %></small>
+          </label>
+        <% end %>
+      </div>
+      <% if @business.automatic_auto_deploy? %>
+        <div class="error-toast">現在このBusinessは自動デプロイ対象です。Deploy前にテスト成功、Git clean、rollback commit、Google異常なしを確認します。</div>
+      <% end %>
       <div class="actions compact-actions">
-        <%= form.submit "自動改訂設定を保存", class: "button secondary" %>
+        <%= form.submit "自動設定を保存", class: "button secondary" %>
         <%= link_to "承認待ちを見る", auto_revision_tasks_path(status: "waiting_approval"), class: "button secondary" %>
       </div>
     <% end %>

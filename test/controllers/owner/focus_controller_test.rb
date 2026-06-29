@@ -141,7 +141,7 @@ module Owner
     end
 
     test "shows business auto revision summary" do
-      businesses(:suelog).update!(auto_revision_mode: "automatic")
+      businesses(:suelog).update!(auto_revision_mode: "automatic", auto_deploy_mode: "automatic")
       candidate = ActionCandidate.create!(
         business: businesses(:suelog),
         title: "承認待ち改訂候補",
@@ -167,12 +167,32 @@ module Owner
         risk_level: "low",
         message: "Google接続が未設定です"
       )
+      AutoRevisionRunLog.create!(
+        business: businesses(:suelog),
+        status: "deploy_pending",
+        auto_revision_mode: "automatic",
+        risk_level: "low",
+        base_commit_sha: "rollback-sha",
+        message: "Deploy承認待ち"
+      )
+      AutoRevisionRunLog.create!(
+        business: businesses(:suelog),
+        status: "failed",
+        auto_revision_mode: "automatic",
+        risk_level: "low",
+        deploy_result: "failed",
+        message: "Deploy失敗"
+      )
 
       get owner_focus_url
 
       assert_response :success
       assert_includes response.body, "自動改訂ON"
+      assert_includes response.body, "自動デプロイON"
       assert_includes response.body, "改訂承認待ち"
+      assert_includes response.body, "Deploy承認待ち"
+      assert_includes response.body, "Deploy失敗"
+      assert_includes response.body, "Rollback可能"
       assert_includes response.body, "改訂停止"
       assert_includes response.body, "自動改訂対象のBusinessがあります"
     end

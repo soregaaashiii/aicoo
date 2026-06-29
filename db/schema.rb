@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_29_142000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_29_151000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1046,6 +1046,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_29_142000) do
   end
 
   create_table "businesses", force: :cascade do |t|
+    t.string "auto_deploy_mode", default: "manual", null: false
     t.string "auto_revision_mode", default: "manual", null: false
     t.string "category"
     t.datetime "created_at", null: false
@@ -1064,6 +1065,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_29_142000) do
     t.string "source"
     t.string "status"
     t.datetime "updated_at", null: false
+    t.index ["auto_deploy_mode"], name: "index_businesses_on_auto_deploy_mode"
     t.index ["auto_revision_mode"], name: "index_businesses_on_auto_revision_mode"
     t.index ["created_by_aicoo"], name: "index_businesses_on_created_by_aicoo"
     t.index ["idea_id"], name: "index_businesses_on_idea_id"

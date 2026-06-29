@@ -86,6 +86,78 @@ module Aicoo
       assert run.metadata["pivot"]["decision"].present?
     end
 
+    test "manual auto deploy does not start deploy" do
+      business = businesses(:suelog)
+      business.update!(auto_revision_mode: "automatic", auto_deploy_mode: "manual")
+      create_deploy_ready_log(business)
+
+      run = PipelineEngine.new(business).call
+
+      assert_equal "waiting", run.stage_state("deploy")["status"]
+      assert_equal "manual_deploy_mode", run.stage_state("deploy")["reason"]
+      assert_equal "DeploySkipped", run.gate_snapshot.dig("deploy", "event")
+    end
+
+    test "approval auto deploy waits for deploy approval" do
+      business = businesses(:suelog)
+      business.update!(auto_revision_mode: "automatic", auto_deploy_mode: "approval")
+      create_deploy_ready_log(business)
+
+      run = PipelineEngine.new(business).call
+
+      assert_equal "approval_waiting", run.stage_state("deploy")["status"]
+      assert_equal "deploy_approval_required", run.stage_state("deploy")["reason"]
+      assert_equal "DeployApprovalRequired", run.gate_snapshot.dig("deploy", "event")
+    end
+
+    test "automatic auto deploy starts when low risk tests and precheck pass" do
+      business = businesses(:suelog)
+      business.update!(auto_revision_mode: "automatic", auto_deploy_mode: "automatic")
+      create_google_credential
+      create_execution_profile(business)
+      log = create_deploy_ready_log(business)
+
+      run = PipelineEngine.new(business).call
+
+      assert_equal "open", run.stage_state("deploy")["status"]
+      assert_equal "automatic_deploy_ready", run.stage_state("deploy")["reason"]
+      assert_equal "DeployStarted", run.gate_snapshot.dig("deploy", "event")
+      assert_equal "abc123", log.reload.base_commit_sha
+      assert_equal "DeployStarted", log.metadata["deploy_event"]
+      assert_equal "started", log.deploy_result
+    end
+
+    test "automatic auto deploy falls back to approval when precheck fails" do
+      business = businesses(:suelog)
+      business.update!(auto_revision_mode: "automatic", auto_deploy_mode: "automatic")
+      log = create_deploy_ready_log(business, tests_passed: false)
+
+      run = PipelineEngine.new(business).call
+
+      assert_equal "approval_waiting", run.stage_state("deploy")["status"]
+      assert_equal "deploy_precheck_failed", run.stage_state("deploy")["reason"]
+      assert_equal "DeployApprovalRequired", run.gate_snapshot.dig("deploy", "event")
+      assert_equal "deploy_pending", log.reload.status
+      assert log.metadata["deploy_precheck_errors"].present?
+    end
+
+    test "deploy succeeded and failed logs emit pipeline events" do
+      business = businesses(:suelog)
+      business.update!(auto_revision_mode: "automatic", auto_deploy_mode: "approval")
+      create_deploy_ready_log(business).update!(deploy_result: "succeeded", status: "succeeded")
+
+      succeeded_run = PipelineEngine.new(business).call
+      assert_equal "done", succeeded_run.stage_state("deploy")["status"]
+      assert_equal "DeploySucceeded", succeeded_run.gate_snapshot.dig("deploy", "event")
+
+      business.auto_revision_run_logs.delete_all
+      create_deploy_ready_log(business).update!(deploy_result: "failed", status: "failed")
+
+      failed_run = PipelineEngine.new(business).call
+      assert_equal "approval_waiting", failed_run.stage_state("deploy")["status"]
+      assert_equal "DeployFailed", failed_run.gate_snapshot.dig("deploy", "event")
+    end
+
     private
 
     def create_item
@@ -100,6 +172,47 @@ module Aicoo
         difficulty_score: 20,
         development_hours: 4,
         ai_implementation_score: 80
+      )
+    end
+
+    def create_google_credential
+      AicooGoogleCredential.create!(
+        name: "Pipeline Test Google",
+        client_id: "123-test.apps.googleusercontent.com",
+        client_secret: "secret",
+        google_cloud_project_id: "aicoo-test",
+        refresh_token: "refresh"
+      )
+    end
+
+    def create_execution_profile(business)
+      business.create_business_execution_profile!(
+        execution_type: "external_repo",
+        repository_name: "suelog",
+        repository_type: "rails",
+        repository_path: Rails.root.to_s,
+        github_repository: "owner/suelog",
+        test_command: "bin/rails test",
+        deploy_command: "bin/deploy",
+        default_branch: "main",
+        active: true
+      )
+    end
+
+    def create_deploy_ready_log(business, tests_passed: true)
+      AutoRevisionRunLog.create!(
+        business:,
+        status: "sent_to_codex",
+        auto_revision_mode: business.auto_revision_mode,
+        risk_level: "low",
+        test_result: tests_passed ? "passed" : "failed",
+        base_commit_sha: "abc123",
+        message: "Deploy gate test",
+        metadata: {
+          "tests_passed" => tests_passed,
+          "git_clean" => true,
+          "target_branch" => "main"
+        }
       )
     end
   end

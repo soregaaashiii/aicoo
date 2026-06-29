@@ -47,6 +47,7 @@ module Aicoo
         metadata: run.metadata.to_h.merge(
           "waiting" => waiting,
           "pivot" => pivot,
+          "pipeline_events" => pipeline_events(run, gates),
           "synced_at" => Time.current.iso8601
         )
       )
@@ -143,9 +144,24 @@ module Aicoo
 
     def deploy_state(gates:, **)
       gate = gates.fetch("deploy")
+      return done_state(gate["message"], reason: gate["reason"]) if gate["status"] == "done"
+      return open_state(gate["message"], reason: gate["reason"]) if gate["status"] == "open"
       return approval_state(gate["message"], reason: gate["reason"]) if gate["status"] == "approval"
 
       waiting_state(gate["message"], reason: gate["reason"])
+    end
+
+    def pipeline_events(run, gates)
+      events = Array(run.metadata.to_h["pipeline_events"])
+      deploy_event = gates.dig("deploy", "event")
+      return events unless deploy_event.present?
+
+      event = {
+        "type" => deploy_event,
+        "stage" => "deploy",
+        "recorded_at" => Time.current.iso8601
+      }
+      events.last == event.except("recorded_at") ? events : events.push(event).last(50)
     end
 
     def learning_state(gates:, **)

@@ -105,6 +105,9 @@
           <td>
             <span class="pill <%= business.automatic_auto_revision? ? "status-warning" : "" %>"><%= auto_revision_mode_label(business.auto_revision_mode) %></span><br>
             <small><%= auto_revision_mode_description(business.auto_revision_mode) %></small>
+            <hr>
+            <span class="pill <%= business.automatic_auto_deploy? ? "status-warning" : "" %>">Deploy: <%= auto_deploy_mode_label(business.auto_deploy_mode) %></span><br>
+            <small><%= auto_deploy_mode_description(business.auto_deploy_mode) %></small>
           </td>
           <td>
             <div class="actions compact-actions">

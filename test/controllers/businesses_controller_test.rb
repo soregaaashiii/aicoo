@@ -422,7 +422,8 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
         project_key: "suelog",
         local_project_path: "/Users/example/suelog",
         repository_name: "suelog-app",
-        auto_revision_mode: "automatic"
+        auto_revision_mode: "automatic",
+        auto_deploy_mode: "approval"
       }
     }
     assert_redirected_to return_to
@@ -431,6 +432,7 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "/Users/example/suelog", @business.local_project_path
     assert_equal "suelog-app", @business.repository_name
     assert_equal "automatic", @business.auto_revision_mode
+    assert_equal "approval", @business.auto_deploy_mode
   end
 
   test "should destroy business" do
