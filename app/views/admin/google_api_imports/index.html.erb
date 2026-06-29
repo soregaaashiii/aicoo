@@ -4,6 +4,7 @@
     <%= link_to "分析設定", admin_analytics_connections_path, class: "button secondary" %>
     <%= link_to "サイト別分析設定", admin_analytics_sites_path, class: "button secondary" %>
     <%= link_to "CSV貼り付け取込", admin_analytics_imports_path, class: "button secondary" %>
+    <%= link_to "実行履歴", admin_execution_runs_path, class: "button secondary" %>
 <% end %>
 
 <div class="aicoo-page">
@@ -50,8 +51,6 @@
           <% gsc_site_url = analytics.settings[:gsc_site_url] %>
           <% ga4_property_id = analytics.settings[:ga4_property_id] %>
           <% import_run = @google_api_import_runs_by_business_id[business.id] %>
-          <% credential_snapshot = import_run&.metadata&.dig("google_credential_at_enqueue") || import_run&.metadata&.dig("google_credential_at_success") %>
-          <% ga4_result = import_run&.metadata&.fetch("source_results", [])&.find { |row| row["source"] == "ga4" } %>
           <tr>
             <td><%= link_to business.name, business_path(business) %></td>
             <td>
@@ -64,13 +63,7 @@
             </td>
             <td><%= analytics.last_sync_at ? l(analytics.last_sync_at, format: :short) : "-" %></td>
             <td>
-              <% if credential_snapshot.present? %>
-                #<%= credential_snapshot["record_id"] || "-" %><br>
-                <small><%= credential_snapshot["client_id"].presence || "client_id未記録" %></small><br>
-                <small><%= credential_snapshot["google_cloud_project_id"].presence || "project_id未記録" %></small>
-              <% else %>
-                <span class="pill"><%= @google_credential.present? ? "現在使用中 ##{@google_credential.id}" : "未設定" %></span>
-              <% end %>
+              <span class="pill"><%= @google_credential.present? ? "現在使用中 ##{@google_credential.id}" : "未設定" %></span>
             </td>
             <td>
               <span class="pill"><%= import_run ? import_run.status_label : "未実行" %></span><br>
@@ -80,18 +73,7 @@
                 / 更新 <%= import_run&.updated_metric_count.to_i %>件
               </small>
               <% if import_run&.failed? %>
-                <br><small class="text-danger"><%= import_run.error_message %></small>
-              <% end %>
-              <% if ga4_result.present? %>
-                <br><small>
-                  GA4 API <%= ga4_result["api_row_count"] || ga4_result["row_count"] || 0 %>行 /
-                  保存 <%= ga4_result["saved_day_count"] || ga4_result["row_count"] || 0 %>日 /
-                  sessions <%= ga4_result.dig("totals", "sessions").to_i %> /
-                  pageviews <%= ga4_result.dig("totals", "pageviews").to_i %>
-                </small>
-                <% if ga4_result["property_id_warning"].present? %>
-                  <br><small class="text-danger"><%= ga4_result["property_id_warning"] %></small>
-                <% end %>
+                <br><small class="text-danger">失敗。原因全文は実行履歴で確認してください。</small>
               <% end %>
             </td>
             <td>

@@ -4,6 +4,7 @@
     <%= link_to "分析設定", admin_analytics_connections_path, class: "button" %>
     <%= link_to "Google API直取得", admin_google_api_imports_path, class: "button secondary" %>
     <%= link_to "GA4/GSC CSV貼り付け取込", admin_analytics_imports_path, class: "button secondary" %>
+    <%= link_to "実行履歴", admin_execution_runs_path, class: "button secondary" %>
     <%= button_to "全有効設定を取得", fetch_all_admin_analytics_sources_path, method: :post, class: "button" %>
 <% end %>
 
@@ -89,7 +90,7 @@
           <th>DataImport</th>
           <th>Snapshot</th>
           <th>放置損失推定</th>
-          <th>エラー</th>
+          <th>履歴</th>
           <th>操作</th>
         </tr>
       </thead>
@@ -115,7 +116,13 @@
             <td class="number"><%= latest_run&.data_import_id || "-" %></td>
             <td class="number"><%= latest_run&.snapshot_count || 0 %></td>
             <td class="number"><%= latest_run&.updated_neglect_loss_count || 0 %></td>
-            <td class="wide-text"><%= truncate(latest_run&.error_message, length: 80) || "-" %></td>
+            <td>
+              <% if latest_run&.error_message.present? %>
+                失敗あり。<%= link_to "実行履歴", admin_execution_runs_path %>
+              <% else %>
+                <%= link_to "実行履歴", admin_execution_runs_path %>
+              <% end %>
+            </td>
             <td>
               <div class="actions compact-actions">
                 <%= button_to "手動取得", fetch_now_admin_analytics_source_path(setting), method: :post, class: "button" %>
@@ -131,46 +138,6 @@
                 <%= button_to "削除", admin_analytics_source_path(setting), method: :delete, class: "danger" %>
               </div>
             </td>
-          </tr>
-        <% end %>
-      </tbody>
-    </table>
-  </div>
-</section>
-
-<section class="dashboard-section">
-  <div class="section-heading">
-    <h2>取得履歴</h2>
-    <p>手動取得とDailyFetchJobの実行履歴です。</p>
-  </div>
-
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th>設定</th>
-          <th>種別</th>
-          <th>状態</th>
-          <th>開始</th>
-          <th>終了</th>
-          <th>DataImport</th>
-          <th>Snapshot</th>
-          <th>放置損失推定</th>
-          <th>エラー</th>
-        </tr>
-      </thead>
-      <tbody>
-        <% @fetch_runs.each do |run| %>
-          <tr>
-            <td><%= run.analytics_source_setting.name %></td>
-            <td><span class="pill"><%= run.source_type.upcase %></span></td>
-            <td><span class="pill"><%= run.status %></span></td>
-            <td><%= run.started_at ? l(run.started_at, format: :short) : "-" %></td>
-            <td><%= run.finished_at ? l(run.finished_at, format: :short) : "-" %></td>
-            <td class="number"><%= run.data_import_id || "-" %></td>
-            <td class="number"><%= run.snapshot_count %></td>
-            <td class="number"><%= run.updated_neglect_loss_count %></td>
-            <td class="wide-text"><%= truncate(run.error_message, length: 120) || "-" %></td>
           </tr>
         <% end %>
       </tbody>

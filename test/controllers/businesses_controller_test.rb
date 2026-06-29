@@ -180,7 +180,7 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "GSC取得"
     assert_includes response.body, "GA4取得"
     assert_includes response.body, "接続済み"
-    assert_includes response.body, "取得履歴とAPI診断"
+    assert_includes response.body, "実行履歴"
     refute_includes response.body, "GSC未接続"
     refute_includes response.body, "GA4未接続"
   end
@@ -219,8 +219,8 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "実行中の処理があります"
     assert_includes response.body, "Google API取得中"
     assert_includes response.body, "data-aicoo-auto-refresh=\"5000\""
-    assert_includes response.body, "取得履歴とAPI診断"
-    assert_includes response.body, "Refresh Tokenがありません"
+    assert_includes response.body, "実行履歴"
+    assert_not_includes response.body, "Refresh Tokenがありません"
     assert_not_includes response.body, "直近実行履歴"
   end
 

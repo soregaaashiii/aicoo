@@ -1,5 +1,5 @@
 <% monitor = local_assigns[:monitor] %>
-<% if monitor&.visible? %>
+<% if monitor&.running? %>
   <section
     id="aicoo-operation-status-panel"
     class="operation-status-panel"
@@ -10,7 +10,7 @@
         <span class="aicoo-spinner" aria-hidden="true"></span>
         <div>
           <strong>実行中の処理があります</strong>
-          <p>画面を閉じても処理は継続します。完了後、このカードに結果が表示されます。</p>
+          <p>画面を閉じても処理は継続します。完了後の詳細は実行履歴で確認できます。</p>
         </div>
       </div>
 
@@ -37,32 +37,9 @@
       </div>
     <% end %>
 
-    <% if monitor.recent_operations.any? %>
-      <details class="operation-history" <%= "open" if monitor.running_operations.empty? && monitor.recent_operations.any?(&:failed?) %>>
-        <summary>直近の実行結果 <%= link_to "すべて見る", admin_execution_runs_path, class: "button secondary" %></summary>
-        <div class="table-wrap operation-table-wrap">
-          <table class="operation-table">
-            <thead>
-              <tr>
-                <th>状態</th>
-                <th>処理名</th>
-                <th>対象</th>
-                <th>開始時刻</th>
-                <th>実行時間</th>
-                <th>進捗</th>
-                <th>簡易メッセージ</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              <% monitor.recent_operations.each do |operation| %>
-                <%= render "shared/operation_status", operation:, mode: :compact %>
-              <% end %>
-            </tbody>
-          </table>
-        </div>
-      </details>
-    <% end %>
+    <div class="actions compact-actions">
+      <%= link_to "実行履歴を見る", admin_execution_runs_path, class: "button secondary" %>
+    </div>
   </section>
 <% else %>
   <section id="aicoo-operation-status-panel" class="operation-status-panel is-empty" data-aicoo-operation-panel="true"></section>

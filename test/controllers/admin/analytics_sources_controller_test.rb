@@ -25,7 +25,7 @@ module Admin
       assert_includes response.body, "bin/rails aicoo:analytics:daily_fetch"
       assert_includes response.body, "定期取得準備チェック"
       assert_includes response.body, "チェックを再実行"
-      assert_includes response.body, "取得履歴"
+      assert_includes response.body, "実行履歴"
       assert_includes response.body, "Suelog GSC"
     end
 

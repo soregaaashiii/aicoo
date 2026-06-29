@@ -167,7 +167,9 @@
       <% end %>
 
       <% if @serp_scan_status.latest_analysis&.failed? %>
-        <div class="error-toast">直近のSERP走査に失敗しました: <%= @serp_scan_status.latest_analysis.error_message.presence || "原因不明" %></div>
+        <div class="error-toast">
+          直近のSERP走査に失敗しました。原因全文は<%= link_to "実行履歴", admin_execution_runs_path %>で確認してください。
+        </div>
       <% end %>
       <div class="actions compact-actions">
         <%= button_to "SERP走査を開始",

@@ -659,7 +659,7 @@
     <div class="actions compact-actions">
       <%= link_to "Daily Run一覧", aicoo_daily_runs_path, class: "button secondary" %>
       <% if @latest_daily_run %>
-        <%= link_to "最新Run詳細", aicoo_daily_run_path(@latest_daily_run), class: "button secondary" %>
+        <%= link_to "実行履歴", admin_execution_runs_path, class: "button secondary" %>
       <% end %>
     </div>
   </div>
@@ -707,19 +707,12 @@
 
   <% if google_api_run&.failed? %>
     <div class="alert-banner alert-banner-danger">
-      Google API取得に失敗しました: <%= google_api_run.error_message.presence || "原因不明のエラー" %>
+      Google API取得に失敗しました。原因全文は実行履歴で確認してください。
+      <%= link_to "実行履歴を見る", admin_execution_runs_path, class: "button secondary" %>
     </div>
   <% elsif google_api_run&.running? %>
     <div class="alert-banner alert-banner-info">
       Google API取得を実行中です。完了後にBusinessMetricDailyの更新件数が表示されます。
-    </div>
-  <% end %>
-
-  <% ga4_result = google_api_run&.metadata&.fetch("source_results", [])&.find { |row| row["source"] == "ga4" } %>
-  <% if ga4_result&.dig("property_id_warning").present? %>
-    <div class="alert-banner alert-banner-info">
-      <strong><%= ga4_result["property_id_warning"] %></strong>
-      <br><%= link_to "SYSTEMのGoogle取得履歴で診断を見る", admin_google_api_imports_path, class: "button secondary" %>
     </div>
   <% end %>
 
@@ -754,7 +747,7 @@
                   form: { data: { aicoo_submit_lock: true, aicoo_loading_label: "GA4取得中..." } },
                   disabled: analytics.settings[:ga4_property_id].blank? %>
     <%= link_to "Google紐付けを編集", edit_business_path(@business, return_to: business_path(@business, anchor: "business-google"), anchor: "data-source-link-settings"), class: "button secondary" %>
-    <%= link_to "取得履歴とAPI診断", admin_google_api_imports_path, class: "button secondary" %>
+    <%= link_to "実行履歴", admin_execution_runs_path, class: "button secondary" %>
   </div>
 </section>
 

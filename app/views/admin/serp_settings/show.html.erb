@@ -120,7 +120,7 @@
 
   <% if @error_message.present? %>
     <section class="dashboard-section">
-      <div class="error-toast"><%= @error_message %></div>
+      <div class="error-toast">SERPテスト検索に失敗しました。原因全文は実行履歴で確認してください。</div>
     </section>
   <% end %>
 
@@ -161,11 +161,6 @@
           </tbody>
         </table>
       </div>
-
-      <details>
-        <summary>共通JSONを見る</summary>
-        <pre><%= JSON.pretty_generate(payload.except("raw_response")) %></pre>
-      </details>
     </section>
   <% end %>
 </div>

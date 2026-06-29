@@ -38,7 +38,7 @@ end %>
     </div>
   </dl>
   <% if operation.failed? && operation.error_message.present? %>
-    <div class="error-toast">原因: <%= operation.error_message %></div>
+    <div class="error-toast">失敗しました。原因全文は実行履歴の詳細画面で確認してください。</div>
   <% elsif operation.succeeded? %>
     <div class="success-toast"><%= operation.kind %>が完了しました。</div>
   <% end %>
