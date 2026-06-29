@@ -57,7 +57,11 @@
     <div class="actions">
       <%= button_to "期待値評価", score_admin_idea_pipeline_path(@item), method: :post, class: "button secondary" %>
       <%= button_to "SERP判定", run_serp_admin_idea_pipeline_path(@item), method: :post, class: "button secondary" %>
-      <%= button_to "LP生成", generate_lp_admin_idea_pipeline_path(@item), method: :post, class: "button secondary" %>
+      <% if @item.serp_passed? %>
+        <%= button_to "SERP後に生成", generate_lp_admin_idea_pipeline_path(@item), method: :post, class: "button secondary" %>
+      <% else %>
+        <%= button_to "SERPなしでLP生成", generate_lp_admin_idea_pipeline_path(@item), method: :post, class: "button secondary" unless @item.lp_generation_blocked? %>
+      <% end %>
       <%= button_to "公開", publish_lp_admin_idea_pipeline_path(@item), method: :post, class: "button secondary" %>
       <%= button_to "反応評価", evaluate_learning_admin_idea_pipeline_path(@item), method: :post, class: "button secondary" %>
       <%= button_to "MVP仕様書", build_mvp_spec_admin_idea_pipeline_path(@item), method: :post, class: "button" %>
@@ -86,7 +90,7 @@
       <p>Organic / Related / PAAから競合強度・市場性・差別化を評価します。</p>
     </div>
     <div class="metric-grid">
-      <div class="metric-card"><span>状態</span><strong><%= @item.serp_snapshot.to_h["status"].presence || "-" %></strong></div>
+      <div class="metric-card"><span>SERP状態</span><strong><%= @item.serp_status_label %></strong></div>
       <div class="metric-card"><span>合格</span><strong><%= @item.serp_passed? ? "はい" : "いいえ" %></strong></div>
       <div class="metric-card"><span>Organic</span><strong><%= @item.serp_snapshot.to_h["organic_count"] || 0 %>件</strong></div>
       <div class="metric-card"><span>競合強度</span><strong><%= @item.serp_snapshot.to_h["competition_strength"] || "-" %></strong></div>
@@ -95,6 +99,15 @@
     </div>
     <% if @item.serp_snapshot.to_h["reason"].present? %>
       <div class="error-toast"><%= @item.serp_snapshot.to_h["reason"] %></div>
+    <% end %>
+    <% if @item.serp_warning_for_lp_generation.present? && @item.lp_generation_allowed? %>
+      <div class="notice-toast">
+        <%= @item.serp_warning_for_lp_generation %>
+        <div class="actions compact-actions">
+          <%= link_to "SERP設定へ", admin_serp_settings_path, class: "button secondary" %>
+          <%= button_to "SERPなしでLP生成", generate_lp_admin_idea_pipeline_path(@item), method: :post, class: "button" unless @item.aicoo_lab_landing_page %>
+        </div>
+      </div>
     <% end %>
   </section>
 

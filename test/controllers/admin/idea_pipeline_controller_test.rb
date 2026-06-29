@@ -22,6 +22,7 @@ module Admin
 
     test "show displays pipeline detail and mvp spec area" do
       item = create_item
+      item.update!(status: "scored", final_score: 80)
 
       get admin_idea_pipeline_url(item)
 
@@ -29,6 +30,9 @@ module Admin
       assert_includes response.body, item.title
       assert_includes response.body, "Stage操作"
       assert_includes response.body, "SERP結果評価"
+      assert_includes response.body, "SERP状態"
+      assert_includes response.body, "未実行"
+      assert_includes response.body, "SERPなしでLP生成"
       assert_includes response.body, "MVP仕様書"
     end
 
@@ -39,6 +43,31 @@ module Admin
 
       assert_redirected_to admin_idea_pipeline_url(item)
       assert_equal "scored", item.reload.status
+    end
+
+    test "generate lp works without serp when scored" do
+      item = create_item
+      item.update!(status: "scored", final_score: 80)
+
+      assert_difference("AicooLabLandingPage.count", 1) do
+        post generate_lp_admin_idea_pipeline_url(item)
+      end
+
+      assert_redirected_to admin_idea_pipeline_url(item)
+      assert_equal "lp_generated", item.reload.status
+      assert_equal false, item.metadata.dig("lp_generation", "serp_used")
+    end
+
+    test "generate lp rejects unsafe item" do
+      item = create_item
+      item.update!(status: "unsafe", final_score: 90)
+
+      assert_no_difference("AicooLabLandingPage.count") do
+        post generate_lp_admin_idea_pipeline_url(item)
+      end
+
+      assert_redirected_to admin_idea_pipeline_url(item)
+      assert_equal "unsafe", item.reload.status
     end
 
     private

@@ -1,6 +1,8 @@
 class IdeaPipelineItem < ApplicationRecord
   STATUSES = %w[
-    idea scored serp_pending serp_evaluated serp_blocked lp_generated published
+    idea scored approved manually_approved owner_approved serp_pending serp_running
+    serp_evaluated serp_blocked serp_skipped serp_not_configured rejected archived duplicate unsafe
+    lp_generated published
     learning_evaluated mvp_spec_ready continuing improving ended
   ].freeze
   STAGES = %w[idea score serp lp publish learning mvp].freeze
@@ -26,6 +28,9 @@ class IdeaPipelineItem < ApplicationRecord
   scope :by_priority, -> { order(Arel.sql("final_score DESC NULLS LAST, created_at DESC")) }
   scope :ready_for_serp, -> { where(status: "scored").where("final_score >= ?", 60).by_priority }
 
+  BLOCKED_LP_GENERATION_STATUSES = %w[rejected archived duplicate unsafe].freeze
+  LP_GENERATION_APPROVAL_STATUSES = %w[approved manually_approved owner_approved serp_skipped].freeze
+
   def stage_done?(stage)
     case stage.to_s
     when "idea"
@@ -49,6 +54,58 @@ class IdeaPipelineItem < ApplicationRecord
 
   def serp_passed?
     serp_snapshot.to_h["passed"] == true
+  end
+
+  def serp_status
+    snapshot_status = serp_snapshot.to_h["status"].presence
+    return "serp_passed" if serp_passed?
+    return "serp_skipped" if status == "serp_skipped" || snapshot_status == "skipped"
+    return "serp_running" if status == "serp_running"
+    return "serp_failed" if snapshot_status == "failed"
+    return "serp_not_configured" if snapshot_status == "blocked"
+    return "serp_pending" if serp_evaluated_at.blank?
+
+    "serp_failed"
+  end
+
+  def serp_status_label
+    {
+      "serp_pending" => "未実行",
+      "serp_running" => "実行中",
+      "serp_passed" => "合格",
+      "serp_failed" => "不合格",
+      "serp_skipped" => "スキップ",
+      "serp_not_configured" => "未設定"
+    }.fetch(serp_status)
+  end
+
+  def lp_generation_blocked?
+    BLOCKED_LP_GENERATION_STATUSES.include?(status) || aicoo_lab_landing_page_id.present?
+  end
+
+  def lp_generation_block_reason
+    return "already_converted" if aicoo_lab_landing_page_id.present?
+
+    status if BLOCKED_LP_GENERATION_STATUSES.include?(status)
+  end
+
+  def lp_generation_allowed?
+    return false if lp_generation_blocked?
+    return true if serp_passed?
+    return true if LP_GENERATION_APPROVAL_STATUSES.include?(status)
+    return true if score_passed?
+
+    false
+  end
+
+  def score_passed?
+    status == "scored" && final_score.to_d >= 60
+  end
+
+  def serp_warning_for_lp_generation
+    return if serp_passed?
+
+    "SERP検証は未実行です。精度は下がりますが、LP生成は可能です。"
   end
 
   def lp_url

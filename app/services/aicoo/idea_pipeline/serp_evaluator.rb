@@ -12,6 +12,7 @@ module Aicoo
       def call
         return mark_skipped!("final_scoreが低いためSERPを実行しません。") if item.final_score.to_d < MIN_SCORE_FOR_SERP
 
+        mark_running!
         result = Aicoo::Serp::Adapter.call(
           provider: provider.to_sym,
           type: :google_search,
@@ -30,6 +31,10 @@ module Aicoo
       private
 
       attr_reader :item, :provider, :limit
+
+      def mark_running!
+        item.update!(status: "serp_running", current_stage: "serp")
+      end
 
       def search_query
         item.metadata.to_h.dig("serp", "query").presence ||
@@ -72,7 +77,7 @@ module Aicoo
 
       def mark_skipped!(message)
         item.update!(
-          status: "serp_blocked",
+          status: "serp_skipped",
           current_stage: "serp",
           serp_evaluated_at: Time.current,
           serp_snapshot: {
@@ -88,7 +93,7 @@ module Aicoo
 
       def mark_blocked!(message)
         item.update!(
-          status: "serp_blocked",
+          status: "serp_not_configured",
           current_stage: "serp",
           serp_snapshot: {
             "status" => "blocked",

@@ -6,7 +6,7 @@ module Aicoo
       end
 
       def call
-        raise ArgumentError, "SERP合格前のためLP生成できません。" unless item.serp_passed?
+        raise ArgumentError, "LP生成できません: #{item.lp_generation_block_reason}" unless item.lp_generation_allowed?
         return item.aicoo_lab_landing_page if item.aicoo_lab_landing_page
 
         item.transaction do
@@ -22,7 +22,10 @@ module Aicoo
               "lp_generated_at" => Time.current.iso8601,
               "lp_generation" => {
                 "source" => "idea_pipeline",
-                "serp_passed" => item.serp_passed?
+                "serp_used" => item.serp_passed?,
+                "serp_passed" => item.serp_passed?,
+                "serp_status_at_generation" => item.serp_status,
+                "reason" => item.serp_passed? ? "serp_passed" : "owner_skipped_serp"
               }
             )
           )

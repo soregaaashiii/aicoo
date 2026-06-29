@@ -47,9 +47,62 @@ module Aicoo
 
       IdeaPipeline::SerpEvaluator.new(item).call
 
-      assert_equal "serp_blocked", item.reload.status
+      assert_equal "serp_skipped", item.reload.status
       assert_equal "skipped", item.serp_snapshot["status"]
       assert item.serp_snapshot["cost_optimization"]
+    end
+
+    test "landing page can be generated without serp when score passed" do
+      item = create_item
+      IdeaPipeline::IdeaScorer.new(item).call
+      item.update!(final_score: 82, status: "scored", serp_snapshot: {})
+
+      landing_page = IdeaPipeline::LandingPageBuilder.new(item).call
+
+      assert_equal "draft", landing_page.public_status
+      assert_equal landing_page, item.reload.aicoo_lab_landing_page
+      assert_equal false, item.metadata.dig("lp_generation", "serp_used")
+      assert_equal "serp_pending", item.metadata.dig("lp_generation", "serp_status_at_generation")
+      assert_equal "owner_skipped_serp", item.metadata.dig("lp_generation", "reason")
+    end
+
+    test "landing page generated without serp can be published" do
+      item = create_item
+      item.update!(status: "owner_approved", final_score: 50, serp_snapshot: {})
+
+      landing_page = IdeaPipeline::LandingPageBuilder.new(item).call
+      IdeaPipeline::Publisher.new(item).call
+
+      assert_equal "published", landing_page.reload.public_status
+      assert_equal "published", item.reload.status
+    end
+
+    test "landing page can be generated when owner approved without serp" do
+      item = create_item
+      item.update!(status: "owner_approved", final_score: 40, serp_snapshot: {})
+
+      assert_difference("AicooLabLandingPage.count", 1) do
+        IdeaPipeline::LandingPageBuilder.new(item).call
+      end
+    end
+
+    test "landing page can be generated when serp skipped" do
+      item = create_item
+      item.update!(status: "serp_skipped", final_score: 30, serp_snapshot: { "status" => "skipped" })
+
+      assert_difference("AicooLabLandingPage.count", 1) do
+        IdeaPipeline::LandingPageBuilder.new(item).call
+      end
+    end
+
+    test "blocked idea statuses cannot generate landing page" do
+      %w[rejected archived duplicate unsafe].each do |status|
+        item = create_item
+        item.update!(status:, final_score: 90)
+
+        error = assert_raises(ArgumentError) { IdeaPipeline::LandingPageBuilder.new(item).call }
+        assert_includes error.message, status
+      end
     end
 
     test "landing page publication learning and mvp spec flow" do
