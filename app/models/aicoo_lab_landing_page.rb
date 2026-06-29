@@ -278,6 +278,7 @@ class AicooLabLandingPage < ApplicationRecord
 
     recovered_business = recover_existing_business || create_business_from_landing_page!(source:)
     update!(business: recovered_business)
+    candidate&.update!(business: recovered_business)
     recovered_business
   end
 
@@ -336,7 +337,11 @@ class AicooLabLandingPage < ApplicationRecord
   end
 
   def candidate_business
-    AicooLabExperimentCandidate.find_by(converted_experiment: aicoo_lab_experiment)&.business
+    candidate&.business
+  end
+
+  def candidate
+    @candidate ||= AicooLabExperimentCandidate.find_by(converted_experiment: aicoo_lab_experiment)
   end
 
   def create_business_from_landing_page!(source:)

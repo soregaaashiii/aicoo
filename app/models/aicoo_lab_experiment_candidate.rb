@@ -109,13 +109,12 @@ class AicooLabExperimentCandidate < ApplicationRecord
 
   def convert_to_experiment!
     transaction do
+      created_business = ensure_business!
       experiment = AicooLabExperiment.create!(experiment_attributes)
-      update!(status: "converted", converted_experiment: experiment)
+      update!(status: "converted", converted_experiment: experiment, business: created_business)
       experiment
     end
   end
-
-  private
 
   def ensure_business!
     return business if business
@@ -137,6 +136,8 @@ class AicooLabExperimentCandidate < ApplicationRecord
       auto_revision_mode: "manual"
     )
   end
+
+  private
 
   def business_name
     name = title.to_s.strip.presence || "新規事業候補"

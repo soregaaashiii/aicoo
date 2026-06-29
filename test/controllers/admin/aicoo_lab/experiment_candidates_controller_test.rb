@@ -184,7 +184,6 @@ module Admin
 
       test "should convert candidate with landing page and prediction" do
         candidate = AicooLabExperimentCandidate.create!(candidate_params)
-        candidate.approve!
 
         assert_difference("AicooLabExperiment.count") do
           assert_difference("AicooLabLandingPage.count") do
@@ -197,6 +196,8 @@ module Admin
         experiment = candidate.reload.converted_experiment
         assert_redirected_to admin_aicoo_lab_experiment_url(experiment)
         assert_equal "converted", candidate.status
+        assert candidate.business.present?
+        assert Business.real_businesses.where(id: candidate.business_id).exists?
         assert_equal "preview_ready", experiment.status
         assert_equal "preview_ready", experiment.aicoo_lab_landing_page.status
         assert_equal candidate.business, experiment.aicoo_lab_landing_page.business

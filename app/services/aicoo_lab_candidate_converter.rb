@@ -33,7 +33,7 @@ class AicooLabCandidateConverter
   def create_landing_page!(candidate, experiment)
     landing_page = experiment.aicoo_lab_landing_page || AicooLabLandingPage.build_from_experiment(experiment)
     landing_page.generation_source = LANDING_PAGE_SOURCE
-    landing_page.business ||= candidate.business
+    landing_page.business ||= candidate.business || candidate.ensure_business!
     landing_page.status = "preview_ready"
     landing_page.save!
   end
