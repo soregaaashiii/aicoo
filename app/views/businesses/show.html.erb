@@ -2,10 +2,12 @@
 
 <% header_actions = capture do %>
     <%= link_to "Edit", edit_business_path(@business), class: "button secondary" %>
-    <% if @business.business_execution_profile %>
-      <%= link_to "Execution Profile編集", edit_admin_business_execution_profile_path(@business.business_execution_profile), class: "button secondary" %>
-    <% else %>
-      <%= link_to "Execution Profile作成", new_admin_business_execution_profile_path(business_id: @business.id), class: "button secondary" %>
+    <% unless @business.aicoo_internal_codex? %>
+      <% if @business.business_execution_profile %>
+        <%= link_to "Execution Profile編集", edit_admin_business_execution_profile_path(@business.business_execution_profile), class: "button secondary" %>
+      <% else %>
+        <%= link_to "Execution Profile作成", new_admin_business_execution_profile_path(business_id: @business.id), class: "button secondary" %>
+      <% end %>
     <% end %>
     <%= link_to "収益記録を追加", new_revenue_event_path(revenue_event: { business_id: @business.id }), class: "button secondary" %>
     <%= link_to "代理指標を追加", new_business_metric_daily_path(business_metric_daily: { business_id: @business.id }), class: "button secondary" %>
@@ -461,15 +463,19 @@
 <section class="dashboard-section" id="business-settings">
   <div class="section-heading">
     <h2>Codex対象プロジェクト</h2>
-    <p>ActionCandidateからCodex Prompt Draftを作る時に使うプロジェクト情報です。</p>
+    <p>ActionCandidateからCodex Prompt Draftを作る時に使う実行先です。</p>
   </div>
   <div class="metric-grid">
-    <div class="metric-card"><span>project_key</span><strong><%= @business.codex_project_key.presence || "未設定" %></strong></div>
-    <div class="metric-card"><span>repository_name</span><strong><%= @business.codex_repository_name.presence || "未設定" %></strong></div>
-    <div class="metric-card"><span>local_project_path</span><strong><%= @business.codex_local_project_path.presence || "未設定" %></strong></div>
+    <div class="metric-card"><span>Codex状態</span><strong><%= @business.codex_execution_label %></strong></div>
+    <div class="metric-card"><span>Execution Type</span><strong><%= @business.codex_execution_type %></strong></div>
+    <div class="metric-card"><span>Repository</span><strong><%= @business.codex_repository_name.presence || "未設定" %></strong></div>
+    <% unless @business.aicoo_internal_codex? %>
+      <div class="metric-card"><span>local_project_path</span><strong><%= @business.codex_local_project_path.presence || "未設定" %></strong></div>
+    <% end %>
   </div>
 </section>
 
+<% unless @business.aicoo_internal_codex? %>
 <section class="dashboard-section">
   <div class="section-heading">
     <h2>Execution Profile</h2>
@@ -512,6 +518,7 @@
     </div>
   <% end %>
 </section>
+<% end %>
 
 <section class="dashboard-section">
   <div class="section-heading">

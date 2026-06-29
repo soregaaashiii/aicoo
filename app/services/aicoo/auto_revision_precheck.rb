@@ -28,6 +28,8 @@ module Aicoo
     end
 
     def execution_profile_configured?
+      return true if business.aicoo_internal_codex?
+
       profile = business.business_execution_profile
       profile&.active? && profile.coverage_status == "configured"
     end

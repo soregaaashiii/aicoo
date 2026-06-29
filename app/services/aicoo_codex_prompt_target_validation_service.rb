@@ -23,7 +23,7 @@ class AicooCodexPromptTargetValidationService
   def call
     validate_target_business
     validate_target_repository_fields
-    validate_profile
+    validate_profile unless internal_business?
     validate_prompt_contents if profile&.active?
 
     Result.new(
@@ -62,6 +62,10 @@ class AicooCodexPromptTargetValidationService
     add_error("BusinessExecutionProfileが無効です。", "active") unless profile.active?
     validate_profile_completeness
     validate_target_matches_profile
+  end
+
+  def internal_business?
+    (task.target_business || task.business)&.aicoo_internal_codex?
   end
 
   def validate_profile_completeness

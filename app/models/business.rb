@@ -42,6 +42,20 @@ class Business < ApplicationRecord
     name.in?(SYSTEM_BUSINESS_NAMES)
   end
 
+  def aicoo_internal_codex?
+    created_by_aicoo?
+  end
+
+  def codex_execution_type
+    return "aicoo_internal" if aicoo_internal_codex?
+
+    business_execution_profile&.execution_type.presence || "external_repo"
+  end
+
+  def codex_execution_label
+    aicoo_internal_codex? ? "AICOO内部プロジェクト（接続済み）" : "外部Repository"
+  end
+
   def setup_incomplete?
     created_by_aicoo? && !launched?
   end
@@ -127,14 +141,20 @@ class Business < ApplicationRecord
   end
 
   def codex_project_key
+    return "aicoo_internal" if aicoo_internal_codex?
+
     project_key.presence || business_execution_profile&.repository_name
   end
 
   def codex_local_project_path
+    return Rails.root.to_s if aicoo_internal_codex?
+
     local_project_path.presence || business_execution_profile&.repository_path
   end
 
   def codex_repository_name
+    return ENV.fetch("GITHUB_REPOSITORY", "soregaaashiii/aicoo") if aicoo_internal_codex?
+
     repository_name.presence || business_execution_profile&.repository_name
   end
 
@@ -146,6 +166,19 @@ class Business < ApplicationRecord
 
   def codex_execution_target_config
     profile = business_execution_profile
+    if aicoo_internal_codex?
+      return {
+        execution_type: "aicoo_internal",
+        github_repo: ENV.fetch("GITHUB_REPOSITORY", "soregaaashiii/aicoo"),
+        local_project_path: Rails.root.to_s,
+        target_slug: source_target_slug,
+        target_paths: aicoo_internal_target_paths,
+        test_command: codex_verification_commands.first,
+        deploy_command: nil,
+        default_branch: "main",
+        auto_deploy_enabled: false
+      }
+    end
 
     {
       execution_type: profile&.execution_type.presence || "aicoo_internal",
@@ -197,6 +230,21 @@ class Business < ApplicationRecord
       profile.test_command,
       profile.lint_command
     ].compact_blank.presence
+  end
+
+  def source_target_slug
+    aicoo_lab_landing_pages.order(updated_at: :desc).first&.published_slug
+  end
+
+  def aicoo_internal_target_paths
+    [
+      "app/models/business.rb",
+      "app/models/aicoo_lab_landing_page.rb",
+      "app/controllers/admin/aicoo_lab",
+      "app/views/admin/aicoo_lab",
+      "app/views/public_landing_pages",
+      "app/views/businesses"
+    ]
   end
 
   def metric_total(metric, range = nil)

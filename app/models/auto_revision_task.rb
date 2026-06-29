@@ -360,8 +360,12 @@ class AutoRevisionTask < ApplicationRecord
 
   def copy_execution_profile_defaults
     self.target_business_id ||= business_id
-    self.target_repository_name ||= execution_profile&.repository_name
-    self.target_repository_type ||= execution_profile&.repository_type
+    self.target_repository_name ||= business&.codex_repository_name || execution_profile&.repository_name
+    self.target_repository_type ||= if business&.aicoo_internal_codex?
+      "rails"
+    else
+      execution_profile&.repository_type
+    end
   end
 
   def profile_forbidden_pattern_prompt

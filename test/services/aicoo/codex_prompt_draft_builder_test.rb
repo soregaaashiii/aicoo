@@ -54,6 +54,21 @@ module Aicoo
       assert_equal "external_repo", draft.metadata.dig("codex_execution_target", "execution_type")
     end
 
+    test "uses aicoo internal execution target for aicoo created business" do
+      business = businesses(:suelog)
+      business.update!(created_by_aicoo: true, project_key: nil, local_project_path: nil, repository_name: nil)
+      candidate = action_candidates(:nagazakicho_article)
+
+      draft = CodexPromptDraftBuilder.new(candidate).call
+
+      assert_equal "aicoo_internal", draft.project_key
+      assert_equal Rails.root.to_s, draft.local_project_path
+      assert_includes draft.prompt_body, "execution_type: aicoo_internal"
+      assert_includes draft.prompt_body, "github_repo: soregaaashiii/aicoo"
+      assert_includes draft.prompt_body, "aicoo_internal: AICOO本体のLP、Business、設定、管理画面を対象にする"
+      assert_equal "aicoo_internal", draft.metadata.dig("codex_execution_target", "execution_type")
+    end
+
     test "creates draft without project settings" do
       business = businesses(:suelog)
       business.update!(project_key: nil, local_project_path: nil, repository_name: nil)

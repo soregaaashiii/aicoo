@@ -63,6 +63,16 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Profile編集"
   end
 
+  test "index shows aicoo internal codex status without execution profile requirement" do
+    @business.update!(created_by_aicoo: true)
+
+    get businesses_url
+
+    assert_response :success
+    assert_includes response.body, "AICOO内部"
+    assert_includes response.body, "AICOO本体Repository"
+  end
+
   test "should get new" do
     get new_business_url
     assert_response :success

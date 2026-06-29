@@ -87,7 +87,10 @@
             <% end %>
           </td>
           <td>
-            <% if (profile = business.business_execution_profile) %>
+            <% if business.aicoo_internal_codex? %>
+              <span class="pill status-healthy">AICOO内部</span>
+              <small>AICOO本体Repository</small>
+            <% elsif (profile = business.business_execution_profile) %>
               <span class="pill"><%= AicooRepositoryTargetCoverageService::STATUS_LABELS.fetch(profile.coverage_status) %></span>
               <% if profile.coverage_status == "configured" %>
                 <small><%= profile.display_repository_name %></small>
@@ -109,7 +112,9 @@
               <%= link_to "詳細", business, class: "button secondary" %>
               <%= link_to "編集", edit_business_path(business), class: "button secondary" %>
               <%= link_to "Data Source紐付け", edit_business_path(business, anchor: "data-source-link-settings"), class: "button secondary" %>
-              <% if business.business_execution_profile %>
+              <% if business.aicoo_internal_codex? %>
+                <span class="pill status-healthy">AICOO内部</span>
+              <% elsif business.business_execution_profile %>
                 <%= link_to "Profile編集", edit_admin_business_execution_profile_path(business.business_execution_profile), class: "button secondary" %>
               <% else %>
                 <%= link_to "Profile作成", new_admin_business_execution_profile_path(business_id: business.id), class: "button secondary" %>

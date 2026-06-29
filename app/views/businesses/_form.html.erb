@@ -28,21 +28,29 @@
     <%= form.select :status, Business::STATUSES.map { |status| [status.humanize, status] } %>
   </div>
 
-  <fieldset class="aicoo-card aicoo-card-compact">
-    <legend>Codex対象プロジェクト</legend>
-    <div class="field">
-      <%= form.label :project_key, "project_key" %>
-      <%= form.text_field :project_key, placeholder: "例: suelog" %>
-    </div>
-    <div class="field">
-      <%= form.label :local_project_path, "local_project_path" %>
-      <%= form.text_field :local_project_path, placeholder: "例: /Users/.../suelog" %>
-    </div>
-    <div class="field">
-      <%= form.label :repository_name, "repository_name" %>
-      <%= form.text_field :repository_name, placeholder: "例: suelog" %>
-    </div>
-  </fieldset>
+  <% if business.aicoo_internal_codex? %>
+    <fieldset class="aicoo-card aicoo-card-compact">
+      <legend>Codex対象プロジェクト</legend>
+      <p class="aicoo-lab-help">このBusinessはAICOO内部プロジェクトです。AICOO本体Repositoryを使うため、project_key / repository / path の入力は不要です。</p>
+      <span class="pill status-healthy">AICOO内部プロジェクト（接続済み）</span>
+    </fieldset>
+  <% else %>
+    <fieldset class="aicoo-card aicoo-card-compact">
+      <legend>Codex対象プロジェクト</legend>
+      <div class="field">
+        <%= form.label :project_key, "project_key" %>
+        <%= form.text_field :project_key, placeholder: "例: suelog" %>
+      </div>
+      <div class="field">
+        <%= form.label :local_project_path, "local_project_path" %>
+        <%= form.text_field :local_project_path, placeholder: "例: /Users/.../suelog" %>
+      </div>
+      <div class="field">
+        <%= form.label :repository_name, "repository_name" %>
+        <%= form.text_field :repository_name, placeholder: "例: suelog" %>
+      </div>
+    </fieldset>
+  <% end %>
 
   <fieldset class="aicoo-card aicoo-card-compact">
     <legend>自動改訂</legend>

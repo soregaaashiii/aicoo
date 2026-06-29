@@ -110,6 +110,15 @@ module Aicoo
     end
 
     def codex_status(business)
+      if business.aicoo_internal_codex?
+        return CodexStatus.new(
+          status_key: "aicoo_internal",
+          status_label: "🟢 AICOO内部プロジェクト（接続済み）",
+          status_level: "healthy",
+          summary: "AICOO本体Repositoryを使用"
+        )
+      end
+
       configured = business.project_key.present? &&
         business.local_project_path.present? &&
         business.repository_name.present?

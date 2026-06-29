@@ -63,5 +63,16 @@ module Aicoo
       assert_equal "individual", status.status_key
       assert_equal "✅ 個別設定済み", status.status_label
     end
+
+    test "codex status is internal for aicoo created business" do
+      @business.update!(created_by_aicoo: true, project_key: nil, local_project_path: nil, repository_name: nil)
+
+      status = DataSourceSettingsPresenter.new.codex_status(@business)
+
+      assert_equal "aicoo_internal", status.status_key
+      assert_equal "🟢 AICOO内部プロジェクト（接続済み）", status.status_label
+      assert_equal "healthy", status.status_level
+      assert_equal "AICOO本体Repositoryを使用", status.summary
+    end
   end
 end
