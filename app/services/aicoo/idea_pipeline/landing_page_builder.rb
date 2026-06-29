@@ -6,7 +6,7 @@ module Aicoo
       end
 
       def call
-        raise ArgumentError, "LP生成できません: #{item.lp_generation_block_reason}" unless item.lp_generation_allowed?
+        raise ArgumentError, item.lp_generation_failure_reason unless item.lp_generation_allowed?
         return item.aicoo_lab_landing_page if item.aicoo_lab_landing_page
 
         item.transaction do

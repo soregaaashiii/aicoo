@@ -30,7 +30,8 @@ module Admin
       landing_page = Aicoo::IdeaPipeline::LandingPageBuilder.new(@item).call
       redirect_to admin_idea_pipeline_path(@item), notice: "draft LPを生成しました: #{landing_page.headline}"
     rescue ArgumentError => e
-      redirect_to admin_idea_pipeline_path(@item), alert: e.message
+      Rails.logger.warn("[IdeaPipeline] LP generation failed #{lp_generation_error_context(e).to_json}")
+      redirect_to admin_idea_pipeline_path(@item), alert: lp_generation_error_message(e)
     end
 
     def publish_lp
@@ -61,6 +62,25 @@ module Admin
 
     def set_item
       @item = IdeaPipelineItem.find(params.expect(:id))
+    end
+
+    def lp_generation_error_context(error)
+      @item.lp_generation_debug_context.merge(error_class: error.class.name, error_message: error.message)
+    end
+
+    def lp_generation_error_message(error)
+      context = lp_generation_error_context(error)
+      reason = error.message.presence || @item.lp_generation_failure_reason
+
+      [
+        "LP生成できませんでした。",
+        "理由: #{reason}",
+        "候補ID: #{context[:item_id]}",
+        "候補状態: #{context[:status]}",
+        "SERP状態: #{context[:serp_status]}",
+        "承認状態: #{context[:approval_state]}",
+        "生成条件: #{context[:generation_conditions]}"
+      ].join(" ")
     end
   end
 end

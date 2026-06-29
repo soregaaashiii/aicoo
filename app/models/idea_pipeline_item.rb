@@ -90,12 +90,7 @@ class IdeaPipelineItem < ApplicationRecord
   end
 
   def lp_generation_allowed?
-    return false if lp_generation_blocked?
-    return true if serp_passed?
-    return true if LP_GENERATION_APPROVAL_STATUSES.include?(status)
-    return true if score_passed?
-
-    false
+    !lp_generation_blocked?
   end
 
   def score_passed?
@@ -106,6 +101,47 @@ class IdeaPipelineItem < ApplicationRecord
     return if serp_passed?
 
     "SERP検証は未実行です。精度は下がりますが、LP生成は可能です。"
+  end
+
+  def lp_generation_approval_state
+    return status if LP_GENERATION_APPROVAL_STATUSES.include?(status)
+    return "serp_passed" if serp_passed?
+    return "score_passed" if score_passed?
+
+    "not_approved"
+  end
+
+  def lp_generation_failure_reason
+    case lp_generation_block_reason
+    when "already_converted"
+      "このIdeaはすでにLP生成済みです。既存LPを編集または公開してください。"
+    when "rejected"
+      "このIdeaは却下済みのためLP生成できません。再度検証する場合は状態を承認済みに戻してください。"
+    when "archived"
+      "このIdeaはアーカイブ済みのためLP生成できません。"
+    when "duplicate"
+      "このIdeaは重複候補のためLP生成できません。元の候補を確認してください。"
+    when "unsafe"
+      "このIdeaは安全性確認が必要なためLP生成を停止しています。"
+    else
+      "SERP未実行ですが、承認済みまたは検証可能な状態のためLP生成は可能です。処理条件を確認してください。"
+    end
+  end
+
+  def lp_generation_condition_summary
+    "停止条件: rejected / archived / duplicate / unsafe / already_converted。SERP未実行・未設定は警告のみでLP生成可能。"
+  end
+
+  def lp_generation_debug_context
+    {
+      item_id: id,
+      status:,
+      serp_status:,
+      approval_state: lp_generation_approval_state,
+      generation_conditions: lp_generation_condition_summary,
+      lp_generation_block_reason: lp_generation_block_reason.presence,
+      final_score: final_score&.to_s
+    }
   end
 
   def lp_url

@@ -1,4 +1,5 @@
 require "test_helper"
+require "stringio"
 
 module Admin
   class IdeaPipelineControllerTest < ActionDispatch::IntegrationTest
@@ -68,6 +69,33 @@ module Admin
 
       assert_redirected_to admin_idea_pipeline_url(item)
       assert_equal "unsafe", item.reload.status
+      assert_includes flash[:alert], "LP生成できませんでした。"
+      assert_includes flash[:alert], "理由:"
+      assert_includes flash[:alert], "候補ID: #{item.id}"
+      assert_includes flash[:alert], "候補状態: unsafe"
+      assert_includes flash[:alert], "SERP状態:"
+      assert_includes flash[:alert], "承認状態:"
+      assert_includes flash[:alert], "生成条件:"
+    end
+
+    test "generate lp failure logs candidate context" do
+      item = create_item
+      item.update!(status: "rejected", final_score: 90)
+      previous_logger = Rails.logger
+      log_output = StringIO.new
+      Rails.logger = ActiveSupport::Logger.new(log_output)
+
+      assert_no_difference("AicooLabLandingPage.count") do
+        post generate_lp_admin_idea_pipeline_url(item)
+      end
+
+      log_text = log_output.string
+      assert_includes log_text, "LP generation failed"
+      assert_includes log_text, "\"item_id\":#{item.id}"
+      assert_includes log_text, "\"status\":\"rejected\""
+      assert_includes log_text, "\"serp_status\":"
+    ensure
+      Rails.logger = previous_logger if previous_logger
     end
 
     private

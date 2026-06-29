@@ -66,6 +66,22 @@ module Aicoo
       assert_equal "owner_skipped_serp", item.metadata.dig("lp_generation", "reason")
     end
 
+    test "landing page can be generated when serp is not configured" do
+      item = create_item
+      item.update!(
+        status: "serp_not_configured",
+        final_score: 20,
+        serp_snapshot: { "status" => "blocked", "reason" => "API Key未設定" }
+      )
+
+      assert_difference("AicooLabLandingPage.count", 1) do
+        IdeaPipeline::LandingPageBuilder.new(item).call
+      end
+
+      assert_equal "serp_not_configured", item.reload.metadata.dig("lp_generation", "serp_status_at_generation")
+      assert_equal false, item.metadata.dig("lp_generation", "serp_used")
+    end
+
     test "landing page generated without serp can be published" do
       item = create_item
       item.update!(status: "owner_approved", final_score: 50, serp_snapshot: {})
@@ -101,8 +117,17 @@ module Aicoo
         item.update!(status:, final_score: 90)
 
         error = assert_raises(ArgumentError) { IdeaPipeline::LandingPageBuilder.new(item).call }
-        assert_includes error.message, status
+        assert_equal status, item.lp_generation_block_reason
+        assert error.message.present?
       end
+    end
+
+    test "fallback failure reason is never blank" do
+      item = create_item
+      item.update!(status: "idea", final_score: nil, serp_snapshot: {})
+
+      assert item.lp_generation_failure_reason.present?
+      assert_includes item.lp_generation_debug_context[:generation_conditions], "SERP未実行"
     end
 
     test "landing page publication learning and mvp spec flow" do
