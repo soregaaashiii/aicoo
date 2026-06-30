@@ -16,26 +16,150 @@ module Aicoo
       def call(...)
         new.call(...)
       end
+
+      def install_model_callbacks!(*model_names)
+        model_names.flatten.each do |model_name|
+          klass = model_name.to_s.safe_constantize
+          unless klass
+            Rails.logger.info("[ActivityIngestor] callback install skipped model=#{model_name} reason=constant_not_found")
+            next
+          end
+
+          if klass.included_modules.include?(AicooActivityTrackable)
+            Rails.logger.info("[ActivityIngestor] callback already installed model=#{klass.name}")
+            next
+          end
+
+          klass.include(AicooActivityTrackable)
+          Rails.logger.info("[ActivityIngestor] callback installed model=#{klass.name}")
+        end
+      end
+
+      def ingest_payload(...)
+        new.ingest_payload(...)
+      end
+    end
+
+    def ingest_payload(business:, payload:)
+      attributes = external_attributes_for(payload)
+      Rails.logger.info(
+        "[ActivityIngestor] API payload start business=#{business.name} " \
+        "activity_type=#{attributes[:activity_type]} resource=#{attributes[:resource_type]}##{attributes[:resource_id]}"
+      )
+      activity_log = BusinessActivityLog.record!(business:, attributes: attributes.merge(source_method: "logger"))
+      Rails.logger.info(
+        "[ActivityIngestor] API Activity created id=#{activity_log.id} business=#{business.name} " \
+        "activity_type=#{activity_log.activity_type} resource=#{activity_log.resource_type}##{activity_log.resource_id}"
+      )
+      Result.new(activity_log:, queued: nil, business:, error_message: nil)
+    rescue ActiveRecord::RecordInvalid => e
+      Rails.logger.warn(
+        "[ActivityIngestor] API validation failed business=#{business.try(:name)} " \
+        "errors=#{e.record.errors.full_messages.to_sentence} payload=#{safe_log_payload(payload)}"
+      )
+      Result.new(activity_log: nil, queued: nil, business:, error_message: e.record.errors.full_messages.to_sentence)
+    rescue StandardError => e
+      Rails.logger.warn(
+        "[ActivityIngestor] API failed business=#{business.try(:name)} #{e.class}: #{e.message} " \
+        "payload=#{safe_log_payload(payload)}"
+      )
+      Result.new(activity_log: nil, queued: nil, business:, error_message: "#{e.class}: #{e.message}")
     end
 
     def call(record:, action:, business: nil, source_app: nil, metadata: {})
+      log_start(record:, action:)
       source_app ||= source_app_for(record, metadata)
       resolved_business = business || business_for(record, source_app:, metadata:)
       attributes = attributes_for(record, action:, source_app:, metadata:)
+      log_business_resolution(record:, business: resolved_business, source_app:)
 
       if resolved_business
         activity_log = BusinessActivityLog.record!(business: resolved_business, attributes:)
+        Rails.logger.info(
+          "[ActivityIngestor] Activity created id=#{activity_log.id} " \
+          "record=#{record.class.name}##{record_id(record)} business=#{resolved_business.name} " \
+          "activity_type=#{activity_log.activity_type} source_method=#{activity_log.source_method}"
+        )
         Result.new(activity_log:, queued: nil, business: resolved_business, error_message: nil)
       else
         queued = queue_unlinked_activity!(attributes, record:, metadata:)
+        Rails.logger.warn(
+          "[ActivityIngestor] Business not found record=#{record.class.name}##{record_id(record)} " \
+          "source_app=#{source_app} queued_id=#{queued.id}"
+        )
         Result.new(activity_log: nil, queued:, business: nil, error_message: queued.error_message)
       end
+    rescue ActiveRecord::RecordInvalid => e
+      Rails.logger.warn(
+        "[ActivityIngestor] validation failed record=#{record.class.name}##{record.try(:id)} " \
+        "action=#{action} errors=#{e.record.errors.full_messages.to_sentence}"
+      )
+      Result.new(activity_log: nil, queued: nil, business: nil, error_message: e.record.errors.full_messages.to_sentence)
     rescue StandardError => e
-      Rails.logger.warn("[AICOO ActivityIngestor] failed #{record.class.name}##{record.try(:id)} #{action}: #{e.class}: #{e.message}")
+      Rails.logger.warn(
+        "[ActivityIngestor] failed record=#{record.class.name}##{record.try(:id)} " \
+        "action=#{action}: #{e.class}: #{e.message}"
+      )
       Result.new(activity_log: nil, queued: nil, business: nil, error_message: "#{e.class}: #{e.message}")
     end
 
     private
+
+    def external_attributes_for(payload)
+      attrs = hash_for(payload).symbolize_keys
+      source_type = attrs[:source_type].presence || attrs[:resource_type].presence || "activity"
+      source_id = attrs[:source_id].presence || attrs[:resource_id].presence || "unknown"
+      activity_type = attrs[:activity_type].presence || "#{source_type.to_s.underscore}_updated"
+      occurred_at = attrs[:occurred_at].presence || Time.current
+      metadata = hash_for(attrs[:metadata])
+      metadata = metadata.merge("business_key" => attrs[:business_key]) if attrs[:business_key].present?
+
+      {
+        source_app: attrs[:source_app].presence || attrs[:business_key].presence || DEFAULT_SOURCE_APP,
+        activity_type:,
+        resource_type: attrs[:resource_type].presence || source_type.to_s.camelize,
+        resource_id: source_id.to_s,
+        title: attrs[:title].presence || activity_type.to_s.humanize,
+        occurred_at:,
+        detected_at: attrs[:detected_at].presence || Time.current,
+        changed_fields: hash_for(attrs[:changed_fields]),
+        before_snapshot: hash_for(attrs[:before_snapshot]),
+        after_snapshot: hash_for(attrs[:after_snapshot]),
+        diff_summary: attrs[:diff_summary].presence || attrs[:summary],
+        metadata:,
+        estimated_work_seconds: attrs[:estimated_work_seconds],
+        idempotency_key: attrs[:idempotency_key]
+      }
+    end
+
+    def hash_for(value)
+      case value
+      when ActionController::Parameters
+        value.to_unsafe_h
+      when Hash
+        value
+      else
+        {}
+      end
+    end
+
+    def safe_log_payload(payload)
+      hash_for(payload).except(:before_snapshot, :after_snapshot, :metadata).inspect
+    end
+
+    def log_start(record:, action:)
+      Rails.logger.info("[ActivityIngestor] start record=#{record.class.name}##{record_id(record)} action=#{action}")
+    end
+
+    def log_business_resolution(record:, business:, source_app:)
+      if business
+        Rails.logger.info(
+          "[ActivityIngestor] Business=#{business.name} record=#{record.class.name}##{record_id(record)} source_app=#{source_app}"
+        )
+      else
+        Rails.logger.warn("[ActivityIngestor] Business not found record=#{record.class.name}##{record_id(record)} source_app=#{source_app}")
+      end
+    end
 
     def attributes_for(record, action:, source_app:, metadata:)
       profile = profile_for(record, action)

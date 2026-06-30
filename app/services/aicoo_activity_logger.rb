@@ -45,14 +45,20 @@ class AicooActivityLogger
 
   def build_payload(attributes)
     attrs = attributes.symbolize_keys
+    resource_type = attrs[:resource_type].presence || attrs[:source_type].to_s.camelize.presence
+    resource_id = attrs[:resource_id].presence || attrs[:source_id]
+    source_type = attrs[:source_type].presence || resource_type.to_s.underscore
     {
       business_id: attrs[:business_id],
       business_key: attrs[:business_key] || ENV["AICOO_BUSINESS_KEY"],
       source_app: attrs[:source_app] || ENV["AICOO_SOURCE_APP"] || Rails.application.class.module_parent_name.underscore,
       activity_type: attrs[:activity_type],
-      resource_type: attrs[:resource_type],
-      resource_id: attrs[:resource_id],
+      source_type:,
+      source_id: resource_id,
+      resource_type:,
+      resource_id:,
       title: attrs[:title],
+      summary: attrs[:summary] || attrs[:diff_summary],
       occurred_at: attrs[:occurred_at] || Time.current.iso8601,
       changed_fields: attrs[:changed_fields] || {},
       before_snapshot: attrs[:before_snapshot] || {},
@@ -81,7 +87,9 @@ class AicooActivityLogger
   end
 
   def api_key
-    ENV.fetch("AICOO_API_KEY")
+    ENV["AICOO_ACTIVITY_API_TOKEN"].presence ||
+      ENV["AICOO_ACTIVITY_API_KEY"].presence ||
+      ENV.fetch("AICOO_API_KEY")
   end
 
   def queue_payload!(payload, error_message)

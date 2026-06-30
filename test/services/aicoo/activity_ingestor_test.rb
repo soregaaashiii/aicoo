@@ -56,6 +56,13 @@ module Aicoo
       assert_equal "梅田", activity_log.metadata["area"]
     end
 
+    test "can install callbacks into shop model when constant exists" do
+      assert_nothing_raised do
+        ActivityIngestor.install_model_callbacks!("Shop")
+      end
+      assert_includes Shop.included_modules, AicooActivityTrackable
+    end
+
     test "creates activity log when shop is updated" do
       shop = Shop.create!(name: "更新前店舗", area: "難波", smoking_status: "unknown")
 

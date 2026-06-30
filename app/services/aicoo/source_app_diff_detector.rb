@@ -4,13 +4,24 @@ module Aicoo
 
     def call
       result = Result.new(created_count: 0, skipped_count: 0, error_count: 0)
+      ensure_default_connections!
       SourceAppConnection.enabled.active.includes(:business, :source_app_diff_rules).find_each do |connection|
+        Rails.logger.info(
+          "[SourceAppDiffDetector] scan connection_id=#{connection.id} business=#{connection.business.name} " \
+          "source_app=#{connection.source_app} type=#{connection.connection_type}"
+        )
         scan_connection(connection, result)
       end
       result
     end
 
     private
+
+    def ensure_default_connections!
+      SourceAppConnection.ensure_suelog_defaults!
+    rescue StandardError => e
+      Rails.logger.warn("[SourceAppDiffDetector] default connection setup failed: #{e.class}: #{e.message}")
+    end
 
     def scan_connection(connection, result)
       unless connection.connection_type == "same_database"
@@ -29,9 +40,19 @@ module Aicoo
     end
 
     def scan_rule(connection, rule)
-      return 0 unless table_exists?(rule.watched_table)
+      unless table_exists?(rule.watched_table)
+        Rails.logger.warn(
+          "[SourceAppDiffDetector] table missing rule_id=#{rule.id} table=#{rule.watched_table} " \
+          "business=#{connection.business.name}"
+        )
+        return 0
+      end
 
       rows = changed_rows(rule)
+      Rails.logger.info(
+        "[SourceAppDiffDetector] rule_id=#{rule.id} table=#{rule.watched_table} " \
+        "resource_type=#{rule.resource_type} rows=#{rows.size}"
+      )
       created_count = 0
       rows.each do |row|
         activity = build_activity(connection, rule, row)

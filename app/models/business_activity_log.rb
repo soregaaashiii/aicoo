@@ -32,6 +32,11 @@ class BusinessActivityLog < ApplicationRecord
     find_or_initialize_by(business:, idempotency_key: normalized.fetch(:idempotency_key)).tap do |activity_log|
       activity_log.assign_attributes(normalized) if activity_log.new_record?
       activity_log.save!
+      Rails.logger.info(
+        "[BusinessActivityLog] #{activity_log.previously_new_record? ? 'created' : 'deduplicated'} " \
+        "id=#{activity_log.id} business=#{business.name} activity_type=#{activity_log.activity_type} " \
+        "resource=#{activity_log.resource_type}##{activity_log.resource_id}"
+      )
     end
   end
 
