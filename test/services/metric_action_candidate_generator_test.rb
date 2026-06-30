@@ -4,6 +4,8 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
   setup do
     @business = businesses(:suelog)
     @today = Date.new(2026, 6, 21)
+    DataSourceCostProfile.ensure_defaults!
+    DataSourceCostProfile.find_by!(source_key: "serp").update!(api_key: nil)
   end
 
   test "creates reinforcement candidate when proxy score is rising" do
@@ -15,6 +17,9 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     candidate = result.created.find { |record| record.title.include?("伸びている代理指標を強化") }
     assert_equal "ai_business", candidate.generation_source
     assert_equal "proxy_growth_reinforce", candidate.metadata.fetch("metric_rule")
+    assert_equal "internal_only", candidate.metadata.fetch("data_mode")
+    assert_equal [ "serp" ], candidate.metadata.fetch("missing_sources")
+    assert_equal true, candidate.metadata.fetch("confidence_penalty")
     assert_match(/metric_rule:proxy_growth_reinforce/, candidate.evaluation_reason)
   end
 

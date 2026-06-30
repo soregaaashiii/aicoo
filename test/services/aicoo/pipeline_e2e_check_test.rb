@@ -74,6 +74,28 @@ module Aicoo
       assert business.serp_enabled?
     end
 
+    test "treats missing serp key as warning because serp is optional" do
+      DataSourceCostProfile.find_by!(source_key: "serp").update!(api_key: nil)
+      item = create_published_pipeline_item
+      candidate = item.business.action_candidates.create!(
+        title: "LP改善",
+        status: "approved",
+        action_type: "seo_improvement",
+        immediate_value_yen: 10_000,
+        success_probability: 0.7
+      )
+      AutoRevisionTask.from_action_candidate(candidate)
+      run = Aicoo::PipelineEngine.new(item).call
+
+      result = PipelineE2eCheck.new(run).call
+      serp_check = result.checks.find { |check| check.key == "missing_serp_key" }
+
+      assert result.warning?
+      assert_equal "warning", serp_check.status
+      assert_equal "serp_optional_missing", serp_check.details.fetch(:reason)
+      assert_includes serp_check.message, "既存データによる改善ループは継続します"
+    end
+
     test "analytics import exclusion does not hide normal aicoo generated business" do
       Business.create!(name: "AICOO Analytics Import", status: "launched")
       item = create_published_pipeline_item

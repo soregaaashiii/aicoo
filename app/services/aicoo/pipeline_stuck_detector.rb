@@ -67,6 +67,7 @@ module Aicoo
     def detect(run)
       return if terminal?(run)
       return if expected_waiting_data?(run)
+      return if serp_optional_missing?(run)
       return unless elapsed_too_long?(run)
 
       reason = stuck_reason(run)
@@ -147,8 +148,11 @@ module Aicoo
     def missing_serp_key?(run)
       return false unless run.current_stage == "serp"
 
-      profile = DataSourceCostProfile.find_by(source_key: "serp")
-      profile&.api_key.blank? && ENV["SERPER_API_KEY"].blank? && ENV["SERP_API_KEY"].blank?
+      Aicoo::Serp::OptionalMode.call.missing_key?
+    end
+
+    def serp_optional_missing?(run)
+      run.current_stage == "serp" && missing_serp_key?(run)
     end
 
     def missing_execution_profile?(run)
@@ -189,7 +193,7 @@ module Aicoo
         "waiting_approval" => "承認して進める必要があります。",
         "waiting_budget" => "予算設定を確認してください。",
         "missing_google_connection" => "Google連携を設定してください。",
-        "missing_serp_key" => "SERP API Keyを設定してください。",
+        "missing_serp_key" => Aicoo::Serp::OptionalMode::WARNING_MESSAGE,
         "missing_execution_profile" => "Execution Profileを設定してください。",
         "codex_failed" => "Codex実行の再試行または承認が必要です。",
         "deploy_failed" => "Deploy承認待ちへ落とします。",

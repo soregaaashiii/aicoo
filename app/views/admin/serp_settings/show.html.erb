@@ -35,13 +35,45 @@
         <span>月間予算</span>
         <strong><%= number_to_currency(@serp_profile.monthly_budget_yen, unit: "¥", precision: 0) %></strong>
       </div>
+      <div class="metric-card">
+        <span>Optional Mode</span>
+        <strong><%= @serp_optional_mode.status %></strong>
+        <small><%= @serp_optional_mode.reason %></small>
+      </div>
     </div>
 
     <% unless @api_key_configured %>
       <div class="error-toast">
-        SERPER_API_KEY または AICOO全体設定のSERP API Keyが未設定です。
+        <%= @serp_optional_mode.message %>
       </div>
     <% end %>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>SERP Optional Mode</h2>
+      <p>SERPは任意データソースです。未設定でも既存データによる改善・Learning・Lifecycle評価は継続します。</p>
+    </div>
+    <div class="aicoo-grid aicoo-grid-2">
+      <div class="aicoo-card aicoo-card-compact">
+        <h3>SERP依存step</h3>
+        <p>API Key未設定時は skipped / warning として扱います。</p>
+        <ul class="compact-list">
+          <% @serp_optional_mode.dependent_steps.each do |step| %>
+            <li><%= step %></li>
+          <% end %>
+        </ul>
+      </div>
+      <div class="aicoo-card aicoo-card-compact">
+        <h3>SERPなしで実行可能なstep</h3>
+        <p>Daily Run全体と改善ループは継続します。</p>
+        <ul class="compact-list">
+          <% @serp_optional_mode.independent_steps.each do |step| %>
+            <li><%= step %></li>
+          <% end %>
+        </ul>
+      </div>
+    </div>
   </section>
 
   <section class="dashboard-section">

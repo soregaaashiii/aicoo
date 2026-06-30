@@ -309,9 +309,20 @@ class MetricActionCandidateGenerator
       cost_yen: 0,
       status: "idea",
       generation_source: "ai_business",
-      metadata: { "metric_rule" => spec.key },
+      metadata: candidate_metadata(spec),
       evaluation_reason: "metric_rule:#{spec.key}\n#{spec.evaluation_reason}",
       execution_prompt: spec.execution_prompt
+    )
+  end
+
+  def candidate_metadata(spec)
+    metadata = { "metric_rule" => spec.key }
+    return metadata unless Aicoo::Serp::OptionalMode.call.missing_key?
+
+    metadata.merge(
+      "data_mode" => "internal_only",
+      "missing_sources" => [ "serp" ],
+      "confidence_penalty" => true
     )
   end
 

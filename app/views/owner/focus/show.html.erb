@@ -181,6 +181,23 @@
     </section>
   <% end %>
 
+  <% if @serp_optional_mode.warning? %>
+    <section class="dashboard-section">
+      <div class="section-heading">
+        <h2>任意設定の警告</h2>
+        <p>必須ではない外部データソースの状態です。改善ループは継続します。</p>
+      </div>
+      <div class="aicoo-card aicoo-card-compact">
+        <h3>SERP未設定</h3>
+        <p><%= @serp_optional_mode.message %></p>
+        <div class="actions compact-actions">
+          <%= link_to "SERP設定を見る", admin_serp_settings_path, class: "button secondary" %>
+          <%= link_to "実行中の改善を見る", action_candidates_path, class: "button secondary" %>
+        </div>
+      </div>
+    </section>
+  <% end %>
+
   <section class="dashboard-section">
     <div class="section-heading">
       <div>

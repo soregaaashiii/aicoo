@@ -6,6 +6,8 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
     AutoRevisionQueueRun.delete_all
     AutoRevisionTask.delete_all
     ActionCandidate.update_all(status: "done")
+    DataSourceCostProfile.ensure_defaults!
+    DataSourceCostProfile.find_by!(source_key: "serp").update!(api_key: nil)
   end
 
   test "successful run marks daily run as succeeded and stores counts" do
@@ -59,11 +61,16 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
       assert_match "AutoRevisionQueue skipped reason=disabled", run.run_log
       assert_match "PipelineStuckDetector checked=", run.run_log
       assert_match "BusinessPlaybook updated count=2", run.run_log
-      assert_equal 21, run.aicoo_daily_run_steps.count
+      assert_match "SERP optional mode", run.run_log
+      assert_equal 25, run.aicoo_daily_run_steps.count
       assert_equal %w[
         analytics_fetch
         datahub_collect
         business_metrics_import
+        serp_fetch
+        keyword_discovery
+        competitor_serp_analysis
+        serp_based_idea_generation
         source_app_diff_detection
         proxy_weight_adjustment
         action_generation
@@ -84,6 +91,14 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
         pipeline_stuck_detection
       ], run.aicoo_daily_run_steps.order(:created_at).pluck(:step_name)
       assert_equal %w[skipped success], run.aicoo_daily_run_steps.distinct.pluck(:status).sort
+      assert_equal %w[
+        serp_fetch
+        keyword_discovery
+        competitor_serp_analysis
+        serp_based_idea_generation
+        auto_revision_queue
+      ].sort, run.aicoo_daily_run_steps.skipped.pluck(:step_name).sort
+      assert_equal "success", run.status
       assert_equal 0, AutoRevisionQueueRun.count
       assert_equal %i[analytics datahub import source_diff adjust_all generate insight evaluate activity_eval snapshot queue meta_snapshot calibration owner_queue analysis playbook], order
     end

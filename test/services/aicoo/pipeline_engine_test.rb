@@ -31,6 +31,22 @@ module Aicoo
       assert_equal "open", run.stage_state("lp")["status"]
     end
 
+    test "missing serp key skips serp without blocking lp" do
+      DataSourceCostProfile.find_or_create_by!(source_key: "serp") do |profile|
+        profile.name = "SERP"
+        profile.execution_mode = "manual"
+      end.update!(api_key: nil)
+      item = create_item
+      item.update!(status: "owner_approved", final_score: 80)
+
+      run = PipelineEngine.new(item.reload).call
+
+      assert_equal "skipped", run.stage_state("serp")["status"]
+      assert_equal "serp_optional_missing", run.stage_state("serp")["reason"]
+      assert_equal "open", run.stage_state("lp")["status"]
+      assert_includes run.stage_state("serp")["message"], "既存データによる改善ループは継続します"
+    end
+
     test "published lp waits for measure window" do
       item = create_item
       item.update!(status: "owner_approved", final_score: 70)

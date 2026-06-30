@@ -2,7 +2,7 @@ require "test_helper"
 
 module Aicoo
   class PipelineStuckDetectorTest < ActiveSupport::TestCase
-    test "detects missing serp key as owner visible stuck" do
+    test "does not mark missing serp key as stuck because serp is optional" do
       run = create_run(current_stage: "serp", status: "running")
       DataSourceCostProfile.find_or_create_by!(source_key: "serp") do |profile|
         profile.name = "SERP"
@@ -12,9 +12,9 @@ module Aicoo
       result = PipelineStuckDetector.new(scope: AicooPipelineRun.where(id: run.id), auto_recover: true).call
 
       assert_equal 1, result.checked_count
-      assert_equal [ run ], result.stuck_runs
-      assert_equal "missing_serp_key", run.reload.stuck_reason
-      assert_not run.auto_recoverable?
+      assert_empty result.stuck_runs
+      assert_not run.reload.stuck?
+      assert_nil run.stuck_reason
       assert_empty result.recovered_logs
     end
 

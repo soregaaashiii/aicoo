@@ -16,6 +16,7 @@ module Owner
       @owner_decision_summary = Aicoo::OwnerDecisionSummary.new.call
       @analysis_monitor = Aicoo::AnalysisMonitor.new.call
       @serp_scan_status = Aicoo::Serp::ScanStatus.new.call
+      @serp_optional_mode = Aicoo::Serp::OptionalMode.call
       @business_auto_revision_summary = Aicoo::BusinessAutoRevisionSummary.new.call
       @resource_control_summary = Aicoo::ResourceControlSummary.new.call
       sync_pipeline_runs

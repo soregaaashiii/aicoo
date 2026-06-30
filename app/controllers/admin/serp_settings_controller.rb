@@ -54,6 +54,7 @@ module Admin
       @current_provider = (ENV["AICOO_SERP_PROVIDER"].presence || "serper").to_s
       @serp_profile = DataSourceCostProfile.for_source("serp")
       @api_key_configured = ENV["SERPER_API_KEY"].present? || @serp_profile.api_key.present?
+      @serp_optional_mode = Aicoo::Serp::OptionalMode.call
       @test_params ||= {
         provider: @current_provider,
         type: "google_search",

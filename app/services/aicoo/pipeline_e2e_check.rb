@@ -204,9 +204,21 @@ module Aicoo
     def serp_check
       return check(:serp, "SERP対象", "fail", "Businessがありません。", repair_action: "create_business") unless business
       return check(:serp, "SERP対象", "fail", "serp_enabledがOFFです。", repair_action: "enable_serp") unless business.serp_enabled?
-      return check(:serp, "SERP対象", "pass", "SERP対象でAPIキーも設定済みです。") if serp_api_key_configured?
+      serp_optional = Aicoo::Serp::OptionalMode.call
+      return check(:serp, "SERP対象", "pass", "SERP対象でAPIキーも設定済みです。") if serp_optional.api_key_configured
 
-      check(:missing_serp_key, "SERP対象", "fail", "SERP API Keyを設定してください。", details: { source_key: "serp" })
+      check(
+        :missing_serp_key,
+        "SERP対象",
+        "warning",
+        serp_optional.message,
+        details: {
+          source_key: "serp",
+          reason: serp_optional.reason,
+          skipped_steps: serp_optional.dependent_steps,
+          continued_steps: serp_optional.independent_steps
+        }
+      )
     end
 
     def improvement_check
@@ -249,10 +261,6 @@ module Aicoo
         launched: business.launched?,
         system_business: business.system_business?
       }
-    end
-
-    def serp_api_key_configured?
-      DataSourceCostProfile.for_source("serp").api_key_configured? || ENV["SERPER_API_KEY"].present?
     end
 
     def repair_business!

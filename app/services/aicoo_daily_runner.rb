@@ -76,6 +76,8 @@ class AicooDailyRunner
     run.update!(business_metrics_imported_count: imported_results.size)
     log!("BusinessMetricDaily imported count=#{imported_results.size}")
 
+    run_serp_optional_steps!(run)
+
     run_source_app_diff_detection!(run)
 
     adjustment_logs = record_step!(run, "proxy_weight_adjustment") do
@@ -205,6 +207,24 @@ class AicooDailyRunner
 
   def global_adjustable?
     BusinessMetricDaily.count >= 90 && RevenueEvent.revenue.count >= 20
+  end
+
+  def run_serp_optional_steps!(run)
+    optional_mode = Aicoo::Serp::OptionalMode.call
+    return unless optional_mode.missing_key?
+
+    optional_mode.dependent_steps.each do |step_name|
+      step = start_step!(run, step_name)
+      skip_step!(
+        step,
+        metadata: {
+          reason: optional_mode.reason,
+          message: optional_mode.message,
+          continued_steps: optional_mode.independent_steps
+        }
+      )
+    end
+    log!("SERP optional mode: #{optional_mode.message}")
   end
 
   def run_calibration!(run)

@@ -130,7 +130,7 @@ module Owner
       assert_includes response.body, "SERP走査"
     end
 
-    test "shows only owner visible stuck pipelines" do
+    test "shows serp missing key as optional warning instead of stuck pipeline" do
       DataSourceCostProfile.find_or_create_by!(source_key: "serp") do |profile|
         profile.name = "SERP"
         profile.execution_mode = "manual"
@@ -161,9 +161,10 @@ module Owner
       get owner_focus_url
 
       assert_response :success
-      assert_includes response.body, "止まっているPipeline"
-      assert_includes response.body, "missing_serp_key"
-      assert_includes response.body, "SERP API Keyを設定してください。"
+      assert_not_includes response.body, "missing_serp_key"
+      assert_includes response.body, "任意設定の警告"
+      assert_includes response.body, "SERP未設定"
+      assert_includes response.body, "既存データによる改善ループは継続します"
     end
 
     test "shows serp scan card and settings link" do

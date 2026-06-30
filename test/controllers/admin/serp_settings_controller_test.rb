@@ -8,6 +8,11 @@ module Admin
       assert_response :success
       assert_includes response.body, "SERP設定"
       assert_includes response.body, "現在のProvider"
+      assert_includes response.body, "SERP Optional Mode"
+      assert_includes response.body, "SERP依存step"
+      assert_includes response.body, "SERPなしで実行可能なstep"
+      assert_includes response.body, "serp_fetch"
+      assert_includes response.body, "action_candidate_generation"
       assert_includes response.body, "テスト検索"
       assert_includes response.body, "SERP Adapterでテスト検索"
     end
