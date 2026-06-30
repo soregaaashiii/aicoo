@@ -1,6 +1,7 @@
 <% content_for :title, "AICOO Daily Run" %>
 
 <% header_actions = capture do %>
+  <%= link_to "Daily Runヘルス", admin_aicoo_daily_run_health_path, class: "button secondary" %>
   <%= link_to "操作盤に戻る", dashboard_path, class: "button secondary" %>
 <% end %>
 

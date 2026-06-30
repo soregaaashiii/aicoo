@@ -123,19 +123,51 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
     end
   end
 
-  test "partial failed run when analytics has failed fetch run" do
+  test "analytics auth failures are treated as non blocking warnings" do
     order = []
     target_date = Date.new(2026, 6, 21)
     adjuster = fake_adjuster(order)
     generator_result = MetricActionCandidateGenerator::Result.new(created: [], skipped: [])
 
-    stub_daily_steps(order:, adjuster:, generator_results: [ generator_result ], evaluated_results: [], analytics_status: "failed") do
+    stub_daily_steps(
+      order:,
+      adjuster:,
+      generator_results: [ generator_result ],
+      evaluated_results: [],
+      analytics_status: "failed",
+      analytics_error_message: "Google OAuth error: invalid_grant Token has been expired or revoked."
+    ) do
       run = AicooDailyRunner.run!(target_date:, source: "cron")
 
-      assert_equal "partial_failed", run.status
+      assert_equal "success", run.status
       assert_equal "cron", run.source
       assert_equal 0, run.analytics_fetch_count
       assert_match "Analytics fetched success=0 failed=1", run.run_log
+      analytics_step = run.aicoo_daily_run_steps.find_by!(step_name: "analytics_fetch")
+      assert_equal "skipped", analytics_step.status
+      assert_nil analytics_step.error_message
+      assert_equal true, analytics_step.metadata.fetch("warning")
+      assert_equal "analytics_optional_unavailable", analytics_step.metadata.fetch("reason")
+    end
+  end
+
+  test "unknown analytics failures still mark daily run as partial failed" do
+    order = []
+    target_date = Date.new(2026, 6, 21)
+    adjuster = fake_adjuster(order)
+    generator_result = MetricActionCandidateGenerator::Result.new(created: [], skipped: [])
+
+    stub_daily_steps(
+      order:,
+      adjuster:,
+      generator_results: [ generator_result ],
+      evaluated_results: [],
+      analytics_status: "failed",
+      analytics_error_message: "Unexpected parser failure"
+    ) do
+      run = AicooDailyRunner.run!(target_date:, source: "cron")
+
+      assert_equal "partial_failed", run.status
       analytics_step = run.aicoo_daily_run_steps.find_by!(step_name: "analytics_fetch")
       assert_equal "failed", analytics_step.status
       assert_match "analytics_failed=1", analytics_step.error_message
@@ -222,8 +254,18 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
     )
   end
 
-  def stub_daily_steps(order:, adjuster:, generator_results:, evaluated_results:, analytics_status: "success", calibration_error: nil)
-    with_singleton_stub(AicooAnalytics::DailyFetchJob, :perform_now, -> { fake_analytics_fetch(order, analytics_status) }) do
+  def stub_daily_steps(
+    order:,
+    adjuster:,
+    generator_results:,
+    evaluated_results:,
+    analytics_status: "success",
+    analytics_error_message: nil,
+    calibration_error: nil
+  )
+    with_singleton_stub(AicooAnalytics::DailyFetchJob, :perform_now, -> {
+      fake_analytics_fetch(order, analytics_status, analytics_error_message)
+    }) do
       with_singleton_stub(AicooDataHub::DailyCollector, :new, -> { fake_datahub_collector(order) }) do
         with_singleton_stub(BusinessMetricDailyImporter, :import_all!, ->(date:) {
           order << :import
@@ -304,7 +346,7 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
     end
   end
 
-  def fake_analytics_fetch(order, status)
+  def fake_analytics_fetch(order, status, error_message = nil)
     order << :analytics
     setting = AnalyticsSourceSetting.create!(
       name: "Daily runner test #{status} #{SecureRandom.hex(4)}",
@@ -315,7 +357,8 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
     setting.analytics_fetch_runs.create!(
       status:,
       started_at: Time.current,
-      finished_at: Time.current
+      finished_at: Time.current,
+      error_message:
     )
   end
 

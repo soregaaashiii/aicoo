@@ -1,0 +1,115 @@
+<% content_for :title, "Daily Runヘルス" %>
+
+<% header_actions = capture do %>
+  <%= link_to "Daily Run履歴", aicoo_daily_runs_path, class: "button secondary" %>
+  <%= link_to "Daily Run設定", admin_aicoo_daily_run_settings_path, class: "button secondary" %>
+  <%= link_to "SYSTEM MODE", dashboard_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "Daily Runヘルス",
+             description: "Render Cronから安全にDaily Runを起動できるか、手動運用かを確認します。",
+             active_main: :dashboard,
+             actions: header_actions %>
+  <%= render "shared/aicoo_execution_tabs", active: :dashboard %>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <div>
+        <h2>Cron準備状態</h2>
+        <p>この表示はCron用Rake taskの準備状態です。手動実行画面はENVに依存せず利用できます。</p>
+      </div>
+    </div>
+    <%= render "shared/daily_run_cron_mode", status: @cron_status %>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>実行判定</h2>
+      <p>既存Schedulerの判定です。本日成功済み・実行中・retry上限・stuck判定はSchedulerに集約しています。</p>
+    </div>
+    <div class="metric-grid">
+      <div class="metric-card">
+        <span>最終Daily Run</span>
+        <strong><%= @cron_status.last_run_at ? l(@cron_status.last_run_at, format: :short) : "-" %></strong>
+        <small><%= @cron_status.latest_run ? "status: #{@cron_status.latest_run.status}" : "履歴なし" %></small>
+      </div>
+      <div class="metric-card">
+        <span>最終成功</span>
+        <strong><%= @cron_status.last_success_at ? l(@cron_status.last_success_at, format: :short) : "-" %></strong>
+        <small>Scheduler / 成功履歴</small>
+      </div>
+      <div class="metric-card">
+        <span>今日成功済み</span>
+        <strong><%= @cron_status.today_success ? "はい" : "いいえ" %></strong>
+        <small>対象日 <%= @scheduler_status.target_date %></small>
+      </div>
+      <div class="metric-card">
+        <span>現在running中</span>
+        <strong><%= @cron_status.running ? "はい" : "いいえ" %></strong>
+        <small><%= @cron_status.running_run ? "daily_run_id=#{@cron_status.running_run.id}" : "-" %></small>
+      </div>
+      <div class="metric-card">
+        <span>Scheduler状態</span>
+        <strong><%= @scheduler_status.reason %></strong>
+        <small>ready: <%= @scheduler_status.ready ? "yes" : "no" %></small>
+      </div>
+      <div class="metric-card">
+        <span>次回予定</span>
+        <strong><%= @scheduler_status.next_run_at ? l(@scheduler_status.next_run_at, format: :short) : "-" %></strong>
+        <small>timezone: <%= @scheduler_status.setting.timezone %></small>
+      </div>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>次に必要な作業</h2>
+    </div>
+    <div class="aicoo-card aicoo-card-compact">
+      <% if @cron_status.cron_enabled %>
+        <p>Render側でCron Jobが設定されていれば、寝ている間も <code>bundle exec rails aicoo:daily_run</code> からDaily Runが起動できます。</p>
+      <% else %>
+        <p>無料版ではこのまま手動実行で使えます。有料化後にRender Cron Jobを作成し、<code>AICOO_DAILY_RUN_ENABLED=true</code> と <code>TZ=Asia/Tokyo</code> を設定してください。</p>
+      <% end %>
+      <p>詳しい手順はRepository内の <code>docs/render_daily_run.md</code> を確認してください。</p>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>直近履歴</h2>
+      <p>詳細なstep結果はDaily Run詳細で確認します。</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>開始</th>
+            <th>対象日</th>
+            <th>source</th>
+            <th>状態</th>
+            <th>retry</th>
+            <th>詳細</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @recent_daily_runs.each do |daily_run| %>
+            <tr>
+              <td><%= daily_run.started_at ? l(daily_run.started_at, format: :short) : "-" %></td>
+              <td><%= daily_run.target_date %></td>
+              <td><span class="pill"><%= daily_run.source %></span></td>
+              <td><span class="pill"><%= daily_run.status %></span></td>
+              <td class="number"><%= daily_run.retry_count %></td>
+              <td><%= link_to "詳細", daily_run, class: "button secondary" %></td>
+            </tr>
+          <% end %>
+          <% if @recent_daily_runs.empty? %>
+            <tr><td colspan="6">まだDaily Runはありません。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>

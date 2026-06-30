@@ -31,6 +31,7 @@ module Owner
                                                  .recent
                                                  .limit(5)
       @running_daily_run = AicooDailyRun.running.includes(:aicoo_daily_run_steps).recent.first
+      @daily_run_cron_status = Aicoo::DailyRunCronStatus.new.call
       @top_task_evidence = evidence_for_top_task
       @top_task_expansion = expansion_for_top_task
       @top_task_action_candidate = top_task_action_candidate

@@ -1,6 +1,5 @@
 class DashboardController < ApplicationController
   def show
-    run_daily_catch_up_if_due
     @system_mode_monitor = Aicoo::SystemModeSnapshotPresenter.new.call
     @cost_summary = Aicoo::CostEngine.new.call
     @analysis_monitor = Aicoo::AnalysisMonitor.new.call
@@ -16,6 +15,7 @@ class DashboardController < ApplicationController
     @investment_waiting_businesses = @scaling_candidates.map(&:business)
     @resource_control_summary = Aicoo::ResourceControlSummary.new.call
     @running_daily_run = AicooDailyRun.running.includes(:aicoo_daily_run_steps).recent.first
+    @daily_run_cron_status = Aicoo::DailyRunCronStatus.new.call
   end
 
   def refresh_system_mode_snapshot
@@ -135,18 +135,6 @@ class DashboardController < ApplicationController
     return nil if delays.empty?
 
     delays.sum.to_d / delays.size
-  end
-
-  def run_daily_catch_up_if_due
-    return if Rails.env.test?
-
-    status = AicooDailyRunScheduler.status
-    setting = status.setting
-    return unless setting.enabled? && setting.catch_up_enabled? && status.ready
-
-    AicooDailyRunScheduler.catch_up_if_due!
-  rescue StandardError => e
-    Rails.logger.warn("AICOO Daily Run catch-up failed: #{e.class}: #{e.message}")
   end
 
   def import_business_metrics_for(date, label)

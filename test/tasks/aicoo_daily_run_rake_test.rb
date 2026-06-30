@@ -11,35 +11,67 @@ class AicooDailyRunRakeTest < ActiveSupport::TestCase
     assert Rake::Task.task_defined?("aicoo:daily_run")
   end
 
-  test "daily_run task calls runner" do
+  test "daily_run task does not call scheduler when cron env is disabled" do
     called = false
-    daily_run = AicooDailyRun.create!(target_date: Date.new(2026, 6, 21), status: "success")
 
-    with_daily_runner_stub(->(target_date:, source:) {
-      called = true
-      assert_equal Date.new(2026, 6, 21), target_date
-      assert_equal "manual", source
-      daily_run
-    }) do
-      capture_io do
-        Rake::Task["aicoo:daily_run"].invoke("2026-06-21")
+    with_env("AICOO_DAILY_RUN_ENABLED", nil) do
+      with_scheduler_stub(->(source:) {
+        called = true
+        raise "scheduler should not be called"
+      }) do
+        out, = capture_io do
+          Rake::Task["aicoo:daily_run"].invoke
+        end
+
+        assert_includes out, "cron disabled"
+      end
+    end
+
+    assert_not called
+  end
+
+  test "daily_run task calls scheduler as cron when cron env is enabled" do
+    called = false
+    daily_run = AicooDailyRun.create!(target_date: Date.yesterday, status: "success", source: "cron")
+
+    with_env("AICOO_DAILY_RUN_ENABLED", "true") do
+      with_scheduler_stub(->(source:) {
+        called = true
+        assert_equal "cron", source
+        daily_run
+      }) do
+        out, = capture_io do
+          Rake::Task["aicoo:daily_run"].invoke
+        end
+
+        assert_includes out, "daily_run_id=#{daily_run.id}"
+        assert_includes out, "status=success"
       end
     end
 
     assert called
   end
 
-  test "daily_run task without date calls scheduler as cron" do
+  test "daily_run task delegates successful today and running checks to scheduler" do
     called = false
-    daily_run = AicooDailyRun.create!(target_date: Date.yesterday, status: "success", source: "cron")
+    skipped_run = AicooDailyRun.create!(
+      target_date: Date.current,
+      status: "skipped",
+      source: "cron",
+      run_log: "Daily Run skipped: already_success"
+    )
 
-    with_scheduler_stub(->(source:) {
-      called = true
-      assert_equal "cron", source
-      daily_run
-    }) do
-      capture_io do
-        Rake::Task["aicoo:daily_run"].invoke
+    with_env("AICOO_DAILY_RUN_ENABLED", "true") do
+      with_scheduler_stub(->(source:) {
+        called = true
+        assert_equal "cron", source
+        skipped_run
+      }) do
+        out, = capture_io do
+          Rake::Task["aicoo:daily_run"].invoke
+        end
+
+        assert_includes out, "status=skipped"
       end
     end
 
@@ -48,14 +80,12 @@ class AicooDailyRunRakeTest < ActiveSupport::TestCase
 
   private
 
-  def with_daily_runner_stub(replacement)
-    original = AicooDailyRunner.method(:run!)
-    AicooDailyRunner.define_singleton_method(:run!) { |*args, **kwargs| replacement.call(*args, **kwargs) }
+  def with_env(key, value)
+    previous = ENV[key]
+    value.nil? ? ENV.delete(key) : ENV[key] = value
     yield
   ensure
-    AicooDailyRunner.define_singleton_method(:run!) do |*args, **kwargs, &block|
-      original.call(*args, **kwargs, &block)
-    end
+    previous.nil? ? ENV.delete(key) : ENV[key] = previous
   end
 
   def with_scheduler_stub(replacement)

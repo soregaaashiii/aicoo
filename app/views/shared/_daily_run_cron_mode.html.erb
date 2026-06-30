@@ -1,0 +1,30 @@
+<% status ||= Aicoo::DailyRunCronStatus.new.call %>
+
+<div class="aicoo-card aicoo-card-compact">
+  <p>
+    <span class="pill">Daily Run Mode</span>
+    <span class="pill"><%= status.mode_label %></span>
+  </p>
+  <p><%= status.next_action %></p>
+  <div class="metric-grid">
+    <div class="metric-card">
+      <span>Cron ENV</span>
+      <strong><%= status.cron_enabled ? "ON" : "OFF" %></strong>
+      <small><%= Aicoo::DailyRunCronTask::ENABLED_ENV_KEY %>=<%= status.env_value %></small>
+    </div>
+    <div class="metric-card">
+      <span>今日成功済み</span>
+      <strong><%= status.today_success ? "はい" : "いいえ" %></strong>
+      <small>対象日 <%= status.scheduler_status.target_date %></small>
+    </div>
+    <div class="metric-card">
+      <span>実行中</span>
+      <strong><%= status.running ? "はい" : "いいえ" %></strong>
+      <small><%= status.running_run&.target_date || "-" %></small>
+    </div>
+  </div>
+  <div class="actions compact-actions">
+    <%= link_to "Daily Runヘルス", admin_aicoo_daily_run_health_path, class: "button secondary" %>
+    <%= link_to "Daily Run履歴", aicoo_daily_runs_path, class: "button secondary" %>
+  </div>
+</div>

@@ -186,6 +186,7 @@ Rails.application.routes.draw do
     post "google_api_imports/:business_id", to: "google_api_imports#create", as: :google_api_import
     get "execution_runs", to: "execution_runs#index", as: :execution_runs
     get "execution_runs/:id", to: "execution_runs#show", as: :execution_run
+    get "aicoo_daily_run_health", to: "aicoo_daily_run_health#show", as: :aicoo_daily_run_health
     get "pipeline_e2e_check", to: "pipeline_e2e_checks#show", as: :pipeline_e2e_check
     post "pipeline_e2e_check/repair", to: "pipeline_e2e_checks#repair", as: :pipeline_e2e_check_repair
     get "activity_learning_e2e_check", to: "activity_learning_e2e_checks#show", as: :activity_learning_e2e_check

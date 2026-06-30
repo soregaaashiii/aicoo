@@ -16,6 +16,7 @@
   <%= render "shared/aicoo_execution_tabs", active: :dashboard %>
 
   <%= render "shared/daily_run_running_status", daily_run: @running_daily_run %>
+  <%= render "shared/daily_run_cron_mode", status: @daily_run_cron_status %>
 
   <%= render "dashboard/system_mode_monitor", monitor: @system_mode_monitor %>
 

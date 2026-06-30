@@ -47,14 +47,33 @@ class AicooDailyRunner
     analytics_step = start_step!(run, "analytics_fetch")
     analytics_runs = fetch_analytics!
     analytics_success_count = analytics_runs.count { |analytics_run| analytics_run.status == "success" }
-    analytics_failed_count = analytics_runs.count { |analytics_run| analytics_run.status == "failed" }
+    analytics_failed_runs = analytics_runs.select { |analytics_run| analytics_run.status == "failed" }
+    analytics_failed_count = analytics_failed_runs.size
+    analytics_blocking_failures = analytics_failed_runs.reject { |analytics_run| non_blocking_analytics_failure?(analytics_run) }
     run.update!(analytics_fetch_count: analytics_success_count)
-    partial_failures << "analytics_failed=#{analytics_failed_count}" if analytics_failed_count.positive?
-    if analytics_failed_count.positive?
+    partial_failures << "analytics_failed=#{analytics_blocking_failures.size}" if analytics_blocking_failures.any?
+    if analytics_blocking_failures.any?
       fail_step!(
         analytics_step,
-        "analytics_failed=#{analytics_failed_count}",
-        metadata: { success_count: analytics_success_count, failed_count: analytics_failed_count }
+        "analytics_failed=#{analytics_blocking_failures.size}",
+        metadata: analytics_metadata(
+          success_count: analytics_success_count,
+          failed_runs: analytics_failed_runs,
+          blocking_failures: analytics_blocking_failures
+        )
+      )
+    elsif analytics_failed_count.positive?
+      skip_step!(
+        analytics_step,
+        metadata: analytics_metadata(
+          success_count: analytics_success_count,
+          failed_runs: analytics_failed_runs,
+          blocking_failures: analytics_blocking_failures
+        ).merge(
+          warning: true,
+          reason: "analytics_optional_unavailable",
+          message: "GA4/GSC取得は失敗しましたが、内部データによるDaily Runは継続しました。Google再認証またはProperty設定を確認してください。"
+        )
       )
     else
       finish_step!(
@@ -194,6 +213,38 @@ class AicooDailyRunner
     last_id = AnalyticsFetchRun.maximum(:id).to_i
     AicooAnalytics::DailyFetchJob.perform_now
     AnalyticsFetchRun.where("id > ?", last_id)
+  end
+
+  def analytics_metadata(success_count:, failed_runs:, blocking_failures:)
+    {
+      success_count:,
+      failed_count: failed_runs.size,
+      blocking_failed_count: blocking_failures.size,
+      failed_source_types: failed_runs.map(&:source_type).compact.uniq,
+      failed_messages: failed_runs.filter_map(&:error_message).first(5)
+    }
+  end
+
+  def non_blocking_analytics_failure?(analytics_run)
+    message = analytics_run.error_message.to_s
+    return true if message.blank?
+
+    non_blocking_patterns.any? { |pattern| message.match?(pattern) }
+  end
+
+  def non_blocking_patterns
+    [
+      /invalid_grant/i,
+      /expired or revoked/i,
+      /refresh token/i,
+      /oauth_connected_at=missing/i,
+      /credentials_json_source=missing/i,
+      /missing/i,
+      /未設定/,
+      /not configured/i,
+      /property.*blank/i,
+      /site.*blank/i
+    ]
   end
 
   def adjust_proxy_weights
