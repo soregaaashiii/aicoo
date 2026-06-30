@@ -22,6 +22,176 @@
   <section class="dashboard-section">
     <div class="section-heading">
       <div>
+        <h2>Resource Control</h2>
+        <p>100以上のBusinessを前提に、今日見るBusinessだけを前面に出します。</p>
+      </div>
+      <%= link_to "Business一覧", businesses_path, class: "button secondary" %>
+    </div>
+    <div class="metric-grid">
+      <div class="metric-card">
+        <span>今日見るBusiness</span>
+        <strong><%= @resource_control_summary.today_businesses.size %>件</strong>
+        <small>Attention Score順</small>
+      </div>
+      <div class="metric-card">
+        <span>Active</span>
+        <strong><%= @resource_control_summary.active_count %>件</strong>
+        <small>通常運用</small>
+      </div>
+      <div class="metric-card">
+        <span>Watch</span>
+        <strong><%= @resource_control_summary.watch_businesses.count %>件</strong>
+        <small>自動計測のみ</small>
+      </div>
+      <div class="metric-card">
+        <span>Paused</span>
+        <strong><%= @resource_control_summary.paused_businesses.count %>件</strong>
+        <small>改善停止</small>
+      </div>
+      <div class="metric-card">
+        <span>Archived</span>
+        <strong><%= @resource_control_summary.archived_count %>件</strong>
+        <small>履歴保存</small>
+      </div>
+      <div class="metric-card">
+        <span>Watch提案</span>
+        <strong><%= @resource_control_summary.auto_snooze_candidates.size %>件</strong>
+        <small>Owner承認待ち</small>
+      </div>
+    </div>
+    <% if @resource_control_summary.today_businesses.any? %>
+      <div class="system-status-grid compact">
+        <% @resource_control_summary.today_businesses.first(8).each do |row| %>
+          <%= link_to row.business, class: "system-status-card status-#{row.score >= 40 ? "warning" : "healthy"}" do %>
+            <span><%= row.business.name %></span>
+            <strong>Attention <%= row.score %></strong>
+            <small><%= row.reasons.first(3).join(" / ") %></small>
+          <% end %>
+        <% end %>
+      </div>
+    <% else %>
+      <p class="aicoo-empty-state">本日は確認不要です。問題があるBusinessだけここに出ます。</p>
+    <% end %>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <div>
+        <h2>Business Lifecycle Summary</h2>
+        <p>IdeaからLP検証、MVP、本番、拡大までのBusiness段階を監視します。</p>
+      </div>
+      <%= link_to "Business一覧", businesses_path, class: "button secondary" %>
+    </div>
+    <div class="metric-grid">
+      <% Business::LIFECYCLE_STAGES.each do |stage| %>
+        <div class="metric-card">
+          <span><%= lifecycle_stage_label(stage) %></span>
+          <strong><%= @business_lifecycle_counts.fetch(stage, 0) %>件</strong>
+          <small><%= lifecycle_stage_description(stage) %></small>
+        </div>
+      <% end %>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <div>
+        <h2>MVP Promotion</h2>
+        <p>LP反応が良いBusinessを、Owner承認でMVP開発へ進める候補として監視します。</p>
+      </div>
+      <%= link_to "Business一覧", businesses_path, class: "button secondary" %>
+    </div>
+    <div class="metric-grid">
+      <div class="metric-card">
+        <span>MVP昇格候補</span>
+        <strong><%= @mvp_promotion_candidates.size %>件</strong>
+        <small>promising / strong のLP</small>
+      </div>
+      <div class="metric-card">
+        <span>MVP開発中Business</span>
+        <strong><%= @mvp_development_businesses.size %>件</strong>
+        <small>lifecycle_stage = mvp</small>
+      </div>
+      <div class="metric-card">
+        <span>Production昇格候補</span>
+        <strong><%= @production_promotion_candidates.size %>件</strong>
+        <small>MVP promising / strong</small>
+      </div>
+      <div class="metric-card">
+        <span>Production運用中Business</span>
+        <strong><%= @production_businesses.size %>件</strong>
+        <small>lifecycle_stage = production</small>
+      </div>
+      <div class="metric-card">
+        <span>Scaling候補</span>
+        <strong><%= @scaling_candidates.size %>件</strong>
+        <small>production strong</small>
+      </div>
+      <div class="metric-card">
+        <span>Scaling中Business</span>
+        <strong><%= @scaling_businesses.size %>件</strong>
+        <small>lifecycle_stage = scaling</small>
+      </div>
+      <div class="metric-card">
+        <span>Scaling失敗警告</span>
+        <strong><%= @scaling_failure_warnings.size %>件</strong>
+        <small>not_ready に低下</small>
+      </div>
+      <div class="metric-card">
+        <span>投資待ちBusiness</span>
+        <strong><%= @investment_waiting_businesses.size %>件</strong>
+        <small>Owner承認待ち</small>
+      </div>
+    </div>
+    <div class="system-status-grid compact">
+      <% @mvp_promotion_candidates.each do |candidate| %>
+        <%= link_to candidate.business, class: "system-status-card status-healthy" do %>
+          <span><%= candidate.business.name %></span>
+          <strong><%= candidate.summary.verdict %></strong>
+          <small>
+            <%= candidate.landing_page.public_headline %> /
+            PV <%= number_with_delimiter(candidate.summary.pv) %> /
+            CTA <%= number_with_delimiter(candidate.summary.cta_clicks) %> /
+            CV <%= number_with_delimiter(candidate.summary.cv) %>
+          </small>
+        <% end %>
+      <% end %>
+      <% if @mvp_promotion_candidates.empty? %>
+        <p class="aicoo-empty-state">MVP昇格候補はまだありません。</p>
+      <% end %>
+    </div>
+    <div class="system-status-grid compact">
+      <% @production_promotion_candidates.each do |candidate| %>
+        <%= link_to candidate.business, class: "system-status-card status-healthy" do %>
+          <span><%= candidate.business.name %> / Production候補</span>
+          <strong><%= candidate.summary.verdict %></strong>
+          <small>
+            <%= candidate.business_service.name %> /
+            登録 <%= number_with_delimiter(candidate.summary.registrations) %> /
+            有料 <%= number_with_delimiter(candidate.summary.paid_users) %> /
+            売上 <%= number_to_currency(candidate.summary.revenue_yen, unit: "¥", precision: 0) %>
+          </small>
+        <% end %>
+      <% end %>
+    </div>
+    <div class="system-status-grid compact">
+      <% @scaling_candidates.each do |candidate| %>
+        <%= link_to candidate.business, class: "system-status-card status-healthy" do %>
+          <span><%= candidate.business.name %> / Scaling候補</span>
+          <strong><%= candidate.summary.verdict %></strong>
+          <small>
+            売上 <%= number_to_currency(candidate.summary.monthly_revenue_yen, unit: "¥", precision: 0) %> /
+            有料 <%= number_with_delimiter(candidate.summary.paid_users) %> /
+            投資先 <%= candidate.summary.recommended_investment %>
+          </small>
+        <% end %>
+      <% end %>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <div>
         <h2>Cost Summary / Data Source Monitor</h2>
         <p>Data Sourceごとの月間APIコスト、実行方式、ROIを監視します。</p>
       </div>

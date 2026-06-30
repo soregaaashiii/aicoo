@@ -38,6 +38,7 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Analytics"
     assert_includes response.body, "Execution Profile"
     assert_includes response.body, "Auto Revision"
+    assert_includes response.body, "Lifecycle"
     assert_includes response.body, "missing"
     assert_includes response.body, "Profile作成"
     assert_includes response.body, "CODEX"
@@ -124,7 +125,7 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
 
   test "should create business" do
     assert_difference("Business.count") do
-      post businesses_url, params: { business: { description: @business.description, name: "新規事業探索", status: @business.status } }
+      post businesses_url, params: { business: { description: @business.description, name: "新規事業探索", status: @business.status, lifecycle_stage: "idea" } }
     end
 
     assert_redirected_to business_url(Business.last)
@@ -151,12 +152,21 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes response.body, "Business Analytics Dashboard"
+    assert_includes response.body, "事業ホーム"
+    assert_includes response.body, "現在フェーズ"
+    assert_includes response.body, "運用負荷"
+    assert_includes response.body, "Resource Status"
+    assert_includes response.body, "Attention Score"
+    assert_includes response.body, "LP状況"
+    assert_includes response.body, "Service状況"
     assert_includes response.body, "初回設定ウィザード"
     assert_includes response.body, "Business &gt;"
     assert_includes response.body, "概要"
     assert_includes response.body, "Google"
     assert_includes response.body, "SERP"
     assert_includes response.body, "LP"
+    assert_includes response.body, "Service"
+    assert_includes response.body, "Timeline"
     assert_includes response.body, "Daily Run"
     assert_includes response.body, "Connection Status"
     assert_includes response.body, "GSCグラフ"
@@ -198,9 +208,167 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "CODEX"
     assert_includes response.body, "公開LP管理"
     assert_includes response.body, "LPを新規作成"
+    assert_includes response.body, "MVP Ready Check"
+    assert_includes response.body, "Business Timeline"
+    assert_includes response.body, "Source Connections"
+    assert_includes response.body, "Improvement History"
+    assert_includes response.body, "LP検証後の実サービス"
+    assert_includes response.body, "Production Ready Check"
+    assert_includes response.body, "Scaling評価"
     assert_includes response.body, "Daily Run一覧"
     assert_includes response.body, "自動改訂"
     assert_includes response.body, "Manual"
+  end
+
+  test "business index shows resource status" do
+    @business.update!(resource_status: "watch", next_review_on: Date.current + 30.days)
+
+    get businesses_url
+
+    assert_response :success
+    assert_includes response.body, "Resource"
+    assert_includes response.body, "Watch"
+    assert_includes response.body, "次回"
+  end
+
+  test "updates resource status with owner approval log" do
+    assert_difference -> { BusinessActivityLog.where(activity_type: "resource_status_changed").count }, 1 do
+      patch update_resource_status_business_url(@business), params: {
+        resource_status: "watch",
+        reason: "安定しているためWatchへ移行"
+      }
+    end
+
+    assert_redirected_to business_url(@business, anchor: "business-resource")
+    assert_equal "watch", @business.reload.resource_status
+    assert_equal "安定しているためWatchへ移行", @business.resource_status_reason
+    assert_match(/運用状態をwatchへ変更しました/, flash[:notice])
+  end
+
+  test "show displays lp evaluation summary and mvp promotion button for promising lp" do
+    @business.update!(created_by_aicoo: true, lifecycle_stage: "lp_validation")
+    landing_page = create_promising_landing_page(@business)
+    landing_page.aicoo_lab_landing_page_events.create!(event_type: "view", occurred_at: Time.current)
+    3.times { landing_page.aicoo_lab_landing_page_events.create!(event_type: "cta_click", occurred_at: Time.current) }
+    landing_page.aicoo_lab_signups.create!(email: "business-show-mvp@example.com")
+
+    get business_url(@business)
+
+    assert_response :success
+    assert_includes response.body, "MVP Ready Check"
+    assert_includes response.body, "strong"
+    assert_includes response.body, "MVP開発へ進める"
+  end
+
+  test "promote to mvp creates service and auto revision task" do
+    @business.update!(created_by_aicoo: true, lifecycle_stage: "lp_validation")
+    landing_page = create_promising_landing_page(@business, slug: "promote-controller-lp")
+    3.times { landing_page.aicoo_lab_landing_page_events.create!(event_type: "cta_click", occurred_at: Time.current) }
+
+    assert_difference -> { BusinessService.count }, 1 do
+      assert_difference -> { AutoRevisionTask.count }, 1 do
+        post promote_to_mvp_business_url(@business), params: { landing_page_id: landing_page.id }
+      end
+    end
+
+    assert_redirected_to business_url(@business, anchor: "business-services")
+    assert_equal "mvp", @business.reload.lifecycle_stage
+    assert_match(/MVP開発へ進めました/, flash[:notice])
+  end
+
+  test "show displays mvp evaluation and production promotion button" do
+    @business.update!(created_by_aicoo: true, lifecycle_stage: "mvp")
+    service = @business.business_services.create!(
+      name: "Controller MVP",
+      status: "live",
+      url: "https://controller.example.com",
+      stripe_account: "acct_test",
+      metadata: { registrations: 10, active_users: 6, paid_users: 2, retention_rate: "0.6", user_feedback: "使いたい" }
+    )
+    @business.revenue_events.create!(event_type: "revenue", amount: 20_000, occurred_on: Date.current)
+
+    get business_url(@business)
+
+    assert_response :success
+    assert_includes response.body, "Production Ready Check"
+    assert_includes response.body, service.name
+    assert_includes response.body, "本番運用へ進める"
+  end
+
+  test "promote to production creates auto revision task" do
+    @business.update!(created_by_aicoo: true, lifecycle_stage: "mvp")
+    service = @business.business_services.create!(
+      name: "Promote Production MVP",
+      status: "live",
+      url: "https://production.example.com",
+      stripe_account: "acct_test",
+      metadata: { registrations: 10, active_users: 6, paid_users: 2, retention_rate: "0.6", user_feedback: "良い" }
+    )
+    @business.revenue_events.create!(event_type: "revenue", amount: 20_000, occurred_on: Date.current)
+
+    assert_difference -> { AutoRevisionTask.count }, 1 do
+      post promote_to_production_business_url(@business), params: { business_service_id: service.id }
+    end
+
+    assert_redirected_to business_url(@business, anchor: "business-services")
+    assert_equal "production", @business.reload.lifecycle_stage
+    assert_equal "production", service.reload.status
+    assert_match(/本番運用へ進めました/, flash[:notice])
+  end
+
+  test "show displays scaling evaluation and promotion button" do
+    @business.update!(created_by_aicoo: true, lifecycle_stage: "production", status: "launched", launched: true)
+    @business.business_services.create!(
+      name: "Scaling Controller Service",
+      status: "production",
+      metadata: {
+        paid_users: 6,
+        active_users: 15,
+        registrations: 20,
+        retention_rate: "0.65",
+        cac_hypothesis_yen: 7_000,
+        ltv_hypothesis_yen: 70_000,
+        primary_channel: "SEO"
+      }
+    )
+    @business.revenue_events.create!(event_type: "revenue", amount: 120_000, occurred_on: Date.current)
+    @business.revenue_events.create!(event_type: "expense", amount: 10_000, occurred_on: Date.current)
+    @business.business_metric_dailies.create!(recorded_on: Date.current, sessions: 100, conversions: 6, impressions: 1_000)
+
+    get business_url(@business)
+
+    assert_response :success
+    assert_includes response.body, "Scaling評価"
+    assert_includes response.body, "Scalingへ進める"
+    assert_includes response.body, "Scaling Ready Check"
+  end
+
+  test "promote to scaling creates auto revision task" do
+    @business.update!(created_by_aicoo: true, lifecycle_stage: "production", status: "launched", launched: true)
+    @business.business_services.create!(
+      name: "Promote Scaling Service",
+      status: "production",
+      metadata: {
+        paid_users: 6,
+        active_users: 15,
+        registrations: 20,
+        retention_rate: "0.65",
+        cac_hypothesis_yen: 7_000,
+        ltv_hypothesis_yen: 70_000,
+        primary_channel: "SEO"
+      }
+    )
+    @business.revenue_events.create!(event_type: "revenue", amount: 120_000, occurred_on: Date.current)
+    @business.revenue_events.create!(event_type: "expense", amount: 10_000, occurred_on: Date.current)
+    @business.business_metric_dailies.create!(recorded_on: Date.current, sessions: 100, conversions: 6, impressions: 1_000)
+
+    assert_difference -> { AutoRevisionTask.count }, 1 do
+      post promote_to_scaling_business_url(@business)
+    end
+
+    assert_redirected_to business_url(@business, anchor: "business-scaling")
+    assert_equal "scaling", @business.reload.lifecycle_stage
+    assert_match(/Scalingへ進めました/, flash[:notice])
   end
 
   test "show treats global google credential as connected and exposes gsc ga4 fetch buttons" do
@@ -441,5 +609,30 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_redirected_to businesses_url
+  end
+
+  private
+
+  def create_promising_landing_page(business, slug: "business-controller-mvp-lp")
+    experiment = AicooLabExperiment.create!(
+      title: slug,
+      experiment_type: "lp",
+      acquisition_channel: "seo",
+      status: "running",
+      approval_status: "approved",
+      assumed_price_yen: 1_980
+    )
+    experiment.create_aicoo_lab_landing_page!(
+      business:,
+      headline: "MVP昇格テストLP",
+      subheadline: "対象ユーザーが明確なサービス案",
+      body: "課題を整理し、最小機能で解決するMVP候補です。",
+      cta_text: "事前登録する",
+      status: "published",
+      public_status: "published",
+      published_slug: slug,
+      published_at: Time.current,
+      assumed_price_yen: 1_980
+    )
   end
 end

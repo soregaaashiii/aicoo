@@ -17,9 +17,11 @@ module Aicoo
 
     Result = Struct.new(:created_count, :evaluated_count, :skipped_count, :pending_count, keyword_init: true)
 
-    def call
+    def call(business: nil)
       result = Result.new(created_count: 0, evaluated_count: 0, skipped_count: 0, pending_count: 0)
-      BusinessActivityLog.evaluation_due.find_each do |activity_log|
+      scope = BusinessActivityLog.evaluation_due
+      scope = scope.where(business:) if business
+      scope.find_each do |activity_log|
         evaluate_log(activity_log, result)
       end
       result

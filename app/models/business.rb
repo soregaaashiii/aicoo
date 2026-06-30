@@ -1,5 +1,7 @@
 class Business < ApplicationRecord
   STATUSES = %w[idea researching building launched paused sold withdrawn].freeze
+  LIFECYCLE_STAGES = %w[idea lp_validation mvp production scaling archived].freeze
+  RESOURCE_STATUSES = %w[active watch paused archived].freeze
   AUTO_REVISION_MODES = %w[manual approval automatic].freeze
   AUTO_DEPLOY_MODES = %w[manual approval automatic].freeze
   SYSTEM_BUSINESS_NAMES = [
@@ -24,6 +26,7 @@ class Business < ApplicationRecord
   has_many :business_activity_logs, dependent: :destroy
   has_many :source_app_connections, dependent: :destroy
   has_many :activity_evaluations, dependent: :destroy
+  has_many :business_services, dependent: :destroy
   has_many :analysis_candidates, dependent: :destroy
   has_many :aicoo_lab_landing_pages, dependent: :nullify
   has_many :aicoo_pipeline_runs, dependent: :nullify
@@ -34,11 +37,17 @@ class Business < ApplicationRecord
 
   validates :name, presence: true
   validates :status, inclusion: { in: STATUSES }, allow_blank: true
+  validates :lifecycle_stage, inclusion: { in: LIFECYCLE_STAGES }
+  validates :resource_status, inclusion: { in: RESOURCE_STATUSES }
   validates :auto_revision_mode, inclusion: { in: AUTO_REVISION_MODES }
   validates :auto_deploy_mode, inclusion: { in: AUTO_DEPLOY_MODES }
 
   scope :real_businesses, -> { where.not(name: SYSTEM_BUSINESS_NAMES) }
   scope :system_businesses, -> { where(name: SYSTEM_BUSINESS_NAMES) }
+  scope :resource_active, -> { where(resource_status: "active") }
+  scope :resource_watch, -> { where(resource_status: "watch") }
+  scope :resource_paused, -> { where(resource_status: "paused") }
+  scope :resource_archived, -> { where(resource_status: "archived") }
 
   before_validation :set_default_status
 
@@ -46,6 +55,17 @@ class Business < ApplicationRecord
 
   def system_business?
     name.in?(SYSTEM_BUSINESS_NAMES)
+  end
+
+  def change_resource_status!(status, reason:, operator: "owner")
+    previous_status = resource_status
+    update!(
+      resource_status: status,
+      resource_status_reason: reason,
+      resource_status_changed_at: Time.current,
+      next_review_on: Aicoo::ResourceSummary.default_next_review_on(status)
+    )
+    record_resource_status_activity!(previous_status:, operator:)
   end
 
   def aicoo_internal_codex?
@@ -219,8 +239,44 @@ class Business < ApplicationRecord
 
   def set_default_status
     self.status = "idea" if status.blank?
+    self.lifecycle_stage = infer_lifecycle_stage if lifecycle_stage.blank?
+    self.resource_status = "active" if resource_status.blank?
     self.auto_revision_mode = "manual" if auto_revision_mode.blank?
     self.auto_deploy_mode = "manual" if auto_deploy_mode.blank?
+  end
+
+  def record_resource_status_activity!(previous_status:, operator:)
+    business_activity_logs.create!(
+      activity_type: "resource_status_changed",
+      source_app: "aicoo",
+      source_method: "logger",
+      resource_type: "Business",
+      resource_id: id.to_s,
+      title: "運用状態を#{resource_status}へ変更",
+      occurred_at: Time.current,
+      detected_at: Time.current,
+      diff_summary: "#{previous_status} から #{resource_status} へ変更しました。",
+      idempotency_key: "resource_status:business:#{id}:#{resource_status}:#{resource_status_changed_at.to_i}",
+      before_snapshot: { "resource_status" => previous_status },
+      after_snapshot: { "resource_status" => resource_status },
+      metadata: {
+        "operator" => operator,
+        "reason" => resource_status_reason,
+        "next_review_on" => next_review_on&.iso8601
+      }
+    )
+  rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique
+    nil
+  end
+
+  def infer_lifecycle_stage
+    return "archived" if status == "withdrawn"
+    return "scaling" if status == "sold"
+    return "production" if status == "launched"
+    return "mvp" if status == "building"
+    return "lp_validation" if aicoo_lab_landing_pages.publicly_available.exists?
+
+    "idea"
   end
 
   def current_month_range

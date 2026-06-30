@@ -21,6 +21,225 @@
              actions: header_actions %>
 
 <%= render "navigation", business: @business, current_section: "概要" %>
+
+<section class="dashboard-section" id="business-lifecycle">
+  <div class="section-heading">
+    <div>
+      <h2>事業ホーム</h2>
+      <p>Idea、LP検証、サービス公開、改善・学習をこのBusiness配下で管理します。</p>
+    </div>
+    <div class="actions compact-actions">
+      <%= link_to "Lifecycle変更", edit_business_path(@business, return_to: business_path(@business, anchor: "business-lifecycle")), class: "button secondary" %>
+      <%= link_to "次にやる", owner_focus_path, class: "button secondary" %>
+    </div>
+  </div>
+  <% period_30d_for_home = @business_analytics_summary.periods.fetch(30) %>
+  <div class="metric-grid">
+    <div class="metric-card">
+      <span>現在フェーズ</span>
+      <strong><%= lifecycle_stage_label(@business.lifecycle_stage) %></strong>
+      <small><%= lifecycle_stage_description(@business.lifecycle_stage) %></small>
+    </div>
+    <div class="metric-card">
+      <span>今日の状況</span>
+      <strong><%= @pipeline_run.stuck? ? "要対応" : @pipeline_run.status %></strong>
+      <small><%= @pipeline_run.stuck? ? @pipeline_run.stuck_reason : "Stage: #{stage_label(@pipeline_run.current_stage)}" %></small>
+    </div>
+    <div class="metric-card">
+      <span>30日売上</span>
+      <strong><%= number_to_currency(period_30d_for_home.revenue_yen, unit: "¥", precision: 0) %></strong>
+      <small>Revenue / CV / クリックを統合</small>
+    </div>
+    <div class="metric-card">
+      <span>改善候補</span>
+      <strong><%= @business.action_candidates.where(status: %w[idea approved]).count %>件</strong>
+      <small>承認・実行待ち</small>
+    </div>
+    <div class="metric-card">
+      <span>LP状況</span>
+      <strong><%= @landing_page_counts.fetch("published", 0) %> published</strong>
+      <small>全<%= @business_landing_pages.count %>件</small>
+    </div>
+    <div class="metric-card">
+      <span>Service状況</span>
+      <strong><%= @business_services.where(status: "live").count %> live</strong>
+      <small>全<%= @business_services.count %>件</small>
+    </div>
+    <div class="metric-card">
+      <span>学習状態</span>
+      <strong><%= @business_playbook&.learned? ? "学習中" : "不足" %></strong>
+      <small>Playbook confidence <%= @business_playbook ? number_with_precision(@business_playbook.confidence_score, precision: 1) : "-" %></small>
+    </div>
+    <div class="metric-card">
+      <span>次にやること</span>
+      <strong><%= @pipeline_run.stuck? ? "Pipeline復旧" : "改善候補確認" %></strong>
+      <small><%= @pipeline_run.stuck? ? @pipeline_run.recovery_message.to_s.truncate(60) : "Action / LP / Serviceを確認" %></small>
+    </div>
+  </div>
+</section>
+
+<section class="dashboard-section" id="business-resource">
+  <div class="section-heading">
+    <div>
+      <h2>運用負荷</h2>
+      <p>このBusinessに今日時間を使う価値を、コスト・エラー・反応・改善候補から判断します。</p>
+    </div>
+    <span class="pill status-<%= @attention_score.score >= 20 ? "warning" : "healthy" %>">
+      Attention Score <%= @attention_score.score %>
+    </span>
+  </div>
+  <div class="metric-grid">
+    <div class="metric-card">
+      <span>Resource Status</span>
+      <strong><%= resource_status_label(@business.resource_status) %></strong>
+      <small><%= resource_status_description(@business.resource_status) %></small>
+    </div>
+    <div class="metric-card">
+      <span>月額コスト</span>
+      <strong><%= number_to_currency(@resource_summary.monthly_cost_yen, unit: "¥", precision: 0) %></strong>
+      <small>
+        API <%= number_to_currency(@resource_summary.estimated_api_cost_yen, unit: "¥", precision: 0) %> /
+        AI <%= number_to_currency(@resource_summary.estimated_ai_cost_yen, unit: "¥", precision: 0) %> /
+        Infra <%= number_to_currency(@resource_summary.estimated_infra_cost_yen, unit: "¥", precision: 0) %>
+      </small>
+    </div>
+    <div class="metric-card">
+      <span>推定保守時間</span>
+      <strong><%= @resource_summary.estimated_maintenance_minutes %>分/月</strong>
+      <small>エラー・問い合わせ・改善候補から推定</small>
+    </div>
+    <div class="metric-card">
+      <span>エラー / 問い合わせ</span>
+      <strong><%= @resource_summary.error_count %> / <%= @resource_summary.inquiry_count %></strong>
+      <small>直近30日</small>
+    </div>
+    <div class="metric-card">
+      <span>最終改善日</span>
+      <strong><%= @resource_summary.last_improvement_at ? l(@resource_summary.last_improvement_at, format: :short) : "-" %></strong>
+      <small>Action / Revision / Activity</small>
+    </div>
+    <div class="metric-card">
+      <span>最終反応日</span>
+      <strong><%= @resource_summary.last_reaction_at ? l(@resource_summary.last_reaction_at, format: :short) : "-" %></strong>
+      <small>LP / Signup / Metric</small>
+    </div>
+    <div class="metric-card">
+      <span>最終売上日</span>
+      <strong><%= @resource_summary.last_revenue_on || "-" %></strong>
+      <small>RevenueEvent</small>
+    </div>
+    <div class="metric-card">
+      <span>次回確認予定日</span>
+      <strong><%= @resource_summary.next_review_on || "-" %></strong>
+      <small><%= @resource_summary.auto_snooze_reason %></small>
+    </div>
+  </div>
+  <div class="aicoo-grid aicoo-grid-2">
+    <div class="aicoo-card aicoo-card-compact">
+      <h3>Attention理由</h3>
+      <ul class="compact-list">
+        <% @attention_score.reasons.each do |reason| %>
+          <li><%= reason %></li>
+        <% end %>
+      </ul>
+    </div>
+    <div class="aicoo-card aicoo-card-compact">
+      <h3>Owner承認で運用状態を変更</h3>
+      <div class="actions compact-actions">
+        <% Business::RESOURCE_STATUSES.each do |status| %>
+          <%= button_to resource_status_label(status),
+                        update_resource_status_business_path(@business),
+                        method: :patch,
+                        params: { resource_status: status, reason: "Business詳細からOwner承認で#{status}へ変更" },
+                        class: @business.resource_status == status ? "button" : "button secondary",
+                        data: { turbo_confirm: "運用状態を#{status}へ変更します。自動変更ではなくOwner承認として記録します。" } %>
+        <% end %>
+      </div>
+      <% if @resource_summary.auto_snooze_recommended %>
+        <p class="aicoo-help-text">Watch提案: <%= @resource_summary.auto_snooze_reason %></p>
+      <% end %>
+    </div>
+  </div>
+</section>
+
+<section class="dashboard-section" id="business-scaling">
+  <div class="section-heading">
+    <div>
+      <h2>Scaling評価</h2>
+      <p>production状態のBusinessを、売上・継続・CVR・改善余地からScalingへ進めるか判断します。</p>
+    </div>
+    <% if @scaling_evaluation.promotable? %>
+      <%= button_to "Scalingへ進める",
+                    promote_to_scaling_business_path(@business),
+                    method: :post,
+                    class: "button",
+                    data: { turbo_confirm: "このBusinessをScalingフェーズへ昇格します。よろしいですか？", disable_with: "Scaling昇格中..." } %>
+    <% end %>
+  </div>
+  <div class="metric-grid">
+    <div class="metric-card">
+      <span>判定</span>
+      <strong><%= @scaling_evaluation.verdict %></strong>
+      <small>推奨投資先: <%= @scaling_evaluation.recommended_investment %></small>
+    </div>
+    <div class="metric-card">
+      <span>月間売上 / 粗利</span>
+      <strong><%= number_to_currency(@scaling_evaluation.monthly_revenue_yen, unit: "¥", precision: 0) %></strong>
+      <small>粗利 <%= number_to_currency(@scaling_evaluation.gross_profit_yen, unit: "¥", precision: 0) %></small>
+    </div>
+    <div class="metric-card">
+      <span>有料ユーザー</span>
+      <strong><%= number_with_delimiter(@scaling_evaluation.paid_users) %>人</strong>
+      <small>LTV仮説 <%= number_to_currency(@scaling_evaluation.ltv_hypothesis_yen, unit: "¥", precision: 0) %></small>
+    </div>
+    <div class="metric-card">
+      <span>CAC仮説</span>
+      <strong><%= number_to_currency(@scaling_evaluation.cac_hypothesis_yen, unit: "¥", precision: 0) %></strong>
+      <small>LTV/CACを確認</small>
+    </div>
+    <div class="metric-card">
+      <span>継続率 / 解約率</span>
+      <strong><%= number_to_percentage(@scaling_evaluation.retention_rate * 100, precision: 1) %></strong>
+      <small>解約率 <%= number_to_percentage(@scaling_evaluation.churn_rate * 100, precision: 1) %></small>
+    </div>
+    <div class="metric-card">
+      <span>CVR</span>
+      <strong><%= number_to_percentage(@scaling_evaluation.cvr * 100, precision: 1) %></strong>
+      <small>直近30日</small>
+    </div>
+    <div class="metric-card">
+      <span>トレンド</span>
+      <strong><%= @scaling_evaluation.trend_7d_label %></strong>
+      <small>30日: <%= @scaling_evaluation.trend_30d_label %></small>
+    </div>
+    <div class="metric-card">
+      <span>改善余地</span>
+      <strong><%= @scaling_evaluation.improvement_room.first %></strong>
+      <small><%= @scaling_evaluation.improvement_room.drop(1).join(" / ").presence || "優先施策を絞り込み済み" %></small>
+    </div>
+  </div>
+  <div class="aicoo-card aicoo-card-compact">
+    <div class="section-heading compact">
+      <div>
+        <h3>Scaling Ready Check</h3>
+        <p>投資を増やす前に、データ・仮説・改善候補が揃っているか確認します。</p>
+      </div>
+      <span class="pill status-<%= @scaling_ready_check.ready? ? "healthy" : "warning" %>">
+        <%= @scaling_ready_check.ready? ? "Scaling可能" : "不足あり" %>
+      </span>
+    </div>
+    <div class="system-status-grid compact">
+      <% @scaling_ready_check.checks.each do |check| %>
+        <div class="system-status-card status-<%= check.passed ? "healthy" : "warning" %>">
+          <span><%= check.label %></span>
+          <strong><%= check.passed ? "OK" : "要確認" %></strong>
+          <small><%= check.message %></small>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</section>
+
 <%= render "setup_wizard",
            business: @business,
            analytics: @business_analytics_summary,
@@ -39,6 +258,8 @@
       <%= link_to "Google", "#business-google", class: "button secondary" %>
       <%= link_to "SERP", "#business-serp", class: "button secondary" %>
       <%= link_to "LP", "#business-lp", class: "button secondary" %>
+      <%= link_to "Service", "#business-services", class: "button secondary" %>
+      <%= link_to "Timeline", "#business-timeline", class: "button secondary" %>
       <%= link_to "Daily Run", "#business-daily-run", class: "button secondary" %>
       <%= link_to "Learning", "#business-learning", class: "button secondary" %>
     </div>
@@ -734,30 +955,87 @@
       </div>
     <% end %>
   </div>
+  <div class="aicoo-card aicoo-card-compact">
+    <div class="section-heading compact">
+      <div>
+        <h3>MVP Ready Check</h3>
+        <p>LP検証からMVP開発へ進む前に、最低限の準備が揃っているか確認します。</p>
+      </div>
+      <span class="pill status-<%= @mvp_ready_check.ready? ? "healthy" : "warning" %>">
+        <%= @mvp_ready_check.ready? ? "着手可能" : "不足あり" %>
+      </span>
+    </div>
+    <div class="system-status-grid compact">
+      <% @mvp_ready_check.checks.each do |check| %>
+        <div class="system-status-card status-<%= check.passed ? "healthy" : "warning" %>">
+          <span><%= check.label %></span>
+          <strong><%= check.passed ? "OK" : "要確認" %></strong>
+          <small><%= check.message %></small>
+        </div>
+      <% end %>
+    </div>
+  </div>
   <% if @business_landing_pages.any? %>
     <div class="table-wrap">
       <table>
         <thead>
           <tr>
             <th>LP</th>
+            <th>URL</th>
             <th>状態</th>
-            <th>公開URL</th>
+            <th>公開日</th>
+            <th>PV</th>
+            <th>CTA</th>
+            <th>CV</th>
+            <th>CVR</th>
+            <th>GSC</th>
+            <th>7日トレンド</th>
+            <th>判定</th>
+            <th>推奨アクション</th>
+            <th>改善回数</th>
             <th>管理</th>
           </tr>
         </thead>
         <tbody>
           <% @business_landing_pages.limit(10).each do |landing_page| %>
+            <% lp_url = landing_page.published_slug.present? ? public_lp_path(landing_page.published_slug) : nil %>
+            <% lp_evaluation = @lp_evaluations_by_id.fetch(landing_page.id) %>
             <tr>
               <td><%= landing_page.headline %></td>
-              <td><span class="pill"><%= landing_page.public_status %></span></td>
               <td>
-                <% if landing_page.public_status.in?(%w[published paused]) && landing_page.published_slug.present? %>
-                  <%= link_to public_lp_path(landing_page.published_slug), public_lp_path(landing_page.published_slug), target: "_blank", rel: "noopener" %>
+                <% if lp_url && landing_page.public_status.in?(%w[published paused]) %>
+                  <%= link_to lp_url, lp_url, target: "_blank", rel: "noopener" %>
                 <% else %>
                   -
                 <% end %>
               </td>
-              <td><%= link_to "LP編集", admin_aicoo_lab_edit_public_landing_page_path(landing_page), class: "button secondary" %></td>
+              <td><span class="pill"><%= landing_page.public_status %></span></td>
+              <td><%= landing_page.published_at ? l(landing_page.published_at, format: :short) : "-" %></td>
+              <td><%= number_with_delimiter(lp_evaluation.pv) %></td>
+              <td><%= number_with_delimiter(lp_evaluation.cta_clicks) %></td>
+              <td><%= number_with_delimiter(lp_evaluation.cv) %></td>
+              <td><%= lp_evaluation.pv.positive? ? number_to_percentage(lp_evaluation.cvr * 100, precision: 1) : "-" %></td>
+              <td>
+                <%= number_with_delimiter(lp_evaluation.gsc_clicks) %> clicks /
+                <%= number_with_delimiter(lp_evaluation.gsc_impressions) %> imp
+              </td>
+              <td><%= lp_evaluation.trend_label %></td>
+              <td><span class="pill status-<%= lp_evaluation.verdict == "poor" ? "warning" : "healthy" %>"><%= lp_evaluation.verdict %></span></td>
+              <td><%= lp_evaluation.recommendation %></td>
+              <td><%= lp_evaluation.improvement_count %>件</td>
+              <td>
+                <div class="compact-actions">
+                  <%= link_to "LP編集", admin_aicoo_lab_edit_public_landing_page_path(landing_page), class: "button secondary" %>
+                  <% if lp_evaluation.promotable? %>
+                    <%= button_to "MVP開発へ進める",
+                                  promote_to_mvp_business_path(@business),
+                                  method: :post,
+                                  params: { landing_page_id: landing_page.id },
+                                  class: "button",
+                                  data: { turbo_confirm: "このBusinessをMVP開発フェーズへ昇格します。よろしいですか？", disable_with: "MVP昇格中..." } %>
+                  <% end %>
+                </div>
+              </td>
             </tr>
           <% end %>
         </tbody>
@@ -769,6 +1047,151 @@
   <p class="aicoo-help-text">
     LPの公開状態は draft / scheduled / published / paused / archived で管理します。公開中LPだけが / と /lp と sitemap.xml に反映されます。
   </p>
+</section>
+
+<section class="dashboard-section" id="business-services">
+  <div class="section-heading">
+    <div>
+      <h2>Service</h2>
+      <p>LP検証後の実サービスを同じBusiness配下で管理します。</p>
+    </div>
+  </div>
+
+  <div class="aicoo-card aicoo-card-compact">
+    <div class="section-heading compact">
+      <div>
+        <h3>Production Ready Check</h3>
+        <p>MVPを本番運用へ進める前に、課金・計測・運用の最低条件を確認します。</p>
+      </div>
+      <span class="pill status-<%= @production_ready_check.ready? ? "healthy" : "warning" %>">
+        <%= @production_ready_check.ready? ? "本番化可能" : "不足あり" %>
+      </span>
+    </div>
+    <div class="system-status-grid compact">
+      <% @production_ready_check.checks.each do |check| %>
+        <div class="system-status-card status-<%= check.passed ? "healthy" : "warning" %>">
+          <span><%= check.label %></span>
+          <strong><%= check.passed ? "OK" : "要確認" %></strong>
+          <small><%= check.message %></small>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>名前</th>
+          <th>URL</th>
+          <th>Repository</th>
+          <th>デプロイ先</th>
+          <th>Render</th>
+          <th>Stripe</th>
+          <th>ドメイン</th>
+          <th>API</th>
+          <th>ステータス</th>
+          <th>MVP評価</th>
+          <th>登録/有料/売上</th>
+          <th>継続率</th>
+          <th>推奨</th>
+          <th>保存</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @business_services.each do |service| %>
+          <% mvp_evaluation = @mvp_evaluations_by_service_id.fetch(service.id) %>
+          <tr>
+            <%= form_with model: [@business, service], method: :patch, local: true do |form| %>
+              <td><%= form.text_field :name, aria: { label: "名前" } %></td>
+              <td><%= form.text_field :url, aria: { label: "URL" } %></td>
+              <td><%= form.text_field :repository, aria: { label: "Repository" } %></td>
+              <td><%= form.text_field :deploy_target, aria: { label: "デプロイ先" } %></td>
+              <td><%= form.text_field :render_service, aria: { label: "Render" } %></td>
+              <td><%= form.text_field :stripe_account, aria: { label: "Stripe" } %></td>
+              <td><%= form.text_field :domain, aria: { label: "ドメイン" } %></td>
+              <td><%= form.text_field :api_endpoint, aria: { label: "API" } %></td>
+              <td><%= form.select :status, BusinessService::STATUSES.map { |status| [business_service_status_label(status), status] } %></td>
+              <td>
+                <span class="pill status-<%= mvp_evaluation.verdict == "poor" ? "warning" : "healthy" %>"><%= mvp_evaluation.verdict %></span>
+                <small><%= mvp_evaluation.trend_label %></small>
+              </td>
+              <td>
+                登録 <%= number_with_delimiter(mvp_evaluation.registrations) %> /
+                有料 <%= number_with_delimiter(mvp_evaluation.paid_users) %> /
+                <%= number_to_currency(mvp_evaluation.revenue_yen, unit: "¥", precision: 0) %>
+              </td>
+              <td>
+                <%= number_to_percentage(mvp_evaluation.retention_rate * 100, precision: 1) %>
+                <small>解約 <%= mvp_evaluation.churn_count %></small>
+              </td>
+              <td>
+                <%= mvp_evaluation.recommendation %>
+                <% if mvp_evaluation.promotable? %>
+                  <%= button_to "本番運用へ進める",
+                                promote_to_production_business_path(@business),
+                                method: :post,
+                                params: { business_service_id: service.id },
+                                class: "button",
+                                data: { turbo_confirm: "このBusinessを本番運用フェーズへ昇格します。よろしいですか？", disable_with: "本番昇格中..." } %>
+                <% end %>
+              </td>
+              <td><%= form.submit "保存", class: "button button-small" %></td>
+            <% end %>
+          </tr>
+        <% end %>
+        <tr>
+          <%= form_with model: [@business, BusinessService.new], local: true do |form| %>
+            <td><%= form.text_field :name, placeholder: "サービス名" %></td>
+            <td><%= form.text_field :url, placeholder: "https://..." %></td>
+            <td><%= form.text_field :repository, placeholder: "GitHub repo" %></td>
+            <td><%= form.text_field :deploy_target, placeholder: "Render / Vercel" %></td>
+            <td><%= form.text_field :render_service, placeholder: "Render service" %></td>
+            <td><%= form.text_field :stripe_account, placeholder: "Stripe" %></td>
+            <td><%= form.text_field :domain, placeholder: "example.com" %></td>
+            <td><%= form.text_field :api_endpoint, placeholder: "API endpoint" %></td>
+            <td><%= form.select :status, BusinessService::STATUSES.map { |status| [business_service_status_label(status), status] } %></td>
+            <td>-</td>
+            <td>-</td>
+            <td>-</td>
+            <td>-</td>
+            <td><%= form.submit "登録", class: "button" %></td>
+          <% end %>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="dashboard-section" id="business-source-connections">
+  <div class="section-heading">
+    <div>
+      <h2>Source Connections</h2>
+      <p>このBusinessが接続している分析・実行・学習サービスです。</p>
+    </div>
+    <%= link_to "紐付け設定", edit_business_path(@business, anchor: "data-source-link-settings"), class: "button secondary" %>
+  </div>
+  <div class="business-analytics-status-grid">
+    <% @business_data_source_statuses.each do |status| %>
+      <div class="aicoo-card aicoo-card-compact">
+        <h3><%= status.source_key.upcase %></h3>
+        <p><span class="pill status-<%= status.status_level %>"><%= status.status_label %></span></p>
+        <small><%= status.connection_summary %></small>
+      </div>
+    <% end %>
+    <% @business.source_app_connections.each do |connection| %>
+      <div class="aicoo-card aicoo-card-compact">
+        <h3><%= connection.source_app %></h3>
+        <p><span class="pill"><%= connection.enabled? ? connection.status : "disabled" %></span></p>
+        <small>DB差分検知 / 最終成功 <%= connection.last_success_at ? l(connection.last_success_at, format: :short) : "-" %></small>
+      </div>
+    <% end %>
+    <div class="aicoo-card aicoo-card-compact">
+      <h3>GitHub / Codex</h3>
+      <p><span class="pill"><%= @business.codex_execution_label %></span></p>
+      <small><%= @business.codex_repository_name %></small>
+    </div>
+  </div>
 </section>
 
 <section class="dashboard-section" id="business-daily-run">
@@ -794,6 +1217,97 @@
   <% else %>
     <p class="aicoo-empty-state">Daily Runはまだありません。</p>
   <% end %>
+</section>
+
+<section class="dashboard-section" id="business-improvements">
+  <div class="section-heading">
+    <h2>Improvement History</h2>
+    <p>提案、実行、結果、Codex改修をBusiness配下で時系列に確認します。</p>
+  </div>
+  <div class="aicoo-grid aicoo-grid-2">
+    <div class="aicoo-card aicoo-card-compact">
+      <h3>最近の実行</h3>
+      <ul class="compact-list">
+        <% @recent_action_executions.each do |execution| %>
+          <li><%= link_to execution.action_candidate.title, action_execution_path(execution) %> / <%= execution.status %></li>
+        <% end %>
+        <% if @recent_action_executions.empty? %>
+          <li>実行履歴はまだありません。</li>
+        <% end %>
+      </ul>
+    </div>
+    <div class="aicoo-card aicoo-card-compact">
+      <h3>最近の結果</h3>
+      <ul class="compact-list">
+        <% @recent_action_results.each do |result| %>
+          <li><%= link_to result.action_candidate.title, action_result_path(result) %> / profit <%= number_to_currency(result.actual_profit_yen, unit: "¥", precision: 0) %></li>
+        <% end %>
+        <% if @recent_action_results.empty? %>
+          <li>ActionResultはまだありません。</li>
+        <% end %>
+      </ul>
+    </div>
+    <div class="aicoo-card aicoo-card-compact">
+      <h3>Auto Revision</h3>
+      <ul class="compact-list">
+        <% @business.auto_revision_tasks.order(created_at: :desc).limit(8).each do |task| %>
+          <li><%= link_to task.title, auto_revision_task_path(task) %> / <%= task.status %></li>
+        <% end %>
+        <% if @business.auto_revision_tasks.empty? %>
+          <li>Codex改修タスクはまだありません。</li>
+        <% end %>
+      </ul>
+    </div>
+    <div class="aicoo-card aicoo-card-compact">
+      <h3>Activity</h3>
+      <ul class="compact-list">
+        <% @recent_activity_logs.each do |activity_log| %>
+          <li><%= link_to activity_log.title, admin_business_activity_log_path(activity_log) %> / <%= activity_log.evaluation_status %></li>
+        <% end %>
+        <% if @recent_activity_logs.empty? %>
+          <li>Activity Logはまだありません。</li>
+        <% end %>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="dashboard-section" id="business-timeline">
+  <div class="section-heading">
+    <h2>Business Timeline</h2>
+    <p>Idea作成からLP公開、計測、改善、学習更新までの流れを確認します。</p>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>日時</th>
+          <th>種類</th>
+          <th>イベント</th>
+          <th>内容</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @business_timeline.each do |item| %>
+          <tr>
+            <td><%= l(item.occurred_at, format: :short) %></td>
+            <td><span class="pill"><%= item.event_type %></span></td>
+            <td>
+              <% if item.path.present? %>
+                <%= link_to item.title, item.path %>
+              <% else %>
+                <%= item.title %>
+              <% end %>
+            </td>
+            <td><%= item.description.presence || "-" %></td>
+          </tr>
+        <% end %>
+        <% if @business_timeline.empty? %>
+          <tr><td colspan="4">Timelineはまだありません。</td></tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
 </section>
 
 <section class="dashboard-section" id="business-google">

@@ -6,6 +6,10 @@ module ActiveSupport
   class TestCase
     # Run tests in parallel with specified workers
     parallelize(workers: :number_of_processors)
+    parallelize_setup do |_worker|
+      ActionCable.server.config.cable = { "adapter" => "test" }
+      ActionCable.server.instance_variable_set(:@pubsub, nil)
+    end
 
     # Setup all fixtures in test/fixtures/*.yml for all tests in alphabetical order.
     fixtures :all

@@ -19,6 +19,8 @@
       <tr>
         <th>事業名</th>
         <th>状態</th>
+        <th>Lifecycle</th>
+        <th>Resource</th>
         <th>Health</th>
         <th>Last Sync</th>
         <th>GSC 7日 / 30日</th>
@@ -42,6 +44,14 @@
         <tr>
           <td><%= link_to business.name, business %></td>
           <td><span class="pill"><%= business.status %></span></td>
+          <td>
+            <span class="pill"><%= lifecycle_stage_label(business.lifecycle_stage) %></span><br>
+            <small><%= lifecycle_stage_description(business.lifecycle_stage) %></small>
+          </td>
+          <td>
+            <span class="pill"><%= resource_status_label(business.resource_status) %></span><br>
+            <small><%= business.next_review_on ? "次回 #{business.next_review_on}" : resource_status_description(business.resource_status) %></small>
+          </td>
           <td class="number"><%= number_with_precision(summary.health&.health_score.to_d, precision: 1) %></td>
           <td><%= summary.last_sync_at ? l(summary.last_sync_at, format: :short) : "未接続 / データ不足" %></td>
           <td>

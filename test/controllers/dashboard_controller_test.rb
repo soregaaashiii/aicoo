@@ -24,11 +24,103 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Playbook"
     assert_includes response.body, "Executor"
     assert_includes response.body, "Settings"
+    assert_includes response.body, "Resource Control"
+    assert_includes response.body, "今日見るBusiness"
     assert_includes response.body, "Cost Summary"
     assert_includes response.body, "Data Source Monitor"
     assert_includes response.body, "Analysis Monitor"
+    assert_includes response.body, "MVP Promotion"
+    assert_includes response.body, "Production昇格候補"
+    assert_includes response.body, "Scaling中Business"
     assert_includes response.body, "月間APIコスト"
     assert_not_includes response.body, "AICOO TODAY"
+  end
+
+  test "dashboard shows resource control counts" do
+    businesses(:suelog).update!(resource_status: "watch")
+    businesses(:cards).update!(resource_status: "paused")
+
+    get dashboard_url
+
+    assert_response :success
+    assert_includes response.body, "Watch"
+    assert_includes response.body, "Paused"
+    assert_includes response.body, "Archived"
+  end
+
+  test "dashboard shows production promotion candidates" do
+    business = businesses(:suelog)
+    business.update!(lifecycle_stage: "mvp", created_by_aicoo: true)
+    business.business_services.create!(
+      name: "Dashboard Production MVP",
+      status: "live",
+      url: "https://dashboard-production.example.com",
+      metadata: { registrations: 8, active_users: 5, paid_users: 1, retention_rate: "0.5" }
+    )
+    business.revenue_events.create!(event_type: "revenue", amount: 15_000, occurred_on: Date.current)
+
+    get dashboard_url
+
+    assert_response :success
+    assert_includes response.body, "Production候補"
+    assert_includes response.body, business.name
+  end
+
+  test "dashboard shows scaling candidates" do
+    business = businesses(:suelog)
+    business.update!(lifecycle_stage: "production", created_by_aicoo: true, status: "launched", launched: true)
+    business.business_services.create!(
+      name: "Dashboard Scaling Service",
+      status: "production",
+      metadata: {
+        paid_users: 6,
+        active_users: 15,
+        registrations: 20,
+        retention_rate: "0.65",
+        cac_hypothesis_yen: 7_000,
+        ltv_hypothesis_yen: 70_000,
+        primary_channel: "SEO"
+      }
+    )
+    business.revenue_events.create!(event_type: "revenue", amount: 120_000, occurred_on: Date.current)
+    business.revenue_events.create!(event_type: "expense", amount: 10_000, occurred_on: Date.current)
+    business.business_metric_dailies.create!(recorded_on: Date.current, sessions: 100, conversions: 6, impressions: 1_000)
+
+    get dashboard_url
+
+    assert_response :success
+    assert_includes response.body, "Scaling候補"
+    assert_includes response.body, business.name
+  end
+
+  test "dashboard shows mvp promotion candidates" do
+    business = businesses(:suelog)
+    business.update!(lifecycle_stage: "lp_validation", created_by_aicoo: true)
+    experiment = AicooLabExperiment.create!(
+      title: "Dashboard MVP LP",
+      experiment_type: "lp",
+      acquisition_channel: "seo",
+      status: "running",
+      approval_status: "approved"
+    )
+    landing_page = experiment.create_aicoo_lab_landing_page!(
+      business:,
+      headline: "Dashboard MVP LP",
+      subheadline: "MVP昇格候補",
+      body: "反応が良いLP",
+      cta_text: "登録する",
+      status: "published",
+      public_status: "published",
+      published_slug: "dashboard-mvp-lp",
+      published_at: Time.current
+    )
+    3.times { landing_page.aicoo_lab_landing_page_events.create!(event_type: "cta_click", occurred_at: Time.current) }
+
+    get dashboard_url
+
+    assert_response :success
+    assert_includes response.body, "MVP昇格候補"
+    assert_includes response.body, business.name
   end
 
   test "dashboard falls back when snapshot is missing" do

@@ -28,6 +28,12 @@
     <%= form.select :status, Business::STATUSES.map { |status| [status.humanize, status] } %>
   </div>
 
+  <div class="field">
+    <%= form.label :lifecycle_stage, "Business Lifecycle" %>
+    <%= form.select :lifecycle_stage, Business::LIFECYCLE_STAGES.map { |stage| [lifecycle_stage_label(stage), stage] } %>
+    <p class="aicoo-lab-help">Idea → LP検証 → MVP → サービス公開 → 拡大まで、このBusinessを親にして管理します。</p>
+  </div>
+
   <% if business.aicoo_internal_codex? %>
     <fieldset class="aicoo-card aicoo-card-compact">
       <legend>Codex対象プロジェクト</legend>

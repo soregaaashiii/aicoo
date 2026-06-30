@@ -136,6 +136,7 @@ module AicooNavigationHelper
           %r{\A/admin/aicoo_judge},
           %r{\A/admin/aicoo/calibration},
           %r{\A/admin/business_activity_logs},
+          %r{\A/admin/activity_learning_e2e_check},
           %r{\A/owner/learning_report},
           %r{\A/owner/discovery_report},
           %r{\A/owner/evaluator_trends},
@@ -145,6 +146,7 @@ module AicooNavigationHelper
           { label: "結果を入れる", description: "実績を登録", path: action_results_path, matchers: [ %r{\A/action_results} ] },
           { label: "ズレを見る", description: "予測と実績", path: judge_action_predictions_path, matchers: [ %r{\A/judge}, %r{\A/admin/aicoo_judge}, %r{\A/owner/evaluator_trends}, %r{\A/department_rankings} ] },
           { label: "Activityを見る", description: "施策ログと評価", path: admin_business_activity_logs_path, matchers: [ %r{\A/admin/business_activity_logs} ] },
+          { label: "Activity診断", description: "検知から評価まで確認", path: admin_activity_learning_e2e_check_path, matchers: [ %r{\A/admin/activity_learning_e2e_check} ] },
           { label: "学習を調整", description: "補正・精度", path: owner_learning_report_path, matchers: [ %r{\A/admin/aicoo/calibration}, %r{\A/owner/learning_report}, %r{\A/owner/discovery_report} ] }
         ]
       },

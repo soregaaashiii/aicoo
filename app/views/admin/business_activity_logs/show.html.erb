@@ -27,7 +27,7 @@
     }) %></pre>
   </section>
 
-  <section class="dashboard-section">
+  <section class="dashboard-section" id="activity-evaluations">
     <div class="section-heading"><h2>評価</h2></div>
     <div class="table-wrap">
       <table>
@@ -43,7 +43,7 @@
         <tbody>
           <% @business_activity_log.activity_evaluations.order(:evaluation_window_days).each do |evaluation| %>
             <tr>
-              <td><%= evaluation.evaluation_window_days %>日</td>
+              <td id="activity-evaluation-<%= evaluation.id %>"><%= link_to "#{evaluation.evaluation_window_days}日", "#activity-evaluation-#{evaluation.id}" %></td>
               <td><%= evaluation.status %></td>
               <td><%= evaluation.evaluated_at ? l(evaluation.evaluated_at, format: :short) : "-" %></td>
               <td><%= evaluation.skip_reason.presence || "-" %></td>

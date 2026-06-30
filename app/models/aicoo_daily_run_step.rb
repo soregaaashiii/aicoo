@@ -1,7 +1,14 @@
 class AicooDailyRunStep < ApplicationRecord
   STATUSES = %w[pending running success failed skipped].freeze
   PRIMARY_STEP_NAMES = %w[analytics_fetch datahub_collect business_metrics_import action_generation insight_generation].freeze
-  RECOVERABLE_STEP_NAMES = %w[calibration owner_task_digest action_result_evaluation score_snapshot].freeze
+  RECOVERABLE_STEP_NAMES = %w[
+    calibration
+    owner_task_digest
+    action_result_evaluation
+    score_snapshot
+    source_app_diff_detection
+    activity_log_evaluation_queue_build
+  ].freeze
   RECOVERY_STATUSES = %w[success failed skipped].freeze
   SLOW_THRESHOLD_SECONDS = 60
   MAX_RECOVERY_ATTEMPTS = 3

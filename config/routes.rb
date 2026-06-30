@@ -126,6 +126,11 @@ Rails.application.routes.draw do
   get "judge/action_predictions", to: "admin/aicoo_judge#action_predictions", as: :judge_action_predictions
 
   resources :businesses do
+    post :promote_to_mvp, on: :member
+    post :promote_to_production, on: :member
+    post :promote_to_scaling, on: :member
+    patch :update_resource_status, on: :member
+    resources :business_services, only: %i[create update]
     post :generate_ai_candidates, on: :member
     post :import_google_api, on: :member
     post :import_gsc, on: :member
@@ -183,6 +188,8 @@ Rails.application.routes.draw do
     get "execution_runs/:id", to: "execution_runs#show", as: :execution_run
     get "pipeline_e2e_check", to: "pipeline_e2e_checks#show", as: :pipeline_e2e_check
     post "pipeline_e2e_check/repair", to: "pipeline_e2e_checks#repair", as: :pipeline_e2e_check_repair
+    get "activity_learning_e2e_check", to: "activity_learning_e2e_checks#show", as: :activity_learning_e2e_check
+    post "activity_learning_e2e_check/repair", to: "activity_learning_e2e_checks#repair", as: :activity_learning_e2e_check_repair
     post "pipeline_recoveries/:pipeline_run_id", to: "pipeline_recoveries#create", as: :pipeline_recovery
     patch "auto_revision_run_logs/:id/rollback", to: "auto_revision_run_logs#rollback", as: :auto_revision_run_log_rollback
     resources :idea_pipeline, controller: "idea_pipeline", only: %i[index show] do

@@ -17,9 +17,18 @@ module Owner
       @analysis_monitor = Aicoo::AnalysisMonitor.new.call
       @serp_scan_status = Aicoo::Serp::ScanStatus.new.call
       @business_auto_revision_summary = Aicoo::BusinessAutoRevisionSummary.new.call
+      @resource_control_summary = Aicoo::ResourceControlSummary.new.call
       sync_pipeline_runs
       Aicoo::PipelineStuckDetector.new(auto_recover: false).call
       @pipeline_e2e_failures = Aicoo::PipelineE2eCheck.failing_results(limit: 5)
+      @today_activity_logs = BusinessActivityLog.includes(:business)
+                                               .where(occurred_at: Time.current.all_day)
+                                               .recent
+                                               .limit(5)
+      @pending_activity_logs = BusinessActivityLog.includes(:business)
+                                                 .where(evaluation_status: %w[pending evaluating])
+                                                 .recent
+                                                 .limit(5)
       @running_daily_run = AicooDailyRun.running.includes(:aicoo_daily_run_steps).recent.first
       @top_task_evidence = evidence_for_top_task
       @top_task_expansion = expansion_for_top_task

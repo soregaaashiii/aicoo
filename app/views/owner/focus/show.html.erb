@@ -18,6 +18,49 @@
   <section class="dashboard-section">
     <div class="section-heading">
       <div>
+        <h2>今日見るBusiness</h2>
+        <p>Attention Scoreが高いBusinessだけ表示します。問題がないBusinessは本日は確認不要です。</p>
+      </div>
+      <%= link_to "全Business", businesses_path, class: "button secondary" %>
+    </div>
+    <% if @resource_control_summary.today_businesses.any? %>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Business</th>
+              <th>Resource</th>
+              <th>Attention</th>
+              <th>理由</th>
+              <th>次回確認</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @resource_control_summary.today_businesses.first(10).each do |row| %>
+              <tr>
+                <td><%= link_to row.business.name, row.business %></td>
+                <td><span class="pill"><%= resource_status_label(row.business.resource_status) %></span></td>
+                <td><strong><%= row.score %></strong></td>
+                <td><%= row.reasons.first(3).join(" / ") %></td>
+                <td><%= row.resource_summary.next_review_on || "-" %></td>
+                <td><%= link_to "見る", row.business, class: "button secondary" %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% else %>
+      <div class="aicoo-card aicoo-empty-state">
+        <h2>本日は確認不要</h2>
+        <p>売上変化、エラー、問い合わせ、改善候補、Learning警告があるBusinessだけここに出ます。</p>
+      </div>
+    <% end %>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <div>
         <h2>今日やることランキング</h2>
         <p>おすすめ順に並べています。目的に合わせて並び替えできます。</p>
       </div>
@@ -137,6 +180,48 @@
       </div>
     </section>
   <% end %>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <div>
+        <h2>Activity Learning</h2>
+        <p>今日検知した施策と評価待ちだけを表示します。詳細はActivity Logsで確認します。</p>
+      </div>
+      <%= link_to "Activity Logs", admin_business_activity_logs_path, class: "button secondary" %>
+    </div>
+    <div class="aicoo-grid aicoo-grid-2">
+      <div class="aicoo-card aicoo-card-compact">
+        <h3>今日検知したActivity</h3>
+        <ul class="compact-list">
+          <% @today_activity_logs.each do |activity_log| %>
+            <li>
+              <strong><%= activity_log.business.name %></strong>
+              <%= link_to activity_log.title, admin_business_activity_log_path(activity_log) %>
+              <span class="pill"><%= activity_log.source_method %></span>
+            </li>
+          <% end %>
+          <% if @today_activity_logs.empty? %>
+            <li>今日検知したActivityはまだありません。</li>
+          <% end %>
+        </ul>
+      </div>
+      <div class="aicoo-card aicoo-card-compact">
+        <h3>評価待ちActivity</h3>
+        <ul class="compact-list">
+          <% @pending_activity_logs.each do |activity_log| %>
+            <li>
+              <strong><%= activity_log.business.name %></strong>
+              <%= link_to activity_log.title, admin_business_activity_log_path(activity_log, anchor: "activity-evaluations") %>
+              <span class="pill"><%= activity_log.evaluation_status %></span>
+            </li>
+          <% end %>
+          <% if @pending_activity_logs.empty? %>
+            <li>評価待ちActivityはありません。</li>
+          <% end %>
+        </ul>
+      </div>
+    </div>
+  </section>
 
   <section class="dashboard-section">
     <div class="section-heading">

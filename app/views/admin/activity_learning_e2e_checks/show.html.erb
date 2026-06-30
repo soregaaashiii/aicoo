@@ -1,0 +1,76 @@
+<% content_for :title, "Activity Learning E2E Check" %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "Activity Learning E2E Check",
+             description: "Activityが検知だけで止まらず、評価・学習データ化まで進めるか診断します。",
+             active_main: :learning,
+             actions: link_to("Activity Logs", admin_business_activity_logs_path, class: "button secondary") %>
+
+  <section class="dashboard-section">
+    <%= form_with url: admin_activity_learning_e2e_check_path, method: :get, local: true, class: "inline-form" do |form| %>
+      <%= form.collection_select :business_id, @businesses, :id, :name, { selected: @business&.id }, onchange: "this.form.submit()" %>
+      <%= form.submit "診断", class: "button" %>
+    <% end %>
+  </section>
+
+  <% if @activity_learning_e2e_check %>
+    <section class="dashboard-section">
+      <div class="metric-grid">
+        <div class="metric-card"><span>Business</span><strong><%= @business.name %></strong></div>
+        <div class="metric-card"><span>総合状態</span><strong><%= @activity_learning_e2e_check.status %></strong></div>
+        <div class="metric-card"><span>Pass</span><strong><%= @activity_learning_e2e_check.pass_count %></strong></div>
+        <div class="metric-card"><span>Warning</span><strong><%= @activity_learning_e2e_check.warning_count %></strong></div>
+        <div class="metric-card"><span>Fail</span><strong><%= @activity_learning_e2e_check.fail_count %></strong></div>
+      </div>
+      <p><%= @activity_learning_e2e_check.summary %></p>
+    </section>
+
+    <section class="dashboard-section">
+      <div class="section-heading">
+        <h2>診断結果</h2>
+        <p>復旧ボタンは安全な操作だけを表示します。</p>
+      </div>
+      <div class="table-wrap operation-table-wrap">
+        <table class="operation-table">
+          <thead>
+            <tr>
+              <th>状態</th>
+              <th>確認項目</th>
+              <th>内容</th>
+              <th>復旧</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @activity_learning_e2e_check.checks.each do |check| %>
+              <tr>
+                <td><span class="pill"><%= check.status %></span></td>
+                <td><%= check.label %></td>
+                <td><%= check.message %></td>
+                <td>
+                  <% if check.repair_action.present? %>
+                    <%= button_to "復旧する",
+                                  admin_activity_learning_e2e_check_repair_path,
+                                  method: :post,
+                                  params: { business_id: @business.id, repair_action: check.repair_action },
+                                  class: "button button-small",
+                                  data: { turbo_confirm: "安全な復旧操作を実行しますか？" } %>
+                  <% else %>
+                    -
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  <% else %>
+    <section class="dashboard-section">
+      <div class="aicoo-card aicoo-empty-state">
+        <h2>Businessがありません。</h2>
+        <p>Activity Learning診断には実事業のBusinessが必要です。</p>
+      </div>
+    </section>
+  <% end %>
+</div>

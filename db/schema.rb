@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_30_095000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_30_102000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1116,6 +1116,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_30_095000) do
     t.index ["business_id"], name: "index_business_playbooks_on_business_id", unique: true
   end
 
+  create_table "business_services", force: :cascade do |t|
+    t.string "api_endpoint"
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.string "deploy_target"
+    t.string "domain"
+    t.jsonb "metadata", default: {}, null: false
+    t.string "name", null: false
+    t.string "render_service"
+    t.string "repository"
+    t.string "status", default: "planning", null: false
+    t.string "stripe_account"
+    t.datetime "updated_at", null: false
+    t.string "url"
+    t.index ["business_id", "name"], name: "index_business_services_on_business_id_and_name", unique: true
+    t.index ["business_id"], name: "index_business_services_on_business_id"
+    t.index ["status"], name: "index_business_services_on_status"
+  end
+
   create_table "businesses", force: :cascade do |t|
     t.string "auto_deploy_mode", default: "manual", null: false
     t.string "auto_revision_mode", default: "manual", null: false
@@ -1128,10 +1147,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_30_095000) do
     t.string "gsc_site_url"
     t.integer "idea_id"
     t.boolean "launched", default: false, null: false
+    t.string "lifecycle_stage", default: "idea", null: false
     t.string "local_project_path"
     t.string "name"
+    t.date "next_review_on"
     t.string "project_key"
     t.string "repository_name"
+    t.string "resource_status", default: "active", null: false
+    t.datetime "resource_status_changed_at"
+    t.text "resource_status_reason"
     t.boolean "serp_enabled", default: true, null: false
     t.string "source"
     t.string "status"
@@ -1141,7 +1165,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_30_095000) do
     t.index ["created_by_aicoo"], name: "index_businesses_on_created_by_aicoo"
     t.index ["idea_id"], name: "index_businesses_on_idea_id"
     t.index ["launched"], name: "index_businesses_on_launched"
+    t.index ["lifecycle_stage"], name: "index_businesses_on_lifecycle_stage"
+    t.index ["next_review_on"], name: "index_businesses_on_next_review_on"
     t.index ["project_key"], name: "index_businesses_on_project_key"
+    t.index ["resource_status"], name: "index_businesses_on_resource_status"
   end
 
   create_table "codex_prompt_drafts", force: :cascade do |t|
@@ -1760,6 +1787,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_30_095000) do
   add_foreign_key "business_execution_profiles", "businesses"
   add_foreign_key "business_metric_dailies", "businesses"
   add_foreign_key "business_playbooks", "businesses"
+  add_foreign_key "business_services", "businesses"
   add_foreign_key "codex_prompt_drafts", "action_candidates"
   add_foreign_key "codex_prompt_drafts", "businesses"
   add_foreign_key "codex_prompt_rules", "businesses"

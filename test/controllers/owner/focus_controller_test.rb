@@ -24,11 +24,24 @@ module Owner
         )
       )
       candidate.create_action_execution!(status: "ready", execution_type: "manual")
+      BusinessActivityLog.create!(
+        business: businesses(:suelog),
+        source_app: "suelog",
+        activity_type: "article_updated",
+        resource_type: "Article",
+        resource_id: "focus-activity",
+        title: "記事更新Activity",
+        occurred_at: Time.current,
+        detected_at: Time.current,
+        source_method: "logger",
+        idempotency_key: "focus-activity"
+      )
 
       get owner_focus_url
 
       assert_response :success
       assert_includes response.body, "今日やること"
+      assert_includes response.body, "今日見るBusiness"
       assert_includes response.body, "今日やることランキング"
       assert_includes response.body, "おすすめ"
       assert_includes response.body, "収益順"
@@ -47,6 +60,10 @@ module Owner
       assert_includes response.body, "作業開始"
       assert_includes response.body, "詳細を見る"
       assert_includes response.body, "後でやる"
+      assert_includes response.body, "Activity Learning"
+      assert_includes response.body, "今日検知したActivity"
+      assert_includes response.body, "評価待ちActivity"
+      assert_includes response.body, "記事更新Activity"
       assert_includes response.body, "今日の処理状況"
       assert_includes response.body, "実行待ち"
       assert_includes response.body, "結果登録待ち"

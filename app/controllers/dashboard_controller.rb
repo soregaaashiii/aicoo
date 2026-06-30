@@ -5,6 +5,16 @@ class DashboardController < ApplicationController
     @cost_summary = Aicoo::CostEngine.new.call
     @analysis_monitor = Aicoo::AnalysisMonitor.new.call
     @engagement_summary = Aicoo::EngagementSummary.new.call
+    @business_lifecycle_counts = Business.real_businesses.group(:lifecycle_stage).count
+    @mvp_promotion_candidates = Aicoo::LpEvaluationSummary.promotion_candidates(limit: 5)
+    @mvp_development_businesses = Business.real_businesses.where(lifecycle_stage: "mvp").order(updated_at: :desc).limit(8)
+    @production_promotion_candidates = Aicoo::MvpEvaluationSummary.production_candidates(limit: 5)
+    @production_businesses = Business.real_businesses.where(lifecycle_stage: "production").order(updated_at: :desc).limit(8)
+    @scaling_candidates = Aicoo::ScalingEvaluationSummary.candidates(limit: 5)
+    @scaling_businesses = Business.real_businesses.where(lifecycle_stage: "scaling").order(updated_at: :desc).limit(8)
+    @scaling_failure_warnings = @scaling_businesses.select { |business| Aicoo::ScalingEvaluationSummary.for_business(business).verdict == "not_ready" }
+    @investment_waiting_businesses = @scaling_candidates.map(&:business)
+    @resource_control_summary = Aicoo::ResourceControlSummary.new.call
     @running_daily_run = AicooDailyRun.running.includes(:aicoo_daily_run_steps).recent.first
   end
 

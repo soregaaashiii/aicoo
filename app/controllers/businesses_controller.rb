@@ -1,5 +1,8 @@
 class BusinessesController < ApplicationController
-  before_action :set_business, only: %i[ show edit update destroy generate_ai_candidates import_google_api import_gsc import_ga4 update_data_source_settings ]
+  before_action :set_business, only: %i[
+    show edit update destroy generate_ai_candidates import_google_api import_gsc import_ga4
+    update_data_source_settings promote_to_mvp promote_to_production promote_to_scaling update_resource_status
+  ]
 
   # GET /businesses or /businesses.json
   def index
@@ -21,6 +24,24 @@ class BusinessesController < ApplicationController
     @latest_daily_run = AicooDailyRun.recent.first
     @business_landing_pages = @business.aicoo_lab_landing_pages.order(updated_at: :desc)
     @landing_page_counts = @business.aicoo_lab_landing_pages.group(:public_status).count
+    @lp_evaluations = Aicoo::LpEvaluationSummary.for_business(@business)
+    @lp_evaluations_by_id = @lp_evaluations.index_by { |row| row.landing_page.id }
+    @mvp_ready_check = Aicoo::MvpReadyCheck.new(@business, @lp_evaluations).call
+    @business_services = @business.business_services.recent
+    @mvp_evaluations = Aicoo::MvpEvaluationSummary.for_business(@business)
+    @mvp_evaluations_by_service_id = @mvp_evaluations.index_by { |row| row.business_service.id }
+    @production_ready_check = Aicoo::ProductionReadyCheck.new(@business, @mvp_evaluations).call
+    @scaling_evaluation = Aicoo::ScalingEvaluationSummary.for_business(@business)
+    @scaling_ready_check = Aicoo::ScalingReadyCheck.new(@business, @scaling_evaluation).call
+    @resource_summary = Aicoo::ResourceSummary.for_business(@business)
+    @attention_score = Aicoo::AttentionScore.for_business(@business)
+    @business_timeline = Aicoo::BusinessTimeline.new(@business).call
+    @recent_activity_logs = @business.business_activity_logs.recent.limit(10)
+    @recent_action_executions = ActionExecution.joins(:action_candidate)
+                                               .where(action_candidates: { business_id: @business.id })
+                                               .recent
+                                               .limit(10)
+    @recent_action_results = @business.action_results.order(created_at: :desc).limit(10)
     @business_playbook = @business.business_playbook
     @google_credential = AicooGoogleCredential.default&.reload
     @google_api_import_run = GoogleApiImportRun.latest_for(@business)
@@ -149,6 +170,69 @@ class BusinessesController < ApplicationController
     enqueue_google_api_import!(source_types: %w[ga4], label: "GA4")
   end
 
+  def promote_to_mvp
+    result = Aicoo::MvpPromotion.new(
+      business: @business,
+      landing_page_id: params.expect(:landing_page_id),
+      operator: "owner"
+    ).call
+
+    redirect_to business_path(result.business, anchor: "business-services"),
+                notice: "MVP開発へ進めました。AutoRevisionTask ##{result.auto_revision_task.id} を作成しました。"
+  rescue ActiveRecord::RecordNotFound => e
+    redirect_to business_path(@business, anchor: "business-lp"), alert: "MVP昇格に失敗しました: #{e.message}"
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to business_path(@business, anchor: "business-lp"),
+                alert: "MVP昇格に失敗しました: #{e.record.errors.full_messages.to_sentence.presence || e.message}"
+  rescue StandardError => e
+    redirect_to business_path(@business, anchor: "business-lp"), alert: "MVP昇格に失敗しました: #{e.message}"
+  end
+
+  def promote_to_production
+    result = Aicoo::ProductionPromotion.new(
+      business: @business,
+      business_service_id: params.expect(:business_service_id),
+      operator: "owner"
+    ).call
+
+    redirect_to business_path(result.business, anchor: "business-services"),
+                notice: "本番運用へ進めました。AutoRevisionTask ##{result.auto_revision_task.id} を作成しました。"
+  rescue ActiveRecord::RecordNotFound => e
+    redirect_to business_path(@business, anchor: "business-services"), alert: "本番昇格に失敗しました: #{e.message}"
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to business_path(@business, anchor: "business-services"),
+                alert: "本番昇格に失敗しました: #{e.record.errors.full_messages.to_sentence.presence || e.message}"
+  rescue StandardError => e
+    redirect_to business_path(@business, anchor: "business-services"), alert: "本番昇格に失敗しました: #{e.message}"
+  end
+
+  def promote_to_scaling
+    result = Aicoo::ScalingPromotion.new(business: @business, operator: "owner").call
+
+    redirect_to business_path(result.business, anchor: "business-scaling"),
+                notice: "Scalingへ進めました。AutoRevisionTask ##{result.auto_revision_task.id} を作成しました。"
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to business_path(@business, anchor: "business-scaling"),
+                alert: "Scaling昇格に失敗しました: #{e.record.errors.full_messages.to_sentence.presence || e.message}"
+  rescue StandardError => e
+    redirect_to business_path(@business, anchor: "business-scaling"), alert: "Scaling昇格に失敗しました: #{e.message}"
+  end
+
+  def update_resource_status
+    new_status = params.expect(:resource_status).to_s
+    reason = params[:reason].presence || "Owner承認による運用状態変更"
+    unless new_status.in?(Business::RESOURCE_STATUSES)
+      redirect_to business_path(@business, anchor: "business-resource"), alert: "運用状態を変更できませんでした: 不正な状態です。"
+      return
+    end
+
+    @business.change_resource_status!(new_status, reason:, operator: "owner")
+    redirect_to business_path(@business, anchor: "business-resource"), notice: "運用状態を#{new_status}へ変更しました。"
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to business_path(@business, anchor: "business-resource"),
+                alert: "運用状態を変更できませんでした: #{e.record.errors.full_messages.to_sentence}"
+  end
+
   private
     # Use callbacks to share common setup or constraints between actions.
     def set_business
@@ -165,6 +249,10 @@ class BusinessesController < ApplicationController
         :project_key,
         :local_project_path,
         :repository_name,
+        :lifecycle_stage,
+        :resource_status,
+        :resource_status_reason,
+        :next_review_on,
         :auto_revision_mode,
         :auto_deploy_mode
       ])
