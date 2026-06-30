@@ -1,4 +1,6 @@
 class AicooLabLandingPage < ApplicationRecord
+  include AicooActivityTrackable
+
   STATUSES = %w[draft preview_ready approved rejected published unpublished].freeze
   PUBLIC_STATUSES = %w[draft scheduled published paused archived].freeze
   GENERATION_SOURCES = %w[manual candidate_conversion].freeze

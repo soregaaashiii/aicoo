@@ -45,8 +45,10 @@ module Aicoo
         source_app_diff_rule_check,
         cursor_check,
         activity_detection_check,
+        shop_db_change_detection_check,
         db_diff_activity_check,
         logger_activity_check,
+        unlinked_activity_check,
         evaluation_status_check,
         activity_evaluation_check,
         metric_linkage_check,
@@ -137,9 +139,29 @@ module Aicoo
       count.positive? ? pass("db_diff_activity", "source_method=db_diff", "#{count}件") : warning("db_diff_activity", "source_method=db_diff", "DB差分由来のActivityがありません", "rerun_daily_steps")
     end
 
+    def shop_db_change_detection_check
+      shop_rule_exists = rules.where(resource_type: "Shop").exists?
+      shop_activity_count = activity_logs.where(resource_type: "Shop").where(occurred_at: 7.days.ago..Time.current).count
+
+      if shop_activity_count.positive?
+        pass("shop_db_change_detection", "Shop DB変更検知", "直近7日でShop Activity #{shop_activity_count}件")
+      elsif shop_rule_exists
+        warning("shop_db_change_detection", "Shop DB変更検知", "Shop検知ルールはありますが、直近7日のShop Activityはありません", "rerun_daily_steps")
+      else
+        fail("shop_db_change_detection", "Shop DB変更検知", "Shop作成/更新を拾うDiff Ruleがありません", "activate_rules")
+      end
+    end
+
     def logger_activity_check
       count = activity_logs.where(source_method: "logger").count
       count.positive? ? pass("logger_activity", "source_method=logger", "#{count}件") : warning("logger_activity", "source_method=logger", "Logger由来のActivityがありません")
+    end
+
+    def unlinked_activity_check
+      count = AicooActivityLogQueue.pending.where("metadata ->> 'unlinked_activity' = ?", "true").count
+      return pass("unlinked_activity", "未紐付けActivity", "未紐付けActivityはありません") if count.zero?
+
+      warning("unlinked_activity", "未紐付けActivity", "Businessに紐付けできないActivityが#{count}件あります")
     end
 
     def evaluation_status_check
@@ -234,6 +256,7 @@ module Aicoo
     end
 
     def activate_rules!
+      SourceAppConnection.ensure_suelog_defaults! if business.name == "吸えログ"
       rules.update_all(enabled: true, updated_at: Time.current)
     end
 

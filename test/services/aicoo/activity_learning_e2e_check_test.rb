@@ -50,5 +50,46 @@ module Aicoo
       end
       assert rule.reload.source_app_diff_cursor
     end
+
+    test "shows shop db change detection as pass when shop activity exists" do
+      business = businesses(:suelog)
+      connection = SourceAppConnection.create!(business:, name: "Shop Source", source_app: "shop_source")
+      connection.source_app_diff_rules.create!(
+        name: "Shop create",
+        watched_table: "shops",
+        resource_type: "Shop",
+        activity_type: "shop_created"
+      )
+      BusinessActivityLog.create!(
+        business:,
+        source_app: "shop_source",
+        activity_type: "shop_created",
+        resource_type: "Shop",
+        resource_id: "1",
+        title: "店舗を追加: テスト店",
+        occurred_at: Time.current,
+        detected_at: Time.current,
+        source_method: "logger",
+        idempotency_key: "shop-create-e2e"
+      )
+
+      result = ActivityLearningE2eCheck.new(business).call
+
+      assert result.checks.any? { |check| check.key == "shop_db_change_detection" && check.pass? }
+    end
+
+    test "warns when unlinked activity queue exists" do
+      business = businesses(:suelog)
+      AicooActivityLogQueue.create!(
+        payload: { resource_type: "Shop", title: "未紐付け" },
+        idempotency_key: "unlinked-shop-e2e",
+        metadata: { "unlinked_activity" => true },
+        error_message: "Businessに紐付けできません"
+      )
+
+      result = ActivityLearningE2eCheck.new(business).call
+
+      assert result.checks.any? { |check| check.key == "unlinked_activity" && check.warning? }
+    end
   end
 end

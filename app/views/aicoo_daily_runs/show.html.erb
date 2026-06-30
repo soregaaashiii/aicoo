@@ -30,6 +30,40 @@
   <% end %>
 
   <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>基本情報</h2>
+      <p>このRunの実行日時、source、retry、対象日を確認します。</p>
+    </div>
+    <div class="metric-grid">
+      <div class="metric-card"><span>Run ID</span><strong>#<%= @daily_run.id %></strong></div>
+      <div class="metric-card"><span>実行日時</span><strong><%= @daily_run.created_at ? l(@daily_run.created_at, format: :short) : "-" %></strong></div>
+      <div class="metric-card"><span>開始時刻</span><strong><%= @daily_run.started_at ? l(@daily_run.started_at, format: :short) : "-" %></strong></div>
+      <div class="metric-card"><span>終了時刻</span><strong><%= @daily_run.finished_at ? l(@daily_run.finished_at, format: :short) : "-" %></strong></div>
+      <div class="metric-card"><span>実行時間</span><strong><%= @daily_run_history.run_duration_label %></strong></div>
+      <div class="metric-card"><span>status</span><strong><%= @daily_run.status %></strong></div>
+      <div class="metric-card"><span>source</span><strong><%= @daily_run.source %></strong><small>manual / cron / retry</small></div>
+      <div class="metric-card"><span>retry回数</span><strong><%= @daily_run.retry_count %></strong></div>
+      <div class="metric-card"><span>target_date</span><strong><%= @daily_run.target_date %></strong></div>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>実行サマリー</h2>
+      <p>主要カテゴリごとの件数、成功、warning、失敗を確認します。</p>
+    </div>
+    <div class="metric-grid">
+      <% @daily_run_history.summary_cards.each do |card| %>
+        <div class="metric-card">
+          <span><%= card.label %></span>
+          <strong><%= card.count %></strong>
+          <small><span class="pill"><%= card.status %></span> <%= card.detail %></small>
+        </div>
+      <% end %>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
     <div class="metric-grid">
       <div class="metric-card"><span>状態</span><strong><%= @daily_run.status %></strong></div>
       <div class="metric-card"><span>source</span><strong><%= @daily_run.source %></strong></div>
@@ -96,6 +130,68 @@
     </dl>
   </section>
 
+  <% if @daily_run_history.warning_rows.any? || @daily_run_history.skipped_rows.any? %>
+    <section class="dashboard-section">
+      <div class="section-heading">
+        <h2>skipped / warning理由</h2>
+        <p>SERP Optional、Google OAuth期限切れ、No Metricsなど、止めずに進めた理由を見える化します。</p>
+      </div>
+      <div class="aicoo-card-grid">
+        <% (@daily_run_history.warning_rows + @daily_run_history.skipped_rows).uniq.each do |row| %>
+          <div class="aicoo-card aicoo-card-compact">
+            <p><span class="pill"><%= row.visual_status %></span></p>
+            <h3><%= row.reason %></h3>
+            <p><%= row.name %></p>
+            <% if row.metadata["message"].present? %>
+              <p><%= row.metadata["message"] %></p>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    </section>
+  <% end %>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Error Log</h2>
+      <p>failed stepだけを一覧表示します。全文・metadataはStep Timelineで確認できます。</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Step</th>
+            <th>Exception</th>
+            <th>message</th>
+            <th>backtrace</th>
+            <th>再実行</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @daily_run_history.error_rows.each do |row| %>
+            <% exception, message = row.error_message.to_s.split(": ", 2) %>
+            <tr>
+              <td><%= row.name %></td>
+              <td><%= message.present? ? exception : "-" %></td>
+              <td><%= truncate(message.presence || row.error_message.to_s, length: 120) %></td>
+              <td>保存なし</td>
+              <td>
+                <% if row.record.recovery_available? %>
+                  <%= button_to "再実行", recover_aicoo_daily_run_step_path(@daily_run, row.record), method: :post, class: "button secondary", data: { turbo_confirm: "#{row.name} stepを再実行しますか？" } %>
+                <% else %>
+                  <span class="pill"><%= row.record.recovery_state_label %></span>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+          <% if @daily_run_history.error_rows.empty? %>
+            <tr><td colspan="5">failed stepはありません。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
   <%= render "shared/correction_readiness",
              readiness: @correction_readiness,
              show_action_button: true %>
@@ -110,31 +206,45 @@
 
   <section class="dashboard-section" id="step-breakdown">
     <div class="section-heading">
-      <h2>Step Breakdown</h2>
-      <p>Daily Runのどのステップが成功・失敗・遅延したかを確認します。</p>
+      <h2>Step Timeline</h2>
+      <p>Daily Runの各Stepを時系列で確認します。metadataは整形JSONで表示します。</p>
     </div>
     <div class="table-wrap">
       <table>
         <thead>
           <tr>
-            <th>step_name</th>
-            <th>status</th>
-            <th>started_at</th>
-            <th>finished_at</th>
-            <th>duration</th>
-            <th>簡易メッセージ</th>
-            <th>recovery</th>
+            <th>Step名</th>
+            <th>Status</th>
+            <th>開始時刻</th>
+            <th>終了時刻</th>
+            <th>実行時間</th>
+            <th>理由</th>
+            <th>error_message</th>
+            <th>metadata</th>
+            <th>再実行</th>
           </tr>
         </thead>
         <tbody>
-          <% @daily_run_steps.each do |step| %>
+          <% @daily_run_history.step_rows.each do |row| %>
+            <% step = row.record %>
             <tr>
-              <td><%= step.step_name %></td>
-              <td><span class="pill"><%= step.status %></span></td>
-              <td><%= step.started_at ? l(step.started_at, format: :short) : "-" %></td>
-              <td><%= step.finished_at ? l(step.finished_at, format: :short) : "-" %></td>
-              <td class="number"><%= step.duration_seconds ? "#{number_with_precision(step.duration_seconds, precision: 2)}秒" : "-" %></td>
-              <td><%= truncate(step.error_message.to_s.presence || "-", length: 80) %></td>
+              <td><%= row.name %></td>
+              <td><span class="pill"><%= row.visual_status %></span></td>
+              <td><%= row.started_at ? l(row.started_at, format: :short) : "-" %></td>
+              <td><%= row.finished_at ? l(row.finished_at, format: :short) : "-" %></td>
+              <td class="number"><%= row.duration_label %></td>
+              <td><%= row.reason %></td>
+              <td><%= truncate(row.error_message.to_s.presence || "-", length: 120) %></td>
+              <td>
+                <% if row.metadata.present? %>
+                  <details>
+                    <summary>JSON</summary>
+                    <pre><%= JSON.pretty_generate(row.metadata) %></pre>
+                  </details>
+                <% else %>
+                  -
+                <% end %>
+              </td>
               <td>
                 <% if step.recovery_needed? %>
                   <% if step.recovery_available? %>
@@ -160,8 +270,48 @@
               </td>
             </tr>
           <% end %>
-          <% if @daily_run_steps.empty? %>
-            <tr><td colspan="7">このDaily RunにはStep Breakdownがまだありません。</td></tr>
+          <% if @daily_run_history.step_rows.empty? %>
+            <tr><td colspan="9">このDaily RunにはStep Timelineがまだありません。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>直近10Run比較</h2>
+      <p>前後のRunと、status・duration・候補生成・warning/failed数を比較します。</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>日時</th>
+            <th>target_date</th>
+            <th>status</th>
+            <th>duration</th>
+            <th>候補生成</th>
+            <th>warning</th>
+            <th>failed</th>
+            <th>source</th>
+            <th>詳細</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @comparison_rows.each do |row| %>
+            <% run = row.run %>
+            <tr>
+              <td><%= run.started_at ? l(run.started_at, format: :short) : "-" %></td>
+              <td><%= run.target_date %></td>
+              <td><span class="pill"><%= run.status %></span></td>
+              <td><%= row.duration_label %></td>
+              <td class="number"><%= run.action_candidates_generated_count %></td>
+              <td class="number"><%= row.warning_count %></td>
+              <td class="number"><%= row.failed_count %></td>
+              <td><span class="pill"><%= run.source %></span></td>
+              <td><%= link_to(run.id == @daily_run.id ? "表示中" : "見る", run, class: "button secondary") %></td>
+            </tr>
           <% end %>
         </tbody>
       </table>

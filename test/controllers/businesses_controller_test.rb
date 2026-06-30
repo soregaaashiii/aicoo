@@ -147,6 +147,16 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
       reason: "順位急落を確認するためSERP分析を推奨",
       due_on: Date.current
     )
+    ActionCandidate.create!(
+      business: @business,
+      title: "AI改善提案テスト",
+      status: "approved",
+      action_type: "seo_improvement",
+      immediate_value_yen: 12_000,
+      success_probability: 0.8,
+      expected_hours: 1,
+      evaluation_reason: "CTRが低いためSEOタイトル改善を推奨"
+    )
 
     get business_url(@business)
 
@@ -218,6 +228,9 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Daily Run一覧"
     assert_includes response.body, "自動改訂"
     assert_includes response.body, "Manual"
+    assert_includes response.body, "AI改善提案"
+    assert_includes response.body, "AI改善提案テスト"
+    assert_includes response.body, "Codexへ送る"
   end
 
   test "business index shows resource status" do

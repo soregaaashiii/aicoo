@@ -16,6 +16,9 @@ class DashboardController < ApplicationController
     @resource_control_summary = Aicoo::ResourceControlSummary.new.call
     @running_daily_run = AicooDailyRun.running.includes(:aicoo_daily_run_steps).recent.first
     @daily_run_cron_status = Aicoo::DailyRunCronStatus.new.call
+    @last_night_daily_run_history = last_night_daily_run_history
+    @ceo_improvement_board = Aicoo::CeoModeBusinessImprovementBoard.new.call
+    @yesterday_improved_businesses = yesterday_improved_businesses
   end
 
   def refresh_system_mode_snapshot
@@ -142,6 +145,21 @@ class DashboardController < ApplicationController
     redirect_to dashboard_path, notice: "#{label}の代理指標を#{results.size}事業分更新しました。"
   rescue ActiveRecord::RecordInvalid => e
     redirect_to dashboard_path, alert: "代理指標の更新に失敗しました: #{e.record.errors.full_messages.to_sentence}"
+  end
+
+  def last_night_daily_run_history
+    run = AicooDailyRun.includes(:aicoo_daily_run_steps).where(target_date: Date.yesterday).recent.first ||
+          AicooDailyRun.includes(:aicoo_daily_run_steps).recent.first
+    Aicoo::DailyRunHistory.new(run) if run
+  end
+
+  def yesterday_improved_businesses
+    Business.real_businesses
+            .joins(:action_results)
+            .where(action_results: { created_at: Date.yesterday.all_day })
+            .distinct
+            .order(:name)
+            .limit(8)
   end
 
   def sort_business_summaries(summaries)

@@ -1,12 +1,15 @@
 class AicooDailyRunsController < ApplicationController
   def index
-    @daily_runs = AicooDailyRun.recent.limit(50)
+    @daily_runs = filtered_daily_runs.includes(:aicoo_daily_run_steps).limit(50)
+    @comparison_rows = Aicoo::DailyRunHistory.comparison_rows(limit: 10)
     @running_daily_runs = AicooDailyRun.running.includes(:aicoo_daily_run_steps).recent
   end
 
   def show
     @daily_run = AicooDailyRun.find(params[:id])
     @daily_run_steps = @daily_run.aicoo_daily_run_steps.order(:started_at, :created_at)
+    @daily_run_history = Aicoo::DailyRunHistory.new(@daily_run)
+    @comparison_rows = Aicoo::DailyRunHistory.comparison_rows(limit: 10)
     @correction_readiness = AicooCorrectionReadinessService.new.call
     @execution_feasibility_insight = AicooExecutionFeasibilityInsightService.new.call
     @execution_feasibility_correction_overview = AicooExecutionFeasibilityCorrectionOverviewService.new.call
@@ -59,5 +62,43 @@ class AicooDailyRunsController < ApplicationController
   def daily_run_target_date
     value = params.dig(:aicoo_daily_run, :target_date).presence || params[:target_date].presence
     value.present? ? Date.parse(value) : Date.yesterday
+  end
+
+  def filtered_daily_runs
+    scope = AicooDailyRun.recent
+    scope = scope.where(status: params[:status]) if params[:status].present?
+    scope = scope.where(source: params[:source]) if params[:source].present?
+    scope = scope.where(target_date: Date.parse(params[:date])) if params[:date].present?
+    scope = scope.where(id: step_ids_for_status("failed")) if params[:failed].present?
+    scope = scope.where(id: warning_step_ids) if params[:warning].present?
+    scope = scope.where(id: step_ids_for_name("analytics_fetch")) if params[:analytics].present?
+    scope = scope.where(id: step_ids_for_name_prefix("serp")) if params[:serp].present?
+    scope = scope.where(id: step_ids_for_business(params[:business_id])) if params[:business_id].present?
+    scope
+  rescue Date::Error
+    AicooDailyRun.none
+  end
+
+  def step_ids_for_status(status)
+    AicooDailyRunStep.where(status:).select(:aicoo_daily_run_id)
+  end
+
+  def warning_step_ids
+    AicooDailyRunStep.where("metadata ->> 'warning' = ? OR metadata ->> 'reason' IN (?)", "true", %w[
+      serp_optional_missing
+      analytics_optional_unavailable
+    ]).select(:aicoo_daily_run_id)
+  end
+
+  def step_ids_for_name(step_name)
+    AicooDailyRunStep.where(step_name:).select(:aicoo_daily_run_id)
+  end
+
+  def step_ids_for_name_prefix(prefix)
+    AicooDailyRunStep.where("step_name LIKE ?", "#{prefix}%").select(:aicoo_daily_run_id)
+  end
+
+  def step_ids_for_business(business_id)
+    AicooDailyRunStep.where("metadata ->> 'business_id' = ?", business_id.to_s).select(:aicoo_daily_run_id)
   end
 end

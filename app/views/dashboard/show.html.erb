@@ -18,6 +18,100 @@
   <%= render "shared/daily_run_running_status", daily_run: @running_daily_run %>
   <%= render "shared/daily_run_cron_mode", status: @daily_run_cron_status %>
 
+  <% if @last_night_daily_run_history %>
+    <% run = @last_night_daily_run_history.daily_run %>
+    <section class="dashboard-section">
+      <div class="section-heading">
+        <div>
+          <h2>昨夜AICOOがやったこと</h2>
+          <p>Daily Runの結果を調査用に要約します。詳細ログはRun詳細へ集約します。</p>
+        </div>
+        <div class="actions compact-actions">
+          <%= link_to "Run詳細", run, class: "button secondary" %>
+          <%= link_to "Health", admin_aicoo_daily_run_health_path, class: "button secondary" %>
+        </div>
+      </div>
+      <div class="aicoo-card">
+        <ul class="compact-list">
+          <li><%= run.status == "success" ? "✅" : "⚠" %> Daily Run <%= run.status %> / <%= run.target_date %></li>
+          <% @last_night_daily_run_history.warning_rows.first(3).each do |row| %>
+            <li>⚠ <%= row.reason %> / <%= row.name %></li>
+          <% end %>
+          <% @last_night_daily_run_history.error_rows.first(3).each do |row| %>
+            <li>❌ <%= row.name %>: <%= truncate(row.error_message.to_s, length: 80) %></li>
+          <% end %>
+          <li>✅ Business Metric更新 <%= run.business_metrics_imported_count %>件</li>
+          <li>✅ Proxy補正 <%= run.proxy_weights_adjusted_count %>件</li>
+          <li>Candidate生成 <%= run.action_candidates_generated_count %>件</li>
+        </ul>
+      </div>
+    </section>
+  <% end %>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <div>
+        <h2>CEO向け改善サマリー</h2>
+        <p>事業改善だけを抜き出した軽量サマリーです。詳細な運用監視は下のSYSTEM MODEで確認します。</p>
+      </div>
+      <%= link_to "今日の事業改善", owner_focus_path, class: "button" %>
+    </div>
+    <div class="aicoo-grid aicoo-grid-2">
+      <div class="aicoo-card aicoo-card-compact">
+        <h3>今日の改善 TOP5</h3>
+        <ol class="compact-list">
+          <% @ceo_improvement_board.improvements.first(5).each do |item| %>
+            <li>
+              <strong><%= item.business.name %></strong>
+              <%= link_to item.title, item.detail_path %>
+              <span class="pill"><%= number_to_currency(item.expected_profit_yen, unit: "¥", precision: 0) %></span>
+            </li>
+          <% end %>
+          <% if @ceo_improvement_board.improvements.empty? %>
+            <li>今日の改善候補はありません。</li>
+          <% end %>
+        </ol>
+      </div>
+      <div class="aicoo-card aicoo-card-compact">
+        <h3>今日改善すべきBusiness</h3>
+        <ul class="compact-list">
+          <% @ceo_improvement_board.business_cards.select { |row| row.recommended_count.positive? }.first(5).each do |row| %>
+            <li>
+              <%= link_to row.business.name, row.business %>
+              <span class="pill">期待利益 <%= number_to_currency(row.expected_profit_yen, unit: "¥", precision: 0) %></span>
+              <span class="pill">改善 <%= row.recommended_count %>件</span>
+            </li>
+          <% end %>
+          <% if @ceo_improvement_board.business_cards.none? { |row| row.recommended_count.positive? } %>
+            <li>改善候補があるBusinessはありません。</li>
+          <% end %>
+        </ul>
+      </div>
+      <div class="aicoo-card aicoo-card-compact">
+        <h3>昨日改善したBusiness</h3>
+        <ul class="compact-list">
+          <% @yesterday_improved_businesses.each do |business| %>
+            <li><%= link_to business.name, business %></li>
+          <% end %>
+          <% if @yesterday_improved_businesses.empty? %>
+            <li>昨日登録された改善結果はありません。</li>
+          <% end %>
+        </ul>
+      </div>
+      <div class="aicoo-card aicoo-card-compact">
+        <h3>期待利益ランキング</h3>
+        <ul class="compact-list">
+          <% @ceo_improvement_board.business_cards.first(5).each do |row| %>
+            <li>
+              <%= link_to row.business.name, row.business %>
+              <span class="pill"><%= number_to_currency(row.expected_profit_yen, unit: "¥", precision: 0) %></span>
+            </li>
+          <% end %>
+        </ul>
+      </div>
+    </div>
+  </section>
+
   <%= render "dashboard/system_mode_monitor", monitor: @system_mode_monitor %>
 
   <section class="dashboard-section">

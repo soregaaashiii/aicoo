@@ -1,485 +1,187 @@
-<% content_for :title, "今日やること" %>
+<% content_for :title, "今日の事業改善" %>
 
 <% header_actions = capture do %>
-  <%= link_to "全タスク", owner_tasks_path, class: "button secondary" %>
-  <%= link_to "運用状態", dashboard_path, class: "button secondary" %>
+  <%= link_to "事業一覧", businesses_path, class: "button secondary" %>
   <%= link_to "実行履歴", admin_execution_runs_path, class: "button secondary" %>
+  <%= link_to "SYSTEM MODE", dashboard_path, class: "button secondary" %>
 <% end %>
 
 <div class="aicoo-page">
   <%= render "shared/aicoo_header",
-             title: "今日やること",
-             description: "5秒で分かる作業指示だけを表示します。",
+             title: "今日の事業改善",
+             description: "今日どの事業を改善すると一番利益が増えるかだけを判断します。",
              active_main: :revenue,
              actions: header_actions %>
 
-  <%= render "shared/daily_run_running_status", daily_run: @running_daily_run %>
-  <%= render "shared/daily_run_cron_mode", status: @daily_run_cron_status %>
-
-  <section class="dashboard-section">
-    <div class="section-heading">
-      <div>
-        <h2>今日見るBusiness</h2>
-        <p>Attention Scoreが高いBusinessだけ表示します。問題がないBusinessは本日は確認不要です。</p>
-      </div>
-      <%= link_to "全Business", businesses_path, class: "button secondary" %>
-    </div>
-    <% if @resource_control_summary.today_businesses.any? %>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Business</th>
-              <th>Resource</th>
-              <th>Attention</th>
-              <th>理由</th>
-              <th>次回確認</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <% @resource_control_summary.today_businesses.first(10).each do |row| %>
-              <tr>
-                <td><%= link_to row.business.name, row.business %></td>
-                <td><span class="pill"><%= resource_status_label(row.business.resource_status) %></span></td>
-                <td><strong><%= row.score %></strong></td>
-                <td><%= row.reasons.first(3).join(" / ") %></td>
-                <td><%= row.resource_summary.next_review_on || "-" %></td>
-                <td><%= link_to "見る", row.business, class: "button secondary" %></td>
-              </tr>
-            <% end %>
-          </tbody>
-        </table>
-      </div>
-    <% else %>
-      <div class="aicoo-card aicoo-empty-state">
-        <h2>本日は確認不要</h2>
-        <p>売上変化、エラー、問い合わせ、改善候補、Learning警告があるBusinessだけここに出ます。</p>
-      </div>
-    <% end %>
-  </section>
-
-  <section class="dashboard-section">
-    <div class="section-heading">
-      <div>
-        <h2>今日やることランキング</h2>
-        <p>おすすめ順に並べています。目的に合わせて並び替えできます。</p>
-      </div>
-      <nav class="aicoo-sub-tabs" aria-label="今日やることの並び替え">
-        <%= link_to "おすすめ", owner_focus_path(sort: "recommended"), class: "aicoo-sub-tab#{' active' if @ceo_sort_mode == 'recommended'}" %>
-        <%= link_to "収益順", owner_focus_path(sort: "revenue"), class: "aicoo-sub-tab#{' active' if @ceo_sort_mode == 'revenue'}" %>
-        <%= link_to "時給順", owner_focus_path(sort: "hourly"), class: "aicoo-sub-tab#{' active' if @ceo_sort_mode == 'hourly'}" %>
-        <%= link_to "学習価値順", owner_focus_path(sort: "learning"), class: "aicoo-sub-tab#{' active' if @ceo_sort_mode == 'learning'}" %>
-      </nav>
-    </div>
-
-    <% if @ceo_priority_ranking.items.any? %>
-      <div class="aicoo-card-grid">
-        <% @ceo_priority_ranking.items.first(10).each do |item| %>
-          <% summary = item.summary %>
-          <div class="aicoo-card">
-            <p>
-              <span class="pill">#<%= item.rank %></span>
-              <span class="pill"><%= item.state_label %></span>
-            </p>
-            <h2><%= summary.title %></h2>
-            <div class="metric-grid aicoo-owner-secondary">
-              <div class="metric-card"><span>期待利益</span><strong><%= item.expected_profit_yen.positive? ? number_to_currency(item.expected_profit_yen, unit: "¥", precision: 0) : "-" %></strong></div>
-              <div class="metric-card"><span>期待時給</span><strong><%= item.expected_hourly_value_yen.positive? ? number_to_currency(item.expected_hourly_value_yen, unit: "¥", precision: 0) : "-" %></strong></div>
-              <div class="metric-card"><span>学習価値</span><strong><%= item.learning_value_yen.positive? ? number_to_currency(item.learning_value_yen, unit: "¥", precision: 0) : "-" %></strong></div>
-              <div class="metric-card"><span>成功率</span><strong><%= item.success_probability.positive? ? number_to_percentage(item.success_probability * 100, precision: 0) : "-" %></strong></div>
-              <div class="metric-card"><span>時間</span><strong><%= item.total_minutes.positive? ? "#{item.total_minutes}分" : "-" %></strong></div>
-            </div>
-            <div class="aicoo-grid aicoo-grid-2">
-              <div class="aicoo-card aicoo-card-compact">
-                <h3>おすすめ理由</h3>
-                <ul class="compact-list">
-                  <% item.recommendation_reasons.first(5).each do |line| %>
-                    <li><%= line %></li>
-                  <% end %>
-                </ul>
-              </div>
-              <div class="aicoo-card aicoo-card-compact">
-                <h3>完了条件</h3>
-                <ul class="compact-list">
-                  <% summary.completion_criteria.first(4).each do |criterion| %>
-                    <li><%= Aicoo::CeoSummaryBuilder.human_label(criterion) %></li>
-                  <% end %>
-                </ul>
-              </div>
-            </div>
-            <div class="actions compact-actions">
-              <% item.actions.each do |action| %>
-                <% button_class = action.style == "primary" ? "button" : "button secondary" %>
-                <% data = action.confirm_message.present? ? { turbo_confirm: action.confirm_message } : {} %>
-                <% if action.method.to_s == "get" %>
-                  <%= link_to action.label, action.path, class: button_class, data: %>
-                <% else %>
-                  <%= button_to action.label, action.path, method: action.method, class: button_class, data: %>
-                <% end %>
-              <% end %>
-            </div>
-          </div>
-        <% end %>
-      </div>
-    <% else %>
-      <div class="aicoo-card aicoo-empty-state">
-        <% if @owner_execution_queue_summary.top_item %>
-          <% queue_item = @owner_execution_queue_summary.top_item %>
-          <h2><%= queue_item.title %></h2>
-          <p><%= Aicoo::CeoSummaryBuilder.human_label(queue_item.reason) %></p>
-          <div class="actions compact-actions">
-            <%= link_to "詳細を見る", queue_item.target_path, class: "button secondary" %>
-            <%= button_to "後でやる", skip_owner_execution_queue_item_path(queue_item), method: :patch, class: "button secondary" %>
-          </div>
-        <% else %>
-          <h2>今すぐ処理すべき作業はありません。</h2>
-          <p>実行・結果登録・承認・異常対応が必要になるとここに出ます。</p>
-        <% end %>
-      </div>
-    <% end %>
-  </section>
-
-  <% if @pipeline_e2e_failures.any? %>
+  <% if @today_business_improvement %>
     <section class="dashboard-section">
       <div class="section-heading">
-        <h2>止まっているPipeline</h2>
-        <p>E2Eでfailしていて、人の確認が必要なPipelineだけを表示します。</p>
+        <div>
+          <h2>今日の1件</h2>
+          <p>期待利益、ROI、成功率、必要時間、学習価値を総合して一番おすすめの改善です。</p>
+        </div>
+        <span class="pill"><%= @today_business_improvement.category %></span>
       </div>
+      <div class="aicoo-card">
+        <p>
+          <span class="pill">#1</span>
+          <strong><%= link_to @today_business_improvement.business.name, @today_business_improvement.business %></strong>
+        </p>
+        <h2><%= @today_business_improvement.title %></h2>
+        <div class="metric-grid aicoo-owner-secondary">
+          <div class="metric-card"><span>期待利益</span><strong><%= number_to_currency(@today_business_improvement.expected_profit_yen, unit: "¥", precision: 0) %></strong></div>
+          <div class="metric-card"><span>成功率</span><strong><%= number_to_percentage(@today_business_improvement.success_probability * 100, precision: 0) %></strong></div>
+          <div class="metric-card"><span>必要時間</span><strong><%= @today_business_improvement.required_minutes.positive? ? "#{@today_business_improvement.required_minutes}分" : "-" %></strong></div>
+          <div class="metric-card"><span>期待時給</span><strong><%= @today_business_improvement.expected_hourly_value_yen.positive? ? number_to_currency(@today_business_improvement.expected_hourly_value_yen, unit: "¥", precision: 0) : "-" %></strong></div>
+        </div>
+        <h3>AIがこの改善を勧める理由</h3>
+        <ul class="compact-list">
+          <% @today_business_improvement.reason_lines.each do |line| %>
+            <li><%= line %></li>
+          <% end %>
+        </ul>
+        <div class="actions compact-actions">
+          <% if @today_business_improvement.codex_method == :post %>
+            <%= button_to "今すぐ実行", @today_business_improvement.codex_path, method: :post, class: "button" %>
+          <% else %>
+            <%= link_to "今すぐ実行", @today_business_improvement.codex_path, class: "button" %>
+          <% end %>
+          <%= link_to "詳細", @today_business_improvement.detail_path, class: "button secondary" %>
+          <%= button_to "後で", @today_business_improvement.defer_path, method: :patch, class: "button secondary" %>
+        </div>
+      </div>
+    </section>
+  <% end %>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <div>
+        <h2>今日おすすめの事業改善 TOP10</h2>
+        <p>Business改善だけを、期待利益・ROI・成功率・必要時間・学習価値の順で並べています。</p>
+      </div>
+      <%= link_to "すべての改善候補", action_candidates_path, class: "button secondary" %>
+    </div>
+
+    <% if @ceo_improvement_board.improvements.any? %>
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
+              <th>順位</th>
               <th>Business</th>
-              <th>Stage</th>
-              <th>停止理由</th>
-              <th>次にやる</th>
-              <th>自動復旧</th>
+              <th>改善</th>
+              <th>カテゴリ</th>
+              <th>期待利益</th>
+              <th>成功率</th>
+              <th>時間</th>
+              <th>学習価値</th>
+              <th>生成元</th>
               <th>操作</th>
             </tr>
           </thead>
           <tbody>
-            <% @pipeline_e2e_failures.each do |failure| %>
-              <% run = failure.pipeline_run %>
-              <% first_fail = failure.checks.find { |check| check.status == "fail" } %>
+            <% @ceo_improvement_board.improvements.each do |item| %>
               <tr>
-                <td><%= failure.business&.name.presence || failure.display_title %></td>
-                <td><span class="pill"><%= stage_label(run.current_stage) %></span></td>
-                <td><%= first_fail&.key || run.stuck_reason.presence || "unknown" %></td>
-                <td><%= first_fail&.message.presence || run.recovery_message.presence || "E2Eチェックを確認してください。" %></td>
-                <td><%= first_fail&.repair_action.present? ? "復旧ボタンあり" : "承認/設定が必要" %></td>
+                <td><span class="pill">#<%= item.rank %></span></td>
+                <td><%= link_to item.business.name, item.business %></td>
+                <td class="wide-text">
+                  <strong><%= item.title %></strong>
+                  <ul class="compact-list">
+                    <% item.reason_lines.first(3).each do |line| %>
+                      <li><%= line %></li>
+                    <% end %>
+                  </ul>
+                </td>
+                <td><span class="pill"><%= item.category %></span></td>
+                <td class="number"><%= number_to_currency(item.expected_profit_yen, unit: "¥", precision: 0) %></td>
+                <td class="number"><%= number_to_percentage(item.success_probability * 100, precision: 0) %></td>
+                <td class="number"><%= item.required_minutes.positive? ? "#{item.required_minutes}分" : "-" %></td>
+                <td class="number"><%= item.learning_value_yen.positive? ? number_to_currency(item.learning_value_yen, unit: "¥", precision: 0) : "-" %></td>
+                <td><%= item.source_label %></td>
                 <td class="actions compact-actions">
-                  <%= link_to "E2E確認",
-                              admin_pipeline_e2e_check_path(pipeline_run_id: run.id),
-                              class: "button secondary" %>
-                  <%= link_to "詳細を見る", run.target_path, class: "button secondary" %>
+                  <%= link_to "詳細", item.detail_path, class: "button secondary" %>
+                  <% if item.codex_method == :post %>
+                    <%= button_to "Codexへ送る", item.codex_path, method: :post, class: "button secondary" %>
+                  <% else %>
+                    <%= link_to "Codexへ送る", item.codex_path, class: "button secondary" %>
+                  <% end %>
+                  <%= button_to "後で", item.defer_path, method: :patch, class: "button secondary" %>
                 </td>
               </tr>
             <% end %>
           </tbody>
         </table>
       </div>
-    </section>
-  <% end %>
-
-  <% if @serp_optional_mode.warning? %>
-    <section class="dashboard-section">
-      <div class="section-heading">
-        <h2>任意設定の警告</h2>
-        <p>必須ではない外部データソースの状態です。改善ループは継続します。</p>
-      </div>
-      <div class="aicoo-card aicoo-card-compact">
-        <h3>SERP未設定</h3>
-        <p><%= @serp_optional_mode.message %></p>
-        <div class="actions compact-actions">
-          <%= link_to "SERP設定を見る", admin_serp_settings_path, class: "button secondary" %>
-          <%= link_to "実行中の改善を見る", action_candidates_path, class: "button secondary" %>
-        </div>
-      </div>
-    </section>
-  <% end %>
-
-  <section class="dashboard-section">
-    <div class="section-heading">
-      <div>
-        <h2>Activity Learning</h2>
-        <p>今日検知した施策と評価待ちだけを表示します。詳細はActivity Logsで確認します。</p>
-      </div>
-      <%= link_to "Activity Logs", admin_business_activity_logs_path, class: "button secondary" %>
-    </div>
-    <div class="aicoo-grid aicoo-grid-2">
-      <div class="aicoo-card aicoo-card-compact">
-        <h3>今日検知したActivity</h3>
-        <ul class="compact-list">
-          <% @today_activity_logs.each do |activity_log| %>
-            <li>
-              <strong><%= activity_log.business.name %></strong>
-              <%= link_to activity_log.title, admin_business_activity_log_path(activity_log) %>
-              <span class="pill"><%= activity_log.source_method %></span>
-            </li>
-          <% end %>
-          <% if @today_activity_logs.empty? %>
-            <li>今日検知したActivityはまだありません。</li>
-          <% end %>
-        </ul>
-      </div>
-      <div class="aicoo-card aicoo-card-compact">
-        <h3>評価待ちActivity</h3>
-        <ul class="compact-list">
-          <% @pending_activity_logs.each do |activity_log| %>
-            <li>
-              <strong><%= activity_log.business.name %></strong>
-              <%= link_to activity_log.title, admin_business_activity_log_path(activity_log, anchor: "activity-evaluations") %>
-              <span class="pill"><%= activity_log.evaluation_status %></span>
-            </li>
-          <% end %>
-          <% if @pending_activity_logs.empty? %>
-            <li>評価待ちActivityはありません。</li>
-          <% end %>
-        </ul>
-      </div>
-    </div>
-  </section>
-
-  <section class="dashboard-section">
-    <div class="section-heading">
-      <h2>追加で確認すること</h2>
-      <p>必要な分析だけを選びます。作業の主役は上のランキングです。</p>
-    </div>
-    <div class="aicoo-card aicoo-card-compact">
-      <div class="section-heading">
-        <div>
-          <h3>SERP走査</h3>
-          <p>検索結果を確認して、事業ごとの競合状況とLP/改善候補の材料にします。</p>
-        </div>
-      </div>
-      <div class="metric-grid aicoo-owner-secondary">
-        <div class="metric-card"><span>提供元</span><strong><%= @serp_scan_status.provider %></strong></div>
-        <div class="metric-card"><span>Limit</span><strong><%= @serp_scan_status.limit %></strong></div>
-        <div class="metric-card"><span>APIキー</span><strong><%= @serp_scan_status.api_key_configured ? "設定済み" : "未設定" %></strong></div>
-        <div class="metric-card"><span>前回実行日時</span><strong><%= @serp_scan_status.last_scanned_at ? l(@serp_scan_status.last_scanned_at, format: :short) : "未実行" %></strong></div>
-        <div class="metric-card"><span>前回実行時間</span><strong><%= @serp_scan_status.last_duration_seconds ? "#{@serp_scan_status.last_duration_seconds}秒" : "-" %></strong></div>
-        <div class="metric-card"><span>対象事業</span><strong><%= @serp_scan_status.target_business_count %>件</strong></div>
-        <div class="metric-card"><span>予定検索クエリ</span><strong><%= @serp_scan_status.candidate_keyword_count %>件</strong></div>
-        <div class="metric-card"><span>実行状態</span><strong><%= @serp_scan_status.execution_status %></strong></div>
-      </div>
-
-      <%= form_with url: owner_serp_scan_settings_path, scope: :serp_scan, method: :patch, class: "aicoo-form serp-limit-form" do |form| %>
-        <div class="form-row">
-          <%= form.label :limit, "Limit" %>
-          <%= form.number_field :limit,
-                                value: @serp_scan_status.limit,
-                                min: 1,
-                                max: 500,
-                                data: { serp_limit_input: true } %>
-          <p class="aicoo-lab-help" data-serp-limit-warning data-warning-level="<%= @serp_scan_status.limit_warning_level %>">
-            <%= @serp_scan_status.limit_warning_message %>
-          </p>
-        </div>
-        <div class="actions compact-actions">
-          <%= form.submit "Limitを保存", class: "button secondary" %>
-        </div>
-      <% end %>
-
-      <%= render "shared/execution_cost_estimate", estimate: @serp_scan_status, title: "実行前コスト" %>
-
-      <% if @serp_scan_status.execution_status == "SERP走査中" %>
-        <div class="status-banner status-banner-running">
-          <span class="aicoo-spinner" aria-hidden="true"></span>
-          <div>
-            <strong>SERP走査中...</strong>
-            <p>
-              開始時刻 <%= @serp_scan_status.running_started_at ? l(@serp_scan_status.running_started_at, format: :short) : "-" %>
-              / 経過 <%= @serp_scan_status.running_started_at ? "#{(Time.current - @serp_scan_status.running_started_at).to_i}秒" : "-" %>
-              / 対象 <%= @serp_scan_status.target_business_count %>事業
-              / 現在 <%= @serp_scan_status.current_business_name.presence || "-" %>
-              / 完了 <%= @serp_scan_status.completed_count %>件
-              / 失敗 <%= @serp_scan_status.failed_count %>件
-            </p>
-          </div>
-        </div>
-      <% elsif @serp_scan_status.latest_analysis.present? %>
-        <div class="success-toast">
-          最新のSERP走査:
-          <%= @serp_scan_status.execution_status %>
-          / Business <%= @serp_scan_status.target_business_count %>件
-          / 検索 <%= @serp_scan_status.latest_query_count %>件
-          / 取得 <%= @serp_scan_status.latest_result_count %>件
-          / 失敗 <%= @serp_scan_status.failed_count %>件
-          / 実行時間 <%= @serp_scan_status.last_duration_seconds ? "#{@serp_scan_status.last_duration_seconds}秒" : "-" %>
-          / 概算 <%= number_to_currency(@serp_scan_status.latest_estimated_cost_yen, unit: "約¥", precision: 0) %>
-        </div>
-      <% end %>
-
-      <% if @serp_scan_status.latest_analysis&.failed? %>
-        <div class="error-toast">
-          直近のSERP走査に失敗しました。原因全文は<%= link_to "実行履歴", admin_execution_runs_path %>で確認してください。
-        </div>
-      <% end %>
-      <div class="actions compact-actions">
-        <%= button_to "SERP走査を開始",
-                      owner_serp_scan_path,
-                      method: :post,
-                      class: "button",
-                      data: { aicoo_loading_label: "SERP走査中..." },
-                      form: { data: { aicoo_submit_lock: true, aicoo_loading_label: "SERP走査中..." } },
-                      disabled: !@serp_scan_status.api_key_configured %>
-        <%= link_to "詳細設定", admin_serp_settings_path, class: "button secondary" %>
-        <%= link_to "SERP結果を見る", businesses_path(anchor: "business-serp"), class: "button secondary" %>
-      </div>
-    </div>
-
-    <script>
-      (() => {
-        const input = document.querySelector("[data-serp-limit-input]");
-        const warning = document.querySelector("[data-serp-limit-warning]");
-        if (!input || !warning) return;
-
-        const messageFor = (value) => {
-          if (value <= 20) return "推奨範囲です";
-          if (value <= 50) return "API消費が増えます";
-          if (value <= 100) return "高コストです";
-          return "本当に実行しますか？";
-        };
-
-        input.addEventListener("input", () => {
-          const value = Number(input.value || 0);
-          warning.textContent = messageFor(value);
-          warning.dataset.warningLevel = value <= 20 ? "safe" : value <= 50 ? "notice" : value <= 100 ? "warning" : "danger";
-        });
-      })();
-    </script>
-
-    <div class="metric-grid aicoo-owner-secondary">
-      <div class="metric-card"><span>確認候補</span><strong><%= @analysis_monitor.today_count %>件</strong></div>
-      <div class="metric-card"><span>人の確認が必要</span><strong><%= @analysis_monitor.manual_count %>件</strong></div>
-      <div class="metric-card"><span>予想コスト</span><strong><%= number_to_currency(@analysis_monitor.estimated_cost_yen, unit: "¥", precision: 0) %></strong></div>
-      <div class="metric-card"><span>期待値</span><strong><%= number_to_currency(@analysis_monitor.expected_value_yen, unit: "¥", precision: 0) %></strong></div>
-    </div>
-    <div class="aicoo-card aicoo-card-compact">
-      <ul class="compact-list">
-        <% @analysis_monitor.top_candidates.first(3).each do |candidate| %>
-          <li>
-            <strong><%= candidate.display_name %></strong>
-            / <%= candidate.business.name %>
-            / 費用対効果 <%= candidate.roi_label %>
-            / <%= Aicoo::CeoSummaryBuilder.human_label(candidate.reason) %>
-          </li>
-        <% end %>
-        <% if @analysis_monitor.top_candidates.empty? %>
-          <li>追加で確認する分析はまだありません。</li>
-        <% end %>
-      </ul>
-    </div>
-  </section>
-
-  <section class="dashboard-section">
-    <div class="section-heading">
-      <h2>今日の処理状況</h2>
-      <p>見るべき数字だけを表示します。</p>
-    </div>
-    <div class="metric-grid aicoo-owner-secondary">
-      <div class="metric-card"><span>実行待ち</span><strong><%= @owner_home_summary.execution_ready_count %>件</strong></div>
-      <div class="metric-card"><span>結果登録待ち</span><strong><%= @owner_home_summary.result_registration_count %>件</strong></div>
-      <div class="metric-card"><span>評価式承認待ち</span><strong><%= @owner_home_summary.pending_calibration_count %>件</strong></div>
-      <div class="metric-card"><span>機会確認待ち</span><strong><%= @owner_home_summary.pending_opportunities_count %>件</strong></div>
-      <div class="metric-card"><span>探索確認待ち</span><strong><%= @owner_home_summary.explore_review_count %>件</strong></div>
-      <div class="metric-card"><span>あとで処理</span><strong><%= @owner_home_summary.today_queue_count %>件</strong></div>
-      <div class="metric-card"><span>処理済み</span><strong><%= @owner_home_summary.today_queue_completed_count %>件</strong></div>
-      <div class="metric-card"><span>今日の判断記録</span><strong><%= @owner_decision_summary.today_count %>件</strong></div>
-      <div class="metric-card"><span>自動改訂ON</span><strong><%= @business_auto_revision_summary.automatic_business_count %>件</strong></div>
-      <div class="metric-card"><span>自動デプロイON</span><strong><%= @business_auto_revision_summary.automatic_deploy_business_count %>件</strong></div>
-      <div class="metric-card"><span>改訂承認待ち</span><strong><%= @business_auto_revision_summary.approval_waiting_count %>件</strong></div>
-      <div class="metric-card"><span>Deploy承認待ち</span><strong><%= @business_auto_revision_summary.deploy_approval_waiting_count %>件</strong></div>
-      <div class="metric-card"><span>改訂成功</span><strong><%= @business_auto_revision_summary.today_success_count %>件</strong></div>
-      <div class="metric-card"><span>改訂失敗</span><strong><%= @business_auto_revision_summary.today_failure_count %>件</strong></div>
-      <div class="metric-card"><span>Deploy失敗</span><strong><%= @business_auto_revision_summary.deploy_failed_count %>件</strong></div>
-      <div class="metric-card"><span>改訂停止</span><strong><%= @business_auto_revision_summary.today_stopped_count %>件</strong></div>
-      <div class="metric-card"><span>Rollback可能</span><strong><%= @business_auto_revision_summary.rollback_available_count %>件</strong></div>
-    </div>
-    <% if @business_auto_revision_summary.automatic_business_count.positive? %>
-      <div class="error-toast">
-        自動改訂対象のBusinessがあります。低リスクだけCodex投入準備まで進み、Deployは承認待ちになります。
+    <% else %>
+      <div class="aicoo-card aicoo-empty-state">
+        <h2>今日すぐ改善すべきBusiness候補はありません。</h2>
+        <p>ActionCandidateやAutoRevisionTaskが作成されると、期待利益順にここへ表示されます。</p>
       </div>
     <% end %>
   </section>
 
   <section class="dashboard-section">
     <div class="section-heading">
-      <h2>あとで処理する候補</h2>
-      <p>上のランキングが一段落したら見る候補です。</p>
+      <div>
+        <h2>Businessカード</h2>
+        <p>事業ごとの今日の期待利益、Attention Score、改善候補数を一覧します。</p>
+      </div>
+      <%= link_to "Business一覧", businesses_path, class: "button secondary" %>
     </div>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>タイトル</th>
-            <th>理由</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          <% @owner_execution_queue_summary.items.first(5).each do |item| %>
-            <tr>
-              <td><%= item.title %></td>
-              <td><%= Aicoo::CeoSummaryBuilder.human_label(item.reason) %></td>
-              <td>
-                <div class="actions compact-actions">
-                  <%= link_to "詳細を見る", item.target_path, class: "button secondary" %>
-                  <%= button_to "後でやる", skip_owner_execution_queue_item_path(item), method: :patch, class: "button secondary" %>
-                </div>
-              </td>
-            </tr>
-          <% end %>
-          <% if @owner_execution_queue_summary.items.empty? %>
-            <tr><td colspan="3">あとで処理する候補はありません。</td></tr>
-          <% end %>
-        </tbody>
-      </table>
+    <div class="aicoo-card-grid">
+      <% @ceo_improvement_board.business_cards.each do |row| %>
+        <div class="aicoo-card">
+          <p><span class="pill"><%= row.state_label %></span></p>
+          <h2><%= row.business.name %></h2>
+          <div class="metric-grid aicoo-owner-secondary">
+            <div class="metric-card"><span>今日の期待利益</span><strong><%= number_to_currency(row.expected_profit_yen, unit: "¥", precision: 0) %></strong></div>
+            <div class="metric-card"><span>Attention</span><strong><%= row.attention_score %></strong></div>
+            <div class="metric-card"><span>ROI</span><strong><%= number_with_precision(row.roi, precision: 0) %></strong></div>
+            <div class="metric-card"><span>おすすめ改善</span><strong><%= row.recommended_count %>件</strong></div>
+            <div class="metric-card"><span>ActionCandidate</span><strong><%= row.action_candidate_count %>件</strong></div>
+            <div class="metric-card"><span>AutoRevision</span><strong><%= row.auto_revision_task_count %>件</strong></div>
+          </div>
+          <p class="muted">最終改善: <%= row.last_improved_at ? l(row.last_improved_at, format: :short) : "未登録" %></p>
+          <div class="actions compact-actions">
+            <%= link_to "Business詳細", row.detail_path, class: "button secondary" %>
+            <%= link_to "改善一覧", row.improvements_path, class: "button secondary" %>
+          </div>
+        </div>
+      <% end %>
     </div>
   </section>
 
-  <% critical_healths = @business_integration_health.critical_businesses.first(3) %>
-  <% if critical_healths.any? %>
-    <section class="dashboard-section">
+  <% if @ceo_improvement_board.critical_business_blockers.any? %>
+    <section class="dashboard-section danger">
       <div class="section-heading">
-        <h2>重大な連携注意</h2>
-        <p>AICOOが正常にデータ取得できていない可能性があります。</p>
+        <div>
+          <h2>Business改善を止める重大障害</h2>
+          <p>Google認証切れなど、改善判断そのものを止める障害だけ表示します。詳細復旧はSYSTEM MODEで行います。</p>
+        </div>
+        <%= link_to "SYSTEM MODE", dashboard_path, class: "button secondary" %>
       </div>
-      <div class="aicoo-card-grid">
-        <% critical_healths.each do |row| %>
-          <div class="aicoo-card aicoo-card-compact">
-            <p><span class="pill">状態 <%= number_with_precision(row.health_score, precision: 1) %></span></p>
-            <h3><%= row.business.name %></h3>
-            <p><%= row.warnings.first %></p>
-            <%= link_to "事業を見る", row.business, class: "button secondary" %>
-          </div>
-        <% end %>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Business</th>
+              <th>内容</th>
+              <th>次にやること</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @ceo_improvement_board.critical_business_blockers.each do |blocker| %>
+              <tr>
+                <td><%= blocker.business.name %></td>
+                <td><%= blocker.title %></td>
+                <td><%= blocker.message %></td>
+                <td><%= link_to "確認", blocker.path, class: "button secondary" %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
       </div>
     </section>
   <% end %>
-
-  <section class="dashboard-section">
-    <div class="section-heading">
-      <h2>システム状態</h2>
-      <p>異常があるかだけ確認します。</p>
-    </div>
-    <div class="metric-grid aicoo-owner-secondary">
-      <div class="metric-card"><span>自動巡回</span><strong><%= Aicoo::CeoSummaryBuilder.human_label(@owner_home_summary.daily_run_status) %></strong></div>
-      <div class="metric-card"><span>学習状態</span><strong><%= Aicoo::CeoSummaryBuilder.human_label(@owner_home_summary.learning_status) %></strong></div>
-    </div>
-  </section>
-
-  <section class="dashboard-section">
-    <div class="section-heading">
-      <h2>詳細画面</h2>
-      <p>必要な時だけ開きます。</p>
-    </div>
-    <div class="actions compact-actions">
-      <%= link_to "全タスク", owner_tasks_path, class: "button secondary" %>
-      <%= link_to "学習を見る", owner_learning_report_path, class: "button secondary" %>
-      <%= link_to "探索を見る", admin_explore_path, class: "button secondary" %>
-      <%= link_to "運用状態を見る", dashboard_path, class: "button secondary" %>
-    </div>
-  </section>
 </div>

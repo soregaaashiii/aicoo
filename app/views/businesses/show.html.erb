@@ -1594,6 +1594,83 @@
   </div>
 </section>
 
+<section class="dashboard-section" id="ai-improvement-proposals">
+  <div class="section-heading">
+    <div>
+      <h2>AI改善提案</h2>
+      <p>このBusinessのActionCandidateとAutoRevisionTaskを、期待利益と実行しやすさで確認します。</p>
+    </div>
+    <%= link_to "今日の事業改善", owner_focus_path, class: "button secondary" %>
+  </div>
+
+  <div class="aicoo-grid aicoo-grid-2">
+    <div class="aicoo-card aicoo-card-compact">
+      <h3>改善候補</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>改善</th>
+              <th>期待利益</th>
+              <th>理由</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @ai_improvement_action_candidates.each do |candidate| %>
+              <tr>
+                <td><%= link_to candidate.title, candidate %></td>
+                <td class="number"><%= number_to_currency(candidate.expected_profit_yen, unit: "¥", precision: 0) %></td>
+                <td class="wide-text"><%= truncate(candidate.evaluation_reason.presence || candidate.description, length: 90) %></td>
+                <td class="actions compact-actions">
+                  <%= button_to "Codexへ送る",
+                                generate_codex_prompt_draft_action_candidate_path(candidate),
+                                method: :post,
+                                class: "button secondary" %>
+                </td>
+              </tr>
+            <% end %>
+            <% if @ai_improvement_action_candidates.empty? %>
+              <tr><td colspan="4">AI改善提案はまだありません。</td></tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="aicoo-card aicoo-card-compact">
+      <h3>Codex改修候補</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>改修</th>
+              <th>状態</th>
+              <th>リスク</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @ai_improvement_auto_revision_tasks.each do |task| %>
+              <tr>
+                <td><%= link_to task.title, task %></td>
+                <td><span class="pill"><%= task.status %></span></td>
+                <td><span class="pill"><%= task.risk_level %></span></td>
+                <td class="actions compact-actions">
+                  <%= link_to "Codexへ送る", export_codex_prompt_auto_revision_task_path(task), class: "button secondary" %>
+                </td>
+              </tr>
+            <% end %>
+            <% if @ai_improvement_auto_revision_tasks.empty? %>
+              <tr><td colspan="4">Codex改修候補はまだありません。</td></tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section class="dashboard-section">
   <div class="section-heading">
     <h2>行動候補</h2>

@@ -61,8 +61,82 @@
 
   <section class="dashboard-section">
     <div class="section-heading">
-      <h2>実行履歴</h2>
-      <p>最新50件のDaily Run結果です。</p>
+      <h2>検索・絞り込み</h2>
+      <p>夜中に何が起きたかを、status・source・warning・failed・SERP/Analytics有無で絞り込みます。</p>
+    </div>
+    <%= form_with url: aicoo_daily_runs_path, method: :get, class: "filters" do |form| %>
+      <div class="field compact-field">
+        <%= form.label :status, "status" %>
+        <%= form.select :status, options_for_select([ [ "すべて", "" ] ] + AicooDailyRun::STATUSES.map { |status| [ status, status ] }, params[:status]), {}, class: "input" %>
+      </div>
+      <div class="field compact-field">
+        <%= form.label :source, "source" %>
+        <%= form.select :source, options_for_select([ [ "すべて", "" ] ] + AicooDailyRun::SOURCES.map { |source| [ source, source ] }, params[:source]), {}, class: "input" %>
+      </div>
+      <div class="field compact-field">
+        <%= form.label :date, "target_date" %>
+        <%= form.date_field :date, value: params[:date] %>
+      </div>
+      <label class="checkbox-label"><%= check_box_tag :warning, "1", params[:warning].present? %> warningあり</label>
+      <label class="checkbox-label"><%= check_box_tag :failed, "1", params[:failed].present? %> failedあり</label>
+      <label class="checkbox-label"><%= check_box_tag :serp, "1", params[:serp].present? %> SERPあり</label>
+      <label class="checkbox-label"><%= check_box_tag :analytics, "1", params[:analytics].present? %> Analyticsあり</label>
+      <div class="field compact-field">
+        <%= form.label :business_id, "Business ID" %>
+        <%= form.number_field :business_id, value: params[:business_id], min: 1 %>
+      </div>
+      <%= form.submit "絞り込む", class: "button" %>
+      <%= link_to "解除", aicoo_daily_runs_path, class: "button secondary" %>
+    <% end %>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>直近10Run比較</h2>
+      <p>status、実行時間、候補生成、warning/failed数を横並びで比較します。</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>日時</th>
+            <th>target_date</th>
+            <th>status</th>
+            <th>duration</th>
+            <th>候補生成</th>
+            <th>warning</th>
+            <th>failed</th>
+            <th>source</th>
+            <th>詳細</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @comparison_rows.each do |row| %>
+            <% run = row.run %>
+            <tr>
+              <td><%= run.started_at ? l(run.started_at, format: :short) : "-" %></td>
+              <td><%= run.target_date %></td>
+              <td><span class="pill"><%= run.status %></span></td>
+              <td><%= row.duration_label %></td>
+              <td class="number"><%= run.action_candidates_generated_count %></td>
+              <td class="number"><%= row.warning_count %></td>
+              <td class="number"><%= row.failed_count %></td>
+              <td><span class="pill"><%= run.source %></span></td>
+              <td><%= link_to "見る", run, class: "button secondary" %></td>
+            </tr>
+          <% end %>
+          <% if @comparison_rows.empty? %>
+            <tr><td colspan="9">まだ比較できるRunはありません。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Daily Run調査履歴</h2>
+      <p>最新50件のDaily Run結果です。詳細でStep Timeline、Error Log、metadataを確認できます。</p>
     </div>
     <div class="table-wrap">
       <table>

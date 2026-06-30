@@ -18,6 +18,12 @@ class BusinessesController < ApplicationController
   # GET /businesses/1 or /businesses/1.json
   def show
     @action_candidates = @business.action_candidates.by_recommendation
+    @ai_improvement_action_candidates = @business.action_candidates
+                                                   .active_for_ranking
+                                                   .where.not(action_type: "data_preparation")
+                                                   .by_recommendation
+                                                   .limit(10)
+    @ai_improvement_auto_revision_tasks = @business.auto_revision_tasks.active.by_priority.limit(10)
     @data_sources = @business.data_sources.includes(:data_imports).order(:name)
     @recent_data_imports = @business.data_imports.includes(:data_source).recent.limit(5)
     @recent_serp_analyses = @business.serp_analyses.order(analyzed_at: :desc).limit(10)

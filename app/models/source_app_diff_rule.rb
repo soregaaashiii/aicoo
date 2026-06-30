@@ -29,7 +29,7 @@ class SourceAppDiffRule < ApplicationRecord
       activity_type: "shop_created",
       watched_fields: %w[name area smoking_status station source tabelog_url created_at updated_at],
       metadata_fields: %w[area smoking_status station source tabelog_url],
-      title_template: "Shopを作成: %{name}",
+      title_template: "店舗を追加: %{name}",
       estimated_work_seconds: 20,
       priority: 10
     },

@@ -86,7 +86,7 @@ module Admin
         assert_includes response.body, "承認で作る新規事業"
       end
 
-      test "approved candidate business appears in CEO mode setup tasks" do
+      test "approved candidate business appears in CEO mode business cards without system setup tasks" do
         candidate = AicooLabExperimentCandidate.create!(candidate_params.merge(title: "CEOに出る新規事業"))
         patch approve_admin_aicoo_lab_candidate_url(candidate)
 
@@ -94,9 +94,9 @@ module Admin
 
         assert_response :success
         assert_includes response.body, "CEOに出る新規事業"
-        assert_includes response.body, "Google連携"
-        assert_includes response.body, "SERP走査"
-        assert_includes response.body, "LP未作成"
+        assert_includes response.body, "Businessカード"
+        assert_not_includes response.body, "SERP走査"
+        assert_not_includes response.body, "LP未作成"
       end
 
       test "business list excludes analytics import but keeps approved candidate business" do

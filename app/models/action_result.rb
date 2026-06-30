@@ -1,4 +1,6 @@
 class ActionResult < ApplicationRecord
+  include AicooActivityTrackable
+
   EVALUATION_STATUSES = %w[pending evaluated skipped].freeze
   DELTA_METRICS = %i[
     impressions

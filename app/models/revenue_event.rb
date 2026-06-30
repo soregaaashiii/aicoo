@@ -1,4 +1,6 @@
 class RevenueEvent < ApplicationRecord
+  include AicooActivityTrackable
+
   EVENT_TYPES = %w[revenue expense].freeze
 
   belongs_to :business
