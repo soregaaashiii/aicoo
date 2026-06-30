@@ -96,31 +96,40 @@
     <% end %>
   </section>
 
-  <% if @stopped_pipeline_runs.any? %>
+  <% if @pipeline_e2e_failures.any? %>
     <section class="dashboard-section">
       <div class="section-heading">
         <h2>止まっているPipeline</h2>
-        <p>承認待ち・予算超過・Retry待ち・待機中だけを表示します。</p>
+        <p>E2Eでfailしていて、人の確認が必要なPipelineだけを表示します。</p>
       </div>
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>状態</th>
-              <th>対象</th>
-              <th>現在位置</th>
-              <th>理由</th>
+              <th>Business</th>
+              <th>Stage</th>
+              <th>停止理由</th>
               <th>次にやる</th>
+              <th>自動復旧</th>
+              <th>操作</th>
             </tr>
           </thead>
           <tbody>
-            <% @stopped_pipeline_runs.each do |run| %>
+            <% @pipeline_e2e_failures.each do |failure| %>
+              <% run = failure.pipeline_run %>
+              <% first_fail = failure.checks.find { |check| check.status == "fail" } %>
               <tr>
-                <td><span class="pill"><%= run.status %></span></td>
-                <td><%= link_to run.display_title, run.target_path %></td>
-                <td><%= stage_label(run.current_stage) %></td>
-                <td><%= run.halted_reason.presence || run.current_stage_state["message"].presence || "-" %></td>
-                <td><%= link_to "確認する", run.target_path, class: "button secondary" %></td>
+                <td><%= failure.business&.name.presence || failure.display_title %></td>
+                <td><span class="pill"><%= stage_label(run.current_stage) %></span></td>
+                <td><%= first_fail&.key || run.stuck_reason.presence || "unknown" %></td>
+                <td><%= first_fail&.message.presence || run.recovery_message.presence || "E2Eチェックを確認してください。" %></td>
+                <td><%= first_fail&.repair_action.present? ? "復旧ボタンあり" : "承認/設定が必要" %></td>
+                <td class="actions compact-actions">
+                  <%= link_to "E2E確認",
+                              admin_pipeline_e2e_check_path(pipeline_run_id: run.id),
+                              class: "button secondary" %>
+                  <%= link_to "詳細を見る", run.target_path, class: "button secondary" %>
+                </td>
               </tr>
             <% end %>
           </tbody>

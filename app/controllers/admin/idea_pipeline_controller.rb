@@ -11,6 +11,9 @@ module Admin
 
     def show
       @pipeline_run = Aicoo::PipelineEngine.new(@item).call
+      Aicoo::PipelineStuckDetector.new(scope: AicooPipelineRun.where(id: @pipeline_run.id), auto_recover: false).call
+      @pipeline_run.reload
+      @pipeline_recovery_logs = @pipeline_run.pipeline_recovery_logs.recent.limit(20)
     end
 
     def generate

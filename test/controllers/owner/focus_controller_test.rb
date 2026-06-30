@@ -113,6 +113,42 @@ module Owner
       assert_includes response.body, "SERP走査"
     end
 
+    test "shows only owner visible stuck pipelines" do
+      DataSourceCostProfile.find_or_create_by!(source_key: "serp") do |profile|
+        profile.name = "SERP"
+        profile.execution_mode = "manual"
+      end.update!(api_key: nil)
+      item = IdeaPipelineItem.create!(
+        title: "Stuck SERP Idea",
+        short_description: "SERPで止まる",
+        problem: "検索検証が進まない",
+        target_user: "Owner",
+        revenue_model: "月額",
+        mvp_concept: "LP",
+        lp_concept: "LP",
+        difficulty_score: 20,
+        development_hours: 4,
+        ai_implementation_score: 80,
+        status: "owner_approved",
+        final_score: 80,
+        evaluated_at: 2.hours.ago
+      )
+      Aicoo::IdeaPipeline::LandingPageBuilder.new(item).call
+      Aicoo::IdeaPipeline::Publisher.new(item).call
+      run = Aicoo::PipelineEngine.new(item).call
+      old_time = 2.hours.ago.iso8601
+      states = run.stage_states
+      states[run.current_stage]["started_at"] = old_time
+      run.update!(stage_states: states, metadata: run.metadata.merge("stage_entered_at" => old_time))
+
+      get owner_focus_url
+
+      assert_response :success
+      assert_includes response.body, "止まっているPipeline"
+      assert_includes response.body, "missing_serp_key"
+      assert_includes response.body, "SERP API Keyを設定してください。"
+    end
+
     test "shows serp scan card and settings link" do
       DataSourceCostProfile.ensure_defaults!
       DataSourceCostProfile.find_by!(source_key: "serp").update!(

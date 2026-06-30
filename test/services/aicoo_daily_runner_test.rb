@@ -57,8 +57,9 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
       assert_match "OwnerExecutionQueue created count=2", run.run_log
       assert_match "AnalysisCandidate created count=1", run.run_log
       assert_match "AutoRevisionQueue skipped reason=disabled", run.run_log
+      assert_match "PipelineStuckDetector checked=", run.run_log
       assert_match "BusinessPlaybook updated count=2", run.run_log
-      assert_equal 18, run.aicoo_daily_run_steps.count
+      assert_equal 19, run.aicoo_daily_run_steps.count
       assert_equal %w[
         analytics_fetch
         datahub_collect
@@ -78,6 +79,7 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
         business_playbook_update
         system_mode_snapshot
         auto_revision_queue
+        pipeline_stuck_detection
       ], run.aicoo_daily_run_steps.order(:created_at).pluck(:step_name)
       assert_equal %w[skipped success], run.aicoo_daily_run_steps.distinct.pluck(:status).sort
       assert_equal 0, AutoRevisionQueueRun.count

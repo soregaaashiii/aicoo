@@ -27,6 +27,7 @@ class AicooDailyRunner
     run.update!(status: final_status, finished_at: Time.current, run_log: log_text)
     if final_status == "success"
       run_auto_revision_queue!(run)
+      run_pipeline_stuck_detector!(run)
       run.update!(run_log: log_text)
       AicooDailyRunSetting.current.update!(last_success_at: run.finished_at)
     end
@@ -276,6 +277,28 @@ class AicooDailyRunner
     Rails.logger.error("AICOO Daily Run auto revision queue failed: #{error_message}")
     fail_step!(step, error_message) if step
     log!("AutoRevisionQueue failed: #{error_message}")
+  end
+
+  def run_pipeline_stuck_detector!(run)
+    step = start_step!(run, "pipeline_stuck_detection")
+    result = Aicoo::PipelineStuckDetector.new(auto_recover: true).call
+    finish_step!(
+      step,
+      metadata: {
+        checked_count: result.checked_count,
+        stuck_count: result.stuck_runs.size,
+        recovered_count: result.recovered_logs.size
+      }
+    )
+    log!(
+      "PipelineStuckDetector checked=#{result.checked_count} " \
+      "stuck=#{result.stuck_runs.size} recovered=#{result.recovered_logs.size}"
+    )
+  rescue StandardError => e
+    error_message = "#{e.class}: #{e.message}"
+    Rails.logger.error("AICOO Daily Run pipeline stuck detector failed: #{error_message}")
+    fail_step!(step, error_message) if step
+    log!("PipelineStuckDetector failed: #{error_message}")
   end
 
   def fail_run!(run, error)

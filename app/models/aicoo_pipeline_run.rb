@@ -6,6 +6,7 @@ class AicooPipelineRun < ApplicationRecord
   belongs_to :business, optional: true
   belongs_to :idea_pipeline_item, optional: true
   belongs_to :aicoo_lab_landing_page, optional: true
+  has_many :pipeline_recovery_logs, dependent: :destroy
 
   validates :pipeline_type, inclusion: { in: PIPELINE_TYPES }
   validates :status, inclusion: { in: STATUSES }
@@ -14,6 +15,7 @@ class AicooPipelineRun < ApplicationRecord
 
   scope :active, -> { where.not(status: %w[completed ended]) }
   scope :stopped_for_owner, -> { where(status: %w[waiting approval_waiting retry_waiting budget_blocked blocked pivoted]) }
+  scope :stuck_for_owner, -> { where(stuck: true).where(auto_recoverable: false).recent }
   scope :recent, -> { order(updated_at: :desc) }
 
   def stage_state(stage)
@@ -26,6 +28,14 @@ class AicooPipelineRun < ApplicationRecord
 
   def stopped?
     status.in?(%w[waiting approval_waiting retry_waiting budget_blocked blocked pivoted])
+  end
+
+  def stuck?
+    stuck
+  end
+
+  def recovery_logs_path
+    target_path
   end
 
   def display_title

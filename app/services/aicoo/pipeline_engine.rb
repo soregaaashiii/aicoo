@@ -19,6 +19,8 @@ module Aicoo
       budget = Aicoo::Pipeline::BudgetEngine.new(subject, estimated_cost_yen: estimated_cost).call
       states = build_stage_states(gates:, waiting:, pivot:, budget:)
       current_stage = first_open_stage(states)
+      stage_entered_at = stage_entered_at_for(run, current_stage)
+      states[current_stage] = states[current_stage].to_h.merge("started_at" => stage_entered_at.iso8601) if current_stage
       status = pipeline_status(states:, current_stage:, waiting:, budget:)
 
       run.assign_attributes(
@@ -48,6 +50,7 @@ module Aicoo
           "waiting" => waiting,
           "pivot" => pivot,
           "pipeline_events" => pipeline_events(run, gates),
+          "stage_entered_at" => stage_entered_at.iso8601,
           "synced_at" => Time.current.iso8601
         )
       )
@@ -198,6 +201,22 @@ module Aicoo
       return if index.blank?
 
       STAGES[index + 1]
+    end
+
+    def stage_entered_at_for(run, current_stage)
+      previous_stage = run.current_stage
+      previous_entered_at = parse_time(run.metadata.to_h["stage_entered_at"])
+      return previous_entered_at if previous_stage == current_stage && previous_entered_at
+
+      Time.current
+    end
+
+    def parse_time(value)
+      return if value.blank?
+
+      Time.zone.parse(value.to_s)
+    rescue ArgumentError, TypeError
+      nil
     end
 
     def subject_created_at

@@ -176,6 +176,9 @@ Rails.application.routes.draw do
     post "google_api_imports/:business_id", to: "google_api_imports#create", as: :google_api_import
     get "execution_runs", to: "execution_runs#index", as: :execution_runs
     get "execution_runs/:id", to: "execution_runs#show", as: :execution_run
+    get "pipeline_e2e_check", to: "pipeline_e2e_checks#show", as: :pipeline_e2e_check
+    post "pipeline_e2e_check/repair", to: "pipeline_e2e_checks#repair", as: :pipeline_e2e_check_repair
+    post "pipeline_recoveries/:pipeline_run_id", to: "pipeline_recoveries#create", as: :pipeline_recovery
     patch "auto_revision_run_logs/:id/rollback", to: "auto_revision_run_logs#rollback", as: :auto_revision_run_log_rollback
     resources :idea_pipeline, controller: "idea_pipeline", only: %i[index show] do
       post :generate, on: :collection

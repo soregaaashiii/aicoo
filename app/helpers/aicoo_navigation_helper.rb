@@ -153,6 +153,7 @@ module AicooNavigationHelper
         matchers: [
           %r{\A/dashboard},
           %r{\A/admin/execution_runs},
+          %r{\A/admin/pipeline_e2e_check},
           %r{\A/admin/idea_pipeline},
           %r{\A/admin/(analytics|google|aicoo_datahub|aicoo_daily_run_settings|aicoo_auto_revision_settings|business_execution_profiles|explore)},
           %r{\A/admin/serp_settings},
@@ -162,6 +163,7 @@ module AicooNavigationHelper
         children: [
           { label: "状態を見る", description: "エラーと実行状況", path: dashboard_path, matchers: [ %r{\A/dashboard}, %r{\A/codex_quality_checks} ] },
           { label: "実行履歴", description: "処理結果を確認", path: admin_execution_runs_path, matchers: [ %r{\A/admin/execution_runs} ] },
+          { label: "1周チェック", description: "自動ループ確認", path: admin_pipeline_e2e_check_path, matchers: [ %r{\A/admin/pipeline_e2e_check} ] },
           { label: "アイデアを育てる", description: "IdeaからMVPへ", path: admin_idea_pipeline_index_path, matchers: [ %r{\A/admin/idea_pipeline} ] },
           { label: "Google連携", description: "GA4/GSC設定", path: admin_google_credentials_path, matchers: [ %r{\A/admin/(analytics|google)} ] },
           { label: "設定を直す", description: "API・安全設定", path: aicoo_setting_path, matchers: [ %r{\A/aicoo_setting}, %r{\A/admin/(serp_settings|aicoo_daily_run_settings|aicoo_auto_revision_settings|business_execution_profiles)} ] },

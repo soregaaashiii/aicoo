@@ -30,6 +30,10 @@ class BusinessesController < ApplicationController
     @data_source_settings_presenter = Aicoo::DataSourceSettingsPresenter.new
     @business_data_source_statuses = @data_source_settings_presenter.business_statuses(@business)
     @auto_revision_run_logs = @business.auto_revision_run_logs.includes(:auto_revision_task).recent.limit(8)
+    @pipeline_run = Aicoo::PipelineEngine.new(@business).call
+    Aicoo::PipelineStuckDetector.new(scope: AicooPipelineRun.where(id: @pipeline_run.id), auto_recover: false).call
+    @pipeline_run.reload
+    @pipeline_recovery_logs = @pipeline_run.pipeline_recovery_logs.recent.limit(20)
     load_data_source_settings_context
   end
 

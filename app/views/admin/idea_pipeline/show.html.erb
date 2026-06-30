@@ -40,9 +40,64 @@
       <div class="metric-card"><span>Pipeline</span><strong><%= @pipeline_run.status %></strong></div>
       <div class="metric-card"><span>現在位置</span><strong><%= stage_label(@pipeline_run.current_stage) %></strong></div>
       <div class="metric-card"><span>次</span><strong><%= @pipeline_run.next_stage ? stage_label(@pipeline_run.next_stage) : "-" %></strong></div>
+      <div class="metric-card"><span>詰まり</span><strong><%= @pipeline_run.stuck? ? @pipeline_run.stuck_reason : "なし" %></strong></div>
       <div class="metric-card"><span>Pivot判断</span><strong><%= @pipeline_run.pivot_decision.presence || "-" %></strong></div>
       <div class="metric-card"><span>予想コスト</span><strong><%= number_to_currency(@pipeline_run.estimated_cost_yen || 0, unit: "¥", precision: 0) %></strong></div>
       <div class="metric-card"><span>実コスト</span><strong><%= number_to_currency(@pipeline_run.actual_cost_yen || 0, unit: "¥", precision: 0) %></strong></div>
+    </div>
+    <% if @pipeline_run.stuck? %>
+      <div class="notice-toast">
+        <strong>Pipelineが停止しています。</strong>
+        <p><%= @pipeline_run.recovery_message.presence || "原因を確認して復旧操作を選んでください。" %></p>
+        <div class="actions compact-actions">
+          <%= button_to "再試行", admin_pipeline_recovery_path(@pipeline_run), method: :post, params: { recovery_action: "retry" }, class: "button secondary" %>
+          <%= button_to "スキップ", admin_pipeline_recovery_path(@pipeline_run), method: :post, params: { recovery_action: "skip" }, class: "button secondary" %>
+          <%= button_to "承認して進む", admin_pipeline_recovery_path(@pipeline_run), method: :post, params: { recovery_action: "approve" }, class: "button secondary" %>
+          <%= button_to "停止", admin_pipeline_recovery_path(@pipeline_run), method: :post, params: { recovery_action: "stop" }, class: "button secondary" %>
+          <%= button_to "終了", admin_pipeline_recovery_path(@pipeline_run), method: :post, params: { recovery_action: "end" }, class: "button secondary", data: { turbo_confirm: "このPipelineを終了しますか？" } %>
+          <a href="#pipeline-recovery-logs" class="button secondary">復旧ログを見る</a>
+        </div>
+      </div>
+    <% end %>
+  </section>
+
+  <section class="dashboard-section" id="pipeline-recovery-logs">
+    <div class="section-heading">
+      <h2>復旧ログ</h2>
+      <p>自動復旧と手動復旧の履歴です。詳細エラーはここだけに表示します。</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>日時</th>
+            <th>Stage</th>
+            <th>理由</th>
+            <th>操作</th>
+            <th>結果</th>
+            <th>前</th>
+            <th>後</th>
+            <th>Error</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @pipeline_recovery_logs.each do |log| %>
+            <tr>
+              <td><%= l(log.executed_at, format: :short) %></td>
+              <td><%= stage_label(log.stage) %></td>
+              <td><%= log.stuck_reason %></td>
+              <td><%= log.action %></td>
+              <td><%= log.success? ? "成功" : "失敗" %></td>
+              <td><%= log.before_status.presence || "-" %></td>
+              <td><%= log.after_status.presence || "-" %></td>
+              <td><%= simple_format(log.error_message.presence || "-") %></td>
+            </tr>
+          <% end %>
+          <% if @pipeline_recovery_logs.empty? %>
+            <tr><td colspan="8">復旧ログはまだありません。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
     </div>
   </section>
 

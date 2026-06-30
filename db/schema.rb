@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_29_151000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_30_091000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -717,6 +717,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_29_151000) do
   create_table "aicoo_pipeline_runs", force: :cascade do |t|
     t.decimal "actual_cost_yen"
     t.bigint "aicoo_lab_landing_page_id"
+    t.boolean "auto_recoverable", default: false, null: false
     t.jsonb "budget_snapshot", default: {}, null: false
     t.bigint "business_id"
     t.decimal "confidence"
@@ -733,11 +734,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_29_151000) do
     t.string "next_stage"
     t.string "pipeline_type", default: "idea_pipeline", null: false
     t.string "pivot_decision"
+    t.string "recovery_action"
+    t.text "recovery_message"
     t.integer "retry_count", default: 0, null: false
     t.jsonb "retry_schedule", default: {}, null: false
     t.jsonb "stage_states", default: {}, null: false
     t.datetime "started_at"
     t.string "status", default: "running", null: false
+    t.boolean "stuck", default: false, null: false
+    t.datetime "stuck_detected_at"
+    t.string "stuck_reason"
     t.datetime "updated_at", null: false
     t.string "waiting_reason"
     t.datetime "waiting_until"
@@ -750,6 +756,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_29_151000) do
     t.index ["pipeline_type"], name: "index_aicoo_pipeline_runs_on_pipeline_type"
     t.index ["pivot_decision"], name: "index_aicoo_pipeline_runs_on_pivot_decision"
     t.index ["status"], name: "index_aicoo_pipeline_runs_on_status"
+    t.index ["stuck"], name: "index_aicoo_pipeline_runs_on_stuck"
+    t.index ["stuck_detected_at"], name: "index_aicoo_pipeline_runs_on_stuck_detected_at"
+    t.index ["stuck_reason"], name: "index_aicoo_pipeline_runs_on_stuck_reason"
     t.index ["waiting_until"], name: "index_aicoo_pipeline_runs_on_waiting_until"
   end
 
@@ -1413,6 +1422,29 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_29_151000) do
     t.index ["task_type"], name: "index_owner_task_completion_logs_on_task_type"
   end
 
+  create_table "pipeline_recovery_logs", force: :cascade do |t|
+    t.string "action", null: false
+    t.string "after_status"
+    t.bigint "aicoo_pipeline_run_id", null: false
+    t.string "before_status"
+    t.bigint "business_id"
+    t.datetime "created_at", null: false
+    t.text "error_message"
+    t.datetime "executed_at", null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.string "stage", null: false
+    t.string "stuck_reason", null: false
+    t.boolean "success", default: false, null: false
+    t.datetime "updated_at", null: false
+    t.index ["action"], name: "index_pipeline_recovery_logs_on_action"
+    t.index ["aicoo_pipeline_run_id"], name: "index_pipeline_recovery_logs_on_aicoo_pipeline_run_id"
+    t.index ["business_id"], name: "index_pipeline_recovery_logs_on_business_id"
+    t.index ["executed_at"], name: "index_pipeline_recovery_logs_on_executed_at"
+    t.index ["stage"], name: "index_pipeline_recovery_logs_on_stage"
+    t.index ["stuck_reason"], name: "index_pipeline_recovery_logs_on_stuck_reason"
+    t.index ["success"], name: "index_pipeline_recovery_logs_on_success"
+  end
+
   create_table "proxy_score_weight_adjustment_logs", force: :cascade do |t|
     t.datetime "adjusted_at", null: false
     t.decimal "adjustment_rate", precision: 10, scale: 6, default: "0.0", null: false
@@ -1614,6 +1646,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_29_151000) do
   add_foreign_key "owner_decision_logs", "businesses"
   add_foreign_key "owner_decision_logs", "owner_execution_queue_items", column: "queue_item_id"
   add_foreign_key "owner_execution_queue_items", "businesses"
+  add_foreign_key "pipeline_recovery_logs", "aicoo_pipeline_runs"
+  add_foreign_key "pipeline_recovery_logs", "businesses"
   add_foreign_key "proxy_score_weight_adjustment_logs", "businesses"
   add_foreign_key "proxy_score_weight_adjustment_logs", "proxy_score_weights"
   add_foreign_key "proxy_score_weights", "businesses"

@@ -18,7 +18,8 @@ module Owner
       @serp_scan_status = Aicoo::Serp::ScanStatus.new.call
       @business_auto_revision_summary = Aicoo::BusinessAutoRevisionSummary.new.call
       sync_pipeline_runs
-      @stopped_pipeline_runs = AicooPipelineRun.stopped_for_owner.includes(:business, :idea_pipeline_item).recent.limit(5)
+      Aicoo::PipelineStuckDetector.new(auto_recover: false).call
+      @pipeline_e2e_failures = Aicoo::PipelineE2eCheck.failing_results(limit: 5)
       @running_daily_run = AicooDailyRun.running.includes(:aicoo_daily_run_steps).recent.first
       @top_task_evidence = evidence_for_top_task
       @top_task_expansion = expansion_for_top_task
@@ -105,6 +106,7 @@ module Owner
 
     def sync_pipeline_runs
       IdeaPipelineItem.recent.limit(25).each { |item| Aicoo::PipelineEngine.new(item).call }
+      Business.real_businesses.includes(:business_execution_profile).find_each { |business| Aicoo::PipelineEngine.new(business).call }
     end
   end
 end

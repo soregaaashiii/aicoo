@@ -1,0 +1,147 @@
+<% content_for :title, "Pipeline E2Eチェック" %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "Pipeline E2Eチェック",
+             description: "Idea生成からBusiness化、LP公開、計測、改善提案まで1周できるか確認します。",
+             active_main: :system %>
+
+  <% if @result.pipeline_run.blank? %>
+    <section class="dashboard-section">
+      <div class="aicoo-card aicoo-empty-state">
+        <h2>診断できるPipelineがありません。</h2>
+        <p>Idea PipelineでIdeaを生成すると、ここでE2E状態を確認できます。</p>
+        <div class="actions compact-actions">
+          <%= link_to "Idea Pipelineへ", admin_idea_pipeline_index_path, class: "button" %>
+        </div>
+      </div>
+    </section>
+  <% else %>
+    <section class="dashboard-section">
+      <div class="section-heading">
+        <div>
+          <h2>診断対象</h2>
+          <p>既存PipelineRunを1件選び、Business/LP/公開/計測/改善までの穴を見ます。</p>
+        </div>
+        <span class="pill"><%= @result.overall_status %></span>
+      </div>
+
+      <div class="metric-grid aicoo-owner-secondary">
+        <div class="metric-card"><span>PipelineRun</span><strong>#<%= @result.pipeline_run.id %></strong></div>
+        <div class="metric-card"><span>Idea</span><strong><%= @result.idea_item&.id || "-" %></strong></div>
+        <div class="metric-card"><span>Business</span><strong><%= @result.business&.name || "未作成" %></strong></div>
+        <div class="metric-card"><span>LP</span><strong><%= @result.landing_page&.published_slug || "未作成" %></strong></div>
+        <div class="metric-card"><span>Stage</span><strong><%= stage_label(@result.pipeline_run.current_stage) %></strong></div>
+        <div class="metric-card"><span>診断時刻</span><strong><%= l(@result.generated_at, format: :short) %></strong></div>
+      </div>
+    </section>
+
+    <section class="dashboard-section">
+      <div class="section-heading">
+        <h2>E2E診断</h2>
+        <p>failは自動ループの穴です。復旧可能なものはその場で直せます。</p>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>状態</th>
+              <th>項目</th>
+              <th>診断</th>
+              <th>復旧</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @result.checks.each do |check| %>
+              <tr>
+                <td><span class="pill"><%= check.status %></span></td>
+                <td><strong><%= check.label %></strong></td>
+                <td>
+                  <%= check.message %>
+                  <% if check.details.present? %>
+                    <br><small><%= check.details.to_json %></small>
+                  <% end %>
+                </td>
+                <td>
+                  <% if check.repair_action.present? %>
+                    <%= button_to "復旧する",
+                                  admin_pipeline_e2e_check_repair_path,
+                                  method: :post,
+                                  params: {
+                                    pipeline_run_id: @result.pipeline_run.id,
+                                    repair_action: check.repair_action
+                                  },
+                                  class: "button secondary",
+                                  data: { aicoo_loading_label: "復旧中..." },
+                                  form: { data: { aicoo_submit_lock: true, aicoo_loading_label: "復旧中..." } } %>
+                  <% else %>
+                    -
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="dashboard-section">
+      <div class="section-heading">
+        <h2>関連導線</h2>
+        <p>穴が残る場合は対象画面で詳細を確認してください。</p>
+      </div>
+      <div class="actions compact-actions">
+        <% if @result.idea_item %>
+          <%= link_to "Pipeline詳細", admin_idea_pipeline_path(@result.idea_item), class: "button secondary" %>
+        <% end %>
+        <% if @result.business %>
+          <%= link_to "Business詳細", business_path(@result.business), class: "button secondary" %>
+        <% end %>
+        <% if @result.landing_page %>
+          <%= link_to "公開LP管理", admin_aicoo_lab_edit_public_landing_page_path(@result.landing_page), class: "button secondary" %>
+        <% end %>
+        <%= link_to "実行履歴", admin_execution_runs_path, class: "button secondary" %>
+      </div>
+    </section>
+  <% end %>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>E2E fail Pipeline</h2>
+      <p>/owner/focus には、この一覧のうち人の対応が必要なものだけを出します。</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>状態</th>
+            <th>対象</th>
+            <th>Business</th>
+            <th>主なfail</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @recent_failures.each do |failure| %>
+            <% first_fail = failure.checks.find { |check| check.status == "fail" } %>
+            <tr>
+              <td><span class="pill"><%= failure.overall_status %></span></td>
+              <td><%= failure.display_title %></td>
+              <td><%= failure.business&.name || "未作成" %></td>
+              <td><%= first_fail&.label %>: <%= first_fail&.message %></td>
+              <td>
+                <%= link_to "診断する",
+                            admin_pipeline_e2e_check_path(pipeline_run_id: failure.pipeline_run.id),
+                            class: "button secondary" %>
+              </td>
+            </tr>
+          <% end %>
+          <% if @recent_failures.empty? %>
+            <tr><td colspan="5">E2EでfailしているPipelineはありません。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
