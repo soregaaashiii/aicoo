@@ -22,3 +22,5 @@ businesses.each_value do |attributes|
     business.status = attributes[:status]
   end
 end
+
+CodexPromptRule.ensure_defaults! if defined?(CodexPromptRule)

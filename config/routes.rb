@@ -206,6 +206,11 @@ Rails.application.routes.draw do
     end
     get "aicoo_revenue", to: "aicoo_revenue#show", as: :aicoo_revenue
     get "aicoo_executor", to: "aicoo_executor/tasks#index", as: :aicoo_executor
+    get "codex_prompt_rules/preview", to: "codex_prompt_rules#preview", as: :codex_prompt_rules_preview
+    post "codex_prompt_rules/preview", to: "codex_prompt_rules#preview"
+    resources :codex_prompt_rules, only: %i[index edit update] do
+      patch :toggle, on: :member
+    end
     get "aicoo_datahub", to: "aicoo_datahub#show", as: :aicoo_datahub
     get "aicoo_judge", to: "aicoo_judge#show", as: :aicoo_judge
     get "aicoo_judge/action_predictions", to: "aicoo_judge#action_predictions", as: :aicoo_judge_action_predictions

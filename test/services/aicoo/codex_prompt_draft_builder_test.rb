@@ -20,6 +20,11 @@ module Aicoo
       assert_includes draft.prompt_body, "project_key: suelog"
       assert_includes draft.prompt_body, "local_project_path: /Users/example/suelog"
       assert_includes draft.prompt_body, "repository_name: suelog-app"
+      assert_includes draft.prompt_body, "【共通ルール】"
+      assert_includes draft.prompt_body, "【サービス固有ルール】"
+      assert_includes draft.prompt_body, "【今回の依頼】"
+      assert_includes draft.prompt_body, "AicooActivityLogger.log"
+      assert_includes draft.prompt_body, "吸えログ Activity Loggingルール"
     end
 
     test "includes business codex execution target settings" do

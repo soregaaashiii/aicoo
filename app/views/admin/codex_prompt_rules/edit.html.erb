@@ -1,0 +1,48 @@
+<% content_for :title, "Codex Prompt Rule編集" %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "Codex Prompt Rule編集",
+             description: "Codexへ前置きするルール内容を更新します。",
+             active_main: :system %>
+
+  <section class="dashboard-section">
+    <%= form_with model: [ :admin, @rule ], class: "aicoo-form" do |form| %>
+      <% if @rule.errors.any? %>
+        <div class="error-toast"><%= @rule.errors.full_messages.to_sentence %></div>
+      <% end %>
+
+      <div class="form-row">
+        <%= form.label :name, "名前" %>
+        <%= form.text_field :name %>
+      </div>
+
+      <div class="form-row">
+        <%= form.label :rule_category, "カテゴリ" %>
+        <%= form.select :rule_category, CodexPromptRule::RULE_CATEGORIES.map { |category| [category, category] } %>
+      </div>
+
+      <div class="form-row">
+        <%= form.label :priority, "優先度" %>
+        <%= form.number_field :priority %>
+      </div>
+
+      <div class="form-row">
+        <label>
+          <%= form.check_box :active %>
+          有効
+        </label>
+      </div>
+
+      <div class="form-row">
+        <%= form.label :content, "ルール本文" %>
+        <%= form.text_area :content, rows: 24, class: "code-textarea" %>
+      </div>
+
+      <div class="actions compact-actions">
+        <%= form.submit "保存", class: "button" %>
+        <%= link_to "戻る", admin_codex_prompt_rules_path, class: "button secondary" %>
+      </div>
+    <% end %>
+  </section>
+</div>

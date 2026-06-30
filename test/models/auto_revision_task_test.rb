@@ -96,6 +96,10 @@ class AutoRevisionTaskTest < ActiveSupport::TestCase
     prompt = task.codex_prompt
 
     assert_includes prompt, "タスクID: AutoRevisionTask ##{task.id}"
+    assert_includes prompt, "【共通ルール】"
+    assert_includes prompt, "【サービス固有ルール】"
+    assert_includes prompt, "【今回の依頼】"
+    assert_includes prompt, "AicooActivityLogger.log"
     assert_includes prompt, "db:drop / db:reset / drop database は絶対に実行しない"
     assert_includes prompt, "既存機能を壊さない"
     assert_includes prompt, "本番secretやtokenを表示しない"

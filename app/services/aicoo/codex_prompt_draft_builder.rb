@@ -93,6 +93,10 @@ module Aicoo
     end
 
     def prompt_body
+      Aicoo::CodexPromptComposer.call(business:, request_body: base_prompt_body)
+    end
+
+    def base_prompt_body
       <<~PROMPT
         AICOO Codex Prompt Draft
 

@@ -1,0 +1,29 @@
+<% content_for :title, "Codex Prompt Rules" %>
+
+<% header_actions = capture do %>
+  <%= link_to "プレビュー", admin_codex_prompt_rules_preview_path, class: "button" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "Codex Prompt Rules",
+             description: "Codexへ渡す共通ルールとサービス固有ルールを管理します。",
+             active_main: :system,
+             actions: header_actions %>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>共通ルール</h2>
+      <p>すべてのCodex依頼の先頭に付与されます。</p>
+    </div>
+    <%= render "rules_table", rules: @global_rules %>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>サービス固有ルール</h2>
+      <p>BusinessがあるCodex依頼に、共通ルールの後で付与されます。</p>
+    </div>
+    <%= render "rules_table", rules: @service_rules %>
+  </section>
+</div>

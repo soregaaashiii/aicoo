@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_30_091000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_30_092000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1105,6 +1105,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_30_091000) do
     t.index ["status"], name: "index_codex_prompt_drafts_on_status"
   end
 
+  create_table "codex_prompt_rules", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.bigint "business_id"
+    t.text "content", null: false
+    t.datetime "created_at", null: false
+    t.string "name", null: false
+    t.integer "priority", default: 100, null: false
+    t.string "rule_category", null: false
+    t.string "scope", null: false
+    t.datetime "updated_at", null: false
+    t.index ["active"], name: "index_codex_prompt_rules_on_active"
+    t.index ["business_id"], name: "index_codex_prompt_rules_on_business_id"
+    t.index ["name", "scope", "business_id"], name: "index_codex_prompt_rules_on_name_and_scope_and_business_id", unique: true
+    t.index ["rule_category"], name: "index_codex_prompt_rules_on_rule_category"
+    t.index ["scope", "business_id", "rule_category", "priority"], name: "idx_codex_prompt_rules_lookup"
+    t.index ["scope"], name: "index_codex_prompt_rules_on_scope"
+  end
+
   create_table "codex_quality_checks", force: :cascade do |t|
     t.text "approval_note"
     t.string "approval_status", default: "pending", null: false
@@ -1628,6 +1646,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_30_091000) do
   add_foreign_key "business_playbooks", "businesses"
   add_foreign_key "codex_prompt_drafts", "action_candidates"
   add_foreign_key "codex_prompt_drafts", "businesses"
+  add_foreign_key "codex_prompt_rules", "businesses"
   add_foreign_key "codex_quality_checks", "auto_revision_tasks"
   add_foreign_key "data_imports", "aicoo_analytics_sites"
   add_foreign_key "data_imports", "data_sources"

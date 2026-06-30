@@ -116,12 +116,13 @@ module AicooNavigationHelper
           %r{\A/auto_revision_tasks},
           %r{\A/owner/approved_queue},
           %r{\A/owner/codex_prompt_drafts},
-          %r{\A/admin/aicoo_executor}
+          %r{\A/admin/aicoo_executor},
+          %r{\A/admin/codex_prompt_rules}
         ],
         children: [
           { label: "提案を見る", description: "行動候補を確認", path: action_candidates_path, matchers: [ %r{\A/action_candidates} ] },
           { label: "承認済みを進める", description: "実行待ちキュー", path: owner_approved_queue_path, matchers: [ %r{\A/owner/approved_queue}, %r{\A/action_executions}, %r{\A/action_execution_logs} ] },
-          { label: "Codexへ渡す", description: "改修タスク", path: codex_queue_auto_revision_tasks_path, matchers: [ %r{\A/auto_revision_tasks}, %r{\A/owner/codex_prompt_drafts}, %r{\A/admin/aicoo_executor} ] }
+          { label: "Codexへ渡す", description: "改修タスク", path: codex_queue_auto_revision_tasks_path, matchers: [ %r{\A/auto_revision_tasks}, %r{\A/owner/codex_prompt_drafts}, %r{\A/admin/(aicoo_executor|codex_prompt_rules)} ] }
         ]
       },
       {

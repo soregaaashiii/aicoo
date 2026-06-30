@@ -1,0 +1,39 @@
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>状態</th>
+        <th>優先度</th>
+        <th>名前</th>
+        <th>範囲</th>
+        <th>カテゴリ</th>
+        <th>Business</th>
+        <th>内容</th>
+        <th>操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% rules.each do |rule| %>
+        <tr>
+          <td><span class="pill"><%= rule.active? ? "有効" : "無効" %></span></td>
+          <td class="number"><%= rule.priority %></td>
+          <td><strong><%= rule.name %></strong></td>
+          <td><%= rule.scope %></td>
+          <td><%= rule.rule_category %></td>
+          <td><%= rule.business&.name || "-" %></td>
+          <td class="wide-text"><%= truncate(rule.content, length: 120) %></td>
+          <td class="actions compact-actions">
+            <%= link_to "編集", edit_admin_codex_prompt_rule_path(rule), class: "button secondary" %>
+            <%= button_to(rule.active? ? "無効化" : "有効化",
+                          toggle_admin_codex_prompt_rule_path(rule),
+                          method: :patch,
+                          class: "button secondary") %>
+          </td>
+        </tr>
+      <% end %>
+      <% if rules.empty? %>
+        <tr><td colspan="8">ルールはまだありません。</td></tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>

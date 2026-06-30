@@ -1,0 +1,37 @@
+<% content_for :title, "Codex Prompt Preview" %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "Codex Prompt Preview",
+             description: "Businessと今回の依頼文を選び、Codexへ渡す最終プロンプトを確認します。",
+             active_main: :system %>
+
+  <section class="dashboard-section">
+    <%= form_with url: admin_codex_prompt_rules_preview_path, method: :post, class: "aicoo-form" do |form| %>
+      <div class="form-row">
+        <%= form.label :business_id, "Business" %>
+        <%= form.select :business_id,
+                        [["未選択", ""]] + @businesses.map { |business| [business.name, business.id] },
+                        selected: @business&.id %>
+      </div>
+
+      <div class="form-row">
+        <%= form.label :request_body, "今回の依頼" %>
+        <%= form.text_area :request_body, value: @request_body, rows: 10, class: "code-textarea" %>
+      </div>
+
+      <div class="actions compact-actions">
+        <%= form.submit "プレビュー更新", class: "button" %>
+        <%= link_to "ルール一覧", admin_codex_prompt_rules_path, class: "button secondary" %>
+      </div>
+    <% end %>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>最終プロンプト</h2>
+      <p>この内容がCodexへ渡されます。</p>
+    </div>
+    <textarea readonly rows="36" class="code-textarea"><%= @preview_prompt %></textarea>
+  </section>
+</div>
