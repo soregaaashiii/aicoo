@@ -6,6 +6,11 @@ Rails.application.routes.draw do
 
   get "robots.txt", to: "robots#show", as: :robots
   get "sitemap.xml", to: "public_sitemaps#show", as: :sitemap, defaults: { format: :xml }
+  namespace :api do
+    namespace :aicoo do
+      post "activity_logs", to: "activity_logs#create"
+    end
+  end
   root "public_landing_pages#index"
   get "lp", to: "public_landing_pages#index", as: :public_landing_pages
   get "public_lp", to: "public_landing_pages#index", as: :public_lp_index
@@ -211,6 +216,9 @@ Rails.application.routes.draw do
     resources :codex_prompt_rules, only: %i[index edit update] do
       patch :toggle, on: :member
     end
+    resources :business_activity_logs, only: %i[index show]
+    resources :source_app_connections, only: %i[index edit update]
+    resources :source_app_diff_rules, only: %i[index edit update]
     get "aicoo_datahub", to: "aicoo_datahub#show", as: :aicoo_datahub
     get "aicoo_judge", to: "aicoo_judge#show", as: :aicoo_judge
     get "aicoo_judge/action_predictions", to: "aicoo_judge#action_predictions", as: :aicoo_judge_action_predictions

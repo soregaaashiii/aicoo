@@ -1,0 +1,60 @@
+<% content_for :title, @business_activity_log.title %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: @business_activity_log.title,
+             description: "#{@business_activity_log.business.name} / #{@business_activity_log.activity_type}",
+             active_main: :learning,
+             actions: link_to("一覧へ戻る", admin_business_activity_logs_path, class: "button button-secondary") %>
+
+  <section class="dashboard-section">
+    <div class="metric-grid">
+      <div class="metric-card"><span>発生日時</span><strong><%= l(@business_activity_log.occurred_at, format: :long) %></strong></div>
+      <div class="metric-card"><span>検知日時</span><strong><%= l(@business_activity_log.detected_at, format: :long) %></strong></div>
+      <div class="metric-card"><span>検知方法</span><strong><%= @business_activity_log.source_method %></strong></div>
+      <div class="metric-card"><span>評価状態</span><strong><%= @business_activity_log.evaluation_status %></strong></div>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading"><h2>差分</h2></div>
+    <p><%= @business_activity_log.diff_summary.presence || "差分要約はありません。" %></p>
+    <pre class="code-block"><%= JSON.pretty_generate({
+      changed_fields: @business_activity_log.changed_fields,
+      before_snapshot: @business_activity_log.before_snapshot,
+      after_snapshot: @business_activity_log.after_snapshot,
+      metadata: @business_activity_log.metadata
+    }) %></pre>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading"><h2>評価</h2></div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>期間</th>
+            <th>状態</th>
+            <th>評価日時</th>
+            <th>理由</th>
+            <th>差分</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @business_activity_log.activity_evaluations.order(:evaluation_window_days).each do |evaluation| %>
+            <tr>
+              <td><%= evaluation.evaluation_window_days %>日</td>
+              <td><%= evaluation.status %></td>
+              <td><%= evaluation.evaluated_at ? l(evaluation.evaluated_at, format: :short) : "-" %></td>
+              <td><%= evaluation.skip_reason.presence || "-" %></td>
+              <td><%= truncate(evaluation.metric_deltas.to_json, length: 120) %></td>
+            </tr>
+          <% end %>
+          <% if @business_activity_log.activity_evaluations.empty? %>
+            <tr><td colspan="5">評価はまだありません。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>

@@ -1,0 +1,22 @@
+<% content_for :title, "Source App Connection編集" %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "Source App Connection編集",
+             description: @connection.business.name,
+             active_main: :system %>
+
+  <section class="dashboard-section">
+    <%= form_with model: [ :admin, @connection ], local: true do |form| %>
+      <div class="form-grid">
+        <label>名前<%= form.text_field :name %></label>
+        <label>Source App<%= form.text_field :source_app %></label>
+        <label>方式<%= form.select :connection_type, SourceAppConnection::CONNECTION_TYPES %></label>
+        <label>状態<%= form.select :status, SourceAppConnection::STATUSES %></label>
+        <label><%= form.check_box :enabled %> 有効</label>
+      </div>
+      <%= form.submit "保存", class: "button" %>
+      <%= link_to "戻る", admin_source_app_connections_path, class: "button button-secondary" %>
+    <% end %>
+  </section>
+</div>

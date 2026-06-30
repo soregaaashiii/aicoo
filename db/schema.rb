@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_30_092000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_30_095000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -228,6 +228,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_30_092000) do
     t.index ["evaluation_status"], name: "index_action_results_on_evaluation_status"
   end
 
+  create_table "activity_evaluations", force: :cascade do |t|
+    t.jsonb "baseline_snapshot", default: {}, null: false
+    t.bigint "business_activity_log_id", null: false
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "evaluated_at"
+    t.integer "evaluation_window_days", null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.jsonb "metric_deltas", default: {}, null: false
+    t.jsonb "result_snapshot", default: {}, null: false
+    t.text "skip_reason"
+    t.string "status", default: "pending", null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_activity_log_id", "evaluation_window_days"], name: "index_activity_evaluations_on_log_and_window", unique: true
+    t.index ["business_activity_log_id"], name: "index_activity_evaluations_on_business_activity_log_id"
+    t.index ["business_id"], name: "index_activity_evaluations_on_business_id"
+    t.index ["status"], name: "index_activity_evaluations_on_status"
+  end
+
   create_table "ai_evaluation_runs", force: :cascade do |t|
     t.bigint "business_id", null: false
     t.integer "created_action_count"
@@ -238,6 +257,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_30_092000) do
     t.text "raw_response"
     t.datetime "updated_at", null: false
     t.index ["business_id"], name: "index_ai_evaluation_runs_on_business_id"
+  end
+
+  create_table "aicoo_activity_log_queues", force: :cascade do |t|
+    t.integer "attempts", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.text "error_message"
+    t.string "idempotency_key"
+    t.datetime "last_attempted_at"
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "next_retry_at"
+    t.jsonb "payload", default: {}, null: false
+    t.string "status", default: "pending", null: false
+    t.datetime "updated_at", null: false
+    t.index ["idempotency_key"], name: "index_aicoo_activity_log_queues_on_idempotency_key"
+    t.index ["next_retry_at"], name: "index_aicoo_activity_log_queues_on_next_retry_at"
+    t.index ["status"], name: "index_aicoo_activity_log_queues_on_status"
   end
 
   create_table "aicoo_analytics_sites", force: :cascade do |t|
@@ -961,6 +996,33 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_30_092000) do
     t.index ["target_business_id"], name: "index_auto_revision_tasks_on_target_business_id"
   end
 
+  create_table "business_activity_logs", force: :cascade do |t|
+    t.string "activity_type", null: false
+    t.jsonb "after_snapshot", default: {}, null: false
+    t.jsonb "before_snapshot", default: {}, null: false
+    t.bigint "business_id", null: false
+    t.jsonb "changed_fields", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "detected_at", null: false
+    t.text "diff_summary"
+    t.integer "estimated_work_seconds"
+    t.string "evaluation_status", default: "pending", null: false
+    t.string "idempotency_key", null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "occurred_at", null: false
+    t.string "resource_id", null: false
+    t.string "resource_type", null: false
+    t.string "source_app", null: false
+    t.string "source_method", default: "logger", null: false
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.index ["activity_type"], name: "index_business_activity_logs_on_activity_type"
+    t.index ["business_id", "idempotency_key"], name: "idx_on_business_id_idempotency_key_daec419731", unique: true
+    t.index ["business_id", "occurred_at"], name: "index_business_activity_logs_on_business_id_and_occurred_at"
+    t.index ["business_id"], name: "index_business_activity_logs_on_business_id"
+    t.index ["evaluation_status"], name: "index_business_activity_logs_on_evaluation_status"
+  end
+
   create_table "business_data_source_settings", force: :cascade do |t|
     t.bigint "business_id", null: false
     t.string "connection_status", default: "unlinked", null: false
@@ -1578,6 +1640,57 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_30_092000) do
     t.index ["serp_analysis_id"], name: "index_serp_results_on_serp_analysis_id"
   end
 
+  create_table "source_app_connections", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.string "connection_type", default: "same_database", null: false
+    t.datetime "created_at", null: false
+    t.boolean "enabled", default: true, null: false
+    t.datetime "last_checked_at"
+    t.text "last_error"
+    t.datetime "last_success_at"
+    t.jsonb "metadata", default: {}, null: false
+    t.string "name", null: false
+    t.jsonb "settings", default: {}, null: false
+    t.string "source_app", null: false
+    t.string "status", default: "active", null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id", "source_app"], name: "index_source_app_connections_on_business_id_and_source_app", unique: true
+    t.index ["business_id"], name: "index_source_app_connections_on_business_id"
+    t.index ["enabled"], name: "index_source_app_connections_on_enabled"
+    t.index ["status"], name: "index_source_app_connections_on_status"
+  end
+
+  create_table "source_app_diff_cursors", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.datetime "last_checked_at"
+    t.bigint "last_seen_id"
+    t.jsonb "metadata", default: {}, null: false
+    t.bigint "source_app_diff_rule_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["source_app_diff_rule_id"], name: "index_source_app_diff_cursors_on_source_app_diff_rule_id", unique: true
+  end
+
+  create_table "source_app_diff_rules", force: :cascade do |t|
+    t.string "activity_type", null: false
+    t.datetime "created_at", null: false
+    t.boolean "enabled", default: true, null: false
+    t.integer "estimated_work_seconds"
+    t.jsonb "metadata", default: {}, null: false
+    t.jsonb "metadata_fields", default: [], null: false
+    t.string "name", null: false
+    t.integer "priority", default: 100, null: false
+    t.string "resource_type", null: false
+    t.bigint "source_app_connection_id", null: false
+    t.string "title_template"
+    t.datetime "updated_at", null: false
+    t.jsonb "watched_fields", default: [], null: false
+    t.string "watched_table", null: false
+    t.index ["enabled"], name: "index_source_app_diff_rules_on_enabled"
+    t.index ["source_app_connection_id", "name"], name: "idx_on_source_app_connection_id_name_a56158b9bb", unique: true
+    t.index ["source_app_connection_id"], name: "index_source_app_diff_rules_on_source_app_connection_id"
+    t.index ["watched_table"], name: "index_source_app_diff_rules_on_watched_table"
+  end
+
   create_table "system_mode_snapshots", force: :cascade do |t|
     t.datetime "captured_at", null: false
     t.datetime "created_at", null: false
@@ -1610,6 +1723,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_30_092000) do
   add_foreign_key "action_results", "action_candidates"
   add_foreign_key "action_results", "action_executions"
   add_foreign_key "action_results", "businesses"
+  add_foreign_key "activity_evaluations", "business_activity_logs"
+  add_foreign_key "activity_evaluations", "businesses"
   add_foreign_key "ai_evaluation_runs", "businesses"
   add_foreign_key "aicoo_analytics_sites", "businesses"
   add_foreign_key "aicoo_daily_run_steps", "aicoo_daily_runs"
@@ -1640,6 +1755,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_30_092000) do
   add_foreign_key "auto_revision_tasks", "action_candidates"
   add_foreign_key "auto_revision_tasks", "businesses"
   add_foreign_key "auto_revision_tasks", "businesses", column: "target_business_id"
+  add_foreign_key "business_activity_logs", "businesses"
   add_foreign_key "business_data_source_settings", "businesses"
   add_foreign_key "business_execution_profiles", "businesses"
   add_foreign_key "business_metric_dailies", "businesses"
@@ -1679,4 +1795,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_30_092000) do
   add_foreign_key "serp_landing_page_candidates", "aicoo_lab_landing_pages"
   add_foreign_key "serp_landing_page_candidates", "serp_analyses"
   add_foreign_key "serp_results", "serp_analyses"
+  add_foreign_key "source_app_connections", "businesses"
+  add_foreign_key "source_app_diff_cursors", "source_app_diff_rules"
+  add_foreign_key "source_app_diff_rules", "source_app_connections"
 end

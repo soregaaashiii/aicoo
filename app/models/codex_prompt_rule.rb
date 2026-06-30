@@ -110,6 +110,8 @@ class CodexPromptRule < ApplicationRecord
           * idempotency_key
         * idempotency_keyで重複送信を防ぐ
         * AICOO API送信に失敗した場合はローカルキューに保存し、後で再送できる設計にする
+        * Loggerを追加できない場合でもDB差分検知で拾えるよう、created_at / updated_at と重要フィールドを正しく更新する
+        * activity_type と metadata はサービス固有にしすぎず、AICOOが横断学習できる汎用表現にする
         * Activity Loggingは吸えログ専用にしない
         * 今後のRailsサービスにも流用できる汎用設計にする
       TEXT

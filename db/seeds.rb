@@ -24,3 +24,4 @@ businesses.each_value do |attributes|
 end
 
 CodexPromptRule.ensure_defaults! if defined?(CodexPromptRule)
+SourceAppConnection.ensure_suelog_defaults! if defined?(SourceAppConnection)

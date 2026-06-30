@@ -1,0 +1,58 @@
+<% content_for :title, "Activity Logs" %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "Activity Logs",
+             description: "各サービスで発生した作業・公開・更新を学習データとして確認します。",
+             active_main: :learning %>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <div>
+        <h2>施策ログ</h2>
+        <p>一覧は要約のみです。差分全文と評価結果は詳細で確認します。</p>
+      </div>
+    </div>
+
+    <%= form_with url: admin_business_activity_logs_path, method: :get, local: true, class: "inline-form" do |form| %>
+      <%= form.collection_select :business_id, @businesses, :id, :name, { include_blank: "すべてのBusiness" }, onchange: "this.form.submit()" %>
+      <%= form.select :evaluation_status, BusinessActivityLog.evaluation_statuses.keys.map { |status| [status, status] }, { include_blank: "評価状態すべて" }, onchange: "this.form.submit()" %>
+      <%= form.text_field :activity_type, value: params[:activity_type], placeholder: "activity_type" %>
+      <%= form.submit "絞り込み", class: "button button-secondary" %>
+    <% end %>
+
+    <div class="table-wrap operation-table-wrap">
+      <table class="operation-table">
+        <thead>
+          <tr>
+            <th>発生日時</th>
+            <th>Business</th>
+            <th>Activity</th>
+            <th>対象</th>
+            <th>検知方法</th>
+            <th>評価</th>
+            <th>要約</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @business_activity_logs.each do |activity_log| %>
+            <tr>
+              <td><%= l(activity_log.occurred_at, format: :short) %></td>
+              <td><%= activity_log.business.name %></td>
+              <td><%= activity_log.activity_type %></td>
+              <td><%= activity_log.resource_type %>#<%= activity_log.resource_id %></td>
+              <td><%= activity_log.source_method %></td>
+              <td><%= activity_log.evaluation_status %></td>
+              <td><%= truncate(activity_log.diff_summary.presence || activity_log.title, length: 80) %></td>
+              <td><%= link_to "詳細", admin_business_activity_log_path(activity_log), class: "button button-small" %></td>
+            </tr>
+          <% end %>
+          <% if @business_activity_logs.empty? %>
+            <tr><td colspan="8">Activity Logはまだありません。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>

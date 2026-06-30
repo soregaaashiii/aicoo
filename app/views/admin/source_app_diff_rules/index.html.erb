@@ -1,0 +1,40 @@
+<% content_for :title, "Source App Diff Rules" %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "Source App Diff Rules",
+             description: "どのテーブル・フィールド変更をActivityとして扱うかを管理します。",
+             active_main: :system,
+             actions: link_to("Connections", admin_source_app_connections_path, class: "button") %>
+
+  <section class="dashboard-section">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Business</th>
+            <th>Rule</th>
+            <th>Table</th>
+            <th>Activity</th>
+            <th>有効</th>
+            <th>優先度</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @rules.each do |rule| %>
+            <tr>
+              <td><%= rule.source_app_connection.business.name %></td>
+              <td><%= rule.name %></td>
+              <td><%= rule.watched_table %></td>
+              <td><%= rule.activity_type %></td>
+              <td><%= rule.enabled? ? "有効" : "無効" %></td>
+              <td><%= rule.priority %></td>
+              <td><%= link_to "編集", edit_admin_source_app_diff_rule_path(rule), class: "button button-small" %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>

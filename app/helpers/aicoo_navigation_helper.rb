@@ -135,6 +135,7 @@ module AicooNavigationHelper
           %r{\A/judge},
           %r{\A/admin/aicoo_judge},
           %r{\A/admin/aicoo/calibration},
+          %r{\A/admin/business_activity_logs},
           %r{\A/owner/learning_report},
           %r{\A/owner/discovery_report},
           %r{\A/owner/evaluator_trends},
@@ -143,6 +144,7 @@ module AicooNavigationHelper
         children: [
           { label: "結果を入れる", description: "実績を登録", path: action_results_path, matchers: [ %r{\A/action_results} ] },
           { label: "ズレを見る", description: "予測と実績", path: judge_action_predictions_path, matchers: [ %r{\A/judge}, %r{\A/admin/aicoo_judge}, %r{\A/owner/evaluator_trends}, %r{\A/department_rankings} ] },
+          { label: "Activityを見る", description: "施策ログと評価", path: admin_business_activity_logs_path, matchers: [ %r{\A/admin/business_activity_logs} ] },
           { label: "学習を調整", description: "補正・精度", path: owner_learning_report_path, matchers: [ %r{\A/admin/aicoo/calibration}, %r{\A/owner/learning_report}, %r{\A/owner/discovery_report} ] }
         ]
       },
@@ -158,6 +160,7 @@ module AicooNavigationHelper
           %r{\A/admin/idea_pipeline},
           %r{\A/admin/(analytics|google|aicoo_datahub|aicoo_daily_run_settings|aicoo_auto_revision_settings|business_execution_profiles|explore)},
           %r{\A/admin/serp_settings},
+          %r{\A/admin/source_app_(connections|diff_rules)},
           %r{\A/aicoo_setting},
           %r{\A/codex_quality_checks}
         ],
@@ -168,6 +171,7 @@ module AicooNavigationHelper
           { label: "アイデアを育てる", description: "IdeaからMVPへ", path: admin_idea_pipeline_index_path, matchers: [ %r{\A/admin/idea_pipeline} ] },
           { label: "Google連携", description: "GA4/GSC設定", path: admin_google_credentials_path, matchers: [ %r{\A/admin/(analytics|google)} ] },
           { label: "設定を直す", description: "API・安全設定", path: aicoo_setting_path, matchers: [ %r{\A/aicoo_setting}, %r{\A/admin/(serp_settings|aicoo_daily_run_settings|aicoo_auto_revision_settings|business_execution_profiles)} ] },
+          { label: "連携差分を見る", description: "外部DB変更検知", path: admin_source_app_connections_path, matchers: [ %r{\A/admin/source_app_(connections|diff_rules)} ] },
           { label: "詳しく診る", description: "データ・発見", path: admin_aicoo_datahub_path, matchers: [ %r{\A/admin/(aicoo_datahub|explore)} ] }
         ]
       }

@@ -1,0 +1,27 @@
+<% content_for :title, "Diff Rule編集" %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "Diff Rule編集",
+             description: @rule.source_app_connection.name,
+             active_main: :system %>
+
+  <section class="dashboard-section">
+    <%= form_with model: [ :admin, @rule ], local: true do |form| %>
+      <div class="form-grid">
+        <label>名前<%= form.text_field :name %></label>
+        <label>Table<%= form.text_field :watched_table %></label>
+        <label>Resource Type<%= form.text_field :resource_type %></label>
+        <label>Activity Type<%= form.text_field :activity_type %></label>
+        <label>Title Template<%= form.text_field :title_template %></label>
+        <label>推定秒数<%= form.number_field :estimated_work_seconds %></label>
+        <label>優先度<%= form.number_field :priority %></label>
+        <label>Watched Fields<%= form.text_field :watched_fields, value: Array(@rule.watched_fields).join(",") %></label>
+        <label>Metadata Fields<%= form.text_field :metadata_fields, value: Array(@rule.metadata_fields).join(",") %></label>
+        <label><%= form.check_box :enabled %> 有効</label>
+      </div>
+      <%= form.submit "保存", class: "button" %>
+      <%= link_to "戻る", admin_source_app_diff_rules_path, class: "button button-secondary" %>
+    <% end %>
+  </section>
+</div>

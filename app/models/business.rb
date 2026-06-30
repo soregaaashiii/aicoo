@@ -21,6 +21,9 @@ class Business < ApplicationRecord
   has_many :serp_analyses, dependent: :destroy
   has_many :revenue_events, dependent: :destroy
   has_many :business_metric_dailies, dependent: :destroy
+  has_many :business_activity_logs, dependent: :destroy
+  has_many :source_app_connections, dependent: :destroy
+  has_many :activity_evaluations, dependent: :destroy
   has_many :analysis_candidates, dependent: :destroy
   has_many :aicoo_lab_landing_pages, dependent: :nullify
   has_many :aicoo_pipeline_runs, dependent: :nullify

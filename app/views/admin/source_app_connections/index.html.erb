@@ -1,0 +1,42 @@
+<% content_for :title, "Source App Connections" %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "Source App Connections",
+             description: "外部サービスや同一DBからActivityを検知する接続を管理します。",
+             active_main: :system,
+             actions: link_to("Diff Rules", admin_source_app_diff_rules_path, class: "button") %>
+
+  <section class="dashboard-section">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Business</th>
+            <th>接続名</th>
+            <th>Source App</th>
+            <th>方式</th>
+            <th>状態</th>
+            <th>Rule数</th>
+            <th>最終成功</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @connections.each do |connection| %>
+            <tr>
+              <td><%= connection.business.name %></td>
+              <td><%= connection.name %></td>
+              <td><%= connection.source_app %></td>
+              <td><%= connection.connection_type %></td>
+              <td><%= connection.enabled? ? connection.status : "disabled" %></td>
+              <td><%= connection.source_app_diff_rules.size %></td>
+              <td><%= connection.last_success_at ? l(connection.last_success_at, format: :short) : "-" %></td>
+              <td><%= link_to "編集", edit_admin_source_app_connection_path(connection), class: "button button-small" %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>

@@ -76,6 +76,8 @@ class AicooDailyRunner
     run.update!(business_metrics_imported_count: imported_results.size)
     log!("BusinessMetricDaily imported count=#{imported_results.size}")
 
+    run_source_app_diff_detection!(run)
+
     adjustment_logs = record_step!(run, "proxy_weight_adjustment") do
       adjust_proxy_weights
     end
@@ -107,6 +109,8 @@ class AicooDailyRunner
     end
     run.update!(action_results_evaluated_count: evaluated_results.size)
     log!("ActionResult evaluated_or_skipped count=#{evaluated_results.size}")
+
+    run_activity_log_evaluation_queue_build!(run)
 
     snapshot_result = record_step!(run, "score_snapshot") do
       ActionCandidateScoreSnapshotter.new.snapshot_top_candidates!(date: target_date)
@@ -299,6 +303,53 @@ class AicooDailyRunner
     Rails.logger.error("AICOO Daily Run pipeline stuck detector failed: #{error_message}")
     fail_step!(step, error_message) if step
     log!("PipelineStuckDetector failed: #{error_message}")
+  end
+
+  def run_source_app_diff_detection!(run)
+    step = start_step!(run, "source_app_diff_detection")
+    result = Aicoo::SourceAppDiffDetector.new.call
+    finish_step!(
+      step,
+      metadata: {
+        created_count: result.created_count,
+        skipped_count: result.skipped_count,
+        error_count: result.error_count
+      }
+    )
+    log!(
+      "SourceAppDiffDetection created=#{result.created_count} " \
+      "skipped=#{result.skipped_count} errors=#{result.error_count}"
+    )
+  rescue StandardError => e
+    error_message = "#{e.class}: #{e.message}"
+    Rails.logger.error("AICOO Daily Run source app diff detection failed: #{error_message}")
+    partial_failures << "source_app_diff_detection_failed"
+    fail_step!(step, error_message) if step
+    log!("SourceAppDiffDetection failed: #{error_message}")
+  end
+
+  def run_activity_log_evaluation_queue_build!(run)
+    step = start_step!(run, "activity_log_evaluation_queue_build")
+    result = Aicoo::ActivityEvaluationBuilder.new.call
+    finish_step!(
+      step,
+      metadata: {
+        created_count: result.created_count,
+        evaluated_count: result.evaluated_count,
+        skipped_count: result.skipped_count,
+        pending_count: result.pending_count
+      }
+    )
+    log!(
+      "ActivityEvaluation created=#{result.created_count} evaluated=#{result.evaluated_count} " \
+      "skipped=#{result.skipped_count} pending=#{result.pending_count}"
+    )
+  rescue StandardError => e
+    error_message = "#{e.class}: #{e.message}"
+    Rails.logger.error("AICOO Daily Run activity evaluation failed: #{error_message}")
+    partial_failures << "activity_log_evaluation_failed"
+    fail_step!(step, error_message) if step
+    log!("ActivityEvaluation failed: #{error_message}")
   end
 
   def fail_run!(run, error)

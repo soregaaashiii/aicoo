@@ -59,16 +59,18 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
       assert_match "AutoRevisionQueue skipped reason=disabled", run.run_log
       assert_match "PipelineStuckDetector checked=", run.run_log
       assert_match "BusinessPlaybook updated count=2", run.run_log
-      assert_equal 19, run.aicoo_daily_run_steps.count
+      assert_equal 21, run.aicoo_daily_run_steps.count
       assert_equal %w[
         analytics_fetch
         datahub_collect
         business_metrics_import
+        source_app_diff_detection
         proxy_weight_adjustment
         action_generation
         insight_generation
         explore_opportunity_generation
         action_result_evaluation
+        activity_log_evaluation_queue_build
         score_snapshot
         data_preparation_queue
         meta_evaluation_snapshot
@@ -83,7 +85,7 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
       ], run.aicoo_daily_run_steps.order(:created_at).pluck(:step_name)
       assert_equal %w[skipped success], run.aicoo_daily_run_steps.distinct.pluck(:status).sort
       assert_equal 0, AutoRevisionQueueRun.count
-      assert_equal %i[analytics datahub import adjust_all generate insight evaluate snapshot queue meta_snapshot calibration owner_queue analysis playbook], order
+      assert_equal %i[analytics datahub import source_diff adjust_all generate insight evaluate activity_eval snapshot queue meta_snapshot calibration owner_queue analysis playbook], order
     end
   end
 
@@ -212,61 +214,65 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
           order << :import
           [ Object.new, Object.new ]
         }) do
-          with_singleton_stub(ProxyScoreWeightAdjuster, :new, -> { adjuster }) do
-            with_singleton_stub(MetricActionCandidateGenerator, :generate_all!, -> {
-              order << :generate
-              generator_results
-            }) do
-              with_singleton_stub(AicooInsight::Generator, :generate_all!, ->(source:) {
-                order << :insight
-                AicooInsight::Generator::Result.new(created: [ Object.new ], skipped: [ Object.new, Object.new ])
+          with_singleton_stub(Aicoo::SourceAppDiffDetector, :new, -> { fake_source_app_diff_detector(order) }) do
+            with_singleton_stub(ProxyScoreWeightAdjuster, :new, -> { adjuster }) do
+              with_singleton_stub(MetricActionCandidateGenerator, :generate_all!, -> {
+                order << :generate
+                generator_results
               }) do
-                with_singleton_stub(ActionResultEvaluator, :evaluate_pending!, -> {
-                  order << :evaluate
-                  evaluated_results
+                with_singleton_stub(AicooInsight::Generator, :generate_all!, ->(source:) {
+                  order << :insight
+                  AicooInsight::Generator::Result.new(created: [ Object.new ], skipped: [ Object.new, Object.new ])
                 }) do
-                  with_method_stub(ActionCandidateScoreSnapshotter, :snapshot_top_candidates!, ->(date:) {
-                    order << :snapshot
-                    ActionCandidateScoreSnapshotter::Result.new(
-                      snapshots: [ Object.new, Object.new, Object.new ],
-                      created_count: 3,
-                      rank_up_count: 1,
-                      rank_down_count: 1,
-                      no_adjustment_count: 1
-                    )
+                  with_singleton_stub(ActionResultEvaluator, :evaluate_pending!, -> {
+                    order << :evaluate
+                    evaluated_results
                   }) do
-                    with_singleton_stub(DataPreparationExecutorQueuer, :new, -> { fake_queuer(order) }) do
-                      with_singleton_stub(MetaEvaluationSnapshotter, :new, -> { fake_meta_snapshotter(order) }) do
-                        with_singleton_stub(Aicoo::CalibrationEngine, :run!, ->(source:, aicoo_daily_run:) {
-                          order << :calibration
-                          raise calibration_error if calibration_error
+                    with_singleton_stub(Aicoo::ActivityEvaluationBuilder, :new, -> { fake_activity_evaluation_builder(order) }) do
+                      with_method_stub(ActionCandidateScoreSnapshotter, :snapshot_top_candidates!, ->(date:) {
+                        order << :snapshot
+                        ActionCandidateScoreSnapshotter::Result.new(
+                          snapshots: [ Object.new, Object.new, Object.new ],
+                          created_count: 3,
+                          rank_up_count: 1,
+                          rank_down_count: 1,
+                          no_adjustment_count: 1
+                        )
+                      }) do
+                        with_singleton_stub(DataPreparationExecutorQueuer, :new, -> { fake_queuer(order) }) do
+                          with_singleton_stub(MetaEvaluationSnapshotter, :new, -> { fake_meta_snapshotter(order) }) do
+                            with_singleton_stub(Aicoo::CalibrationEngine, :run!, ->(source:, aicoo_daily_run:) {
+                              order << :calibration
+                              raise calibration_error if calibration_error
 
-                          Aicoo::CalibrationEngine::Result.new(
-                            calibrations: [ Object.new, Object.new ],
-                            logs: [ Object.new, Object.new ]
-                          )
-                        }) do
-                          with_singleton_stub(Aicoo::OwnerExecutionQueueBuilder, :new, ->(due_on:, generated_from:) {
-                            fake_owner_execution_queue_builder(order)
-                          }) do
-                            with_singleton_stub(Aicoo::AnalysisOrchestrator, :run_all!, ->(today:, limit_per_business:, collect_records: true) {
-                              order << :analysis
-                              Aicoo::AnalysisOrchestrator::Result.new(
-                                generated_at: Time.current,
-                                candidates: [ Object.new ],
-                                created_count: 1,
-                                updated_count: 2,
-                                skipped_count: 3
+                              Aicoo::CalibrationEngine::Result.new(
+                                calibrations: [ Object.new, Object.new ],
+                                logs: [ Object.new, Object.new ]
                               )
                             }) do
-                              with_singleton_stub(Aicoo::BusinessPlaybookBuilder, :update_all!, ->(collect_records: true) {
-                                order << :playbook
-                                Aicoo::BusinessPlaybookBuilder::Result.new(
-                                  updated_count: 2,
-                                  playbooks: [ Object.new, Object.new ]
-                                )
+                              with_singleton_stub(Aicoo::OwnerExecutionQueueBuilder, :new, ->(due_on:, generated_from:) {
+                                fake_owner_execution_queue_builder(order)
                               }) do
-                                yield
+                                with_singleton_stub(Aicoo::AnalysisOrchestrator, :run_all!, ->(today:, limit_per_business:, collect_records: true) {
+                                  order << :analysis
+                                  Aicoo::AnalysisOrchestrator::Result.new(
+                                    generated_at: Time.current,
+                                    candidates: [ Object.new ],
+                                    created_count: 1,
+                                    updated_count: 2,
+                                    skipped_count: 3
+                                  )
+                                }) do
+                                  with_singleton_stub(Aicoo::BusinessPlaybookBuilder, :update_all!, ->(collect_records: true) {
+                                    order << :playbook
+                                    Aicoo::BusinessPlaybookBuilder::Result.new(
+                                      updated_count: 2,
+                                      playbooks: [ Object.new, Object.new ]
+                                    )
+                                  }) do
+                                    yield
+                                  end
+                                end
                               end
                             end
                           end
@@ -317,6 +323,29 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
           skipped_count: 2,
           skipped_reasons: { "already queued" => 2 },
           disabled: false
+        )
+      end
+    end
+  end
+
+  def fake_source_app_diff_detector(order)
+    Object.new.tap do |detector|
+      detector.define_singleton_method(:call) do
+        order << :source_diff
+        Aicoo::SourceAppDiffDetector::Result.new(created_count: 1, skipped_count: 0, error_count: 0)
+      end
+    end
+  end
+
+  def fake_activity_evaluation_builder(order)
+    Object.new.tap do |builder|
+      builder.define_singleton_method(:call) do
+        order << :activity_eval
+        Aicoo::ActivityEvaluationBuilder::Result.new(
+          created_count: 1,
+          evaluated_count: 1,
+          skipped_count: 0,
+          pending_count: 0
         )
       end
     end
