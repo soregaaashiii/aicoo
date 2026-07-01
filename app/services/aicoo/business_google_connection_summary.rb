@@ -14,6 +14,8 @@ module Aicoo
       :last_fetched_at,
       :last_count,
       :last_error,
+      :setting_source,
+      :reauthentication_required,
       :status_label
     )
 
@@ -43,6 +45,8 @@ module Aicoo
         last_fetched_at: latest_run&.finished_at || latest_run&.started_at || setting&.last_fetched_at,
         last_count: latest_run&.snapshot_count.to_i,
         last_error: latest_failed_run&.error_message,
+        setting_source:,
+        reauthentication_required: reauthentication_required?,
         status_label:
       )
     end
@@ -58,6 +62,7 @@ module Aicoo
     def status_label
       return "無効" unless business_data_source_setting.nil? || business_data_source_setting.enabled?
       return "未設定" if identifier.blank?
+      return "再認証が必要" if reauthentication_required?
       return "最終取得失敗" if latest_run&.status == "failed"
       return "接続済み" if connected?
 
@@ -79,6 +84,22 @@ module Aicoo
 
     def business_gsc_site_url
       business.gsc_site_url.presence if source_key == "gsc"
+    end
+
+    def setting_source
+      return "BusinessDataSourceSetting" if business_data_source_identifier.present?
+      return "AicooAnalyticsSite" if analytics_site_identifier.present?
+      return "AnalyticsSourceSetting" if named_setting_identifier.present?
+      return "Business#gsc_site_url" if business_gsc_site_url.present?
+
+      "missing"
+    end
+
+    def reauthentication_required?
+      latest_failed_run&.error_message.to_s.match?(/invalid_grant|expired or revoked/i).present? ||
+        credential&.reauthentication_required? ||
+        credential&.token_expired? ||
+        credential.blank?
     end
 
     def business_data_source_identifier

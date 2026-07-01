@@ -113,6 +113,49 @@ module AicooAnalytics
       assert_includes ga4_result[:property_id_warning], "測定ID"
     end
 
+    test "business ga4 data source setting has priority over analytics site" do
+      business_credential = AicooGoogleCredential.create!(
+        name: "吸えログ個別Google認証",
+        client_id: "business-client",
+        client_secret: "business-secret",
+        refresh_token: "business-refresh",
+        connected_at: Time.current
+      )
+      BusinessDataSourceSetting.create!(
+        business: @business,
+        source_key: "ga4",
+        enabled: true,
+        connection_status: "linked",
+        property_identifier: "536889590",
+        credential_reference: business_credential.name,
+        metadata: {
+          "connection_fields" => { "property_id" => "536889590" },
+          "google_credential_id" => business_credential.id
+        }
+      )
+      AnalyticsSourceSetting.create!(
+        source_type: "ga4",
+        name: "#{@business.name} GA4",
+        property_id: "536889590",
+        enabled: true,
+        authentication_mode: "shared"
+      )
+
+      result = BusinessGoogleApiMetricImporter.new(
+        business: @business,
+        today: Date.new(2026, 6, 28),
+        source_types: %w[ga4],
+        ga4_client: FakeGa4Client.new
+      ).call
+
+      ga4_result = result.source_results.find { |row| row[:source] == "ga4" }
+      metric = BusinessMetricDaily.find_by!(business: @business, recorded_on: Date.new(2026, 6, 26))
+      assert_equal "536889590", ga4_result[:identifier]
+      assert_equal business_credential.id, result.credential_snapshots.dig("ga4", "record_id")
+      assert_equal 20, metric.sessions
+      assert_equal 50, metric.pageviews
+    end
+
     class FakeGscClient
       def query(site_url:, start_date:, end_date:, dimensions:, row_limit:)
         {

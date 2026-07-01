@@ -1370,13 +1370,13 @@
     </div>
     <div class="metric-card">
       <span>GA4接続</span>
-      <strong><%= @ga4_connection_summary.connected ? "接続済み" : (@ga4_connection_summary.configured ? "設定済み" : "未設定") %></strong>
-      <small>Property ID: <%= @ga4_connection_summary.property_id.presence || "-" %></small>
+      <strong><%= @ga4_connection_summary.status_label %></strong>
+      <small>Property ID: <%= @ga4_connection_summary.identifier.presence || "-" %> / <%= @ga4_connection_summary.setting_source %></small>
     </div>
     <div class="metric-card">
       <span>GSC接続</span>
       <strong><%= @gsc_connection_summary.status_label %></strong>
-      <small>Site URL: <%= @gsc_connection_summary.identifier.presence || "-" %></small>
+      <small>Site URL: <%= @gsc_connection_summary.identifier.presence || "-" %> / <%= @gsc_connection_summary.setting_source %></small>
     </div>
     <div class="metric-card">
       <span>GA4最終取得</span>

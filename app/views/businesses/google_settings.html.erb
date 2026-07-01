@@ -26,7 +26,7 @@
         <div class="metric-card">
           <span><%= summary.label %>接続</span>
           <strong><%= summary.status_label %></strong>
-          <small><%= summary.identifier.presence || "-" %></small>
+          <small><%= summary.identifier.presence || "-" %> / <%= summary.setting_source %></small>
         </div>
         <div class="metric-card">
           <span><%= summary.label %>最終取得</span>
@@ -37,7 +37,7 @@
       <div class="metric-card">
         <span>Google Credential</span>
         <strong><%= @google_credential&.name || "未設定" %></strong>
-        <small><%= @google_credential&.google_account_email.presence || @google_credential&.client_id.presence || "-" %></small>
+        <small>ID: <%= @google_credential&.id || "-" %> / <%= @google_credential&.google_account_email.presence || @google_credential&.client_id.presence || "-" %></small>
       </div>
       <div class="metric-card">
         <span>最後のエラー</span>
@@ -46,6 +46,13 @@
         <small><%= latest_error&.truncate(90) || "-" %></small>
       </div>
     </div>
+
+    <% if latest_error.present? %>
+      <div class="alert-banner alert-banner-danger">
+        <strong>最後のGoogle APIエラー全文</strong>
+        <pre><%= latest_error %></pre>
+      </div>
+    <% end %>
 
     <%= render "shared/google_reauth_actions", credential: @google_credential, business: @business, compact: true %>
   </section>
@@ -108,7 +115,7 @@
     <% end %>
 
     <div class="actions compact-actions">
-      <%= button_to "GA4だけ再取得", import_ga4_business_path(@business), method: :post, class: "button secondary" %>
+      <%= button_to "GA4だけテスト取得", import_ga4_business_path(@business), method: :post, class: "button secondary" %>
       <%= button_to "GSCだけ再取得", import_gsc_business_path(@business), method: :post, class: "button secondary" %>
       <%= button_to "GA4/GSCまとめて再取得", import_google_api_business_path(@business), method: :post, class: "button secondary" %>
     </div>

@@ -284,7 +284,8 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "GSC Site URL"
     assert_includes response.body, "536889590"
     assert_includes response.body, "sc-domain:suelog.jp"
-    assert_includes response.body, "GA4だけ再取得"
+    assert_includes response.body, "AicooAnalyticsSite"
+    assert_includes response.body, "GA4だけテスト取得"
     assert_includes response.body, "GSCだけ再取得"
     assert_includes response.body, "GA4/GSCまとめて再取得"
     assert_includes response.body, credential.name

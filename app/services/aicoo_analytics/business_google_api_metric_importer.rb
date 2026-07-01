@@ -263,16 +263,17 @@ module AicooAnalytics
     end
 
     def existing_analytics_setting(source_type)
+      business_identifier = business_source_identifier(source_type)
+      identifier = business_identifier.presence || analytics_identifier(source_type)
+      business_matched = analytics_setting_for_identifier(source_type, identifier)
+      return apply_business_google_credential(business_matched, source_type) if business_matched
+      return nil if business_identifier.present?
+
       site = AicooAnalyticsSite.where(business:).recent.first
       setting = source_type == "gsc" ? site&.gsc_setting : site&.ga4_setting
-      return setting if setting&.enabled?
+      return apply_business_google_credential(setting, source_type) if setting&.enabled?
 
-      identifier = analytics_identifier(source_type)
-      return nil if identifier.blank?
-
-      scope = AnalyticsSourceSetting.where(source_type:, enabled: true)
-      matched = source_type == "gsc" ? scope.find_by(site_url: identifier) : scope.find_by(property_id: identifier)
-      matched || named_analytics_setting(source_type)
+      apply_business_google_credential(named_analytics_setting(source_type), source_type)
     end
 
     def build_analytics_setting(source_type)
@@ -284,26 +285,31 @@ module AicooAnalytics
         name: "#{business.name} #{source_type.upcase}",
         enabled: true,
         authentication_mode: "shared",
-        google_credential: AicooGoogleCredential.default
+        google_credential: business_google_credential(source_type)
       }
       attributes[source_type == "gsc" ? :site_url : :property_id] = identifier
       AnalyticsSourceSetting.create!(attributes)
     end
 
     def analytics_identifier(source_type)
-      setting = BusinessDataSourceSetting.find_by(business:, source_key: source_type)
       case source_type
       when "gsc"
-        setting&.connection_field_value("site_url").presence ||
-          setting&.property_identifier.presence ||
+        business_source_identifier(source_type).presence ||
           business.gsc_site_url.presence ||
           named_analytics_setting(source_type)&.site_url
       when "ga4"
-        setting&.connection_field_value("property_id").presence ||
-          setting&.property_identifier.presence ||
+        business_source_identifier(source_type).presence ||
           AicooAnalyticsSite.where(business:).where.not(ga4_property_id: [ nil, "" ]).recent.first&.ga4_property_id ||
           named_analytics_setting(source_type)&.property_id
       end
+    end
+
+    def business_source_identifier(source_type)
+      setting = business_source_setting(source_type)
+      return unless setting&.enabled?
+
+      key = source_type == "gsc" ? "site_url" : "property_id"
+      setting.connection_field_value(key).presence || setting.property_identifier.presence
     end
 
     def named_analytics_setting(source_type)
@@ -311,6 +317,33 @@ module AicooAnalytics
         .where(source_type:, enabled: true)
         .to_a
         .find { |setting| setting.name.to_s.match?(/\A#{Regexp.escape(business.name)}\b/i) }
+    end
+
+    def analytics_setting_for_identifier(source_type, identifier)
+      return if identifier.blank?
+
+      scope = AnalyticsSourceSetting.where(source_type:, enabled: true)
+      source_type == "gsc" ? scope.find_by(site_url: identifier) : scope.find_by(property_id: identifier)
+    end
+
+    def apply_business_google_credential(setting, source_type)
+      return unless setting
+
+      credential = business_google_credential(source_type)
+      if credential && setting.google_credential_id != credential.id
+        setting.update!(google_credential: credential, authentication_mode: "shared")
+      end
+      setting
+    end
+
+    def business_google_credential(source_type)
+      explicit_id = business_source_setting(source_type)&.metadata.to_h["google_credential_id"]
+      AicooGoogleCredential.find_by(id: explicit_id).presence || AicooGoogleCredential.default
+    end
+
+    def business_source_setting(source_type)
+      @business_source_settings ||= {}
+      @business_source_settings[source_type] ||= BusinessDataSourceSetting.find_by(business:, source_key: source_type)
     end
 
     def resolved_gsc_client(setting)

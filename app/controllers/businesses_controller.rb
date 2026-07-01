@@ -54,7 +54,7 @@ class BusinessesController < ApplicationController
     @google_api_import_run = GoogleApiImportRun.latest_for(@business)
     @google_api_import_runs = GoogleApiImportRun.where(business: @business).recent.limit(8)
     @integration_health = Aicoo::BusinessIntegrationHealth.new.call.business_healths.find { |row| row.business == @business }
-    @ga4_connection_summary = Aicoo::BusinessGa4ConnectionSummary.new(@business, health: @integration_health).call
+    @ga4_connection_summary = Aicoo::BusinessGoogleConnectionSummary.new(@business, source_key: "ga4", health: @integration_health).call
     @gsc_connection_summary = Aicoo::BusinessGoogleConnectionSummary.new(@business, source_key: "gsc", health: @integration_health).call
     @google_credential = @ga4_connection_summary.setting&.google_credential || @gsc_connection_summary.credential || AicooGoogleCredential.default
     @business_analytics_summary = Aicoo::BusinessAnalyticsSummary.new(@business, health: @integration_health).call
