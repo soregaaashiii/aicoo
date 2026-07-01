@@ -80,6 +80,8 @@ module Owner
       assert_response :success
       assert_includes response.body, task.title
       assert_includes response.body, export_codex_prompt_auto_revision_task_path(task)
+      assert_includes response.body, "承認待ち改訂"
+      assert_includes response.body, "1件"
     end
 
     test "defer hides improvement from current ranking" do

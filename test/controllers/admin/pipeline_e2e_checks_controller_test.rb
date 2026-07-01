@@ -23,6 +23,11 @@ module Admin
       assert_includes response.body, "LP生成"
       assert_includes response.body, "sitemap反映"
       assert_includes response.body, "Auto Revision Queue"
+      assert_includes response.body, "自動改修ループE2E"
+      assert_includes response.body, "ActionCandidate生成"
+      assert_includes response.body, "Codex Prompt生成"
+      assert_includes response.body, "Owner承認待ち"
+      assert_includes response.body, "実行後Activity / ActionResult"
     end
 
     test "repair button creates business and links landing page" do

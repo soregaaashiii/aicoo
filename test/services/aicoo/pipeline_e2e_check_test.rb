@@ -22,15 +22,43 @@ module Aicoo
         status: "approved",
         action_type: "seo_improvement",
         immediate_value_yen: 10_000,
-        success_probability: 0.7
+        success_probability: 0.7,
+        execution_prompt: "LPのCTAを改善してください。"
       )
-      AutoRevisionTask.from_action_candidate(candidate)
+      task = AutoRevisionTask.from_action_candidate(candidate)
+      create_successful_daily_run!(candidate:, task:)
+      create_activity_log!(business: item.business)
+      create_score_snapshot!(candidate:)
       run = Aicoo::PipelineEngine.new(item).call
 
       result = PipelineE2eCheck.new(run).call
 
       assert result.pass?, result.checks.map { |check| "#{check.key}:#{check.status}:#{check.message}" }.join("\n")
       assert result.checks.all? { |check| check.status == "pass" }
+      assert result.auto_revision_loop_checks.all? { |check| check.status == "pass" }
+    end
+
+    test "shows auto revision loop stop point when queue setting is disabled" do
+      AicooAutoRevisionSetting.current.update!(enabled: false)
+      item = create_published_pipeline_item
+      candidate = item.business.action_candidates.create!(
+        title: "LP改善",
+        status: "approved",
+        action_type: "seo_improvement",
+        immediate_value_yen: 10_000,
+        success_probability: 0.7,
+        execution_prompt: "LPのCTAを改善してください。"
+      )
+      create_successful_daily_run!(candidate:, task: nil)
+      run = Aicoo::PipelineEngine.new(item).call
+
+      result = PipelineE2eCheck.new(run).call
+      setting_check = result.auto_revision_loop_checks.find { |check| check.key == "loop_auto_revision_setting" }
+
+      assert result.warning?
+      assert_equal "warning", setting_check.status
+      assert_equal setting_check, result.auto_revision_stop_point
+      assert_includes setting_check.message, "AutoRevision QueueがOFF"
     end
 
     test "detects and repairs missing business and landing page link" do
@@ -125,6 +153,84 @@ module Aicoo
       Aicoo::IdeaPipeline::LandingPageBuilder.new(item).call
       Aicoo::IdeaPipeline::Publisher.new(item).call
       item.reload
+    end
+
+    def create_successful_daily_run!(candidate:, task:)
+      daily_run = AicooDailyRun.create!(
+        target_date: Date.yesterday,
+        status: "success",
+        source: "cron",
+        started_at: 10.minutes.ago,
+        finished_at: 8.minutes.ago,
+        action_candidates_generated_count: 1,
+        analytics_fetch_count: 1
+      )
+      daily_run.aicoo_daily_run_steps.create!(
+        step_name: "analytics_fetch",
+        status: "success",
+        started_at: 10.minutes.ago,
+        finished_at: 9.minutes.ago,
+        metadata: { success_count: 1 }
+      )
+      daily_run.aicoo_daily_run_steps.create!(
+        step_name: "action_generation",
+        status: "success",
+        started_at: 9.minutes.ago,
+        finished_at: 8.minutes.ago,
+        metadata: { created_count: 1 }
+      )
+      return daily_run unless task
+
+      AicooAutoRevisionSetting.current.update!(enabled: true)
+      AutoRevisionQueueRun.create!(
+        aicoo_daily_run: daily_run,
+        generated_tasks_count: 1,
+        skipped_candidates_count: 0,
+        high_risk_candidates_count: 0,
+        executed_at: 7.minutes.ago,
+        metadata: {
+          "reason" => "created_tasks",
+          "message" => "AutoRevisionTaskを1件生成しました。",
+          "created_task_ids" => [ task.id ],
+          "candidate_count" => 1
+        }
+      )
+      daily_run.aicoo_daily_run_steps.create!(
+        step_name: "auto_revision_queue",
+        status: "success",
+        started_at: 8.minutes.ago,
+        finished_at: 7.minutes.ago,
+        metadata: { generated_tasks_count: 1 }
+      )
+      daily_run
+    end
+
+    def create_activity_log!(business:)
+      business.business_activity_logs.create!(
+        activity_type: "lp_updated",
+        resource_type: "LandingPage",
+        resource_id: "lp-test",
+        source_app: "aicoo",
+        source_method: "logger",
+        title: "LPを改善",
+        occurred_at: Time.current,
+        detected_at: Time.current,
+        idempotency_key: "pipeline-e2e-lp-updated-#{business.id}",
+        diff_summary: "CTAを改善"
+      )
+    end
+
+    def create_score_snapshot!(candidate:)
+      candidate.action_candidate_score_snapshots.create!(
+        business: candidate.business,
+        recorded_on: Date.current,
+        raw_rank: 1,
+        adjusted_rank: 1,
+        rank_delta: 0,
+        raw_score: candidate.final_score || 1,
+        judge_adjusted_score: candidate.final_score || 1,
+        reason: "E2E learning snapshot"
+      )
     end
   end
 end

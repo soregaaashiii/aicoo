@@ -88,6 +88,63 @@
 
     <section class="dashboard-section">
       <div class="section-heading">
+        <div>
+          <h2>自動改修ループE2E</h2>
+          <p>Daily Runから改善候補、AutoRevisionTask、Codex Prompt、承認、実行結果、Learningまでの到達点を確認します。</p>
+        </div>
+        <% if (stop_point = @result.auto_revision_stop_point) %>
+          <span class="pill"><%= stop_point.label %>で確認が必要</span>
+        <% else %>
+          <span class="pill">pass</span>
+        <% end %>
+      </div>
+
+      <div class="aicoo-card">
+        <h3>安全方針</h3>
+        <ul class="compact-list">
+          <li>ONにする対象: AutoRevision Queue。Daily Run後にAutoRevisionTaskを作るだけです。</li>
+          <li>手動のままにする対象: 自動merge、自動deploy、高リスク改修の自動実行。</li>
+          <li>Businessのauto_revision_modeがmanualの場合、タスクはdraft提案になります。Owner承認待ちに出すにはapprovalへ変更します。</li>
+        </ul>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>状態</th>
+              <th>段階</th>
+              <th>到達点 / 停止理由</th>
+              <th>確認先</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @result.auto_revision_loop_checks.each do |check| %>
+              <tr>
+                <td><span class="pill"><%= check.status %></span></td>
+                <td><strong><%= check.label %></strong></td>
+                <td>
+                  <%= check.message %>
+                  <% if check.details.except(:path).present? %>
+                    <br><small><%= check.details.except(:path).to_json %></small>
+                  <% end %>
+                </td>
+                <td>
+                  <% if check.details[:path].present? %>
+                    <%= link_to "開く", check.details[:path], class: "button secondary" %>
+                  <% else %>
+                    -
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="dashboard-section">
+      <div class="section-heading">
         <h2>関連導線</h2>
         <p>穴が残る場合は対象画面で詳細を確認してください。</p>
       </div>
@@ -101,6 +158,9 @@
         <% if @result.landing_page %>
           <%= link_to "公開LP管理", admin_aicoo_lab_edit_public_landing_page_path(@result.landing_page), class: "button secondary" %>
         <% end %>
+        <%= link_to "AutoRevision設定", admin_aicoo_auto_revision_settings_path, class: "button secondary" %>
+        <%= link_to "Codex改修キュー", codex_queue_auto_revision_tasks_path, class: "button secondary" %>
+        <%= link_to "Owner Home", owner_focus_path, class: "button secondary" %>
         <%= link_to "実行履歴", admin_execution_runs_path, class: "button secondary" %>
       </div>
     </section>
