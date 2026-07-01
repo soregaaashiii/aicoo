@@ -151,6 +151,7 @@ class AutoRevisionTask < ApplicationRecord
       finished_at: normalized_attributes[:finished_at].presence || Time.current
     )
     record_execution_result!(normalized_attributes.merge(status: normalized_status))
+    record_new_lp_auto_deploy_result!(normalized_attributes.merge(status: normalized_status))
     run_codex_quality_check!
   end
 
@@ -588,5 +589,45 @@ class AutoRevisionTask < ApplicationRecord
       deploy_url: attributes[:deploy_url],
       deploy_status: attributes[:deploy_status]
     )
+  end
+
+  def record_new_lp_auto_deploy_result!(attributes)
+    auto_build_task = AutoBuildTask.find_by(auto_revision_task: self)
+    policy = Aicoo::NewLpAutoDeployPolicy.new(self)
+    deploy_status_value = attributes[:deploy_status].to_s
+    normalized_status = attributes[:status].to_s
+
+    if deploy_status_value == "deployed"
+      policy.record_history!(
+        event: "deploy_succeeded",
+        success: true,
+        auto_build_task:,
+        metadata: {
+          "result_summary" => attributes[:result_summary],
+          "deploy_url" => attributes[:deploy_url],
+          "commit_sha" => attributes[:commit_sha]
+        }
+      )
+    elsif deploy_status_value == "failed" || normalized_status == "failed"
+      reason = attributes[:error_message].presence || "auto_revision_failed"
+      policy.record_history!(
+        event: "deploy_failed",
+        success: false,
+        auto_build_task:,
+        metadata: {
+          "reason" => reason,
+          "result_summary" => attributes[:result_summary],
+          "deploy_status" => deploy_status_value
+        }
+      )
+      policy.suspend!(
+        reason:,
+        auto_build_task:,
+        metadata: {
+          "auto_revision_task_status" => normalized_status,
+          "deploy_status" => deploy_status_value
+        }
+      )
+    end
   end
 end

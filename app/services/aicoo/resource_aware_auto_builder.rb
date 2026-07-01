@@ -141,7 +141,7 @@ module Aicoo
       AutoBuildTask.transaction do
         action_candidate = create_action_candidate!(decision)
         auto_revision_task = create_auto_revision_task!(action_candidate, decision)
-        AutoBuildTask.create!(
+        auto_build_task = AutoBuildTask.create!(
           business: decision.business,
           aicoo_daily_run: daily_run,
           auto_revision_task:,
@@ -157,6 +157,16 @@ module Aicoo
           codex_prompt: auto_revision_task.codex_prompt,
           metadata: metadata_for(decision)
         )
+        policy = Aicoo::NewLpAutoDeployPolicy.new(auto_revision_task)
+        if policy.allowed?
+          policy.record_history!(
+            event: "auto_deploy_ready",
+            success: true,
+            auto_build_task:,
+            metadata: { "reason" => "新規LP/Lab Businessかつ低リスクのため自動merge/deploy候補です。" }
+          )
+        end
+        auto_build_task
       end
     end
 

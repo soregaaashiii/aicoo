@@ -20,6 +20,30 @@
     <div class="metric-card"><span>失敗</span><strong><%= summary.failed_count %>件</strong></div>
   </div>
 
+  <% if summary.auto_deployed_new_lp_logs.any? %>
+    <div class="table-wrap">
+      <h3>自動デプロイされた新規LP</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Business</th>
+            <th>内容</th>
+            <th>日時</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% summary.auto_deployed_new_lp_logs.each do |log| %>
+            <tr>
+              <td><%= link_to log.business.name, log.business %></td>
+              <td><%= log.title %></td>
+              <td><%= l(log.occurred_at, format: :short) %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+
   <% if local_assigns.fetch(:show_learning_rank, false) && summary.learning_value_rows.any? %>
     <div class="table-wrap">
       <table>

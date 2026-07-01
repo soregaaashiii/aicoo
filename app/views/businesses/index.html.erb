@@ -114,7 +114,8 @@
           </td>
           <td>
             <span class="pill <%= business.auto_build_enabled? ? "status-warning" : "" %>">Build: <%= business.auto_build_enabled? ? "ON" : "OFF" %></span><br>
-            <small><%= business.auto_build_requires_approval? ? "承認必須" : "承認不要" %> / risk <%= business.auto_build_risk_level %></small>
+            <small><%= business.auto_build_requires_approval? ? "承認必須" : "承認不要" %> / risk <%= business.auto_build_risk_level %></small><br>
+            <small>新規LP Deploy: <%= business.new_lp_auto_deploy_enabled? ? "ON" : "OFF" %><%= " / 停止中" if business.auto_deploy_suspended? %></small>
             <hr>
             <span class="pill <%= business.automatic_auto_revision? ? "status-warning" : "" %>"><%= auto_revision_mode_label(business.auto_revision_mode) %></span><br>
             <small><%= auto_revision_mode_description(business.auto_revision_mode) %></small>

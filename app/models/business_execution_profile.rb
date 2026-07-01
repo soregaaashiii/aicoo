@@ -104,7 +104,8 @@ class BusinessExecutionProfile < ApplicationRecord
     active? &&
       auto_deploy_enabled? &&
       !require_manual_approval? &&
-      risk_allowed_for_auto_deploy?(task.risk_level)
+      risk_allowed_for_auto_deploy?(task.risk_level) &&
+      Aicoo::NewLpAutoDeployPolicy.new(task).allowed?
   end
 
   def deploy_flow_for(task)

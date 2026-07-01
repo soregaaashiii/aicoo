@@ -5,6 +5,12 @@ class Business < ApplicationRecord
   AUTO_REVISION_MODES = %w[manual approval automatic].freeze
   AUTO_DEPLOY_MODES = %w[manual approval automatic].freeze
   AUTO_BUILD_RISK_LEVELS = %w[low medium high].freeze
+  NEW_LP_AUTO_DEPLOY_LIFECYCLE_STAGES = %w[idea lp_validation mvp].freeze
+  NEW_LP_AUTO_DEPLOY_EXCLUDED_NAMES = [
+    "吸えログ",
+    "AICOO",
+    "AICOO Analytics Import"
+  ].freeze
   SYSTEM_BUSINESS_NAMES = [
     "AICOO Analytics Import"
   ].freeze
@@ -117,6 +123,30 @@ class Business < ApplicationRecord
 
   def lab_auto_build_candidate?
     created_by_aicoo? || source.to_s.in?(%w[idea_pipeline aicoo_lab]) || aicoo_lab_landing_pages.exists?
+  end
+
+  def new_lp_auto_deploy_candidate?
+    real_new_lp_business? && new_lp_auto_deploy_enabled? && !auto_deploy_suspended?
+  end
+
+  def real_new_lp_business?
+    NEW_LP_AUTO_DEPLOY_LIFECYCLE_STAGES.include?(lifecycle_stage) &&
+      !production_like_business? &&
+      !revenue_recorded? &&
+      !system_business? &&
+      NEW_LP_AUTO_DEPLOY_EXCLUDED_NAMES.exclude?(name)
+  end
+
+  def production_like_business?
+    lifecycle_stage.in?(%w[production scaling archived]) || status.in?(%w[sold withdrawn])
+  end
+
+  def suspend_auto_deploy!(reason:)
+    update!(
+      auto_deploy_suspended: true,
+      auto_deploy_suspended_at: Time.current,
+      auto_deploy_suspended_reason: reason
+    )
   end
 
   def current_month_revenue

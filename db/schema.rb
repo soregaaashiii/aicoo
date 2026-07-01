@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_01_124000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_01_125000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1216,6 +1216,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_01_124000) do
     t.boolean "auto_build_requires_approval", default: true, null: false
     t.string "auto_build_risk_level", default: "low", null: false
     t.string "auto_deploy_mode", default: "manual", null: false
+    t.boolean "auto_deploy_suspended", default: false, null: false
+    t.datetime "auto_deploy_suspended_at"
+    t.string "auto_deploy_suspended_reason"
     t.string "auto_revision_mode", default: "manual", null: false
     t.string "category"
     t.datetime "created_at", null: false
@@ -1229,6 +1232,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_01_124000) do
     t.string "lifecycle_stage", default: "idea", null: false
     t.string "local_project_path"
     t.string "name"
+    t.boolean "new_lp_auto_deploy_enabled", default: false, null: false
     t.date "next_review_on"
     t.string "project_key"
     t.string "repository_name"
@@ -1242,11 +1246,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_01_124000) do
     t.index ["auto_build_enabled"], name: "index_businesses_on_auto_build_enabled"
     t.index ["auto_build_risk_level"], name: "index_businesses_on_auto_build_risk_level"
     t.index ["auto_deploy_mode"], name: "index_businesses_on_auto_deploy_mode"
+    t.index ["auto_deploy_suspended"], name: "index_businesses_on_auto_deploy_suspended"
     t.index ["auto_revision_mode"], name: "index_businesses_on_auto_revision_mode"
     t.index ["created_by_aicoo"], name: "index_businesses_on_created_by_aicoo"
     t.index ["idea_id"], name: "index_businesses_on_idea_id"
     t.index ["launched"], name: "index_businesses_on_launched"
     t.index ["lifecycle_stage"], name: "index_businesses_on_lifecycle_stage"
+    t.index ["new_lp_auto_deploy_enabled"], name: "index_businesses_on_new_lp_auto_deploy_enabled"
     t.index ["next_review_on"], name: "index_businesses_on_next_review_on"
     t.index ["project_key"], name: "index_businesses_on_project_key"
     t.index ["resource_status"], name: "index_businesses_on_resource_status"

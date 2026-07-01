@@ -11,7 +11,8 @@ module Aicoo
       :remaining_budget_yen,
       :scheduled_today_count,
       :learning_value_rows,
-      :recent_tasks
+      :recent_tasks,
+      :auto_deployed_new_lp_logs
     )
 
     LearningValueRow = Data.define(:business, :learning_value_score, :reason)
@@ -28,7 +29,8 @@ module Aicoo
         remaining_budget_yen: budget.remaining_budget_yen,
         scheduled_today_count: AutoBuildTask.where(created_at: Date.current.all_day).count,
         learning_value_rows:,
-        recent_tasks: AutoBuildTask.includes(:business, :auto_revision_task).recent.limit(8)
+        recent_tasks: AutoBuildTask.includes(:business, :auto_revision_task).recent.limit(8),
+        auto_deployed_new_lp_logs:
       )
     end
 
@@ -46,6 +48,13 @@ module Aicoo
               .map { |business| row_for(business) }
               .sort_by { |row| [ -row.learning_value_score, row.business.name ] }
               .first(8)
+    end
+
+    def auto_deployed_new_lp_logs
+      BusinessActivityLog.includes(:business)
+                         .where(activity_type: "new_lp_auto_deploy_deploy_succeeded")
+                         .recent
+                         .limit(5)
     end
 
     def row_for(business)

@@ -263,7 +263,9 @@ class BusinessesController < ApplicationController
         :auto_deploy_mode,
         :auto_build_enabled,
         :auto_build_requires_approval,
-        :auto_build_risk_level
+        :auto_build_risk_level,
+        :new_lp_auto_deploy_enabled,
+        :auto_deploy_suspended
       ])
     end
 

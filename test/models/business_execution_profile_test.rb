@@ -28,8 +28,16 @@ class BusinessExecutionProfileTest < ActiveSupport::TestCase
   end
 
   test "stores codex execution target settings" do
+    business = Business.create!(
+      name: "Auto Deploy Lab",
+      description: "新規LPの自動デプロイテスト",
+      lifecycle_stage: "lp_validation",
+      status: "idea",
+      created_by_aicoo: true,
+      new_lp_auto_deploy_enabled: true
+    )
     profile = BusinessExecutionProfile.create!(
-      business: businesses(:suelog),
+      business:,
       execution_type: "external_repo",
       github_repository: "owner/service",
       repository_path: "/apps/service",
@@ -77,8 +85,16 @@ class BusinessExecutionProfileTest < ActiveSupport::TestCase
   end
 
   test "controls auto deploy by risk and approval settings" do
+    business = Business.create!(
+      name: "Auto Deploy Lab",
+      description: "新規LPの自動デプロイテスト",
+      lifecycle_stage: "lp_validation",
+      status: "idea",
+      created_by_aicoo: true,
+      new_lp_auto_deploy_enabled: true
+    )
     profile = BusinessExecutionProfile.create!(
-      business: businesses(:suelog),
+      business:,
       repository_name: "suelog",
       repository_type: "rails",
       repository_path: "/apps/suelog",
@@ -90,23 +106,23 @@ class BusinessExecutionProfileTest < ActiveSupport::TestCase
       auto_deploy_risk_limit: "medium",
       require_manual_approval: false
     )
-    low_task = AutoRevisionTask.from_action_candidate(action_candidates(:nagazakicho_article))
-    medium_task = AutoRevisionTask.from_action_candidate(create_candidate!("medium deploy task"))
+    low_task = AutoRevisionTask.from_action_candidate(create_candidate!("low deploy task", business:))
+    medium_task = AutoRevisionTask.from_action_candidate(create_candidate!("medium deploy task", business:))
     medium_task.update!(risk_level: "medium")
-    high_task = AutoRevisionTask.from_action_candidate(create_candidate!("high deploy task"))
+    high_task = AutoRevisionTask.from_action_candidate(create_candidate!("high deploy task", business:))
     high_task.update!(risk_level: "high")
 
     assert profile.auto_deploy_allowed_for?(low_task)
-    assert profile.auto_deploy_allowed_for?(medium_task)
+    assert_not profile.auto_deploy_allowed_for?(medium_task)
     assert_not profile.auto_deploy_allowed_for?(high_task)
     assert_equal "prompt_only_high_risk", profile.deploy_flow_for(high_task)
   end
 
   private
 
-  def create_candidate!(title)
+  def create_candidate!(title, business: businesses(:suelog))
     ActionCandidate.create!(
-      business: businesses(:suelog),
+      business:,
       title:,
       status: "approved",
       action_type: "seo_improvement",
