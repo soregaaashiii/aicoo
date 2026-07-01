@@ -48,6 +48,11 @@
              description: "行動単位の期待値・分散込みスコアを確認します。",
              active_main: :revenue,
              actions: header_actions %>
+  <%= render "shared/purpose_context_bar",
+             business: @action_candidate.business,
+             section_label: "改善案",
+             detail_label: "改善案詳細",
+             list_path: action_candidates_path %>
   <%= render "shared/aicoo_execution_tabs", active: :today %>
 
 <%= render @action_candidate %>

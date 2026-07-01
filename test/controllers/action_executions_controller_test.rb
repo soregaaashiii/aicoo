@@ -31,7 +31,7 @@ class ActionExecutionsControllerTest < ActionDispatch::IntegrationTest
     get action_execution_url(@execution)
 
     assert_response :success
-    assert_includes response.body, "Action Execution"
+    assert_includes response.body, "実行準備詳細"
     assert_includes response.body, @candidate.title
     assert_includes response.body, "実行プロンプト"
     assert_includes response.body, "Prediction Snapshot"
@@ -106,7 +106,7 @@ class ActionExecutionsControllerTest < ActionDispatch::IntegrationTest
     get action_execution_url(@execution)
 
     assert_response :success
-    assert_includes response.body, "ActionResult未登録"
+    assert_includes response.body, "実行結果未登録"
     assert_includes response.body, "完了から"
     assert_includes response.body, "結果登録へ進む"
   end

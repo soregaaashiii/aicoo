@@ -13,13 +13,14 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Notifications"
     assert_includes response.body, "Profile"
     assert_includes response.body, "目的から探す"
-    assert_includes response.body, "今日やる"
-    assert_includes response.body, "今日見る場所"
-    assert_includes response.body, "確認する"
-    assert_includes response.body, "事業を見る"
-    assert_includes response.body, "提案を動かす"
-    assert_includes response.body, "精度を育てる"
-    assert_includes response.body, "システムを直す"
+    assert_includes response.body, "事業"
+    assert_includes response.body, "事業ごとの状態"
+    assert_includes response.body, "今日やること"
+    assert_includes response.body, "AI活動"
+    assert_includes response.body, "新規事業 / Lab"
+    assert_includes response.body, "学習"
+    assert_includes response.body, "分析"
+    assert_includes response.body, "設定"
     assert_includes response.body, "現在位置"
   end
 
@@ -29,11 +30,12 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.body, "AICOO"
     assert_includes response.body, "SYSTEM MODE"
-    assert_includes response.body, "今日やる"
-    assert_includes response.body, "事業を見る"
-    assert_includes response.body, "提案を動かす"
-    assert_includes response.body, "精度を育てる"
-    assert_includes response.body, "システムを直す"
+    assert_includes response.body, "事業"
+    assert_includes response.body, "AI活動"
+    assert_includes response.body, "新規事業 / Lab"
+    assert_includes response.body, "学習"
+    assert_includes response.body, "分析"
+    assert_includes response.body, "設定"
     assert_includes response.body, "状態を見る"
     assert_includes response.body, "現在位置"
   end
@@ -43,10 +45,37 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes response.body, "SYSTEM MODE"
-    assert_includes response.body, "事業を見る"
+    assert_includes response.body, "事業"
     assert_includes response.body, "事業一覧"
     assert_includes response.body, "Google連携"
     assert_includes response.body, "現在位置"
+  end
+
+  test "business scoped detail pages keep business context" do
+    action_candidate = action_candidates(:nagazakicho_article)
+
+    get action_candidate_url(action_candidate)
+
+    assert_response :success
+    assert_select ".aicoo-sidebar-group.active .aicoo-sidebar-category strong", text: "事業"
+    assert_select ".purpose-context-bar", text: /改善案/
+    assert_includes response.body, "この事業へ戻る"
+  end
+
+  test "business revenue detail pages keep business context" do
+    revenue_event = RevenueEvent.create!(
+      business: businesses(:suelog),
+      occurred_on: Date.current,
+      event_type: "revenue",
+      amount: 500
+    )
+
+    get revenue_event_url(revenue_event)
+
+    assert_response :success
+    assert_select ".aicoo-sidebar-group.active .aicoo-sidebar-category strong", text: "事業"
+    assert_select ".purpose-context-bar", text: /売上/
+    assert_includes response.body, "この事業へ戻る"
   end
 
   test "ga4 tag is not rendered in test environment" do

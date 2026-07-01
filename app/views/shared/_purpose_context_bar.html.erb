@@ -1,0 +1,38 @@
+<% business = local_assigns[:business] || aicoo_context_business %>
+<% parent_label = local_assigns[:parent_label].presence || "事業" %>
+<% parent_path = local_assigns[:parent_path] || businesses_path %>
+<% section_label = local_assigns[:section_label].presence || aicoo_context_objective_label %>
+<% detail_label = local_assigns[:detail_label].presence || aicoo_context_detail_label %>
+<% list_path = local_assigns[:list_path] || parent_path %>
+<% business_path_value = business ? business_path(business) : nil %>
+<% back_path = request.referer.presence || business_path_value || list_path %>
+
+<section class="aicoo-card aicoo-card-compact purpose-context-bar">
+  <p class="aicoo-kicker">
+    <%= link_to parent_label, parent_path %>
+    <% if business %>
+      &gt; <%= link_to business.name, business_path_value %>
+    <% end %>
+    &gt; <%= section_label %>
+    &gt; <%= detail_label %>
+  </p>
+
+  <div class="section-heading">
+    <div>
+      <h2><%= business ? business.name : parent_label %></h2>
+      <p>
+        親カテゴリ: <strong><%= parent_label %></strong> /
+        見ている内容: <strong><%= section_label %></strong>
+      </p>
+    </div>
+    <span class="pill"><%= detail_label %></span>
+  </div>
+
+  <div class="actions compact-actions">
+    <%= link_to "前の画面へ戻る", back_path, class: "button secondary" %>
+    <% if business_path_value %>
+      <%= link_to "この事業へ戻る", business_path_value, class: "button secondary" %>
+    <% end %>
+    <%= link_to "一覧へ戻る", list_path, class: "button secondary" %>
+  </div>
+</section>

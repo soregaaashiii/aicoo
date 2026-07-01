@@ -6,12 +6,17 @@
   </p>
   <div class="actions compact-actions">
     <%= link_to "概要", business_path(business, anchor: "business-overview"), class: "button secondary" %>
+    <%= link_to "今日やること", business_path(business, anchor: "ai-improvement-proposals"), class: "button secondary" %>
+    <%= link_to "やったこと", business_path(business, anchor: "business-improvements"), class: "button secondary" %>
+    <%= link_to "改善案", business_path(business, anchor: "business-actions"), class: "button secondary" %>
+    <%= link_to "売上", business_path(business, anchor: "business-revenue"), class: "button secondary" %>
+    <%= link_to "分析データ", business_path(business, anchor: "analytics"), class: "button secondary" %>
+    <%= link_to "自動改修履歴", business_path(business, anchor: "business-improvements"), class: "button secondary" %>
+    <%= link_to "AI調査履歴", business_path(business, anchor: "business-serp"), class: "button secondary" %>
     <%= link_to "LP", business_path(business, anchor: "business-lp"), class: "button secondary" %>
     <%= link_to "Service", business_path(business, anchor: "business-services"), class: "button secondary" %>
-    <%= link_to "Analytics", business_path(business, anchor: "analytics"), class: "button secondary" %>
     <%= link_to "Timeline", business_path(business, anchor: "business-timeline"), class: "button secondary" %>
-    <%= link_to "Learning", business_path(business, anchor: "business-learning"), class: "button secondary" %>
-    <%= link_to "Source", business_path(business, anchor: "business-source-connections"), class: "button secondary" %>
+    <%= link_to "学習", business_path(business, anchor: "business-learning"), class: "button secondary" %>
     <%= link_to "設定", edit_business_path(business, return_to: business_path(business, anchor: "business-settings")), class: "button secondary" %>
   </div>
 </nav>

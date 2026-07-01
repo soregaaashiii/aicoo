@@ -59,7 +59,7 @@ class ActionExecutionLogsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.body, "提案内容"
     assert_includes response.body, "実行内容"
-    assert_includes response.body, "紐づいたActionResult"
+    assert_includes response.body, "紐づいた実行結果"
     assert_includes response.body, "自動リンク"
     assert_includes response.body, "nearest_action_execution_log"
     assert_includes response.body, "売上/費用を登録"

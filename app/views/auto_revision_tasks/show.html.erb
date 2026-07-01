@@ -34,6 +34,11 @@
              description: "Codexへ渡す前の改修タスクです。まだ自動実行はしません。",
              active_main: :dashboard,
              actions: header_actions %>
+  <%= render "shared/purpose_context_bar",
+             business: @auto_revision_task.business,
+             section_label: "自動改修履歴",
+             detail_label: "自動改修詳細",
+             list_path: auto_revision_tasks_path %>
 
   <section class="dashboard-section">
     <div class="metric-grid">

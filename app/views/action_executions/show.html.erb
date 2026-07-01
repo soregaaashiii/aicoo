@@ -1,11 +1,11 @@
-<% content_for :title, "Action Execution" %>
+<% content_for :title, "実行準備詳細" %>
 
 <% action_candidate = @action_execution.action_candidate %>
 <% expansion = action_candidate.metadata.to_h["action_expansion"].to_h %>
 <% execution_tasks = Array(expansion["recommended_tasks"]).presence || Array(expansion["execution_steps"]).presence || [] %>
 <% result_intake = @action_execution.metadata.to_h["execution_result_intake"].to_h %>
 <% header_actions = capture do %>
-  <%= link_to "ActionCandidateへ", action_candidate, class: "button secondary" %>
+  <%= link_to "改善案へ", action_candidate, class: "button secondary" %>
   <% if @action_execution.action_result %>
     <%= link_to "結果登録済み", @action_execution.action_result, class: "button secondary" %>
   <% elsif @action_execution.status == "completed" %>
@@ -15,18 +15,23 @@
 
 <div class="aicoo-page">
   <%= render "shared/aicoo_header",
-             title: "Action Execution",
-             description: "承認済みActionCandidateの実行準備・実行・結果登録を管理します。",
+             title: "実行準備詳細",
+             description: "承認済みの改善案について、実行準備・実行・結果登録を管理します。",
              active_main: :revenue,
              actions: header_actions %>
+  <%= render "shared/purpose_context_bar",
+             business: action_candidate.business,
+             section_label: "改善履歴",
+             detail_label: "実行準備詳細",
+             list_path: action_candidates_path %>
   <%= render "shared/aicoo_execution_tabs", active: :today %>
 
   <% if @action_execution.status == "completed" && @action_execution.action_result.blank? %>
     <% elapsed_hours = @action_execution.completed_at ? ((Time.current - @action_execution.completed_at) / 1.hour).round(1) : nil %>
     <section class="dashboard-section danger">
       <div class="section-heading">
-        <h2>ActionResult未登録</h2>
-        <p>このExecutionは完了していますが、ActionResultが未登録です。</p>
+        <h2>実行結果未登録</h2>
+        <p>この作業は完了していますが、実行結果が未登録です。</p>
       </div>
       <p>完了から <strong><%= elapsed_hours ? "#{elapsed_hours}時間" : "-" %></strong> 経過しています。予測と実績の補正に必要な学習データを登録してください。</p>
       <div class="actions">
@@ -38,7 +43,7 @@
   <section class="dashboard-section">
     <div class="metric-grid">
       <div class="metric-card"><span>状態</span><strong><%= @action_execution.status %></strong></div>
-      <div class="metric-card"><span>execution_type</span><strong><%= @action_execution.execution_type %></strong></div>
+      <div class="metric-card"><span>実行種別</span><strong><%= @action_execution.execution_type %></strong></div>
       <div class="metric-card"><span>期待利益</span><strong><%= number_to_currency(action_candidate.expected_profit_yen, unit: "¥", precision: 0) %></strong></div>
       <div class="metric-card"><span>成功確率</span><strong><%= number_to_percentage(action_candidate.success_probability.to_d * 100, precision: 1) %></strong></div>
       <div class="metric-card"><span>想定時間</span><strong><%= action_candidate.expected_hours || "-" %>h</strong></div>
@@ -76,13 +81,13 @@
 
   <section class="dashboard-section">
     <div class="section-heading">
-      <h2>ActionCandidate情報</h2>
+      <h2>改善案情報</h2>
       <p><%= link_to action_candidate.title, action_candidate %></p>
     </div>
     <dl class="detail-list">
       <dt>Business</dt>
       <dd><%= action_candidate.business.name %></dd>
-      <dt>action_type</dt>
+      <dt>改善タイプ</dt>
       <dd><%= action_candidate.action_type %></dd>
       <dt>評価理由</dt>
       <dd><%= simple_format(action_candidate.evaluation_reason.presence || "-") %></dd>

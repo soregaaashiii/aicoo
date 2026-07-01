@@ -11,6 +11,12 @@
              description: "#{@daily_run.target_date} の日次処理結果です。",
              active_main: :revenue,
              actions: header_actions %>
+  <%= render "shared/purpose_context_bar",
+             parent_label: "AI活動",
+             parent_path: aicoo_daily_runs_path,
+             section_label: "AI日次実行",
+             detail_label: "Daily Run詳細",
+             list_path: aicoo_daily_runs_path %>
   <%= render "shared/aicoo_execution_tabs", active: :dashboard %>
 
   <% if @daily_run.running? %>

@@ -13,6 +13,11 @@
              description: "ActionCandidateの予測と実行後の実績を比較します。",
              active_main: :judge,
              actions: header_actions %>
+  <%= render "shared/purpose_context_bar",
+             business: @action_result.business,
+             section_label: "改善履歴",
+             detail_label: "実行結果詳細",
+             list_path: action_results_path %>
   <%= render "shared/aicoo_execution_tabs", active: :scored %>
 
 <section class="dashboard-section">

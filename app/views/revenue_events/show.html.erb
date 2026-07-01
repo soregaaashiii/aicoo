@@ -11,6 +11,11 @@
              description: "#{@revenue_event.business.name} の収益イベントです。",
              active_main: :revenue,
              actions: header_actions %>
+  <%= render "shared/purpose_context_bar",
+             business: @revenue_event.business,
+             section_label: "売上",
+             detail_label: "売上履歴詳細",
+             list_path: revenue_events_path %>
 
 <dl class="detail-list">
   <dt>日付</dt>

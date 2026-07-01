@@ -11,6 +11,11 @@
              description: "#{@business_metric_daily.business.name} の日次代理指標です。",
              active_main: :datahub,
              actions: header_actions %>
+  <%= render "shared/purpose_context_bar",
+             business: @business_metric_daily.business,
+             section_label: "分析データ",
+             detail_label: "詳細データ",
+             list_path: business_metric_dailies_path %>
 
 <dl class="detail-list">
   <dt>記録日</dt>

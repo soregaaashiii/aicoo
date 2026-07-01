@@ -6,6 +6,11 @@
              description: "#{@business_activity_log.business.name} / #{@business_activity_log.activity_type}",
              active_main: :learning,
              actions: link_to("一覧へ戻る", admin_business_activity_logs_path, class: "button button-secondary") %>
+  <%= render "shared/purpose_context_bar",
+             business: @business_activity_log.business,
+             section_label: "やったこと",
+             detail_label: "Activity詳細",
+             list_path: admin_business_activity_logs_path %>
 
   <section class="dashboard-section">
     <div class="metric-grid">
