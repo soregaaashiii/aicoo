@@ -48,6 +48,10 @@
       <%= form.label :default_branch, "Default Branch" %>
       <%= form.text_field :default_branch, placeholder: "main" %>
     </div>
+    <div class="field">
+      <%= form.label :working_branch_prefix, "Working Branch Prefix" %>
+      <%= form.text_field :working_branch_prefix, placeholder: "codex/auto-revision" %>
+    </div>
   </div>
 
   <div class="grid">
@@ -64,8 +68,20 @@
       <%= form.text_field :deploy_command, placeholder: "必要な場合だけ入力" %>
     </div>
     <div class="field">
+      <%= form.label :deploy_target, "Deploy Target" %>
+      <%= form.select :deploy_target, BusinessExecutionProfile::DEPLOY_TARGETS.map { |target| [ target, target ] } %>
+    </div>
+    <div class="field">
+      <%= form.label :render_service_name, "Render Service Name" %>
+      <%= form.text_field :render_service_name, placeholder: "例: suelog-web" %>
+    </div>
+    <div class="field">
       <%= form.label :production_url, "Production URL" %>
       <%= form.url_field :production_url, placeholder: "https://example.com" %>
+    </div>
+    <div class="field">
+      <%= form.label :health_check_url, "Health Check URL" %>
+      <%= form.url_field :health_check_url, placeholder: "https://example.com/health" %>
     </div>
   </div>
 
@@ -93,6 +109,21 @@
     <%= form.check_box :auto_deploy_enabled %>
     auto_deploy_enabled
   </label>
+
+  <label class="checkbox">
+    <%= form.check_box :auto_merge_enabled %>
+    auto_merge_enabled
+  </label>
+
+  <label class="checkbox">
+    <%= form.check_box :require_manual_approval %>
+    require_manual_approval
+  </label>
+
+  <div class="field">
+    <%= form.label :auto_deploy_risk_limit, "Auto Deploy Risk Limit" %>
+    <%= form.select :auto_deploy_risk_limit, BusinessExecutionProfile::RISK_LIMITS.map { |risk| [ risk, risk ] } %>
+  </div>
 
   <div class="actions">
     <%= form.submit "保存", class: "button" %>

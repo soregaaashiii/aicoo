@@ -3,6 +3,8 @@ class AutoRevisionTasksController < ApplicationController
     show
     approve
     cancel
+    enqueue
+    retry_execution
     mark_sent_to_codex
     start_implementation
     update_codex_tracking
@@ -32,6 +34,22 @@ class AutoRevisionTasksController < ApplicationController
   def approve
     @auto_revision_task.approve!
     redirect_to @auto_revision_task, notice: "Auto Revision Taskを承認しました。"
+  end
+
+  def enqueue
+    @auto_revision_task.enqueue_for_codex!
+    redirect_to codex_queue_auto_revision_tasks_path, notice: "Auto Revision Taskを実行キューへ追加しました。"
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_back fallback_location: @auto_revision_task,
+                  alert: "実行キューへ追加できません: #{e.record.errors.full_messages.to_sentence}"
+  end
+
+  def retry_execution
+    @auto_revision_task.enqueue_for_codex!(operator: "retry")
+    redirect_to codex_queue_auto_revision_tasks_path, notice: "Auto Revision Taskを再実行キューへ追加しました。"
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_back fallback_location: @auto_revision_task,
+                  alert: "再実行できません: #{e.record.errors.full_messages.to_sentence}"
   end
 
   def cancel
@@ -100,7 +118,11 @@ class AutoRevisionTasksController < ApplicationController
         :changed_files,
         :test_result,
         :codex_output,
-        :finished_at
+        :finished_at,
+        :commit_sha,
+        :pull_request_url,
+        :deploy_url,
+        :deploy_status
       ]
     )
   end
@@ -118,7 +140,7 @@ class AutoRevisionTasksController < ApplicationController
   def codex_queue_scope
     base_scope = AutoRevisionTask.codex_queue
     case @status_filter
-    when "ready_for_codex", "sent_to_codex", "running"
+    when "queued", "ready_for_codex", "sent_to_codex", "running"
       base_scope.where(status: @status_filter)
     when "stale"
       AutoRevisionTask.stale_codex.by_priority

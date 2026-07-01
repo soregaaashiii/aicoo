@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_30_102000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_01_034739) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -916,6 +916,28 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_30_102000) do
     t.index ["source_type"], name: "index_analytics_source_settings_on_source_type"
   end
 
+  create_table "auto_revision_executions", force: :cascade do |t|
+    t.bigint "auto_revision_task_id", null: false
+    t.string "commit_sha"
+    t.datetime "created_at", null: false
+    t.string "deploy_status"
+    t.string "deploy_url"
+    t.text "error_message"
+    t.datetime "finished_at"
+    t.jsonb "metadata", default: {}, null: false
+    t.text "prompt_snapshot"
+    t.string "pull_request_url"
+    t.text "result_summary"
+    t.datetime "started_at"
+    t.string "status", default: "queued", null: false
+    t.datetime "updated_at", null: false
+    t.index ["auto_revision_task_id"], name: "index_auto_revision_executions_on_auto_revision_task_id"
+    t.index ["commit_sha"], name: "index_auto_revision_executions_on_commit_sha"
+    t.index ["finished_at"], name: "index_auto_revision_executions_on_finished_at"
+    t.index ["started_at"], name: "index_auto_revision_executions_on_started_at"
+    t.index ["status"], name: "index_auto_revision_executions_on_status"
+  end
+
   create_table "auto_revision_queue_runs", force: :cascade do |t|
     t.bigint "aicoo_daily_run_id"
     t.datetime "created_at", null: false
@@ -1048,24 +1070,34 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_30_102000) do
   create_table "business_execution_profiles", force: :cascade do |t|
     t.boolean "active", default: true, null: false
     t.boolean "auto_deploy_enabled", default: false, null: false
+    t.string "auto_deploy_risk_limit", default: "low", null: false
+    t.boolean "auto_merge_enabled", default: false, null: false
     t.bigint "business_id", null: false
     t.text "codex_instructions"
     t.datetime "created_at", null: false
     t.string "default_branch", default: "main", null: false
     t.text "deploy_command"
+    t.string "deploy_target", default: "render", null: false
     t.string "execution_type", default: "aicoo_internal", null: false
     t.text "forbidden_patterns"
     t.string "github_repository"
+    t.string "health_check_url"
     t.text "lint_command"
     t.string "production_url"
+    t.string "render_service_name"
     t.string "repository_name"
     t.string "repository_path"
     t.string "repository_type", default: "other", null: false
+    t.boolean "require_manual_approval", default: true, null: false
     t.jsonb "target_paths", default: [], null: false
     t.string "target_slug"
     t.text "test_command"
     t.datetime "updated_at", null: false
+    t.string "working_branch_prefix", default: "codex/auto-revision", null: false
+    t.index ["auto_deploy_risk_limit"], name: "index_business_execution_profiles_on_auto_deploy_risk_limit"
+    t.index ["auto_merge_enabled"], name: "index_business_execution_profiles_on_auto_merge_enabled"
     t.index ["business_id"], name: "index_business_execution_profiles_on_business_id", unique: true
+    t.index ["deploy_target"], name: "index_business_execution_profiles_on_deploy_target"
   end
 
   create_table "business_metric_dailies", force: :cascade do |t|
@@ -1776,6 +1808,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_30_102000) do
   add_foreign_key "analytics_fetch_runs", "analytics_source_settings"
   add_foreign_key "analytics_source_settings", "aicoo_analytics_sites"
   add_foreign_key "analytics_source_settings", "aicoo_google_credentials", column: "google_credential_id"
+  add_foreign_key "auto_revision_executions", "auto_revision_tasks"
   add_foreign_key "auto_revision_queue_runs", "aicoo_daily_runs"
   add_foreign_key "auto_revision_run_logs", "auto_revision_tasks"
   add_foreign_key "auto_revision_run_logs", "businesses"

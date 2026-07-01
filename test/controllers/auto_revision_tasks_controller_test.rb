@@ -62,6 +62,10 @@ class AutoRevisionTasksControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Coverage Status"
     assert_includes response.body, "configured"
     assert_includes response.body, "kawamura/suelog"
+    assert_includes response.body, "Auto Deploy Enabled"
+    assert_includes response.body, "Auto Merge Enabled"
+    assert_includes response.body, "Allowed Risk Level"
+    assert_includes response.body, "Health Check URL"
     assert_not_includes response.body, "Execution Profileがmissing"
   end
 
@@ -120,6 +124,7 @@ class AutoRevisionTasksControllerTest < ActionDispatch::IntegrationTest
     create_configured_profile
     task = AutoRevisionTask.from_action_candidate(action_candidates(:nagazakicho_article))
     task.approve!
+    task.enqueue_for_codex!
 
     patch mark_sent_to_codex_auto_revision_task_url(task)
 
@@ -137,6 +142,35 @@ class AutoRevisionTasksControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to codex_queue_auto_revision_tasks_url
     assert_equal "ready_for_codex", task.reload.status
     assert_match(/Target Validationに失敗/, flash[:alert])
+  end
+
+  test "queues approved task for codex execution" do
+    create_configured_profile
+    task = AutoRevisionTask.from_action_candidate(action_candidates(:nagazakicho_article))
+    task.approve!
+
+    assert_difference("AutoRevisionExecution.count", 1) do
+      patch enqueue_auto_revision_task_url(task)
+    end
+
+    assert_redirected_to codex_queue_auto_revision_tasks_url
+    assert_equal "queued", task.reload.status
+    assert_equal "Auto Revision Taskを実行キューへ追加しました。", flash[:notice]
+  end
+
+  test "does not queue high risk task" do
+    candidate = action_candidates(:nagazakicho_article)
+    candidate.update!(execution_prompt: "認証tokenを扱うmigrationを追加してください。")
+    task = AutoRevisionTask.from_action_candidate(candidate)
+    task.approve!
+
+    assert_no_difference("AutoRevisionExecution.count") do
+      patch enqueue_auto_revision_task_url(task)
+    end
+
+    assert_redirected_to auto_revision_task_url(task)
+    assert_equal "approved", task.reload.status
+    assert_match(/high risk/, flash[:alert])
   end
 
   test "starts implementation" do
@@ -197,6 +231,7 @@ class AutoRevisionTasksControllerTest < ActionDispatch::IntegrationTest
 
   test "records succeeded result and creates action execution log" do
     task = AutoRevisionTask.from_action_candidate(action_candidates(:nagazakicho_article))
+    task.auto_revision_executions.create!(status: "running", prompt_snapshot: task.codex_prompt_markdown)
 
     assert_difference("ActionExecutionLog.count", 1) do
       patch record_result_auto_revision_task_url(task), params: {
@@ -208,6 +243,10 @@ class AutoRevisionTasksControllerTest < ActionDispatch::IntegrationTest
           changed_files: "app/views/example.html.erb",
           test_result: "bin/rails test passed",
           codex_output: "done",
+          commit_sha: "abc123",
+          pull_request_url: "https://github.com/example/repo/pull/1",
+          deploy_url: "https://example.onrender.com",
+          deploy_status: "deployed",
           finished_at: Time.current.strftime("%Y-%m-%dT%H:%M")
         }
       }
@@ -220,6 +259,10 @@ class AutoRevisionTasksControllerTest < ActionDispatch::IntegrationTest
     assert_equal "app/views/example.html.erb", task.changed_files
     assert_equal "passed", task.codex_quality_check.result
     assert_equal "completed", ActionExecutionLog.last.status
+    execution = task.auto_revision_executions.last
+    assert_equal "completed", execution.status
+    assert_equal "abc123", execution.commit_sha
+    assert_equal "https://github.com/example/repo/pull/1", execution.pull_request_url
   end
 
   test "records failed result with error message" do
@@ -256,6 +299,7 @@ class AutoRevisionTasksControllerTest < ActionDispatch::IntegrationTest
     create_configured_profile
     ready = AutoRevisionTask.from_action_candidate(action_candidates(:nagazakicho_article))
     ready.approve!
+    queued = create_task(title: "実行待ちタスク", status: "queued")
     sent = create_task(title: "Codex投入済みタスク", status: "sent_to_codex")
     running = create_task(title: "実装中タスク", status: "running")
     waiting = create_task(title: "承認待ちタスク", status: "waiting_approval")
@@ -265,6 +309,7 @@ class AutoRevisionTasksControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.body, "Codex Executor Queue"
     assert_includes response.body, ready.title
+    assert_includes response.body, queued.title
     assert_includes response.body, sent.title
     assert_includes response.body, running.title
     assert_not_includes response.body, waiting.title
@@ -278,6 +323,7 @@ class AutoRevisionTasksControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Copy"
     assert_includes response.body, "詳細"
     assert_includes response.body, "Codex投入済みにする"
+    assert_includes response.body, "実行キューへ追加"
     assert_includes response.body, "実装開始"
     assert_includes response.body, "結果登録"
   end

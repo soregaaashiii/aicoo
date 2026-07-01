@@ -7,7 +7,13 @@
   <% if %w[draft waiting_approval].include?(@auto_revision_task.status) %>
     <%= button_to "承認", approve_auto_revision_task_path(@auto_revision_task), method: :patch, class: "button", data: { turbo_confirm: "#{@auto_revision_task.risk_level} riskの改修タスクを承認しますか？" } %>
   <% end %>
-  <% if @auto_revision_task.status == "ready_for_codex" %>
+  <% if %w[approved ready_for_codex].include?(@auto_revision_task.status) && @auto_revision_task.risk_level != "high" %>
+    <%= button_to "実行キューへ追加", enqueue_auto_revision_task_path(@auto_revision_task), method: :patch, class: "button" %>
+  <% end %>
+  <% if @auto_revision_task.status == "failed" && @auto_revision_task.risk_level != "high" %>
+    <%= button_to "再実行", retry_execution_auto_revision_task_path(@auto_revision_task), method: :patch, class: "button secondary" %>
+  <% end %>
+  <% if %w[queued ready_for_codex].include?(@auto_revision_task.status) %>
     <%= button_to "Codex投入済みにする", mark_sent_to_codex_auto_revision_task_path(@auto_revision_task), method: :patch, class: "button" %>
   <% elsif @auto_revision_task.status == "sent_to_codex" %>
     <%= button_to "実装開始", start_implementation_auto_revision_task_path(@auto_revision_task), method: :patch, class: "button" %>
@@ -27,12 +33,68 @@
       <div class="metric-card"><span>risk</span><strong><%= @auto_revision_task.risk_level %></strong></div>
       <div class="metric-card"><span>優先度</span><strong><%= number_with_precision(@auto_revision_task.priority_score, precision: 1) %></strong></div>
       <div class="metric-card"><span>generated_by</span><strong><%= @auto_revision_task.generated_by %></strong></div>
+      <div class="metric-card"><span>Target Project</span><strong><%= @auto_revision_task.target_repository_display %></strong></div>
+      <div class="metric-card"><span>GitHub Repo</span><strong><%= @auto_revision_task.execution_profile&.github_repository.presence || "-" %></strong></div>
+      <div class="metric-card"><span>Branch</span><strong><%= @auto_revision_task.execution_profile&.default_branch.presence || "main" %></strong></div>
       <div class="metric-card"><span>Repository</span><strong><%= @auto_revision_task.target_repository_display %></strong></div>
       <div class="metric-card"><span>Repository Type</span><strong><%= @auto_revision_task.target_repository_type.presence || "-" %></strong></div>
       <div class="metric-card"><span>Codex投入</span><strong><%= @auto_revision_task.sent_to_codex_at ? l(@auto_revision_task.sent_to_codex_at, format: :short) : "-" %></strong></div>
       <div class="metric-card"><span>実装開始</span><strong><%= @auto_revision_task.started_running_at ? l(@auto_revision_task.started_running_at, format: :short) : "-" %></strong></div>
       <div class="metric-card"><span>最終確認</span><strong><%= @auto_revision_task.last_checked_at ? l(@auto_revision_task.last_checked_at, format: :short) : "-" %></strong></div>
       <div class="metric-card"><span>放置判定</span><strong><%= @auto_revision_task.stale_codex_task? ? "要確認" : "正常" %></strong></div>
+      <div class="metric-card"><span>Deploy Target</span><strong><%= @auto_revision_task.execution_profile&.deploy_command.present? ? "Render/GitHub" : "-" %></strong></div>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Codex実行ログ</h2>
+      <p>プロンプトSnapshot、実行状態、commit/PR/deploy情報を保存します。</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Status</th>
+            <th>開始</th>
+            <th>終了</th>
+            <th>Commit</th>
+            <th>PR</th>
+            <th>Deploy</th>
+            <th>結果</th>
+            <th>Error</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @auto_revision_task.auto_revision_executions.recent.each do |execution| %>
+            <tr>
+              <td><span class="pill"><%= execution.status %></span></td>
+              <td><%= execution.started_at ? l(execution.started_at, format: :short) : "-" %></td>
+              <td><%= execution.finished_at ? l(execution.finished_at, format: :short) : "-" %></td>
+              <td><%= execution.commit_sha.presence || "-" %></td>
+              <td>
+                <% if execution.pull_request_url.present? %>
+                  <%= link_to "PR", execution.pull_request_url, target: "_blank", rel: "noopener", class: "button secondary" %>
+                <% else %>
+                  -
+                <% end %>
+              </td>
+              <td>
+                <% if execution.deploy_url.present? %>
+                  <%= link_to execution.deploy_status.presence || "Deploy", execution.deploy_url, target: "_blank", rel: "noopener", class: "button secondary" %>
+                <% else %>
+                  <%= execution.deploy_status.presence || "-" %>
+                <% end %>
+              </td>
+              <td><%= execution.result_summary.presence || "-" %></td>
+              <td><%= execution.error_message.presence || "-" %></td>
+            </tr>
+          <% end %>
+          <% if @auto_revision_task.auto_revision_executions.empty? %>
+            <tr><td colspan="8">まだCodex実行ログはありません。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
     </div>
   </section>
 
@@ -66,6 +128,24 @@
       <dd><%= @auto_revision_task.repository_target_status_label %></dd>
       <dt>GitHub Repository</dt>
       <dd><%= profile&.github_repository.presence || "-" %></dd>
+      <dt>Base Branch</dt>
+      <dd><%= profile&.base_branch.presence || "main" %></dd>
+      <dt>Working Branch</dt>
+      <dd><%= @auto_revision_task.working_branch_name %></dd>
+      <dt>Deploy Target</dt>
+      <dd><%= profile&.deploy_target.presence || "-" %></dd>
+      <dt>Render Service</dt>
+      <dd><%= profile&.render_service_name.presence || "-" %></dd>
+      <dt>Auto Deploy Enabled</dt>
+      <dd><%= profile&.auto_deploy_enabled? ? "true" : "false" %></dd>
+      <dt>Auto Merge Enabled</dt>
+      <dd><%= profile&.auto_merge_enabled? ? "true" : "false" %></dd>
+      <dt>Allowed Risk Level</dt>
+      <dd><%= profile&.auto_deploy_risk_limit.presence || "low" %></dd>
+      <dt>Require Manual Approval</dt>
+      <dd><%= profile&.require_manual_approval? ? "true" : "false" %></dd>
+      <dt>PR/Deploy Flow</dt>
+      <dd><%= @auto_revision_task.deploy_flow_label %></dd>
       <dt>Repository Path</dt>
       <dd><%= profile&.repository_path.presence || "-" %></dd>
       <dt>Test Command</dt>
@@ -74,6 +154,10 @@
       <dd><%= profile&.lint_command.presence || "RUBOCOP_CACHE_ROOT=tmp/rubocop_cache bundle exec rubocop" %></dd>
       <dt>Deploy Command</dt>
       <dd><%= profile&.deploy_command.presence || "-" %></dd>
+      <dt>Production URL</dt>
+      <dd><%= profile&.production_url.presence || "-" %></dd>
+      <dt>Health Check URL</dt>
+      <dd><%= profile&.health_check_url.presence || "-" %></dd>
       <dt>Forbidden Patterns</dt>
       <dd><%= simple_format(profile&.forbidden_pattern_lines&.join("\n").presence || "db:drop\ndb:reset\ndrop database") %></dd>
     </dl>
@@ -226,7 +310,7 @@
     <%= form_with model: @auto_revision_task, url: record_result_auto_revision_task_path(@auto_revision_task), method: :patch, class: "aicoo-form" do |form| %>
       <div class="field">
         <%= form.label :status, "status" %>
-        <%= form.select :status, options_for_select(%w[succeeded partial_succeeded failed canceled], @auto_revision_task.status) %>
+        <%= form.select :status, options_for_select(%w[completed succeeded partial_succeeded failed canceled], @auto_revision_task.status) %>
       </div>
       <div class="field">
         <%= form.label :result_summary, "result_summary" %>
@@ -247,6 +331,23 @@
       <div class="field">
         <%= form.label :codex_output, "codex_output" %>
         <%= form.text_area :codex_output, rows: 6 %>
+      </div>
+      <div class="field">
+        <%= label_tag "auto_revision_task_commit_sha", "commit_sha" %>
+        <%= text_field_tag "auto_revision_task[commit_sha]", @auto_revision_task.auto_revision_executions.recent.first&.commit_sha, id: "auto_revision_task_commit_sha" %>
+      </div>
+      <div class="field">
+        <%= label_tag "auto_revision_task_pull_request_url", "pull_request_url" %>
+        <%= url_field_tag "auto_revision_task[pull_request_url]", @auto_revision_task.auto_revision_executions.recent.first&.pull_request_url, id: "auto_revision_task_pull_request_url" %>
+      </div>
+      <div class="field">
+        <%= label_tag "auto_revision_task_deploy_url", "deploy_url" %>
+        <%= url_field_tag "auto_revision_task[deploy_url]", @auto_revision_task.auto_revision_executions.recent.first&.deploy_url || @auto_revision_task.execution_profile&.production_url, id: "auto_revision_task_deploy_url" %>
+      </div>
+      <div class="field">
+        <%= label_tag "auto_revision_task_deploy_status", "deploy_status" %>
+        <%= select_tag "auto_revision_task[deploy_status]",
+                       options_for_select(%w[pending deployed failed not_applicable], @auto_revision_task.auto_revision_executions.recent.first&.deploy_status) %>
       </div>
       <div class="field">
         <%= form.label :finished_at, "finished_at" %>

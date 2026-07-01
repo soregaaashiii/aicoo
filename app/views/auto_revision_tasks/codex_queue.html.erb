@@ -16,6 +16,7 @@
     <div class="actions compact-actions">
       <% [
         [ "すべて", nil ],
+        [ "実行待ち", "queued" ],
         [ "投入待ち", "ready_for_codex" ],
         [ "投入済み", "sent_to_codex" ],
         [ "実装中", "running" ],
@@ -102,7 +103,9 @@
                     <%= link_to "Export", export_codex_prompt_auto_revision_task_path(task), class: "button secondary" %>
                   <% end %>
                   <%= link_to "詳細", task, class: "button secondary" %>
-                  <% if task.status == "ready_for_codex" %>
+                  <% if %w[ready_for_codex approved].include?(task.status) && task.risk_level != "high" %>
+                    <%= button_to "実行キューへ追加", enqueue_auto_revision_task_path(task), method: :patch, class: "button secondary" %>
+                  <% elsif task.status == "queued" %>
                     <% if target_validation.invalid? %>
                       <button class="button" disabled>Codex投入不可</button>
                       <% if task.business.business_execution_profile %>

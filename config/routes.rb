@@ -106,6 +106,8 @@ Rails.application.routes.draw do
     get :codex_queue, on: :collection
     patch :approve, on: :member
     patch :cancel, on: :member
+    patch :enqueue, on: :member
+    patch :retry_execution, on: :member
     patch :mark_sent_to_codex, on: :member
     patch :start_implementation, on: :member
     patch :update_codex_tracking, on: :member

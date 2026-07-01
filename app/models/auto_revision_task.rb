@@ -3,23 +3,26 @@ class AutoRevisionTask < ApplicationRecord
     draft
     waiting_approval
     approved
+    queued
     ready_for_codex
     sent_to_codex
     running
+    completed
     succeeded
     partial_succeeded
     failed
     canceled
   ].freeze
   RISK_LEVELS = %w[low medium high].freeze
-  ACTIVE_STATUSES = %w[draft waiting_approval approved ready_for_codex sent_to_codex running].freeze
-  CODEX_QUEUE_STATUSES = %w[ready_for_codex sent_to_codex running].freeze
+  ACTIVE_STATUSES = %w[draft waiting_approval approved queued ready_for_codex sent_to_codex running].freeze
+  CODEX_QUEUE_STATUSES = %w[queued ready_for_codex sent_to_codex running].freeze
   STALE_AFTER = 7.days
 
   belongs_to :action_candidate
   belongs_to :business
   belongs_to :target_business, class_name: "Business", optional: true
   has_one :codex_quality_check, dependent: :destroy
+  has_many :auto_revision_executions, dependent: :destroy
 
   validates :title, presence: true
   validates :status, inclusion: { in: STATUSES }
@@ -77,7 +80,27 @@ class AutoRevisionTask < ApplicationRecord
   end
 
   def approve!
-    update!(status: "ready_for_codex", approved_at: Time.current)
+    update!(status: high_risk? ? "approved" : "ready_for_codex", approved_at: approved_at || Time.current)
+  end
+
+  def enqueue_for_codex!(operator: "owner")
+    if high_risk?
+      errors.add(:base, "high riskの改修は自動実行キューへ追加できません。Codex用プロンプト確認までにしてください。")
+      raise ActiveRecord::RecordInvalid, self
+    end
+
+    validation = codex_prompt_target_validation
+    if validation.invalid?
+      errors.add(:base, validation.errors.to_sentence)
+      raise ActiveRecord::RecordInvalid, self
+    end
+
+    update!(status: "queued", approved_at: approved_at || Time.current)
+    auto_revision_executions.create!(
+      status: "queued",
+      prompt_snapshot: codex_prompt_markdown,
+      metadata: execution_metadata(operator:)
+    )
   end
 
   def mark_sent_to_codex!
@@ -88,6 +111,7 @@ class AutoRevisionTask < ApplicationRecord
     end
 
     update!(status: "sent_to_codex", sent_to_codex_at: sent_to_codex_at || Time.current)
+    current_execution.update!(status: "sent_to_codex", prompt_snapshot: codex_prompt_markdown)
   end
 
   def start_implementation!
@@ -96,6 +120,11 @@ class AutoRevisionTask < ApplicationRecord
       status: "running",
       started_at: started_at || started_time,
       started_running_at: started_running_at || started_time
+    )
+    current_execution.update!(
+      status: "running",
+      started_at: current_execution.started_at || started_time,
+      prompt_snapshot: current_execution.prompt_snapshot.presence || codex_prompt_markdown
     )
   end
 
@@ -121,6 +150,7 @@ class AutoRevisionTask < ApplicationRecord
       codex_output: normalized_attributes[:codex_output],
       finished_at: normalized_attributes[:finished_at].presence || Time.current
     )
+    record_execution_result!(normalized_attributes.merge(status: normalized_status))
     run_codex_quality_check!
   end
 
@@ -162,7 +192,11 @@ class AutoRevisionTask < ApplicationRecord
   end
 
   def successful_result?
-    %w[succeeded partial_succeeded].include?(status)
+    %w[completed succeeded partial_succeeded].include?(status)
+  end
+
+  def high_risk?
+    risk_level == "high"
   end
 
   def codex_prompt
@@ -183,8 +217,20 @@ class AutoRevisionTask < ApplicationRecord
       GitHub Repository: #{execution_profile&.github_repository.presence || "-"}
       Repository Path: #{execution_profile&.repository_path.presence || "-"}
       Default Branch: #{execution_profile&.default_branch.presence || "-"}
+      Working Branch: #{working_branch_name}
+      Commit Message: #{suggested_commit_message}
+      Deploy Target: #{execution_profile&.deploy_target.presence || "-"}
+      Render Service: #{execution_profile&.render_service_name.presence || "-"}
+      Auto Merge Enabled: #{execution_profile&.auto_merge_enabled? ? "true" : "false"}
+      Auto Deploy Enabled: #{execution_profile&.auto_deploy_enabled? ? "true" : "false"}
+      Auto Deploy Risk Limit: #{execution_profile&.auto_deploy_risk_limit.presence || "low"}
+      Require Manual Approval: #{execution_profile&.require_manual_approval? ? "true" : "false"}
+      PR/Deploy Flow: #{execution_profile ? execution_profile.deploy_flow_label_for(self) : "Execution Profile未設定のためPR作成まで"}
+      Deploy Verification URL: #{execution_profile&.production_url.presence || "-"}
+      Health Check URL: #{execution_profile&.health_check_url.presence || "-"}
       action_type: #{metadata.to_h["action_type"].presence || action_candidate.action_type}
       risk_level: #{risk_level}
+      rollback方針: 変更前commitを控え、異常時はAICOOにRollback依頼を記録する
 
       事業別Codex指示:
       #{execution_profile&.codex_instructions.presence || "特記事項はありません。"}
@@ -209,6 +255,20 @@ class AutoRevisionTask < ApplicationRecord
       確認コマンド:
       #{confirmation_command_prompt}
       #{migration_confirmation_commands}
+
+      GitHub / PR / Deploy:
+      - base_branch: #{execution_profile&.default_branch.presence || "main"}
+      - working_branch: #{working_branch_name}
+      - commit_message: #{suggested_commit_message}
+      - main直接push禁止。必ず作業ブランチからPRを作成する
+      - high riskの場合は自動merge・自動デプロイ禁止
+      - auto_deploy_enabled=false の場合はPR作成までで停止
+      - auto_deploy_enabled=true でもrisk limitを超える場合はPR作成までで停止
+      - auto_merge_enabled=false の場合はPR作成までで停止
+      - deploy_target: #{execution_profile&.deploy_target.presence || "-"}
+      - render_service_name: #{execution_profile&.render_service_name.presence || "-"}
+      - deploy確認URL: #{execution_profile&.production_url.presence || "-"}
+      - health_check_url: #{execution_profile&.health_check_url.presence || "-"}
 
       完了報告に含めるもの:
       - 実装内容
@@ -277,6 +337,18 @@ class AutoRevisionTask < ApplicationRecord
       - GitHub Repository: #{profile&.github_repository.presence || "-"}
       - Repository Path: #{profile&.repository_path.presence || "-"}
       - Default Branch: #{profile&.default_branch.presence || "-"}
+      - Working Branch: #{working_branch_name}
+      - Commit Message: #{suggested_commit_message}
+      - Deploy Target: #{profile&.deploy_target.presence || "-"}
+      - Render Service: #{profile&.render_service_name.presence || "-"}
+      - Deploy Verification URL: #{profile&.production_url.presence || "-"}
+      - Health Check URL: #{profile&.health_check_url.presence || "-"}
+      - Auto Deploy Enabled: #{profile&.auto_deploy_enabled? ? "true" : "false"}
+      - Auto Merge Enabled: #{profile&.auto_merge_enabled? ? "true" : "false"}
+      - Auto Deploy Risk Limit: #{profile&.auto_deploy_risk_limit.presence || "low"}
+      - Require Manual Approval: #{profile&.require_manual_approval? ? "true" : "false"}
+      - PR/Deploy Flow: #{profile ? profile.deploy_flow_label_for(self) : "Execution Profile未設定のためPR作成まで"}
+      - Rollback Policy: 変更前commitを控え、異常時はRollback依頼をAICOOに記録する
       - Risk Level: #{risk_level}
       - Priority Score: #{priority_score}
 
@@ -293,6 +365,22 @@ class AutoRevisionTask < ApplicationRecord
       - Test Command: #{profile&.test_command.presence || "bin/rails test"}
       - Lint Command: #{profile&.lint_command.presence || "RUBOCOP_CACHE_ROOT=tmp/rubocop_cache bundle exec rubocop"}
       - Deploy Command: #{profile&.deploy_command.presence || "-"}
+
+      ## GitHub / PR / Deploy Flow
+
+      - Base Branch: #{profile&.default_branch.presence || "main"}
+      - Working Branch: #{working_branch_name}
+      - Commit Message: #{suggested_commit_message}
+      - Pull Request: main直接push禁止。必ず作業ブランチからPRを作成する
+      - high riskの場合は自動merge・自動デプロイ禁止
+      - auto_deploy_enabled=false の場合はPR作成までで停止
+      - auto_deploy_enabled=true でもrisk limitを超える場合はPR作成までで停止
+      - auto_merge_enabled=false の場合はPR作成までで停止
+      - Deploy Target: #{profile&.deploy_target.presence || "-"}
+      - Render Service: #{profile&.render_service_name.presence || "-"}
+      - Deploy Verification URL: #{profile&.production_url.presence || "-"}
+      - Health Check URL: #{profile&.health_check_url.presence || "-"}
+      - Rollback: deploy後に異常があれば変更commitを控えてRollback可能にする
 
       ## Forbidden Patterns
 
@@ -407,6 +495,8 @@ class AutoRevisionTask < ApplicationRecord
 
   def action_execution_log_status
     case status
+    when "completed"
+      "completed"
     when "succeeded"
       "completed"
     when "partial_succeeded"
@@ -418,5 +508,85 @@ class AutoRevisionTask < ApplicationRecord
     else
       "changed"
     end
+  end
+
+  public
+
+  def current_execution
+    auto_revision_executions.active.recent.first ||
+      auto_revision_executions.create!(
+        status: status == "running" ? "running" : "queued",
+        started_at: started_running_at,
+        prompt_snapshot: codex_prompt_markdown,
+        metadata: execution_metadata(operator: "system")
+      )
+  end
+
+  def suggested_commit_message
+    "Auto revision task ##{id}: #{title}".truncate(72, omission: "")
+  end
+
+  def working_branch_name
+    execution_profile&.working_branch_for(self) || "codex/auto-revision-#{id}"
+  end
+
+  def auto_deploy_allowed?
+    execution_profile&.auto_deploy_allowed_for?(self) || false
+  end
+
+  def auto_merge_allowed?
+    execution_profile&.auto_merge_allowed_for?(self) || false
+  end
+
+  def deploy_flow_label
+    execution_profile&.deploy_flow_label_for(self) || "Execution Profile未設定のためPR作成まで"
+  end
+
+  def execution_metadata(operator:)
+    profile = execution_profile
+    {
+      operator:,
+      business_id: business_id,
+      risk_level: risk_level,
+      github_repository: profile&.github_repository,
+      base_branch: profile&.default_branch || "main",
+      working_branch: working_branch_name,
+      deploy_target: profile&.deploy_target,
+      render_service_name: profile&.render_service_name,
+      deploy_url: profile&.production_url,
+      health_check_url: profile&.health_check_url,
+      auto_deploy_enabled: profile&.auto_deploy_enabled? || false,
+      auto_merge_enabled: profile&.auto_merge_enabled? || false,
+      auto_deploy_allowed: auto_deploy_allowed?,
+      auto_merge_allowed: auto_merge_allowed?,
+      auto_deploy_risk_limit: profile&.auto_deploy_risk_limit,
+      require_manual_approval: profile&.require_manual_approval? || false,
+      deploy_flow: profile&.deploy_flow_for(self),
+      commit_message: suggested_commit_message,
+      rollback_policy: "変更前commitを控え、異常時はRollback依頼をAICOOに記録する"
+    }
+  end
+
+  def record_execution_result!(attributes)
+    execution_status =
+      case attributes[:status].to_s
+      when "completed", "succeeded", "partial_succeeded"
+        "completed"
+      when "failed"
+        "failed"
+      when "canceled"
+        "canceled"
+      else
+        "running"
+      end
+    current_execution.finish!(
+      status: execution_status,
+      result_summary: attributes[:result_summary],
+      error_message: attributes[:error_message],
+      commit_sha: attributes[:commit_sha],
+      pull_request_url: attributes[:pull_request_url],
+      deploy_url: attributes[:deploy_url],
+      deploy_status: attributes[:deploy_status]
+    )
   end
 end

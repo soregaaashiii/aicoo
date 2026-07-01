@@ -1,0 +1,24 @@
+<% if summary %>
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <div>
+        <h2>改訂待ち</h2>
+        <p>Daily Runで作られた改善案が、Codexへ渡せる状態まで進んでいるか確認します。</p>
+      </div>
+      <%= link_to "改訂キューを見る", codex_queue_auto_revision_tasks_path, class: "button secondary" %>
+    </div>
+    <div class="metric-grid">
+      <div class="metric-card"><span>承認待ち改訂</span><strong><%= summary.waiting_approval_count %>件</strong></div>
+      <div class="metric-card"><span>実行待ち改訂</span><strong><%= summary.queued_count %>件</strong></div>
+      <div class="metric-card"><span>実行中改訂</span><strong><%= summary.running_count %>件</strong></div>
+      <div class="metric-card"><span>失敗改訂</span><strong><%= summary.failed_count %>件</strong></div>
+      <div class="metric-card"><span>今日完了した改訂</span><strong><%= summary.completed_today_count %>件</strong></div>
+      <div class="metric-card"><span>高リスク手動確認</span><strong><%= summary.high_risk_prompt_only_count %>件</strong></div>
+      <div class="metric-card"><span>自動デプロイ可能</span><strong><%= summary.auto_deployable_count %>件</strong></div>
+      <div class="metric-card"><span>PR確認待ち</span><strong><%= summary.pr_review_waiting_count %>件</strong></div>
+      <div class="metric-card"><span>merge待ち</span><strong><%= summary.merge_waiting_count %>件</strong></div>
+      <div class="metric-card"><span>deploy確認待ち</span><strong><%= summary.deploy_check_waiting_count %>件</strong></div>
+      <div class="metric-card"><span>手動確認が必要</span><strong><%= summary.manual_required_count %>件</strong></div>
+    </div>
+  </section>
+<% end %>

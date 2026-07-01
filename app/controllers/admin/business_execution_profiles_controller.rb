@@ -49,13 +49,20 @@ module Admin
           :target_slug,
           :target_paths_text,
           :default_branch,
+          :working_branch_prefix,
           :test_command,
           :lint_command,
           :deploy_command,
+          :deploy_target,
+          :render_service_name,
           :production_url,
+          :health_check_url,
           :codex_instructions,
           :forbidden_patterns,
           :auto_deploy_enabled,
+          :auto_merge_enabled,
+          :auto_deploy_risk_limit,
+          :require_manual_approval,
           :active
         ]
       )
