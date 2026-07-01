@@ -3,7 +3,10 @@
 <% compact = local_assigns.fetch(:compact, false) %>
 <% base_params = {} %>
 <% base_params[:google_credential_id] = credential.id if credential&.persisted? %>
-<% base_params[:business_name] = business.name if business.present? %>
+<% if business.present? %>
+  <% base_params[:business_id] = business.id %>
+  <% base_params[:business_name] = business.name %>
+<% end %>
 
 <div class="actions <%= compact ? "compact-actions" : "" %>">
   <% if credential&.persisted? %>

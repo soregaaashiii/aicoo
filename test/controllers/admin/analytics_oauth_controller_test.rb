@@ -28,6 +28,45 @@ module Admin
       assert_includes flash[:notice], "Redirect URI: #{admin_analytics_oauth_callback_url}"
       assert_includes flash[:notice], "access_type: offline"
       assert_includes flash[:notice], "prompt: consent"
+      assert_includes flash[:notice], "source: all"
+      assert_includes flash[:notice], "Google Credential ID:"
+    end
+
+    test "connect from business google settings records business context and exact oauth url" do
+      business = businesses(:suelog)
+      credential = AicooGoogleCredential.create!(
+        name: "吸えログGoogle認証",
+        client_id: "705900000000-new.apps.googleusercontent.com",
+        client_secret: "new-secret",
+        google_cloud_project_id: "aicoo-500805",
+        enabled: true
+      )
+
+      get admin_analytics_oauth_connect_url,
+          params: {
+            google_credential_id: credential.id,
+            business_id: business.id,
+            business_name: business.name,
+            source: "ga4"
+          }
+
+      assert_response :redirect
+      uri = URI.parse(response.location)
+      params = Rack::Utils.parse_nested_query(uri.query)
+      assert_equal "705900000000-new.apps.googleusercontent.com", params["client_id"]
+      assert_equal admin_analytics_oauth_callback_url, params["redirect_uri"]
+      assert_equal "offline", params["access_type"]
+      assert_equal "consent", params["prompt"]
+      assert_equal business.name, params["state"]
+      assert_equal credential.id, session[:analytics_oauth_google_credential_id]
+      assert_equal business.id, session[:analytics_oauth_business_id]
+      assert_equal "ga4", session[:analytics_oauth_source_key]
+      assert_includes flash[:notice], "Google Credential ID: #{credential.id}"
+      assert_includes flash[:notice], "Client ID: 705900000000-new.apps.googleusercontent.com"
+      assert_includes flash[:notice], "Redirect URI: #{admin_analytics_oauth_callback_url}"
+      assert_includes flash[:notice], "source: ga4"
+      assert_includes flash[:notice], "business_id: #{business.id}"
+      assert_includes flash[:notice], "OAuth開始URL: #{response.location}"
     end
 
     test "callback saves refresh token to gsc and ga4 settings for selected business" do

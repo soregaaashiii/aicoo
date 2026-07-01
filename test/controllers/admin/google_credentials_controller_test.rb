@@ -20,6 +20,13 @@ module Admin
       assert_response :success
       assert_includes response.body, "Google認証一覧"
       assert_includes response.body, "Google連携の復旧"
+      assert_includes response.body, "Google OAuthで確認する設定"
+      assert_includes response.body, admin_analytics_oauth_callback_url
+      assert_includes response.body, request.base_url
+      assert_includes response.body, "offline"
+      assert_includes response.body, "consent"
+      assert_includes response.body, "https://www.googleapis.com/auth/webmasters.readonly"
+      assert_includes response.body, "https://www.googleapis.com/auth/analytics.readonly"
       assert_includes response.body, "GA4を再認証"
       assert_includes response.body, "GSCを再認証"
       assert_includes response.body, "GA4/GSCまとめて再認証"

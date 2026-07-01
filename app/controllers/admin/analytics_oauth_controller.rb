@@ -10,16 +10,17 @@ module Admin
         return
       end
 
-      state = params[:business_name].presence
+      business = oauth_business
+      state = business&.name || params[:business_name].presence
       source_key = oauth_source_key
       authorization_uri = AicooAnalytics::GoogleOauthAuthorization.authorization_uri(
         client_id: credentials[:client_id],
         redirect_uri: admin_analytics_oauth_callback_url,
         state:
       )
-      remember_oauth_credentials!(credentials, state, credential, source_key)
-      log_oauth_start!(credential:, credentials:, authorization_uri:, state:, source_key:)
-      flash[:notice] = oauth_start_debug_message(authorization_uri)
+      remember_oauth_credentials!(credentials, state, credential, source_key, business)
+      log_oauth_start!(credential:, credentials:, authorization_uri:, state:, source_key:, business:)
+      flash[:notice] = oauth_start_debug_message(authorization_uri, credential:, source_key:, business:)
       redirect_to authorization_uri.to_s, allow_other_host: true
     end
 
@@ -29,6 +30,8 @@ module Admin
         code_present: params[:code].present?,
         error: params[:error].presence,
         state: params[:state].presence,
+        session_business_id: session[:analytics_oauth_business_id].presence,
+        session_business_name: session[:analytics_oauth_business_name].presence,
         session_credential_id: session[:analytics_oauth_google_credential_id].presence,
         session_client_id: session[:analytics_oauth_client_id].presence,
         session_source_key: session[:analytics_oauth_source_key].presence
@@ -226,11 +229,12 @@ module Admin
       )
     end
 
-    def remember_oauth_credentials!(credentials, business_name, google_credential, source_key)
+    def remember_oauth_credentials!(credentials, business_name, google_credential, source_key, business)
       session[:analytics_oauth_client_id] = credentials[:client_id]
       session[:analytics_oauth_client_secret] = credentials[:client_secret]
       session[:analytics_oauth_google_cloud_project_id] = credentials[:google_cloud_project_id]
       session[:analytics_oauth_business_name] = business_name
+      session[:analytics_oauth_business_id] = business&.id
       if source_key.present?
         session[:analytics_oauth_source_key] = source_key
       else
@@ -254,15 +258,17 @@ module Admin
       session.delete(:analytics_oauth_client_secret)
       session.delete(:analytics_oauth_google_cloud_project_id)
       session.delete(:analytics_oauth_business_name)
+      session.delete(:analytics_oauth_business_id)
       session.delete(:analytics_oauth_source_key)
       session.delete(:analytics_oauth_google_credential_id)
     end
 
-    def log_oauth_start!(credential:, credentials:, authorization_uri:, state:, source_key:)
+    def log_oauth_start!(credential:, credentials:, authorization_uri:, state:, source_key:, business:)
       query = Rack::Utils.parse_nested_query(authorization_uri.query)
       Rails.logger.info(
         [
           "Google OAuth start",
+          "google_credential_id=#{credential.persisted? ? credential.id : 'new'}",
           "client_id=#{credentials[:client_id]}",
           "project_id=#{credentials[:google_cloud_project_id].presence || credential.effective_google_cloud_project_id.presence || 'unknown'}",
           "redirect_uri=#{query['redirect_uri']}",
@@ -271,6 +277,8 @@ module Admin
           "prompt=#{query['prompt']}",
           "state=#{state.presence || 'blank'}",
           "source=#{source_key.presence || 'all'}",
+          "business_id=#{business&.id || 'blank'}",
+          "business_name=#{business&.name || state.presence || 'blank'}",
           "oauth_url=#{authorization_uri}",
           "test_user_check=OAuth同意画面がテストモードの場合は利用するGoogleアカウントをテストユーザーに追加してください"
         ].join(" ")
@@ -291,16 +299,19 @@ module Admin
       )
     end
 
-    def oauth_start_debug_message(authorization_uri)
+    def oauth_start_debug_message(authorization_uri, credential:, source_key:, business:)
       query = Rack::Utils.parse_nested_query(authorization_uri.query)
       [
         "Google OAuthを開始します。",
+        "Google Credential ID: #{credential.persisted? ? credential.id : '-'}",
         "Client ID: #{query['client_id']}",
         "Redirect URI: #{query['redirect_uri']}",
         "Scope: #{query['scope']}",
         "access_type: #{query['access_type']}",
         "prompt: #{query['prompt']}",
         "state: #{query['state'].presence || '-'}",
+        "source: #{source_key.presence || 'all'}",
+        "business_id: #{business&.id || '-'}",
         "OAuth開始URL: #{authorization_uri}"
       ].join("\n")
     end
@@ -370,6 +381,12 @@ module Admin
 
     def oauth_source_key_from_session
       session[:analytics_oauth_source_key].presence
+    end
+
+    def oauth_business
+      return @oauth_business if defined?(@oauth_business)
+
+      @oauth_business = Business.find_by(id: params[:business_id].presence)
     end
   end
 end

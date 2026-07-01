@@ -252,6 +252,7 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "GSCを再認証"
     assert_includes response.body, admin_analytics_oauth_connect_path(
       google_credential_id: credential.id,
+      business_id: @business.id,
       business_name: @business.name,
       source: "ga4"
     ).gsub("&", "&amp;")

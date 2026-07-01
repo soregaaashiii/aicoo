@@ -39,6 +39,46 @@
 
   <section class="dashboard-section">
     <div class="section-heading">
+      <div>
+        <h2>Google OAuthで確認する設定</h2>
+        <p>Google側で500やaccess_deniedが出た時は、この内容をGoogle Cloud ConsoleのOAuth Client設定と完全一致させてください。</p>
+      </div>
+    </div>
+
+    <div class="aicoo-card aicoo-card-compact">
+      <dl class="definition-list">
+        <dt>承認済みリダイレクトURI</dt>
+        <dd><code><%= admin_analytics_oauth_callback_url %></code></dd>
+        <dt>承認済みJavaScript生成元</dt>
+        <dd><code><%= request.base_url %></code></dd>
+        <dt>access_type</dt>
+        <dd><code>offline</code></dd>
+        <dt>prompt</dt>
+        <dd><code>consent</code></dd>
+        <dt>scope</dt>
+        <dd>
+          <code>openid</code><br>
+          <code>email</code><br>
+          <code>https://www.googleapis.com/auth/webmasters.readonly</code><br>
+          <code>https://www.googleapis.com/auth/analytics.readonly</code>
+        </dd>
+        <dt>現在使用中のClient ID</dt>
+        <dd><code><%= @current_credential&.client_id.presence || "未設定" %></code></dd>
+        <dt>現在使用中のProject ID</dt>
+        <dd><code><%= @current_credential&.effective_google_cloud_project_id.presence || "未設定" %></code></dd>
+        <dt>現在使用中のProject Number</dt>
+        <dd><code><%= @current_credential&.oauth_project_number.presence || "不明" %></code></dd>
+      </dl>
+      <p class="form-help">
+        Render本番では承認済みリダイレクトURIが
+        <code>https://aicoo.onrender.com/admin/analytics_oauth/callback</code>
+        と完全一致している必要があります。
+      </p>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
       <h2>Google認証一覧</h2>
       <p>通常は接続済みの共通Google認証を1つだけ使います。必要な場合だけサイト設定側で個別認証を上書きできます。</p>
     </div>
