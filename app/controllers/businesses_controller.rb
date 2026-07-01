@@ -186,7 +186,7 @@ class BusinessesController < ApplicationController
 
   def update_google_settings
     settings = google_settings_params
-    credential = AicooGoogleCredential.find_by(id: settings[:google_credential_id].presence) || AicooGoogleCredential.default
+    credential = AicooGoogleCredential.find_by(id: settings[:google_credential_id].presence)
     ActiveRecord::Base.transaction do
       upsert_google_business_data_source_setting!(
         source_key: "ga4",
@@ -375,7 +375,7 @@ class BusinessesController < ApplicationController
       connection_fields = setting.connection_field_values.merge(identifier_key => clean_identifier)
       metadata = setting.metadata.to_h.merge(
         "connection_fields" => connection_fields,
-        "source_binding" => setting.metadata.to_h.fetch("source_binding", {}).merge("use_global" => "1"),
+        "source_binding" => setting.metadata.to_h.fetch("source_binding", {}).merge("use_global" => "0"),
         "google_credential_id" => credential&.id
       )
       setting.assign_attributes(
@@ -474,10 +474,10 @@ class BusinessesController < ApplicationController
         return
       end
 
-      credential = current_google_credential
-      if google_credential_reauthentication_required?(credential)
+      credential_status = google_credential_status_for_sources(source_types)
+      if credential_status[:credential].blank? || credential_status[:reauthentication_required]
         redirect_to business_path(@business, anchor: "business-google"),
-                    alert: "Google OAuth Clientが変更されています。Google認証画面で再認証してください。"
+                    alert: "#{credential_status[:label]}のGoogle Credentialを確認してください。Business別Google設定でCredential選択または再認証が必要です。"
         return
       end
 
@@ -492,24 +492,42 @@ class BusinessesController < ApplicationController
         source_types:,
         fetched_days: GoogleApiImportRun.next_fetch_days_for(@business, full_fetch: params[:full_fetch].present?),
         metadata: {
-          "google_credential_at_enqueue" => credential.diagnostic_snapshot
+          "google_credential_at_enqueue" => credential_status[:credential].diagnostic_snapshot,
+          "google_setting_sources_at_enqueue" => credential_status[:setting_sources]
         }
       )
-      log_google_api_import_credential!("enqueue", run:, credential:, source_types:)
+      log_google_api_import_credential!(
+        "enqueue",
+        run:,
+        credential: credential_status[:credential],
+        source_types:,
+        setting_sources: credential_status[:setting_sources]
+      )
       AicooAnalytics::BusinessGoogleApiImportJob.perform_later(run.id)
       redirect_to business_path(@business, anchor: "business-google"),
                   notice: "#{label}取得を開始しました。BusinessMetricDailyへの反映は完了後に表示されます。"
-    end
-
-    def current_google_credential
-      AicooGoogleCredential.default&.reload
     end
 
     def google_credential_reauthentication_required?(credential)
       credential.blank? || !credential.connected?
     end
 
-    def log_google_api_import_credential!(event, run:, credential:, source_types:)
+    def google_credential_status_for_sources(source_types)
+      summaries = source_types.index_with do |source_type|
+        Aicoo::BusinessGoogleConnectionSummary.new(@business, source_key: source_type).call
+      end
+      missing = summaries.find { |_source_type, summary| google_credential_reauthentication_required?(summary.credential) }
+      summary = missing&.last || summaries.values.first
+
+      {
+        credential: summary&.credential&.reload,
+        reauthentication_required: missing.present?,
+        label: missing ? missing.first.upcase : source_types.map(&:upcase).join("/"),
+        setting_sources: summaries.transform_values(&:setting_source)
+      }
+    end
+
+    def log_google_api_import_credential!(event, run:, credential:, source_types:, setting_sources: {})
       Rails.logger.info(
         "Business Google API import #{event} " \
         "#{{
@@ -523,7 +541,8 @@ class BusinessesController < ApplicationController
           credential_project_number: credential.oauth_project_number,
           refresh_token_saved: credential.refresh_token.present?,
           access_token_saved: credential.access_token.present?,
-          last_oauth_success_at: credential.last_oauth_success_at
+          last_oauth_success_at: credential.last_oauth_success_at,
+          setting_sources:
         }.compact.to_json}"
       )
     end

@@ -259,6 +259,7 @@ module AicooAnalytics
     end
 
     def analytics_setting(source_type)
+      validate_business_google_credential!(source_type)
       existing_analytics_setting(source_type) || build_analytics_setting(source_type)
     end
 
@@ -338,7 +339,20 @@ module AicooAnalytics
 
     def business_google_credential(source_type)
       explicit_id = business_source_setting(source_type)&.metadata.to_h["google_credential_id"]
-      AicooGoogleCredential.find_by(id: explicit_id).presence || AicooGoogleCredential.default
+      explicit_credential = AicooGoogleCredential.find_by(id: explicit_id) if explicit_id.present?
+      return explicit_credential if explicit_credential
+      return nil if business_source_identifier(source_type).present?
+
+      AicooGoogleCredential.default
+    end
+
+    def validate_business_google_credential!(source_type)
+      return if business_source_identifier(source_type).blank?
+      return if business_google_credential(source_type).present?
+
+      raise Error,
+            "#{source_type.upcase}はBusiness個別設定を使用しますが、Google Credentialが未設定です。" \
+            " /businesses/#{business.id}/google_settings でCredentialを選択してください。"
     end
 
     def business_source_setting(source_type)

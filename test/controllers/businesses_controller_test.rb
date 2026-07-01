@@ -317,6 +317,8 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "sc-domain:suelog.jp", gsc_setting.connection_field_value("site_url")
     assert_equal credential.id, ga4_setting.metadata["google_credential_id"]
     assert_equal credential.id, gsc_setting.metadata["google_credential_id"]
+    assert_equal "0", ga4_setting.metadata.dig("source_binding", "use_global")
+    assert_equal "0", gsc_setting.metadata.dig("source_binding", "use_global")
     assert_equal "linked", ga4_setting.connection_status
     assert_equal "linked", gsc_setting.connection_status
 
@@ -594,7 +596,7 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_redirected_to business_url(@business, anchor: "business-google")
-    assert_equal "Google OAuth Clientが変更されています。Google認証画面で再認証してください。", flash[:alert]
+    assert_equal "GSCのGoogle Credentialを確認してください。Business別Google設定でCredential選択または再認証が必要です。", flash[:alert]
   end
 
   test "should get edit" do

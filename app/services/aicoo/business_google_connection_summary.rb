@@ -62,6 +62,7 @@ module Aicoo
     def status_label
       return "無効" unless business_data_source_setting.nil? || business_data_source_setting.enabled?
       return "未設定" if identifier.blank?
+      return "Google Credential未設定" if business_data_source_identifier.present? && credential.blank?
       return "再認証が必要" if reauthentication_required?
       return "最終取得失敗" if latest_run&.status == "failed"
       return "接続済み" if connected?
@@ -120,9 +121,11 @@ module Aicoo
 
     def credential
       explicit_id = business_data_source_setting&.metadata.to_h.dig("google_credential_id")
-      AicooGoogleCredential.find_by(id: explicit_id).presence ||
-        setting&.google_credential ||
-        AicooGoogleCredential.default
+      explicit_credential = AicooGoogleCredential.find_by(id: explicit_id) if explicit_id.present?
+      return explicit_credential if explicit_credential
+      return nil if business_data_source_identifier.present?
+
+      setting&.google_credential || AicooGoogleCredential.default
     end
 
     def business_data_source_setting

@@ -156,6 +156,45 @@ module AicooAnalytics
       assert_equal 50, metric.pageviews
     end
 
+    test "business ga4 data source setting does not fall back to global credential" do
+      AicooGoogleCredential.create!(
+        name: "AICOO全体Google認証",
+        client_id: "global-client",
+        client_secret: "global-secret",
+        refresh_token: "global-refresh",
+        connected_at: Time.current
+      )
+      BusinessDataSourceSetting.create!(
+        business: @business,
+        source_key: "ga4",
+        enabled: true,
+        connection_status: "needs_attention",
+        property_identifier: "536889590",
+        metadata: {
+          "connection_fields" => { "property_id" => "536889590" }
+        }
+      )
+      AnalyticsSourceSetting.create!(
+        source_type: "ga4",
+        name: "#{@business.name} GA4",
+        property_id: "536889590",
+        enabled: true,
+        authentication_mode: "shared"
+      )
+
+      error = assert_raises(BusinessGoogleApiMetricImporter::Error) do
+        BusinessGoogleApiMetricImporter.new(
+          business: @business,
+          today: Date.new(2026, 6, 28),
+          source_types: %w[ga4],
+          ga4_client: FakeGa4Client.new
+        ).call
+      end
+
+      assert_includes error.message, "Business個別設定"
+      assert_includes error.message, "Google Credentialが未設定"
+    end
+
     class FakeGscClient
       def query(site_url:, start_date:, end_date:, dimensions:, row_limit:)
         {
