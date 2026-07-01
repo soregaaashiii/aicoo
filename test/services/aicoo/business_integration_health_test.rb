@@ -159,6 +159,62 @@ module Aicoo
       refute_includes health.warnings, "GA4未接続"
     end
 
+    test "matches ga4 setting by analytics site property id" do
+      credential = create_google_credential
+      site = AicooAnalyticsSite.create!(
+        business: @business,
+        name: "Suelog",
+        public_url: "https://suelog.test",
+        domain: "suelog.test",
+        gsc_site_url: @business.gsc_site_url,
+        ga4_property_id: "properties/999",
+        authentication_mode: "shared"
+      )
+      ga4_setting = site.ga4_setting
+      ga4_setting.update!(google_credential: credential)
+      ga4_setting.analytics_fetch_runs.create!(
+        status: "success",
+        source_type: "ga4",
+        snapshot_count: 7,
+        started_at: Time.current,
+        finished_at: Time.current
+      )
+
+      health = BusinessIntegrationHealth.new.call.business_healths.find { |row| row.business == @business }
+
+      assert health.ga4.configured
+      assert health.ga4.connected
+      assert_nil health.ga4.warning
+      assert_equal 7, health.ga4.count
+    end
+
+    test "matches ga4 setting by business named setting without analytics site" do
+      credential = create_google_credential
+      ga4_setting = AnalyticsSourceSetting.create!(
+        source_type: "ga4",
+        name: "#{@business.name} GA4",
+        property_id: "536889590",
+        enabled: true,
+        authentication_mode: "shared",
+        google_credential: credential
+      )
+      ga4_setting.analytics_fetch_runs.create!(
+        status: "failed",
+        source_type: "ga4",
+        snapshot_count: 0,
+        error_message: "invalid_grant",
+        started_at: Time.current,
+        finished_at: Time.current
+      )
+
+      health = BusinessIntegrationHealth.new.call.business_healths.find { |row| row.business == @business }
+
+      assert health.ga4.configured
+      assert health.ga4.connected
+      assert_equal "GA4最終取得が失敗しています", health.ga4.warning
+      assert_equal 0, health.ga4.count
+    end
+
     test "does not treat shared google credential without refresh token as connected" do
       credential = AicooGoogleCredential.create!(
         name: "AICOO共通Google認証",

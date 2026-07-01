@@ -327,9 +327,14 @@ module Aicoo
     end
 
     def ga4_setting
+      identifier = business_source_identifier("ga4").presence || analytics_site&.ga4_property_id.presence
       @ga4_setting ||= AnalyticsSourceSetting.includes(:aicoo_analytics_site)
         .where(source_type: "ga4")
-        .find { |setting| setting.aicoo_analytics_site&.business_id == business.id }
+        .find do |setting|
+          setting.aicoo_analytics_site&.business_id == business.id ||
+            (identifier.present? && setting.property_id == identifier) ||
+            setting.name.to_s.match?(/\A#{Regexp.escape(business.name)}\b/i)
+        end
     end
 
     def latest_metric_at

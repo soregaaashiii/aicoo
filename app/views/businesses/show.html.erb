@@ -1353,6 +1353,21 @@
   <% google_api_run = @google_api_import_run %>
   <div class="metric-grid">
     <div class="metric-card">
+      <span>GA4接続</span>
+      <strong><%= @ga4_connection_summary.connected ? "接続済み" : (@ga4_connection_summary.configured ? "設定済み" : "未設定") %></strong>
+      <small>Property ID: <%= @ga4_connection_summary.property_id.presence || "-" %></small>
+    </div>
+    <div class="metric-card">
+      <span>GA4最終取得</span>
+      <strong><%= @ga4_connection_summary.last_fetched_at ? l(@ga4_connection_summary.last_fetched_at, format: :short) : "-" %></strong>
+      <small>取得件数: <%= @ga4_connection_summary.last_count %>件</small>
+    </div>
+    <div class="metric-card">
+      <span>GA4最後のエラー</span>
+      <strong><%= @ga4_connection_summary.last_error.present? ? "あり" : "なし" %></strong>
+      <small><%= @ga4_connection_summary.last_error.presence&.truncate(80) || "-" %></small>
+    </div>
+    <div class="metric-card">
       <span>取得状態</span>
       <strong><%= google_api_run ? google_api_run.status_label : "未実行" %></strong>
       <small><%= google_api_run&.source_types&.join(" / ") || "Google API" %></small>

@@ -128,11 +128,19 @@ module Aicoo
     end
 
     def analytics_settings_for(business, source_type)
+      identifier = analytics_identifier_for(business, source_type)
       analytics_settings.select do |setting|
         next false unless setting.source_type == source_type
         next true if setting.aicoo_analytics_site&.business_id == business.id
 
-        source_type == "gsc" && business.gsc_site_url.present? && setting.site_url == business.gsc_site_url
+        case source_type
+        when "gsc"
+          identifier.present? && setting.site_url == identifier
+        when "ga4"
+          identifier.present? && setting.property_id == identifier
+        else
+          false
+        end
       end
     end
 
@@ -158,15 +166,8 @@ module Aicoo
     end
 
     def configured_analytics?(business, source_type, setting)
-      if source_type == "gsc"
-        business.gsc_site_url.present? ||
-          setting&.site_url.present? ||
-          business_source_identifier(business, source_type).present?
-      else
-        setting&.property_id.present? ||
-          AicooAnalyticsSite.where(business:).where.not(ga4_property_id: [ nil, "" ]).exists? ||
-          business_source_identifier(business, source_type).present?
-      end
+      analytics_identifier_for(business, source_type).present? ||
+        (source_type == "gsc" ? setting&.site_url.present? : setting&.property_id.present?)
     end
 
     def analytics_warning(source_type, configured:, connected:, latest_success:, latest_run:, last_fetched_at:)
@@ -215,6 +216,28 @@ module Aicoo
       when "ga4"
         setting.connection_field_value("property_id").presence ||
           setting.property_identifier.presence
+      end
+    end
+
+    def analytics_identifier_for(business, source_type)
+      case source_type
+      when "gsc"
+        business_source_identifier(business, source_type).presence ||
+          business.gsc_site_url.presence ||
+          AicooAnalyticsSite.where(business:).where.not(gsc_site_url: [ nil, "" ]).recent.first&.gsc_site_url ||
+          named_analytics_setting_for(business, source_type)&.site_url
+      when "ga4"
+        business_source_identifier(business, source_type).presence ||
+          AicooAnalyticsSite.where(business:).where.not(ga4_property_id: [ nil, "" ]).recent.first&.ga4_property_id ||
+          named_analytics_setting_for(business, source_type)&.property_id
+      end
+    end
+
+    def named_analytics_setting_for(business, source_type)
+      analytics_settings.find do |setting|
+        setting.source_type == source_type &&
+          setting.enabled? &&
+          setting.name.to_s.match?(/\A#{Regexp.escape(business.name)}\b/i)
       end
     end
 

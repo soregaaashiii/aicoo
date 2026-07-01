@@ -43,6 +43,53 @@ module Aicoo
       assert_not status.uses_global
     end
 
+    test "business ga4 status uses analytics site property id with global setting" do
+      AicooGoogleCredential.create!(
+        name: "AICOO共通Google認証",
+        client_id: "client",
+        client_secret: "secret",
+        refresh_token: "refresh-token",
+        connected_at: Time.current
+      )
+      AicooAnalyticsSite.create!(
+        business: @business,
+        name: "Suelog",
+        public_url: "https://suelog.test",
+        domain: "suelog.test",
+        ga4_property_id: "properties/999",
+        authentication_mode: "shared"
+      )
+
+      status = DataSourceSettingsPresenter.new.business_status(@business, "ga4")
+
+      assert_equal "global", status.status_key
+      assert_equal "🟢 全体設定使用", status.status_label
+      assert_equal "properties/999", status.connection_summary
+    end
+
+    test "business ga4 status uses business named setting with global credential" do
+      AicooGoogleCredential.create!(
+        name: "AICOO共通Google認証",
+        client_id: "client",
+        client_secret: "secret",
+        refresh_token: "refresh-token",
+        connected_at: Time.current
+      )
+      AnalyticsSourceSetting.create!(
+        source_type: "ga4",
+        name: "#{@business.name} GA4",
+        property_id: "536889590",
+        enabled: true,
+        authentication_mode: "shared"
+      )
+
+      status = DataSourceSettingsPresenter.new.business_status(@business, "ga4")
+
+      assert_equal "global", status.status_key
+      assert_equal "🟢 全体設定使用", status.status_label
+      assert_equal "536889590", status.connection_summary
+    end
+
     test "business status is missing when global and individual are absent" do
       status = DataSourceSettingsPresenter.new.business_status(@business, "x")
 

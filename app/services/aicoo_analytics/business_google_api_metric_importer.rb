@@ -125,7 +125,7 @@ module AicooAnalytics
       run.update!(
         status: "success",
         finished_at: Time.current,
-        snapshot_count: 0,
+        snapshot_count: values.size,
         updated_neglect_loss_count: 0,
         error_message: nil
       )
@@ -271,7 +271,8 @@ module AicooAnalytics
       return nil if identifier.blank?
 
       scope = AnalyticsSourceSetting.where(source_type:, enabled: true)
-      source_type == "gsc" ? scope.find_by(site_url: identifier) : scope.find_by(property_id: identifier)
+      matched = source_type == "gsc" ? scope.find_by(site_url: identifier) : scope.find_by(property_id: identifier)
+      matched || named_analytics_setting(source_type)
     end
 
     def build_analytics_setting(source_type)
@@ -295,12 +296,21 @@ module AicooAnalytics
       when "gsc"
         setting&.connection_field_value("site_url").presence ||
           setting&.property_identifier.presence ||
-          business.gsc_site_url.presence
+          business.gsc_site_url.presence ||
+          named_analytics_setting(source_type)&.site_url
       when "ga4"
         setting&.connection_field_value("property_id").presence ||
           setting&.property_identifier.presence ||
-          AicooAnalyticsSite.where(business:).where.not(ga4_property_id: [ nil, "" ]).recent.first&.ga4_property_id
+          AicooAnalyticsSite.where(business:).where.not(ga4_property_id: [ nil, "" ]).recent.first&.ga4_property_id ||
+          named_analytics_setting(source_type)&.property_id
       end
+    end
+
+    def named_analytics_setting(source_type)
+      AnalyticsSourceSetting
+        .where(source_type:, enabled: true)
+        .to_a
+        .find { |setting| setting.name.to_s.match?(/\A#{Regexp.escape(business.name)}\b/i) }
     end
 
     def resolved_gsc_client(setting)

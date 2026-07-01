@@ -154,7 +154,7 @@ module Aicoo
     def build_global_status(profile)
       credential_fields = profile.credential_fields
       configured_labels = credential_fields.select { |field| profile.credential_configured?(field.key) }.map(&:label)
-      global_default_available = profile.enabled? && (credential_fields.empty? || configured_labels.any?)
+      global_default_available = global_default_available_for?(profile, credential_fields, configured_labels)
       status_key, status_label, status_level = global_status_tuple(profile, credential_fields, configured_labels)
 
       GlobalStatus.new(
@@ -180,7 +180,7 @@ module Aicoo
     def global_status_tuple(profile, credential_fields, configured_labels)
       return [ "disabled", "無効", "attention" ] unless profile.enabled?
       return [ "error", "🔴 エラー", "critical" ] if profile.last_error.present?
-      return [ "connected", "✅ Connected", "healthy" ] if credential_fields.empty? || configured_labels.any?
+      return [ "connected", "✅ Connected", "healthy" ] if global_default_available_for?(profile, credential_fields, configured_labels)
 
       [ "not_configured", "🔴 Not configured", "critical" ]
     end
@@ -190,7 +190,8 @@ module Aicoo
         BusinessDataSourceSetting.new(business:, source_key: profile.source_key)
       global_status = build_global_status(profile)
       uses_global = use_global?(setting)
-      status_key, status_label, status_level = business_status_tuple(setting, global_status, uses_global)
+      google_identifier = google_business_identifier(business, profile.source_key, setting)
+      status_key, status_label, status_level = business_status_tuple(setting, global_status, uses_global, google_identifier:)
       BusinessStatus.new(
         source_key: profile.source_key,
         name: profile.name,
@@ -200,20 +201,23 @@ module Aicoo
         status_level:,
         global_status:,
         uses_global:,
-        connection_summary: setting.connection_summary,
+        connection_summary: google_identifier.presence || setting.connection_summary,
         execution_mode: source_binding(setting)["execution_mode"].presence || profile.execution_mode,
         monthly_budget_yen: source_binding(setting)["monthly_budget_yen"].presence || profile.monthly_budget_yen,
         last_sync_at: setting.last_connected_at || profile.last_run_at,
         manual_paid: manual_paid?(profile),
-        warning: business_warning(setting, global_status, uses_global)
+        warning: business_warning(setting, global_status, uses_global, google_identifier:)
       )
     end
 
-    def business_status_tuple(setting, global_status, uses_global)
+    def business_status_tuple(setting, global_status, uses_global, google_identifier: nil)
       return [ "disabled", "無効", "attention" ] unless setting.enabled?
       return [ "error", "🔴 エラー", "critical" ] if setting.connection_status == "error"
       if setting.linked?
         return [ "individual", "✅ 個別設定済み", "healthy" ]
+      end
+      if google_identifier.present? && uses_global && global_status.global_default_available
+        return [ "global", "🟢 全体設定使用", "healthy" ]
       end
       if setting.connection_status == "needs_attention"
         return [ "needs_attention", "⚠ 設定済みだが未同期", "warning" ]
@@ -228,10 +232,11 @@ module Aicoo
       [ "missing", "🔴 未設定", "critical" ]
     end
 
-    def business_warning(setting, global_status, uses_global)
+    def business_warning(setting, global_status, uses_global, google_identifier: nil)
       return "Business側で無効です" unless setting.enabled?
       return setting.notes.presence || "接続エラーを確認してください" if setting.connection_status == "error"
       return "AICOO全体設定の認証情報が未設定です" if uses_global && !global_status.global_default_available
+      return "設定済みですが同期成功がまだありません" if google_identifier.present? && setting.connection_status == "needs_attention"
       return "Business固有のProperty / Account / Keywordが未設定です" if setting.connection_status == "unlinked" && !uses_global
       return "設定済みですが同期成功がまだありません" if setting.connection_status == "needs_attention"
 
@@ -256,6 +261,40 @@ module Aicoo
 
     def manual_paid?(profile)
       profile.execution_mode == "manual" && profile.average_cost_yen.to_d.positive?
+    end
+
+    def global_default_available_for?(profile, credential_fields, configured_labels)
+      return false unless profile.enabled?
+      return true if credential_fields.empty? || configured_labels.any?
+      return true if profile.source_key.in?(%w[gsc ga4]) && AicooGoogleCredential.default&.connected?
+
+      false
+    end
+
+    def google_business_identifier(business, source_key, setting)
+      return unless source_key.in?(%w[gsc ga4])
+
+      key = source_key == "gsc" ? "site_url" : "property_id"
+      setting.connection_field_value(key).presence ||
+        setting.property_identifier.presence ||
+        analytics_site_identifier(business, source_key) ||
+        named_analytics_setting_identifier(business, source_key) ||
+        (business.gsc_site_url.presence if source_key == "gsc")
+    end
+
+    def analytics_site_identifier(business, source_key)
+      site = AicooAnalyticsSite.where(business:).recent.first
+      source_key == "gsc" ? site&.gsc_site_url.presence : site&.ga4_property_id.presence
+    end
+
+    def named_analytics_setting_identifier(business, source_key)
+      return unless source_key.in?(%w[gsc ga4])
+
+      setting = AnalyticsSourceSetting
+        .where(source_type: source_key, enabled: true)
+        .to_a
+        .find { |row| row.name.to_s.match?(/\A#{Regexp.escape(business.name)}\b/i) }
+      source_key == "gsc" ? setting&.site_url.presence : setting&.property_id.presence
     end
 
     def profile_for(source_key)
