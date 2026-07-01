@@ -156,6 +156,7 @@ module Admin
       now = Time.current
       before_snapshot = google_credential.persisted? ? google_credential.reload : google_credential
       log_oauth_save_snapshot!("Before", before_snapshot)
+      business = oauth_business_from_session
 
       result = nil
       ActiveRecord::Base.transaction do
@@ -178,8 +179,15 @@ module Admin
           settings_updated_count += 1
           log_oauth_callback_event!("callback_setting_update_after", setting_id: setting.id, source_type: setting.source_type)
         end
+        business_settings_updated_count = sync_business_data_source_credentials!(
+          business:,
+          source_key: oauth_source_key_from_session,
+          google_credential:,
+          settings:,
+          now:
+        )
 
-        total_updated_count = (credential_updated ? 1 : 0) + settings_updated_count
+        total_updated_count = (credential_updated ? 1 : 0) + settings_updated_count + business_settings_updated_count
         if total_updated_count.zero?
           raise AicooAnalytics::GoogleOauthAuthorization::Error, "Google OAuth認証情報の更新件数が0件でした。"
         end
@@ -188,6 +196,7 @@ module Admin
           credential_id: google_credential.id,
           credential_updated:,
           settings_updated_count:,
+          business_settings_updated_count:,
           total_updated_count:
         }
       end
@@ -227,6 +236,46 @@ module Admin
         connected_at: now,
         last_oauth_success_at: now
       )
+    end
+
+    def sync_business_data_source_credentials!(business:, source_key:, google_credential:, settings:, now:)
+      return 0 unless business
+
+      source_keys = source_key.in?(%w[gsc ga4]) ? [ source_key ] : %w[gsc ga4]
+      source_keys.sum do |key|
+        analytics_setting = settings.find { |setting| setting.source_type == key }
+        business_setting = BusinessDataSourceSetting.find_or_initialize_by(business:, source_key: key)
+        identifier_key = key == "gsc" ? "site_url" : "property_id"
+        identifier = business_setting.connection_field_value(identifier_key).presence ||
+          business_setting.property_identifier.presence ||
+          (key == "gsc" ? analytics_setting&.site_url : analytics_setting&.property_id)
+        next 0 if identifier.blank?
+
+        metadata = business_setting.metadata.to_h
+        connection_fields = metadata.fetch("connection_fields", {}).merge(identifier_key => identifier)
+        metadata["connection_fields"] = connection_fields
+        metadata["source_binding"] = metadata.fetch("source_binding", {}).merge("use_global" => "0")
+        metadata["google_credential_id"] = google_credential.id
+
+        business_setting.assign_attributes(
+          enabled: true,
+          connection_status: "linked",
+          property_identifier: identifier,
+          credential_reference: google_credential.name,
+          metadata:,
+          last_connected_at: now
+        )
+        business_setting.save!
+        log_oauth_callback_event!(
+          "callback_business_data_source_update",
+          business_id: business.id,
+          business_name: business.name,
+          source_key: key,
+          google_credential_id: google_credential.id,
+          identifier:
+        )
+        1
+      end
     end
 
     def remember_oauth_credentials!(credentials, business_name, google_credential, source_key, business)
@@ -387,6 +436,10 @@ module Admin
       return @oauth_business if defined?(@oauth_business)
 
       @oauth_business = Business.find_by(id: params[:business_id].presence)
+    end
+
+    def oauth_business_from_session
+      Business.find_by(id: session[:analytics_oauth_business_id].presence)
     end
   end
 end

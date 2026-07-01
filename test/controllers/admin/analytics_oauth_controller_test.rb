@@ -127,6 +127,48 @@ module Admin
       assert_equal "new-refresh-token", credential.refresh_token
     end
 
+    test "callback syncs business data source credential for selected business" do
+      business = businesses(:suelog)
+      ga4 = create_ga4_setting(name: "#{business.name} GA4", property_id: "536889590")
+      credential = AicooGoogleCredential.create!(
+        name: "吸えログGoogle認証",
+        client_id: "client",
+        client_secret: "secret",
+        refresh_token: "old-refresh"
+      )
+      business_setting = BusinessDataSourceSetting.create!(
+        business:,
+        source_key: "ga4",
+        enabled: true,
+        connection_status: "needs_attention",
+        property_identifier: "536889590",
+        metadata: {
+          "connection_fields" => { "property_id" => "536889590" },
+          "source_binding" => { "use_global" => "0" }
+        }
+      )
+
+      get admin_analytics_oauth_connect_url,
+          params: {
+            google_credential_id: credential.id,
+            business_id: business.id,
+            business_name: business.name,
+            source: "ga4"
+          }
+
+      with_oauth_exchange(refresh_token: "new-refresh-token") do
+        get admin_analytics_oauth_callback_url, params: { code: "auth-code", state: business.name }
+      end
+
+      assert_redirected_to admin_google_credentials_url
+      assert_equal credential.reload, ga4.reload.google_credential
+      business_setting.reload
+      assert_equal credential.id, business_setting.metadata["google_credential_id"]
+      assert_equal "linked", business_setting.connection_status
+      assert_equal "0", business_setting.metadata.dig("source_binding", "use_global")
+      assert_equal "536889590", business_setting.connection_field_value("property_id")
+    end
+
     test "callback persists remembered saved google credential values and reloads db state" do
       credential = AicooGoogleCredential.create!(
         name: "AICOO共通Google認証",
