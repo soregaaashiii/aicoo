@@ -280,6 +280,7 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes response.body, "#{@business.name} のGoogle連携"
+    assert_includes response.body, "ID: <strong>#{@business.id}</strong>"
     assert_includes response.body, "Google Credential"
     assert_includes response.body, "GA4 Property ID"
     assert_includes response.body, "GSC Site URL"
