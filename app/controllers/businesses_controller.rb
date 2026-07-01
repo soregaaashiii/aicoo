@@ -1,6 +1,7 @@
 class BusinessesController < ApplicationController
   before_action :set_business, only: %i[
     show edit update destroy generate_ai_candidates import_google_api import_gsc import_ga4
+    google_settings update_google_settings
     update_data_source_settings promote_to_mvp promote_to_production promote_to_scaling update_resource_status
   ]
 
@@ -54,7 +55,8 @@ class BusinessesController < ApplicationController
     @google_api_import_runs = GoogleApiImportRun.where(business: @business).recent.limit(8)
     @integration_health = Aicoo::BusinessIntegrationHealth.new.call.business_healths.find { |row| row.business == @business }
     @ga4_connection_summary = Aicoo::BusinessGa4ConnectionSummary.new(@business, health: @integration_health).call
-    @google_credential = AicooGoogleCredential.default
+    @gsc_connection_summary = Aicoo::BusinessGoogleConnectionSummary.new(@business, source_key: "gsc", health: @integration_health).call
+    @google_credential = @ga4_connection_summary.setting&.google_credential || @gsc_connection_summary.credential || AicooGoogleCredential.default
     @business_analytics_summary = Aicoo::BusinessAnalyticsSummary.new(@business, health: @integration_health).call
     @data_source_settings_presenter = Aicoo::DataSourceSettingsPresenter.new
     @business_data_source_statuses = @data_source_settings_presenter.business_statuses(@business)
@@ -76,6 +78,10 @@ class BusinessesController < ApplicationController
     load_data_source_settings_context
     load_google_source_options
     @return_to = safe_return_to || edit_business_path(@business)
+  end
+
+  def google_settings
+    load_business_google_settings_context
   end
 
   # POST /businesses or /businesses.json
@@ -176,6 +182,35 @@ class BusinessesController < ApplicationController
 
   def import_ga4
     enqueue_google_api_import!(source_types: %w[ga4], label: "GA4")
+  end
+
+  def update_google_settings
+    settings = google_settings_params
+    credential = AicooGoogleCredential.find_by(id: settings[:google_credential_id].presence) || AicooGoogleCredential.default
+    ActiveRecord::Base.transaction do
+      upsert_google_business_data_source_setting!(
+        source_key: "ga4",
+        enabled: settings[:ga4_enabled],
+        identifier_key: "property_id",
+        identifier: settings[:ga4_property_id],
+        credential:
+      )
+      upsert_google_business_data_source_setting!(
+        source_key: "gsc",
+        enabled: settings[:gsc_enabled],
+        identifier_key: "site_url",
+        identifier: settings[:gsc_site_url],
+        credential:
+      )
+      sync_business_google_site!
+      sync_business_google_analytics_credentials!(credential)
+    end
+
+    redirect_to google_settings_business_path(@business), notice: "Business個別Google設定を保存しました"
+  rescue ActiveRecord::RecordInvalid => e
+    load_business_google_settings_context
+    flash.now[:alert] = "Business個別Google設定を保存できませんでした: #{e.record.errors.full_messages.to_sentence}"
+    render :google_settings, status: :unprocessable_content
   end
 
   def promote_to_mvp
@@ -283,6 +318,18 @@ class BusinessesController < ApplicationController
       @gsc_site_options = google_source_options("gsc")
     end
 
+    def load_business_google_settings_context
+      @google_credentials = AicooGoogleCredential.enabled.recent
+      @integration_health = Aicoo::BusinessIntegrationHealth.new.call.business_healths.find { |row| row.business == @business }
+      @ga4_connection_summary = Aicoo::BusinessGoogleConnectionSummary.new(@business, source_key: "ga4", health: @integration_health).call
+      @gsc_connection_summary = Aicoo::BusinessGoogleConnectionSummary.new(@business, source_key: "gsc", health: @integration_health).call
+      @google_credential = selected_business_google_credential ||
+                           @ga4_connection_summary.credential ||
+                           @gsc_connection_summary.credential ||
+                           AicooGoogleCredential.default
+      load_google_source_options
+    end
+
     def google_source_options(source_type)
       rows = AnalyticsSourceSetting
         .where(source_type:, enabled: true)
@@ -309,6 +356,51 @@ class BusinessesController < ApplicationController
 
     def business_data_source_setting_params
       params.fetch(:business_data_source_settings, {}).permit!.to_h
+    end
+
+    def google_settings_params
+      params.expect(google_settings: %i[
+        google_credential_id
+        ga4_property_id
+        gsc_site_url
+        ga4_enabled
+        gsc_enabled
+      ])
+    end
+
+    def upsert_google_business_data_source_setting!(source_key:, enabled:, identifier_key:, identifier:, credential:)
+      setting = BusinessDataSourceSetting.find_or_initialize_by(business: @business, source_key:)
+      enabled_value = ActiveModel::Type::Boolean.new.cast(enabled)
+      clean_identifier = identifier.to_s.strip
+      connection_fields = setting.connection_field_values.merge(identifier_key => clean_identifier)
+      metadata = setting.metadata.to_h.merge(
+        "connection_fields" => connection_fields,
+        "source_binding" => setting.metadata.to_h.fetch("source_binding", {}).merge("use_global" => "1"),
+        "google_credential_id" => credential&.id
+      )
+      setting.assign_attributes(
+        enabled: enabled_value,
+        connection_status: google_connection_status_for(enabled: enabled_value, identifier: clean_identifier, credential:),
+        property_identifier: clean_identifier,
+        credential_reference: credential&.name,
+        metadata:
+      )
+      setting.save!
+    end
+
+    def google_connection_status_for(enabled:, identifier:, credential:)
+      return "unlinked" unless enabled
+      return "unlinked" if identifier.blank?
+
+      credential&.connected? ? "linked" : "needs_attention"
+    end
+
+    def selected_business_google_credential
+      explicit_id = @business.business_data_source_settings
+        .where(source_key: %w[ga4 gsc])
+        .filter_map { |setting| setting.metadata.to_h["google_credential_id"].presence }
+        .first
+      AicooGoogleCredential.find_by(id: explicit_id)
     end
 
     def auto_connection_status_for(profile_key:, attributes:, connection_fields:)
@@ -350,6 +442,25 @@ class BusinessesController < ApplicationController
         enabled: true
       )
       site.save!
+    end
+
+    def sync_business_google_analytics_credentials!(credential)
+      site = AicooAnalyticsSite.where(business: @business).recent.first
+      return unless site
+
+      sync_google_source_setting_credential!(site.gsc_setting, "gsc", credential)
+      sync_google_source_setting_credential!(site.ga4_setting, "ga4", credential)
+    end
+
+    def sync_google_source_setting_credential!(setting, source_key, credential)
+      business_setting = @business.business_data_source_settings.find_by(source_key:)
+      return unless setting && business_setting
+
+      setting.update!(
+        enabled: business_setting.enabled?,
+        authentication_mode: "shared",
+        google_credential: credential
+      )
     end
 
     def ai_action_count

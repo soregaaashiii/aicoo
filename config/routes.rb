@@ -137,6 +137,8 @@ Rails.application.routes.draw do
     post :import_google_api, on: :member
     post :import_gsc, on: :member
     post :import_ga4, on: :member
+    get :google_settings, on: :member
+    patch :google_settings, action: :update_google_settings, on: :member
     patch :update_data_source_settings, on: :member
     resources :data_imports, only: :create
     resources :serp_analyses, only: :create

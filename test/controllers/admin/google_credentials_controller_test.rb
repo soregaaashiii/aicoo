@@ -25,6 +25,7 @@ module Admin
       assert_includes response.body, "GA4/GSCまとめて再認証"
       assert_includes response.body, "接続済み"
       assert_includes response.body, "Googleと接続"
+      assert_includes response.body, "Business別設定を見る"
       assert_includes response.body, "Record ID"
       assert_includes response.body, "##{credential.id}"
       assert_includes response.body, "現在使用中"

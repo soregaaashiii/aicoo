@@ -31,6 +31,7 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "GSC 7日 / 30日"
     assert_includes response.body, "GA4 7日 / 30日"
     assert_includes response.body, "接続状態"
+    assert_includes response.body, "Google設定"
     assert_includes response.body, "Revenue 7日 / 30日"
     assert_includes response.body, "Data Source Cost"
     assert_includes response.body, "Pending Actions"
@@ -246,6 +247,7 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes response.body, "Google再認証"
+    assert_includes response.body, "Business別Google設定"
     assert_includes response.body, "GA4を再認証"
     assert_includes response.body, "GSCを再認証"
     assert_includes response.body, admin_analytics_oauth_connect_path(
@@ -253,6 +255,75 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
       business_name: @business.name,
       source: "ga4"
     ).gsub("&", "&amp;")
+  end
+
+  test "shows business google settings page" do
+    credential = AicooGoogleCredential.create!(
+      name: "吸えログGoogle認証",
+      client_id: "client",
+      client_secret: "secret",
+      refresh_token: "refresh-token",
+      connected_at: Time.current
+    )
+    AicooAnalyticsSite.create!(
+      business: @business,
+      name: @business.name,
+      public_url: "https://suelog.jp",
+      domain: "suelog.jp",
+      gsc_site_url: "sc-domain:suelog.jp",
+      ga4_property_id: "536889590",
+      authentication_mode: "shared"
+    )
+
+    get google_settings_business_url(@business)
+
+    assert_response :success
+    assert_includes response.body, "#{@business.name} のGoogle連携"
+    assert_includes response.body, "Google Credential"
+    assert_includes response.body, "GA4 Property ID"
+    assert_includes response.body, "GSC Site URL"
+    assert_includes response.body, "536889590"
+    assert_includes response.body, "sc-domain:suelog.jp"
+    assert_includes response.body, "GA4だけ再取得"
+    assert_includes response.body, "GSCだけ再取得"
+    assert_includes response.body, "GA4/GSCまとめて再取得"
+    assert_includes response.body, credential.name
+  end
+
+  test "updates business google settings and syncs analytics settings" do
+    credential = AicooGoogleCredential.create!(
+      name: "吸えログGoogle認証",
+      client_id: "client",
+      client_secret: "secret",
+      refresh_token: "refresh-token",
+      connected_at: Time.current
+    )
+
+    patch google_settings_business_url(@business), params: {
+      google_settings: {
+        google_credential_id: credential.id,
+        ga4_enabled: "1",
+        ga4_property_id: "536889590",
+        gsc_enabled: "1",
+        gsc_site_url: "sc-domain:suelog.jp"
+      }
+    }
+
+    assert_redirected_to google_settings_business_url(@business)
+    ga4_setting = @business.business_data_source_settings.find_by!(source_key: "ga4")
+    gsc_setting = @business.business_data_source_settings.find_by!(source_key: "gsc")
+    assert_equal "536889590", ga4_setting.connection_field_value("property_id")
+    assert_equal "sc-domain:suelog.jp", gsc_setting.connection_field_value("site_url")
+    assert_equal credential.id, ga4_setting.metadata["google_credential_id"]
+    assert_equal credential.id, gsc_setting.metadata["google_credential_id"]
+    assert_equal "linked", ga4_setting.connection_status
+    assert_equal "linked", gsc_setting.connection_status
+
+    site = AicooAnalyticsSite.where(business: @business).recent.first
+    assert_equal "536889590", site.ga4_property_id
+    assert_equal "sc-domain:suelog.jp", site.gsc_site_url
+    assert_equal credential, site.ga4_setting.google_credential
+    assert_equal credential, site.gsc_setting.google_credential
   end
 
   test "business index shows resource status" do

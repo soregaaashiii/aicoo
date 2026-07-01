@@ -1,0 +1,116 @@
+<% content_for :title, "#{@business.name} - Google連携" %>
+
+<% header_actions = capture do %>
+  <%= link_to "Business詳細へ戻る", business_path(@business, anchor: "business-google"), class: "button secondary" %>
+  <%= link_to "事業一覧に戻る", businesses_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "#{@business.name} のGoogle連携",
+             description: "このBusinessが使うGA4 Property / GSC Site / Google Credentialを個別に設定します。",
+             active_main: :revenue,
+             actions: header_actions %>
+  <%= render "navigation", business: @business, current_section: "Google" %>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <div>
+        <h2>現在の接続状態</h2>
+        <p>保存先はBusinessDataSourceSetting、取得用設定はAicooAnalyticsSite / AnalyticsSourceSettingへ同期されます。</p>
+      </div>
+    </div>
+
+    <div class="metric-grid">
+      <% [@ga4_connection_summary, @gsc_connection_summary].each do |summary| %>
+        <div class="metric-card">
+          <span><%= summary.label %>接続</span>
+          <strong><%= summary.status_label %></strong>
+          <small><%= summary.identifier.presence || "-" %></small>
+        </div>
+        <div class="metric-card">
+          <span><%= summary.label %>最終取得</span>
+          <strong><%= summary.last_fetched_at ? l(summary.last_fetched_at, format: :short) : "-" %></strong>
+          <small>取得件数: <%= summary.last_count %>件</small>
+        </div>
+      <% end %>
+      <div class="metric-card">
+        <span>Google Credential</span>
+        <strong><%= @google_credential&.name || "未設定" %></strong>
+        <small><%= @google_credential&.google_account_email.presence || @google_credential&.client_id.presence || "-" %></small>
+      </div>
+      <div class="metric-card">
+        <span>最後のエラー</span>
+        <% latest_error = [@ga4_connection_summary.last_error, @gsc_connection_summary.last_error].compact.first %>
+        <strong><%= latest_error.present? ? "あり" : "なし" %></strong>
+        <small><%= latest_error&.truncate(90) || "-" %></small>
+      </div>
+    </div>
+
+    <%= render "shared/google_reauth_actions", credential: @google_credential, business: @business, compact: true %>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <div>
+        <h2>Business個別Google設定</h2>
+        <p>吸えログなどBusinessごとに、使うPropertyとSiteをここで固定します。</p>
+      </div>
+    </div>
+
+    <%= form_with url: google_settings_business_path(@business), method: :patch, class: "aicoo-form" do %>
+      <div class="field">
+        <label>Google Credential</label>
+        <%= select_tag "google_settings[google_credential_id]",
+                       options_from_collection_for_select(@google_credentials, :id, :name, @google_credential&.id),
+                       include_blank: "AICOO共通Google認証を選択" %>
+      </div>
+
+      <div class="metric-grid">
+        <div class="aicoo-card aicoo-card-compact">
+          <h3>GA4</h3>
+          <label>
+            <%= hidden_field_tag "google_settings[ga4_enabled]", "0" %>
+            <%= check_box_tag "google_settings[ga4_enabled]", "1", @ga4_connection_summary.enabled %>
+            GA4を有効にする
+          </label>
+          <div class="field compact-field">
+            <label>GA4 Property ID</label>
+            <% ga4_options = @ga4_property_options + [[@ga4_connection_summary.identifier, @ga4_connection_summary.identifier]] if @ga4_connection_summary.identifier.present? && @ga4_property_options.none? { |_label, value| value == @ga4_connection_summary.identifier } %>
+            <% ga4_options ||= @ga4_property_options %>
+            <%= select_tag "google_settings[ga4_property_id]",
+                           options_for_select([["Propertyを選択", ""]] + ga4_options, @ga4_connection_summary.identifier),
+                           class: "input" %>
+          </div>
+        </div>
+
+        <div class="aicoo-card aicoo-card-compact">
+          <h3>GSC</h3>
+          <label>
+            <%= hidden_field_tag "google_settings[gsc_enabled]", "0" %>
+            <%= check_box_tag "google_settings[gsc_enabled]", "1", @gsc_connection_summary.enabled %>
+            GSCを有効にする
+          </label>
+          <div class="field compact-field">
+            <label>GSC Site URL</label>
+            <% gsc_options = @gsc_site_options + [[@gsc_connection_summary.identifier, @gsc_connection_summary.identifier]] if @gsc_connection_summary.identifier.present? && @gsc_site_options.none? { |_label, value| value == @gsc_connection_summary.identifier } %>
+            <% gsc_options ||= @gsc_site_options %>
+            <%= select_tag "google_settings[gsc_site_url]",
+                           options_for_select([["Siteを選択", ""]] + gsc_options, @gsc_connection_summary.identifier),
+                           class: "input" %>
+          </div>
+        </div>
+      </div>
+
+      <div class="actions compact-actions">
+        <%= submit_tag "設定保存", class: "button" %>
+      </div>
+    <% end %>
+
+    <div class="actions compact-actions">
+      <%= button_to "GA4だけ再取得", import_ga4_business_path(@business), method: :post, class: "button secondary" %>
+      <%= button_to "GSCだけ再取得", import_gsc_business_path(@business), method: :post, class: "button secondary" %>
+      <%= button_to "GA4/GSCまとめて再取得", import_google_api_business_path(@business), method: :post, class: "button secondary" %>
+    </div>
+  </section>
+</div>
