@@ -69,7 +69,12 @@ class AicooDailyRunsControllerTest < ActionDispatch::IntegrationTest
       finished_at: 1.minute.ago,
       duration_seconds: 60,
       error_message: "generation boom",
-      metadata: { generated_count: 0 }
+      metadata: {
+        generated_count: 0,
+        memory_start: { rss_mb: "128.0" },
+        memory_finish: { rss_mb: "141.5" },
+        memory_delta_mb: "13.5"
+      }
     )
     daily_run.aicoo_daily_run_steps.create!(
       step_name: "calibration",
@@ -155,6 +160,9 @@ class AicooDailyRunsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "結果登録待ち"
     assert_includes response.body, "売上登録待ち"
     assert_includes response.body, "Step Timeline"
+    assert_includes response.body, "メモリ"
+    assert_includes response.body, "128.0MB"
+    assert_includes response.body, "+13.5MB"
     assert_includes response.body, "action_generation"
     assert_includes response.body, "JSON"
     assert_includes response.body, "generation boom"

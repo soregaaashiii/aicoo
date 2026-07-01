@@ -529,7 +529,8 @@ class AicooDailyRunner
     run.aicoo_daily_run_steps.create!(
       step_name:,
       status: "running",
-      started_at: Time.current
+      started_at: Time.current,
+      metadata: { "memory_start" => memory_snapshot }.compact
     )
   end
 
@@ -539,8 +540,9 @@ class AicooDailyRunner
       status: "success",
       finished_at:,
       duration_seconds: step_duration(step, finished_at),
-      metadata: metadata
+      metadata: step_metadata_with_memory(step, metadata)
     )
+    compact_memory!
   end
 
   def fail_step!(step, error_message, metadata: {})
@@ -550,8 +552,9 @@ class AicooDailyRunner
       finished_at:,
       duration_seconds: step_duration(step, finished_at),
       error_message:,
-      metadata: metadata
+      metadata: step_metadata_with_memory(step, metadata)
     )
+    compact_memory!
   end
 
   def skip_step!(step, metadata: {})
@@ -560,14 +563,67 @@ class AicooDailyRunner
       status: "skipped",
       finished_at:,
       duration_seconds: step_duration(step, finished_at),
-      metadata: metadata
+      metadata: step_metadata_with_memory(step, metadata)
     )
+    compact_memory!
   end
 
   def step_duration(step, finished_at)
     return unless step.started_at
 
     finished_at - step.started_at
+  end
+
+  def step_metadata_with_memory(step, metadata)
+    merged = step.metadata.to_h.merge(metadata.deep_stringify_keys)
+    finish_memory = memory_snapshot
+    merged["memory_finish"] = finish_memory if finish_memory.present?
+    memory_delta = memory_delta_mb(merged)
+    merged["memory_delta_mb"] = memory_delta if memory_delta
+    merged
+  end
+
+  def memory_delta_mb(metadata)
+    start_mb = metadata.dig("memory_start", "rss_mb")
+    finish_mb = metadata.dig("memory_finish", "rss_mb")
+    return if start_mb.blank? || finish_mb.blank?
+
+    (finish_mb.to_d - start_mb.to_d).round(1).to_s
+  end
+
+  def memory_snapshot
+    rss_kb = current_rss_kb
+    return {} unless rss_kb
+
+    {
+      "rss_mb" => (rss_kb.to_d / 1024).round(1).to_s,
+      "sampled_at" => Time.current.iso8601
+    }
+  end
+
+  def current_rss_kb
+    linux_rss_kb || ps_rss_kb
+  rescue StandardError => e
+    Rails.logger.debug("AICOO Daily Run memory sampling skipped: #{e.class}: #{e.message}")
+    nil
+  end
+
+  def linux_rss_kb
+    return unless File.exist?("/proc/self/status")
+
+    line = File.foreach("/proc/self/status").find { |item| item.start_with?("VmRSS:") }
+    line.to_s[/\d+/]&.to_i
+  end
+
+  def ps_rss_kb
+    output = IO.popen([ "ps", "-o", "rss=", "-p", Process.pid.to_s ], &:read)
+    output.to_s.strip.presence&.to_i
+  end
+
+  def compact_memory!
+    return if ENV["AICOO_DAILY_RUN_GC_BETWEEN_STEPS"] == "false"
+
+    GC.start
   end
 
   def retry_count_for_today

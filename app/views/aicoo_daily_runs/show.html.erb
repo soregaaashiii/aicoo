@@ -218,6 +218,7 @@
             <th>開始時刻</th>
             <th>終了時刻</th>
             <th>実行時間</th>
+            <th>メモリ</th>
             <th>理由</th>
             <th>error_message</th>
             <th>metadata</th>
@@ -233,6 +234,7 @@
               <td><%= row.started_at ? l(row.started_at, format: :short) : "-" %></td>
               <td><%= row.finished_at ? l(row.finished_at, format: :short) : "-" %></td>
               <td class="number"><%= row.duration_label %></td>
+              <td class="number"><%= row.memory_label %></td>
               <td><%= row.reason %></td>
               <td><%= truncate(row.error_message.to_s.presence || "-", length: 120) %></td>
               <td>
@@ -271,7 +273,7 @@
             </tr>
           <% end %>
           <% if @daily_run_history.step_rows.empty? %>
-            <tr><td colspan="9">このDaily RunにはStep Timelineがまだありません。</td></tr>
+            <tr><td colspan="10">このDaily RunにはStep Timelineがまだありません。</td></tr>
           <% end %>
         </tbody>
       </table>

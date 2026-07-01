@@ -205,6 +205,24 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
     end
   end
 
+  test "stores memory samples in daily run step metadata" do
+    order = []
+    target_date = Date.new(2026, 6, 21)
+    adjuster = fake_adjuster(order)
+    generator_result = MetricActionCandidateGenerator::Result.new(created: [ Object.new ], skipped: [])
+
+    with_method_stub(AicooDailyRunner, :current_rss_kb, -> { 128 * 1024 }) do
+      stub_daily_steps(order:, adjuster:, generator_results: [ generator_result ], evaluated_results: []) do
+        run = AicooDailyRunner.run!(target_date:, source: "cron")
+        step = run.aicoo_daily_run_steps.find_by!(step_name: "action_generation")
+
+        assert_equal "128.0", step.metadata.dig("memory_start", "rss_mb")
+        assert_equal "128.0", step.metadata.dig("memory_finish", "rss_mb")
+        assert_equal "0.0", step.metadata.fetch("memory_delta_mb")
+      end
+    end
+  end
+
   test "unknown analytics failures still mark daily run as partial failed" do
     order = []
     target_date = Date.new(2026, 6, 21)

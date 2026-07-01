@@ -8,6 +8,7 @@ module Aicoo
       :started_at,
       :finished_at,
       :duration_label,
+      :memory_label,
       :reason,
       :error_message,
       :metadata
@@ -68,6 +69,7 @@ module Aicoo
           started_at: step.started_at,
           finished_at: step.finished_at,
           duration_label: duration_label(step.started_at, step.finished_at, step.duration_seconds),
+          memory_label: memory_label(step.metadata.to_h),
           reason: reason_for(step),
           error_message: step.error_message,
           metadata: step.metadata.to_h
@@ -189,6 +191,24 @@ module Aicoo
       hours = minutes / 60
       remaining_minutes = minutes % 60
       "#{hours}時間#{remaining_minutes}分"
+    end
+
+    def memory_label(metadata)
+      start_mb = metadata.dig("memory_start", "rss_mb")
+      finish_mb = metadata.dig("memory_finish", "rss_mb")
+      delta_mb = metadata["memory_delta_mb"]
+      return "-" if start_mb.blank? && finish_mb.blank?
+      return "#{start_mb}MB → 実行中" if finish_mb.blank?
+
+      delta_label = delta_mb.present? ? " / #{signed_delta(delta_mb)}MB" : ""
+      "#{start_mb || '-'}MB → #{finish_mb}MB#{delta_label}"
+    end
+
+    def signed_delta(delta_mb)
+      value = delta_mb.to_d
+      return value.to_s if value.negative? || value.zero?
+
+      "+#{value}"
     end
 
     def calculated_duration(started_at, finished_at)
