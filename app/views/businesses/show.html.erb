@@ -1350,6 +1350,12 @@
     <p>AICOO共通Google認証またはBusiness個別設定を使い、GA4/GSC APIからBusinessMetricDailyへ直接保存します。</p>
   </div>
 
+  <div class="aicoo-card aicoo-card-compact">
+    <h3>Google再認証</h3>
+    <p>GA4/GSCのRefresh Tokenが期限切れ・失効した場合は、このBusinessに紐づく設定をここから復旧します。</p>
+    <%= render "shared/google_reauth_actions", credential: @google_credential, business: @business, compact: true %>
+  </div>
+
   <% google_api_run = @google_api_import_run %>
   <div class="metric-grid">
     <div class="metric-card">

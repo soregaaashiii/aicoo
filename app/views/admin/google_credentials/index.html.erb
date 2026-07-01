@@ -2,7 +2,7 @@
 
 <% header_actions = capture do %>
   <% if @current_credential.present? %>
-    <%= link_to "Googleと接続", connect_admin_google_credential_path(@current_credential), class: "button" %>
+    <%= link_to "GA4/GSCまとめて再認証", admin_analytics_oauth_connect_path(google_credential_id: @current_credential.id), class: "button" %>
   <% end %>
   <%= link_to "サイト別分析設定", admin_analytics_sites_path, class: "button secondary" %>
 <% end %>
@@ -13,6 +13,29 @@
              description: "GSC/GA4取得に使うAICOO共通のGoogle認証を管理します。各サイトにはsite_url / property_idだけを設定します。",
              active_main: :datahub,
              actions: header_actions %>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <div>
+        <h2>Google連携の復旧</h2>
+        <p>Google認証が切れた時はここから再認証します。履歴からOAuth URLを探す必要はありません。</p>
+      </div>
+    </div>
+
+    <%= render "shared/google_reauth_actions", credential: @current_credential %>
+
+    <div class="aicoo-card-grid">
+      <% @google_oauth_recovery_statuses.each do |status| %>
+        <div class="system-status-card status-<%= status.invalid_grant? || status.status == "missing" ? "critical" : (status.status == "expired" ? "warning" : "healthy") %>">
+          <p><span class="system-status-pill status-<%= status.invalid_grant? || status.status == "missing" ? "critical" : (status.status == "expired" ? "warning" : "success") %>"><%= status.status %></span></p>
+          <h3><%= status.label %></h3>
+          <p>last_success_at: <%= status.last_success_at ? l(status.last_success_at, format: :short) : "-" %></p>
+          <p>last_error: <%= status.last_error.present? ? status.last_error.truncate(120) : "-" %></p>
+          <p>latest_run: <%= status.latest_run ? "##{status.latest_run.id} #{status.latest_run.status}" : "-" %></p>
+        </div>
+      <% end %>
+    </div>
+  </section>
 
   <section class="dashboard-section">
     <div class="section-heading">

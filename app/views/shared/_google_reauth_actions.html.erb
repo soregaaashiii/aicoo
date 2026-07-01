@@ -1,0 +1,24 @@
+<% credential = local_assigns[:credential] %>
+<% business = local_assigns[:business] %>
+<% compact = local_assigns.fetch(:compact, false) %>
+<% base_params = {} %>
+<% base_params[:google_credential_id] = credential.id if credential&.persisted? %>
+<% base_params[:business_name] = business.name if business.present? %>
+
+<div class="actions <%= compact ? "compact-actions" : "" %>">
+  <% if credential&.persisted? %>
+    <%= link_to "GA4を再認証",
+                admin_analytics_oauth_connect_path(base_params.merge(source: "ga4")),
+                class: "button" %>
+    <%= link_to "GSCを再認証",
+                admin_analytics_oauth_connect_path(base_params.merge(source: "gsc")),
+                class: "button secondary" %>
+    <%= link_to "GA4/GSCまとめて再認証",
+                admin_analytics_oauth_connect_path(base_params),
+                class: "button secondary" %>
+  <% else %>
+    <%= link_to "Google認証を設定",
+                admin_google_credentials_path,
+                class: "button" %>
+  <% end %>
+</div>

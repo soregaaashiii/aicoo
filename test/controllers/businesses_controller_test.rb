@@ -233,6 +233,28 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Codexへ送る"
   end
 
+  test "business google section shows reauthentication actions" do
+    credential = AicooGoogleCredential.create!(
+      name: "AICOO共通Google認証",
+      client_id: "client",
+      client_secret: "secret",
+      refresh_token: "refresh-token",
+      connected_at: Time.current
+    )
+
+    get business_url(@business)
+
+    assert_response :success
+    assert_includes response.body, "Google再認証"
+    assert_includes response.body, "GA4を再認証"
+    assert_includes response.body, "GSCを再認証"
+    assert_includes response.body, admin_analytics_oauth_connect_path(
+      google_credential_id: credential.id,
+      business_name: @business.name,
+      source: "ga4"
+    ).gsub("&", "&amp;")
+  end
+
   test "business index shows resource status" do
     @business.update!(resource_status: "watch", next_review_on: Date.current + 30.days)
 

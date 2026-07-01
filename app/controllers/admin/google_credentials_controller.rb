@@ -5,6 +5,7 @@ module Admin
     def index
       @credentials = AicooGoogleCredential.recent.to_a.each(&:reload)
       @current_credential = AicooGoogleCredential.default&.reload
+      @google_oauth_recovery_statuses = Aicoo::GoogleOauthRecoveryStatus.new(credential: @current_credential).call
       log_google_credential_display_event!
       @credential = AicooGoogleCredential.new(name: "AICOO共通Google認証", enabled: true)
     end

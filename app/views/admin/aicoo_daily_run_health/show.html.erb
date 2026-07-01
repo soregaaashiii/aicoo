@@ -42,6 +42,14 @@
         <%= link_to "ENV診断", aicoo_setting_path, class: "button secondary" %>
       </div>
 
+      <% if @cron_health.warnings.any? { |warning| warning.title.to_s.match?(/Google|OAuth|API/) || warning.message.to_s.match?(/Google|OAuth|GA4|GSC|invalid_grant/i) } %>
+        <div class="aicoo-card aicoo-card-compact">
+          <h3>Google APIエラーの復旧</h3>
+          <p>Google OAuth / GA4 / GSC の失敗は、ここから再認証できます。</p>
+          <%= render "shared/google_reauth_actions", credential: @google_credential, compact: true %>
+        </div>
+      <% end %>
+
       <% if @cron_health.recoverable_steps.any? %>
         <div class="aicoo-card aicoo-card-compact">
           <h3>安全に再実行できるStep</h3>

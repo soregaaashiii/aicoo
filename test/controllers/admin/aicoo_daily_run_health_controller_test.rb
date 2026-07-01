@@ -25,6 +25,13 @@ module Admin
     end
 
     test "shows cron health dashboard with latest run steps and history" do
+      credential = AicooGoogleCredential.create!(
+        name: "AICOO共通Google認証",
+        client_id: "client",
+        client_secret: "secret",
+        refresh_token: "refresh-token",
+        connected_at: Time.current
+      )
       daily_run = AicooDailyRun.create!(
         target_date: Date.yesterday,
         status: "partial_failed",
@@ -54,6 +61,12 @@ module Admin
       assert_includes response.body, "過去30件のDaily Run"
       assert_includes response.body, "analytics_fetch"
       assert_includes response.body, "Google APIエラー"
+      assert_includes response.body, "Google APIエラーの復旧"
+      assert_includes response.body, "GA4を再認証"
+      assert_includes response.body, admin_analytics_oauth_connect_path(
+        google_credential_id: credential.id,
+        source: "ga4"
+      ).gsub("&", "&amp;")
       assert_includes response.body, "Render Cron"
       assert_includes response.body, aicoo_daily_run_path(daily_run)
     end

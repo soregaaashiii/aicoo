@@ -19,6 +19,10 @@ module Admin
 
       assert_response :success
       assert_includes response.body, "Google認証一覧"
+      assert_includes response.body, "Google連携の復旧"
+      assert_includes response.body, "GA4を再認証"
+      assert_includes response.body, "GSCを再認証"
+      assert_includes response.body, "GA4/GSCまとめて再認証"
       assert_includes response.body, "接続済み"
       assert_includes response.body, "Googleと接続"
       assert_includes response.body, "Record ID"

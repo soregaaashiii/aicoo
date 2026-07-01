@@ -65,6 +65,29 @@ module Admin
       end
     end
 
+    test "callback can reauthenticate only ga4 settings for selected business" do
+      gsc = create_gsc_setting(name: "吸えログ GSC", site_url: "sc-domain:suelog.jp")
+      ga4 = create_ga4_setting(name: "吸えログ GA4", property_id: "536889590")
+      credential = AicooGoogleCredential.create!(
+        name: "AICOO共通Google認証",
+        client_id: "client",
+        client_secret: "secret",
+        refresh_token: "old-refresh"
+      )
+
+      get admin_analytics_oauth_connect_url,
+          params: { google_credential_id: credential.id, business_name: "吸えログ", source: "ga4" }
+
+      with_oauth_exchange(refresh_token: "new-refresh-token") do
+        get admin_analytics_oauth_callback_url, params: { code: "auth-code", state: "吸えログ" }
+      end
+
+      assert_redirected_to admin_google_credentials_url
+      assert_nil gsc.reload.google_credential
+      assert_equal credential.reload, ga4.reload.google_credential
+      assert_equal "new-refresh-token", credential.refresh_token
+    end
+
     test "callback persists remembered saved google credential values and reloads db state" do
       credential = AicooGoogleCredential.create!(
         name: "AICOO共通Google認証",

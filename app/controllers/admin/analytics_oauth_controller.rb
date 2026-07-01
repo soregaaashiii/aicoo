@@ -11,13 +11,14 @@ module Admin
       end
 
       state = params[:business_name].presence
+      source_key = oauth_source_key
       authorization_uri = AicooAnalytics::GoogleOauthAuthorization.authorization_uri(
         client_id: credentials[:client_id],
         redirect_uri: admin_analytics_oauth_callback_url,
         state:
       )
-      remember_oauth_credentials!(credentials, state, credential)
-      log_oauth_start!(credential:, credentials:, authorization_uri:, state:)
+      remember_oauth_credentials!(credentials, state, credential, source_key)
+      log_oauth_start!(credential:, credentials:, authorization_uri:, state:, source_key:)
       flash[:notice] = oauth_start_debug_message(authorization_uri)
       redirect_to authorization_uri.to_s, allow_other_host: true
     end
@@ -29,7 +30,8 @@ module Admin
         error: params[:error].presence,
         state: params[:state].presence,
         session_credential_id: session[:analytics_oauth_google_credential_id].presence,
-        session_client_id: session[:analytics_oauth_client_id].presence
+        session_client_id: session[:analytics_oauth_client_id].presence,
+        session_source_key: session[:analytics_oauth_source_key].presence
       )
 
       if params[:error].present?
@@ -44,7 +46,7 @@ module Admin
         return
       end
 
-      settings = target_settings(params[:state].presence)
+      settings = target_settings(params[:state].presence, oauth_source_key_from_session)
       google_credential = target_google_credential_from_session
       credentials = oauth_credentials(google_credential)
       log_oauth_callback_event!(
@@ -56,7 +58,8 @@ module Admin
         credential_project_number_before: google_credential.oauth_project_number,
         credentials_client_id: credentials[:client_id],
         credentials_project_id: credentials[:google_cloud_project_id],
-        settings_count: settings.size
+        settings_count: settings.size,
+        source_key: oauth_source_key_from_session
       )
       token_response = AicooAnalytics::GoogleOauthAuthorization.exchange_code(
         code: params[:code],
@@ -95,8 +98,9 @@ module Admin
 
     private
 
-    def target_settings(business_name = params[:business_name].presence)
+    def target_settings(business_name = params[:business_name].presence, source_key = oauth_source_key)
       scope = AnalyticsSourceSetting.where(source_type: %w[gsc ga4])
+      scope = scope.where(source_type: source_key) if source_key.in?(%w[gsc ga4])
       return scope.to_a if business_name.blank?
 
       scope.select { |setting| business_name_for(setting.name) == business_name }
@@ -222,11 +226,16 @@ module Admin
       )
     end
 
-    def remember_oauth_credentials!(credentials, business_name, google_credential)
+    def remember_oauth_credentials!(credentials, business_name, google_credential, source_key)
       session[:analytics_oauth_client_id] = credentials[:client_id]
       session[:analytics_oauth_client_secret] = credentials[:client_secret]
       session[:analytics_oauth_google_cloud_project_id] = credentials[:google_cloud_project_id]
       session[:analytics_oauth_business_name] = business_name
+      if source_key.present?
+        session[:analytics_oauth_source_key] = source_key
+      else
+        session.delete(:analytics_oauth_source_key)
+      end
       session[:analytics_oauth_google_credential_id] = google_credential.id if google_credential.persisted?
     end
 
@@ -245,10 +254,11 @@ module Admin
       session.delete(:analytics_oauth_client_secret)
       session.delete(:analytics_oauth_google_cloud_project_id)
       session.delete(:analytics_oauth_business_name)
+      session.delete(:analytics_oauth_source_key)
       session.delete(:analytics_oauth_google_credential_id)
     end
 
-    def log_oauth_start!(credential:, credentials:, authorization_uri:, state:)
+    def log_oauth_start!(credential:, credentials:, authorization_uri:, state:, source_key:)
       query = Rack::Utils.parse_nested_query(authorization_uri.query)
       Rails.logger.info(
         [
@@ -260,6 +270,7 @@ module Admin
           "access_type=#{query['access_type']}",
           "prompt=#{query['prompt']}",
           "state=#{state.presence || 'blank'}",
+          "source=#{source_key.presence || 'all'}",
           "oauth_url=#{authorization_uri}",
           "test_user_check=OAuth同意画面がテストモードの場合は利用するGoogleアカウントをテストユーザーに追加してください"
         ].join(" ")
@@ -350,6 +361,15 @@ module Admin
 
     def business_name_for(name)
       name.to_s.strip.sub(/\s*(GSC|GA4)\z/i, "").strip
+    end
+
+    def oauth_source_key
+      source = params[:source].presence&.to_s
+      source.in?(%w[gsc ga4]) ? source : nil
+    end
+
+    def oauth_source_key_from_session
+      session[:analytics_oauth_source_key].presence
     end
   end
 end
