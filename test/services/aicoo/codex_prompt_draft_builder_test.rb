@@ -74,6 +74,31 @@ module Aicoo
       assert_equal "aicoo_internal", draft.metadata.dig("codex_execution_target", "execution_type")
     end
 
+    test "external execution profile overrides aicoo created business internal target" do
+      business = businesses(:suelog)
+      business.update!(created_by_aicoo: true, project_key: nil, local_project_path: nil, repository_name: nil)
+      BusinessExecutionProfile.create!(
+        business:,
+        execution_type: "external_repo",
+        repository_name: "suelog",
+        github_repository: "soregaaashiii/suelog",
+        repository_path: "/Users/example/suelog",
+        test_command: "bin/rails test",
+        default_branch: "main"
+      )
+      candidate = action_candidates(:nagazakicho_article)
+
+      draft = CodexPromptDraftBuilder.new(candidate).call
+
+      assert_equal "suelog", draft.project_key
+      assert_equal "/Users/example/suelog", draft.local_project_path
+      assert_includes draft.prompt_body, "execution_type: external_repo"
+      assert_includes draft.prompt_body, "github_repo: soregaaashiii/suelog"
+      assert_includes draft.prompt_body, "local_project_path: /Users/example/suelog"
+      assert_includes draft.prompt_body, "external_repo: 別サービスのリポジトリを対象にする"
+      assert_equal "external_repo", draft.metadata.dig("codex_execution_target", "execution_type")
+    end
+
     test "creates draft without project settings" do
       business = businesses(:suelog)
       business.update!(project_key: nil, local_project_path: nil, repository_name: nil)

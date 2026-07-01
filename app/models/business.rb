@@ -69,6 +69,8 @@ class Business < ApplicationRecord
   end
 
   def aicoo_internal_codex?
+    return false if business_execution_profile&.execution_type == "external_repo"
+
     created_by_aicoo?
   end
 
@@ -219,7 +221,7 @@ class Business < ApplicationRecord
     end
 
     {
-      execution_type: profile&.execution_type.presence || "aicoo_internal",
+      execution_type: profile&.execution_type.presence || "external_repo",
       github_repo: profile&.github_repo.presence || repository_name.presence,
       local_project_path: profile&.local_project_path.presence || local_project_path.presence,
       target_slug: profile&.target_slug.presence,
