@@ -188,6 +188,7 @@ Rails.application.routes.draw do
     post "google_api_imports/:business_id", to: "google_api_imports#create", as: :google_api_import
     get "execution_runs", to: "execution_runs#index", as: :execution_runs
     get "execution_runs/:id", to: "execution_runs#show", as: :execution_run
+    resources :external_commit_imports, only: %i[new create]
     get "cron_health", to: "aicoo_daily_run_health#show", as: :cron_health
     get "aicoo_daily_run_health", to: "aicoo_daily_run_health#show", as: :aicoo_daily_run_health
     get "pipeline_e2e_check", to: "pipeline_e2e_checks#show", as: :pipeline_e2e_check

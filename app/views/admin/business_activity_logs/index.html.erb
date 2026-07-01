@@ -1,10 +1,15 @@
 <% content_for :title, "Activity Logs" %>
 
+<% header_actions = capture do %>
+  <%= link_to "外部commitを取り込む", new_admin_external_commit_import_path, class: "button" %>
+<% end %>
+
 <div class="aicoo-page">
   <%= render "shared/aicoo_header",
              title: "Activity Logs",
              description: "各サービスで発生した作業・公開・更新を学習データとして確認します。",
-             active_main: :learning %>
+             active_main: :learning,
+             actions: header_actions %>
 
   <section class="dashboard-section">
     <div class="section-heading">

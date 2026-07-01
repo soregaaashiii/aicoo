@@ -4,6 +4,14 @@
   <%= link_to "一覧", auto_revision_tasks_path, class: "button secondary" %>
   <%= link_to "Codex Queue", codex_queue_auto_revision_tasks_path, class: "button secondary" %>
   <%= link_to "ActionCandidate", @auto_revision_task.action_candidate, class: "button secondary" %>
+  <%= link_to "外部commitを取り込む",
+              new_admin_external_commit_import_path(
+                business_id: @auto_revision_task.business_id,
+                action_candidate_id: @auto_revision_task.action_candidate_id,
+                auto_revision_task_id: @auto_revision_task.id,
+                repository: @auto_revision_task.execution_profile&.github_repository
+              ),
+              class: "button secondary" %>
   <% if %w[draft waiting_approval].include?(@auto_revision_task.status) %>
     <%= button_to "承認", approve_auto_revision_task_path(@auto_revision_task), method: :patch, class: "button", data: { turbo_confirm: "#{@auto_revision_task.risk_level} riskの改修タスクを承認しますか？" } %>
   <% end %>

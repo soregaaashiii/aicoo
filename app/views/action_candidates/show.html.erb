@@ -25,6 +25,12 @@
     <% else %>
       <%= link_to "実行結果を記録", new_action_result_path(action_result: { action_candidate_id: @action_candidate.id }), class: "button secondary" %>
     <% end %>
+    <%= link_to "外部commitを取り込む",
+                new_admin_external_commit_import_path(
+                  business_id: @action_candidate.business_id,
+                  action_candidate_id: @action_candidate.id
+                ),
+                class: "button secondary" %>
     <%= link_to "実行差分を記録", new_action_execution_log_path(action_candidate_id: @action_candidate.id), class: "button secondary" %>
     <%= link_to "売上/費用を登録", new_revenue_event_path(revenue_event: { action_candidate_id: @action_candidate.id }), class: "button secondary" %>
     <% if @action_candidate.status == "approved" %>

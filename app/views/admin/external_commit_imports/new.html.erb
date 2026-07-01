@@ -1,0 +1,98 @@
+<% content_for :title, "外部commit取り込み" %>
+
+<% header_actions = capture do %>
+  <%= link_to "Activity Logs", admin_business_activity_logs_path, class: "button secondary" %>
+  <%= link_to "Action Results", action_results_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "外部commit取り込み",
+             description: "AICOO外で直接pushした改修を、ActionResult・Activity Log・AutoRevisionTaskへ戻します。",
+             active_main: :learning,
+             actions: header_actions %>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <div>
+        <h2>このcommitをAICOOへ戻す</h2>
+        <p>直接改修した内容を、AICOOの学習データとして取り込みます。同じcommitは重複取り込みされません。</p>
+      </div>
+    </div>
+
+    <%= form_with url: admin_external_commit_imports_path, scope: :external_commit_import, local: true, class: "form" do |form| %>
+      <div class="grid">
+        <div class="field">
+          <%= form.label :business_id, "Business" %>
+          <%= form.collection_select :business_id, @businesses, :id, :name,
+                                     { selected: @business&.id, include_blank: "選択してください" } %>
+        </div>
+
+        <div class="field">
+          <%= form.label :action_candidate_id, "ActionCandidate ID" %>
+          <%= form.number_field :action_candidate_id, value: @action_candidate&.id, required: true %>
+        </div>
+
+        <div class="field">
+          <%= form.label :auto_revision_task_id, "AutoRevisionTask ID（任意）" %>
+          <%= form.number_field :auto_revision_task_id, value: @auto_revision_task&.id %>
+        </div>
+
+        <div class="field">
+          <%= form.label :repository, "Repository" %>
+          <%= form.text_field :repository,
+                              value: params[:repository].presence || @business&.business_execution_profile&.github_repository,
+                              placeholder: "例: soregaaashiii/suelog" %>
+        </div>
+
+        <div class="field">
+          <%= form.label :commit_sha, "commit SHA" %>
+          <%= form.text_field :commit_sha, value: params[:commit_sha], required: true, placeholder: "例: bcc4a2c" %>
+        </div>
+
+        <div class="field">
+          <%= form.label :executed_at, "実行日時" %>
+          <%= form.datetime_field :executed_at, value: Time.current.strftime("%Y-%m-%dT%H:%M") %>
+        </div>
+
+        <div class="field">
+          <%= form.label :actual_revenue_yen, "実績売上（任意）" %>
+          <%= form.number_field :actual_revenue_yen, value: 0, step: 1 %>
+        </div>
+
+        <div class="field">
+          <%= form.label :actual_profit_yen, "実績利益（任意）" %>
+          <%= form.number_field :actual_profit_yen, value: 0, step: 1 %>
+        </div>
+      </div>
+
+      <div class="field">
+        <%= form.label :changed_files, "変更ファイル（1行1ファイル）" %>
+        <%= form.textarea :changed_files,
+                          rows: 5,
+                          value: params[:changed_files],
+                          placeholder: "app/views/shops/show.html.erb&#10;app/views/shared/_shop_cards.html.erb" %>
+      </div>
+
+      <div class="field">
+        <%= form.label :result_summary, "実施内容" %>
+        <%= form.textarea :result_summary,
+                          rows: 5,
+                          value: params[:result_summary],
+                          placeholder: "店舗詳細ページのCV導線を改善。電話・地図・予約導線をファーストビューと来店前確認セクションに追加。" %>
+      </div>
+
+      <div class="field">
+        <%= form.label :test_result, "確認結果" %>
+        <%= form.textarea :test_result,
+                          rows: 3,
+                          value: params[:test_result],
+                          placeholder: "git diff --check OK。Railsテストは依存gem不足で未実行。" %>
+      </div>
+
+      <div class="actions">
+        <%= form.submit "AICOOへ取り込む", class: "button" %>
+      </div>
+    <% end %>
+  </section>
+</div>
