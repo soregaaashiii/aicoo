@@ -65,6 +65,27 @@
     </dl>
   </section>
 
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>AutoRevisionTask</h2>
+      <p>このCodex送信の元になった改修タスクです。</p>
+    </div>
+    <dl class="detail-list">
+      <dt>Task ID</dt>
+      <dd><%= link_to "##{task.id}", task %></dd>
+      <dt>タイトル</dt>
+      <dd><%= task.title %></dd>
+      <dt>状態</dt>
+      <dd><%= task.status %></dd>
+      <dt>Risk</dt>
+      <dd><%= task.risk_level %></dd>
+      <dt>優先度</dt>
+      <dd><%= number_with_delimiter(task.priority_score.to_i) %></dd>
+      <dt>対象Business</dt>
+      <dd><%= link_to task.business.name, task.business %></dd>
+    </dl>
+  </section>
+
   <% if @codex_submission.error_message.present? %>
     <section class="dashboard-section danger">
       <div class="section-heading">
@@ -80,6 +101,14 @@
       <p>Codex Cloudへ渡す最終プロンプトです。</p>
     </div>
     <textarea readonly rows="34" class="code-textarea"><%= @codex_submission.prompt %></textarea>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Response Payload</h2>
+      <p>Codex Cloud API連携後のレスポンスや手動記録を保存します。</p>
+    </div>
+    <pre class="code-block"><%= JSON.pretty_generate(@codex_submission.response_payload.presence || {}) %></pre>
   </section>
 
   <section class="dashboard-section">

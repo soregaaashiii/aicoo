@@ -46,6 +46,29 @@ module Admin
       assert_includes response.body, @business.name
       assert_includes response.body, @submission.project_folder
       assert_includes response.body, @task.title
+      assert_includes response.body, "Risk"
+    end
+
+    test "index filters by risk" do
+      high_candidate = ActionCandidate.create!(
+        business: @business,
+        title: "高リスクCodex送信テスト",
+        status: "approved",
+        action_type: "ui_improvement",
+        immediate_value_yen: 10_000,
+        success_probability: 0.5,
+        expected_hours: 1,
+        execution_prompt: "migrationを含む変更を検討してください。"
+      )
+      high_task = AutoRevisionTask.from_action_candidate(high_candidate)
+      high_task.update!(risk_level: "high")
+      Aicoo::CodexSubmissionBuilder.new(high_task, force: true).call
+
+      get admin_codex_submissions_url(risk: "low")
+
+      assert_response :success
+      assert_includes response.body, @task.title
+      assert_not_includes response.body, high_task.title
     end
 
     test "show displays execution profile and prompt" do
@@ -54,6 +77,8 @@ module Admin
       assert_response :success
       assert_includes response.body, "Codex送信詳細"
       assert_includes response.body, "Execution Profile"
+      assert_includes response.body, "AutoRevisionTask"
+      assert_includes response.body, "Response Payload"
       assert_includes response.body, @profile.codex_project_folder
       assert_includes response.body, "main直接pushは禁止"
     end

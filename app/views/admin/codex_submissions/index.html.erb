@@ -15,7 +15,7 @@
   <section class="dashboard-section">
     <div class="section-heading">
       <h2>絞り込み</h2>
-      <p>status、Business、作業フォルダで送信待ちを確認します。</p>
+      <p>status、Business、作業フォルダ、riskで送信待ちを確認します。</p>
     </div>
     <%= form_with url: admin_codex_submissions_path, method: :get, class: "inline-form", data: { turbo: false } do |form| %>
       <div class="field compact-field">
@@ -29,6 +29,10 @@
       <div class="field compact-field">
         <%= form.label :project_folder, "Codex作業フォルダ" %>
         <%= form.text_field :project_folder, value: @project_folder, placeholder: "例: suelog" %>
+      </div>
+      <div class="field compact-field">
+        <%= form.label :risk, "Risk" %>
+        <%= form.select :risk, options_for_select([ [ "すべて", "" ] ] + AutoRevisionTask::RISK_LEVELS.map { |risk| [ risk, risk ] }, @risk_filter) %>
       </div>
       <%= form.submit "絞り込む", class: "button secondary" %>
     <% end %>

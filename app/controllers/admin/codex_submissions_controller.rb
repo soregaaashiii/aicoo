@@ -6,6 +6,7 @@ module Admin
       @status_filter = params[:status].presence
       @business_id = params[:business_id].presence
       @project_folder = params[:project_folder].presence
+      @risk_filter = params[:risk].presence
       @codex_submissions = filtered_scope
         .includes(:business, :auto_revision_task, :business_execution_profile)
         .recent
@@ -41,6 +42,9 @@ module Admin
       scope = scope.where(status: @status_filter) if @status_filter.present? && @status_filter.in?(CodexSubmission::STATUSES)
       scope = scope.where(business_id: @business_id) if @business_id.present?
       scope = scope.where(project_folder: @project_folder) if @project_folder.present?
+      if @risk_filter.present? && @risk_filter.in?(AutoRevisionTask::RISK_LEVELS)
+        scope = scope.joins(:auto_revision_task).where(auto_revision_tasks: { risk_level: @risk_filter })
+      end
       scope
     end
   end
