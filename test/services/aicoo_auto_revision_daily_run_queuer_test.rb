@@ -58,6 +58,9 @@ class AicooAutoRevisionDailyRunQueuerTest < ActiveSupport::TestCase
 
     assert_equal 0, result.queue_run.generated_tasks_count
     assert_equal 0, AutoRevisionTask.count
+    assert_equal "all_candidates_skipped", result.queue_run.metadata.fetch("reason")
+    assert_includes result.queue_run.metadata.fetch("message"), "スコア不足"
+    assert_equal "below_minimum_final_score", result.queue_run.metadata.fetch("skipped_reasons").first.fetch("reason")
   end
 
   test "reports high risk candidates and keeps them as manual proposals" do

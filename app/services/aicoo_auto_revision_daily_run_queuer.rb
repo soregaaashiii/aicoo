@@ -21,6 +21,10 @@ class AicooAutoRevisionDailyRunQueuer
       high_risk_candidates_count: result.high_risk_candidates.size,
       executed_at: Time.current,
       metadata: {
+        "reason" => queue_reason(result),
+        "message" => queue_message(result),
+        "candidate_count" => result.candidate_count,
+        "skipped_reasons" => result.skipped_reasons.first(20),
         "created_task_ids" => result.created_tasks.map(&:id),
         "auto_revision_run_log_ids" => result.logs.map(&:id),
         "auto_revision_mode_counts" => result.logs.group_by(&:auto_revision_mode).transform_values(&:size),
@@ -34,5 +38,28 @@ class AicooAutoRevisionDailyRunQueuer
     setting.update!(last_auto_queue_at: queue_run.executed_at)
 
     Result.new(ran: true, queue_run:, reason: "created")
+  end
+
+  private
+
+  def queue_reason(result)
+    return "created_tasks" if result.created_count.positive?
+    return "no_eligible_candidates" if result.candidate_count.zero?
+    return "all_candidates_skipped" if result.skipped_count.positive?
+
+    "no_auto_revision_tasks_generated"
+  end
+
+  def queue_message(result)
+    case queue_reason(result)
+    when "created_tasks"
+      "AutoRevisionTaskを#{result.created_count}件生成しました。"
+    when "no_eligible_candidates"
+      "AutoRevision Queueは実行されましたが、対象ステータス・実行プロンプト・スコア条件を満たすActionCandidateがありませんでした。"
+    when "all_candidates_skipped"
+      "AutoRevision Queueは実行されましたが、候補はすべてスコア不足または既存タスクありでスキップされました。"
+    else
+      "AutoRevision Queueは実行されましたが、生成件数は0件でした。"
+    end
   end
 end

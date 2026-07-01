@@ -3,6 +3,18 @@ class MetricActionCandidateGenerator
     def created_count
       created.size
     end
+
+    def skipped_count
+      skipped.size
+    end
+
+    def diagnostics
+      {
+        "created_count" => created_count,
+        "skipped_count" => skipped_count,
+        "skipped_reasons" => skipped
+      }
+    end
   end
 
   CandidateSpec = Data.define(
@@ -46,9 +58,10 @@ class MetricActionCandidateGenerator
 
   def call
     return skipped_result("system/internal BusinessのためActionCandidate生成対象外です") if business.system_business?
-    return skipped_result("データ不足: BusinessMetricDaily が7日未満です") if metric_days_count < 7
 
     specs = candidate_specs
+    return skipped_result(no_candidate_reason) if specs.empty?
+
     created = specs.filter_map { |spec| create_candidate(spec) }
     skipped = specs.size - created.size
 
@@ -61,6 +74,8 @@ class MetricActionCandidateGenerator
 
   def candidate_specs
     [
+      setup_baseline_specs,
+      early_stage_metric_specs,
       trend_spec,
       ctr_spec,
       conversion_spec,
@@ -71,7 +86,219 @@ class MetricActionCandidateGenerator
       low_scroll_spec,
       revenue_spec,
       zero_revenue_spec
+    ].flatten.compact
+  end
+
+  def setup_baseline_specs
+    [
+      google_connection_spec,
+      serp_optional_spec,
+      lp_unpublished_spec,
+      cta_setup_spec,
+      article_activity_spec,
+      shop_activity_spec
     ].compact
+  end
+
+  def early_stage_metric_specs
+    return [] if metric_days_count >= 7
+
+    [
+      early_gsc_click_zero_spec,
+      early_pv_zero_spec,
+      early_conversion_path_spec,
+      early_internal_link_spec
+    ].compact
+  end
+
+  def google_connection_spec
+    return if google_connected?
+
+    CandidateSpec.new(
+      key: "early_google_connection",
+      title: "#{business.name}のGoogle計測を接続する",
+      description: "GA4/GSCの紐付けが未完了のため、改善提案の精度が下がっています。",
+      action_type: "data_preparation",
+      immediate_value_yen: estimate_value(8_000),
+      success_probability: 0.55,
+      strategic_value_score: 50,
+      risk_reduction_score: 70,
+      expected_hours: 0.5,
+      evaluation_reason: "Google連携不足: GA4/GSCの接続状態が確認できません。",
+      execution_prompt: "#{business.name}のBusiness設定でGA4 PropertyとGSC Siteを紐付け、Google API取得が成功する状態にしてください。"
+    )
+  end
+
+  def serp_optional_spec
+    return unless business.respond_to?(:serp_enabled?) && business.serp_enabled?
+    return unless Aicoo::Serp::OptionalMode.call.missing_key?
+
+    CandidateSpec.new(
+      key: "early_serp_optional_setup",
+      title: "#{business.name}のSERP設定を確認する",
+      description: "SERP API Keyが未設定のため、SEO競合分析とキーワード探索はスキップされています。",
+      action_type: "data_preparation",
+      immediate_value_yen: estimate_value(5_000),
+      success_probability: 0.45,
+      strategic_value_score: 35,
+      risk_reduction_score: 35,
+      expected_hours: 0.5,
+      evaluation_reason: "SERP未設定: 任意データソースですが、設定すると提案精度が上がります。",
+      execution_prompt: "#{business.name}でSERP分析を使うか判断し、必要ならSERP ProviderとAPI Key、対象キーワードを設定してください。"
+    )
+  end
+
+  def lp_unpublished_spec
+    return if published_landing_pages.exists?
+
+    CandidateSpec.new(
+      key: "early_lp_publish",
+      title: "#{business.name}の公開LPを用意する",
+      description: "公開LPがないため、流入・CTA・CVの検証が始められていません。",
+      action_type: "build_lp",
+      immediate_value_yen: estimate_value(12_000),
+      success_probability: 0.35,
+      strategic_value_score: 65,
+      risk_reduction_score: 45,
+      expected_hours: 1.5,
+      evaluation_reason: "LP未公開: published状態の公開LPがありません。",
+      execution_prompt: "#{business.name}の既存アイデアや説明から公開LPをdraft作成し、内容確認後にpublishedへ進めてください。"
+    )
+  end
+
+  def cta_setup_spec
+    return unless published_landing_pages.exists?
+    return if published_landing_pages.any? { |landing_page| landing_page.public_cta_text.present? && landing_page.cta_click_count.positive? }
+
+    CandidateSpec.new(
+      key: "early_cta_setup",
+      title: "#{business.name}のCTAを計測できる形にする",
+      description: "公開LPはありますが、CTAクリックがまだ確認できません。",
+      action_type: "ui_improvement",
+      immediate_value_yen: estimate_value(10_000),
+      success_probability: 0.34,
+      strategic_value_score: 45,
+      risk_reduction_score: 40,
+      expected_hours: 1,
+      evaluation_reason: "CTA未設定または未反応: 公開LPのCTAクリックが0です。",
+      execution_prompt: "#{business.name}の公開LPで、ファーストビューと本文末のCTA文言・ボタン位置・計測イベントを確認し、クリックが記録される状態にしてください。"
+    )
+  end
+
+  def article_activity_spec
+    return if recent_article_activity_count.positive?
+    return unless media_like_business?
+
+    CandidateSpec.new(
+      key: "early_article_content_shortage",
+      title: "#{business.name}の記事・コンテンツを増やす",
+      description: "記事作成/更新Activityが少なく、検索流入を増やす土台が不足しています。",
+      action_type: "seo_article",
+      immediate_value_yen: estimate_value(9_000),
+      success_probability: 0.32,
+      strategic_value_score: 50,
+      risk_reduction_score: 25,
+      expected_hours: 2,
+      evaluation_reason: "記事数不足: 直近30日のArticle Activityがありません。",
+      execution_prompt: "#{business.name}で狙うべき検索意図を1つ選び、LPまたは記事コンテンツを1本追加してください。公開後はActivity/ActionResultに記録してください。"
+    )
+  end
+
+  def shop_activity_spec
+    return if recent_shop_activity_count.positive?
+    return unless shop_like_business?
+
+    CandidateSpec.new(
+      key: "early_shop_data_shortage",
+      title: "#{business.name}の店舗データを増やす",
+      description: "店舗追加/更新Activityが少なく、店舗DB型の改善余地があります。",
+      action_type: "data_preparation",
+      immediate_value_yen: estimate_value(8_000),
+      success_probability: 0.4,
+      strategic_value_score: 45,
+      risk_reduction_score: 30,
+      expected_hours: 1,
+      evaluation_reason: "店舗数不足: 直近30日のShop Activityがありません。",
+      execution_prompt: "#{business.name}で優先エリアを1つ決め、店舗データの追加・確認済み化・電話/地図導線の整備を行ってください。"
+    )
+  end
+
+  def early_gsc_click_zero_spec
+    return unless metric_days_count.positive?
+    return if total_for_available_metrics(:clicks).positive?
+
+    CandidateSpec.new(
+      key: "early_gsc_click_zero",
+      title: "#{business.name}の検索クリック0を改善する",
+      description: "取得済みデータではGSCクリックがまだ0です。まず検索結果でクリックされる入口を作ります。",
+      action_type: "seo_improvement",
+      immediate_value_yen: estimate_value(7_000),
+      success_probability: 0.28,
+      strategic_value_score: 42,
+      risk_reduction_score: 35,
+      expected_hours: 1,
+      evaluation_reason: "#{comparison_strategy_label}: clicksが0です。",
+      execution_prompt: "#{business.name}のSEO title、meta description、公開LP/記事の冒頭を確認し、検索意図が伝わるタイトルと説明に更新してください。"
+    )
+  end
+
+  def early_pv_zero_spec
+    return unless metric_days_count.positive?
+    return if total_for_available_metrics(:pageviews).positive? || total_for_available_metrics(:sessions).positive?
+
+    CandidateSpec.new(
+      key: "early_pv_zero",
+      title: "#{business.name}のPV0を解消する",
+      description: "取得済みデータではPV/sessionがまだ0です。公開導線または計測設定を確認します。",
+      action_type: "data_preparation",
+      immediate_value_yen: estimate_value(6_000),
+      success_probability: 0.35,
+      strategic_value_score: 38,
+      risk_reduction_score: 55,
+      expected_hours: 0.75,
+      evaluation_reason: "#{comparison_strategy_label}: pageviews/sessionsが0です。",
+      execution_prompt: "#{business.name}の公開URL、GA4計測タグ、内部リンク、公開LPへの導線を確認し、PVが記録される状態にしてください。"
+    )
+  end
+
+  def early_conversion_path_spec
+    return unless metric_days_count.positive?
+    return unless total_for_available_metrics(:clicks).positive? || total_for_available_metrics(:pageviews).positive?
+    return if total_for_available_metrics(:phone_clicks).positive? || total_for_available_metrics(:map_clicks).positive? || total_for_available_metrics(:affiliate_clicks).positive? || total_for_available_metrics(:conversions).positive?
+
+    CandidateSpec.new(
+      key: "early_conversion_path_missing",
+      title: "#{business.name}の初期CV導線を追加する",
+      description: "クリック/PVはありますが、電話・地図・アフィリエイト・CVがまだ確認できません。",
+      action_type: "ui_improvement",
+      immediate_value_yen: estimate_value(12_000),
+      success_probability: 0.3,
+      strategic_value_score: 48,
+      risk_reduction_score: 35,
+      expected_hours: 1,
+      evaluation_reason: "#{comparison_strategy_label}: 反応はありますがCV系指標が0です。",
+      execution_prompt: "#{business.name}の反応があるページに、問い合わせ・事前登録・電話・地図・予約・アフィリエイトなど収益に近いCTAを1つ追加してください。"
+    )
+  end
+
+  def early_internal_link_spec
+    return unless metric_days_count.positive?
+    return unless total_for_available_metrics(:sessions).positive?
+    return if average_views_per_session_for_available_metrics > 1.2
+
+    CandidateSpec.new(
+      key: "early_internal_link_shortage",
+      title: "#{business.name}の初期内部リンクを整える",
+      description: "sessionに対してpageviewsが少なく、次に見るページへの導線が不足している可能性があります。",
+      action_type: "seo_improvement",
+      immediate_value_yen: estimate_value(8_000),
+      success_probability: 0.31,
+      strategic_value_score: 40,
+      risk_reduction_score: 25,
+      expected_hours: 1,
+      evaluation_reason: "#{comparison_strategy_label}: Views/Sessionが#{average_views_per_session_for_available_metrics.round(2)}です。",
+      execution_prompt: "#{business.name}の流入ページから、関連LP・記事・店舗・CTAへの内部リンクを3件追加してください。"
+    )
   end
 
   def trend_spec
@@ -316,7 +543,13 @@ class MetricActionCandidateGenerator
   end
 
   def candidate_metadata(spec)
-    metadata = { "metric_rule" => spec.key }
+    metadata = {
+      "metric_rule" => spec.key,
+      "comparison_strategy" => comparison_strategy,
+      "metric_days_count" => metric_days_count,
+      "low_confidence" => metric_days_count < 7,
+      "confidence_note" => confidence_note
+    }
     return metadata unless Aicoo::Serp::OptionalMode.call.missing_key?
 
     metadata.merge(
@@ -408,7 +641,9 @@ class MetricActionCandidateGenerator
 
   def confidence_score
     case metric_days_count
-    when 0...7 then 0
+    when 0 then 15
+    when 1..2 then 22
+    when 3..6 then 30
     when 7...14 then 30
     when 14...30 then 45
     else 60
@@ -435,11 +670,104 @@ class MetricActionCandidateGenerator
     (today - 29)..today
   end
 
+  def available_metrics
+    @available_metrics ||= recent30_metrics.sort_by(&:recorded_on)
+  end
+
+  def latest_metric
+    available_metrics.last
+  end
+
+  def total_for_available_metrics(metric)
+    available_metrics.sum { |record| record.public_send(metric).to_i }
+  end
+
+  def average_views_per_session_for_available_metrics
+    sessions = total_for_available_metrics(:sessions)
+    return 0.to_d if sessions.zero?
+
+    total_for_available_metrics(:pageviews).to_d / sessions.to_d
+  end
+
+  def comparison_strategy
+    case metric_days_count
+    when 7.. then "seven_vs_thirty_days"
+    when 3..6 then "recent_three_day_average"
+    when 1..2 then "latest_vs_baseline"
+    else "setup_baseline"
+    end
+  end
+
+  def comparison_strategy_label
+    case comparison_strategy
+    when "seven_vs_thirty_days" then "7日 vs 30日比較"
+    when "recent_three_day_average" then "直近3日平均"
+    when "latest_vs_baseline" then "最新データとベースライン比較"
+    else "初期設定ベースライン"
+    end
+  end
+
+  def confidence_note
+    return "7日以上のデータで比較しています。" if metric_days_count >= 7
+    return "3〜6日のため直近3日平均を優先した低信頼度候補です。" if metric_days_count >= 3
+    return "1〜2日のため最新データと初期ベースラインを使った低信頼度候補です。" if metric_days_count.positive?
+
+    "BusinessMetricDailyがないため設定状態だけを使った低信頼度候補です。"
+  end
+
+  def google_connected?
+    %w[gsc ga4].all? do |source_key|
+      setting = business.business_data_source_settings.find { |item| item.source_key == source_key } ||
+        BusinessDataSourceSetting.find_by(business:, source_key:)
+      setting&.enabled? && setting&.linked?
+    end
+  end
+
+  def published_landing_pages
+    @published_landing_pages ||= business.aicoo_lab_landing_pages.publicly_available
+  end
+
+  def recent_article_activity_count
+    @recent_article_activity_count ||= business.business_activity_logs
+                                               .where(resource_type: "Article", occurred_at: 30.days.ago..Time.current)
+                                               .count
+  end
+
+  def recent_shop_activity_count
+    @recent_shop_activity_count ||= business.business_activity_logs
+                                            .where(resource_type: "Shop", occurred_at: 30.days.ago..Time.current)
+                                            .count
+  end
+
+  def media_like_business?
+    text = "#{business.name} #{business.category} #{business.description}".downcase
+    text.match?(/メディア|記事|seo|lp|コンテンツ|blog|media|article/) || published_landing_pages.exists?
+  end
+
+  def shop_like_business?
+    text = "#{business.name} #{business.category} #{business.description}".downcase
+    text.match?(/店舗|店|shop|restaurant|cafe|喫煙|吸えログ/)
+  end
+
   def skipped_result(reason)
-    Result.new(created: [], skipped: [ reason ])
+    Result.new(created: [], skipped: [ "#{business.name}: #{reason}" ])
   end
 
   def skipped_reasons
     @skipped_reasons ||= []
+  end
+
+  def no_candidate_reason
+    [
+      "改善候補生成条件に一致しません",
+      "metric_days=#{metric_days_count}",
+      "recent7_clicks=#{recent7_total(:clicks)}",
+      "recent7_sessions=#{recent7_total(:sessions)}",
+      "recent7_pageviews=#{recent7_total(:pageviews)}",
+      "recent7_cv_clicks=#{recent7_cv_clicks}",
+      "recent7_revenue=#{recent30_revenue.to_i}",
+      "proxy_delta=#{proxy_delta.round(2)}",
+      "条件: impressions増加+clicks停滞 / clicksあり+CVクリック0 / sessionsあり+回遊弱い / engagement低い / revenueあり / proxy変化あり のいずれにも未該当"
+    ].join(" / ")
   end
 end

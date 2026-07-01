@@ -76,9 +76,11 @@ module AicooInsight
 
       created = []
       skipped = []
+      return Result.new(created:, skipped: [ no_insight_reason ]) if specs.empty?
+
       specs.each do |spec|
         if duplicate?(spec)
-          skipped << spec
+          skipped << "#{business.name}: duplicate #{spec.title}"
         else
           created << create_action_candidate!(spec)
         end
@@ -362,6 +364,18 @@ module AicooInsight
 
     def percentage(value)
       "#{(value.to_d * 100).round(1)}%"
+    end
+
+    def no_insight_reason
+      [
+        "#{business.name}: Insight生成条件に一致しません",
+        "gsc_rows=#{gsc_rows.size}",
+        "recent30_pageviews=#{recent_metric_total(:pageviews, 30)}",
+        "current_month_profit=#{business.current_month_profit.to_i}",
+        "recent7_clicks=#{metric_total(:clicks, 7.days.ago.to_date..Date.current)}",
+        "recent7_pageviews=#{metric_total(:pageviews, 7.days.ago.to_date..Date.current)}",
+        "条件: CTR低い高表示GSC / 5-20位GSC / PV多い低利益 / 放置損失 / 成長率30%以上 / 低反応撤退候補 のいずれにも未該当"
+      ].join(" / ")
     end
   end
 end

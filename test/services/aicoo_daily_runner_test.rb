@@ -151,6 +151,60 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
     end
   end
 
+  test "stores action generation zero reasons in step metadata" do
+    order = []
+    target_date = Date.new(2026, 6, 21)
+    adjuster = fake_adjuster(order)
+    generator_result = MetricActionCandidateGenerator::Result.new(
+      created: [],
+      skipped: [ "吸えログ: 改善候補生成条件に一致しません / metric_days=30 / recent7_clicks=0" ]
+    )
+
+    stub_daily_steps(order:, adjuster:, generator_results: [ generator_result ], evaluated_results: []) do
+      run = AicooDailyRunner.run!(target_date:, source: "cron")
+
+      assert_equal "success", run.status
+      assert_equal 0, run.action_candidates_generated_count
+      assert_match "ActionCandidate skipped reasons=吸えログ", run.run_log
+      step = run.aicoo_daily_run_steps.find_by!(step_name: "action_generation")
+      assert_equal "success", step.status
+      assert_equal true, step.metadata.fetch("warning")
+      assert_equal "no_action_candidates_generated", step.metadata.fetch("reason")
+      assert_includes step.metadata.fetch("message"), "0件"
+      assert_includes step.metadata.fetch("skipped_reasons").first, "recent7_clicks=0"
+    end
+  end
+
+  test "stores insight generation zero reasons in step metadata" do
+    order = []
+    target_date = Date.new(2026, 6, 21)
+    adjuster = fake_adjuster(order)
+    generator_result = MetricActionCandidateGenerator::Result.new(created: [ Object.new ], skipped: [])
+    insight_result = AicooInsight::Generator::Result.new(
+      created: [],
+      skipped: [ "吸えログ: Insight生成条件に一致しません / gsc_rows=0" ]
+    )
+
+    stub_daily_steps(
+      order:,
+      adjuster:,
+      generator_results: [ generator_result ],
+      evaluated_results: [],
+      insight_result:
+    ) do
+      run = AicooDailyRunner.run!(target_date:, source: "cron")
+
+      assert_equal "success", run.status
+      assert_equal 0, run.insight_generated_count
+      step = run.aicoo_daily_run_steps.find_by!(step_name: "insight_generation")
+      assert_equal "success", step.status
+      assert_equal true, step.metadata.fetch("warning")
+      assert_equal "no_insights_generated", step.metadata.fetch("reason")
+      assert_includes step.metadata.fetch("message"), "0件"
+      assert_includes step.metadata.fetch("skipped_reasons").first, "gsc_rows=0"
+    end
+  end
+
   test "unknown analytics failures still mark daily run as partial failed" do
     order = []
     target_date = Date.new(2026, 6, 21)
@@ -261,7 +315,8 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
     evaluated_results:,
     analytics_status: "success",
     analytics_error_message: nil,
-    calibration_error: nil
+    calibration_error: nil,
+    insight_result: nil
   )
     with_singleton_stub(AicooAnalytics::DailyFetchJob, :perform_now, -> {
       fake_analytics_fetch(order, analytics_status, analytics_error_message)
@@ -279,7 +334,7 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
               }) do
                 with_singleton_stub(AicooInsight::Generator, :generate_all!, ->(source:) {
                   order << :insight
-                  AicooInsight::Generator::Result.new(created: [ Object.new ], skipped: [ Object.new, Object.new ])
+                  insight_result || AicooInsight::Generator::Result.new(created: [ Object.new ], skipped: [ Object.new, Object.new ])
                 }) do
                   with_singleton_stub(ActionResultEvaluator, :evaluate_pending!, -> {
                     order << :evaluate

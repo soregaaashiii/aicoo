@@ -100,15 +100,56 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     assert_equal 1, @business.action_candidates.where(title: "#{@business.name}のCTR改善を行う").count
   end
 
-  test "skips when metric data is insufficient" do
+  test "creates low confidence candidates when metric data is under seven days" do
     3.times do |offset|
       @business.business_metric_dailies.create!(recorded_on: @today - offset, clicks: 10)
     end
 
     result = MetricActionCandidateGenerator.new(business: @business, today: @today).call
 
-    assert_empty result.created
-    assert_includes result.skipped.first, "データ不足"
+    assert_not_empty result.created
+    assert result.created.any? { |candidate| candidate.metadata.fetch("comparison_strategy") == "recent_three_day_average" }
+    assert result.created.all? { |candidate| candidate.metadata.fetch("low_confidence") == true }
+  end
+
+  test "creates setup and baseline candidates with only one metric day" do
+    @business.business_metric_dailies.create!(recorded_on: @today, impressions: 10, clicks: 0, pageviews: 0, sessions: 0)
+
+    result = MetricActionCandidateGenerator.new(business: @business, today: @today).call
+
+    assert_not_empty result.created
+    assert result.created.any? { |candidate| candidate.metadata.fetch("metric_rule") == "early_gsc_click_zero" }
+    assert result.created.any? { |candidate| candidate.metadata.fetch("metric_rule") == "early_pv_zero" }
+    assert result.created.any? { |candidate| candidate.metadata.fetch("comparison_strategy") == "latest_vs_baseline" }
+  end
+
+  test "creates setup candidates when metric thresholds are missed" do
+    @business.action_candidates.delete_all
+    @business.revenue_events.delete_all
+    @business.business_metric_dailies.delete_all
+    create_metric_series(
+      default_clicks: 0,
+      recent_clicks: 0,
+      default_impressions: 0,
+      recent_impressions: 0,
+      default_sessions: 10,
+      recent_sessions: 10,
+      default_pageviews: 30,
+      recent_pageviews: 30,
+      default_engagement_time: 120,
+      recent_engagement_time: 120,
+      default_bounce_rate: 0.3,
+      recent_bounce_rate: 0.3,
+      default_conversions: 1,
+      recent_conversions: 1
+    )
+
+    result = MetricActionCandidateGenerator.new(business: @business, today: @today).call
+
+    assert_not_empty result.created
+    assert result.created.any? { |candidate| candidate.metadata.fetch("metric_rule") == "early_google_connection" }
+    assert result.created.any? { |candidate| candidate.metadata.fetch("metric_rule") == "early_serp_optional_setup" }
+    assert result.created.all? { |candidate| candidate.metadata.key?("comparison_strategy") }
   end
 
   private

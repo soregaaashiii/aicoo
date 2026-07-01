@@ -105,16 +105,15 @@ class AicooDailyRunner
     run.update!(proxy_weights_adjusted_count: adjustment_logs.size)
     log!("proxy_score weights checked count=#{adjustment_logs.size}")
 
-    generation_results = record_step!(run, "action_generation") do
-      MetricActionCandidateGenerator.generate_all!
-    end
+    generation_results = run_action_generation!(run)
     generated_count = generation_results.sum(&:created_count)
     run.update!(action_candidates_generated_count: generated_count)
     log!("ActionCandidate generated count=#{generated_count}")
+    log!(
+      "ActionCandidate skipped reasons=#{generation_results.flat_map(&:skipped).first(10).join(' | ')}"
+    ) if generated_count.zero?
 
-    insight_result = record_step!(run, "insight_generation") do
-      AicooInsight::Generator.generate_all!(source: "daily_run")
-    end
+    insight_result = run_insight_generation!(run)
     run.update!(insight_generated_count: insight_result.created_count)
     log!("Insight generated count=#{insight_result.created_count}")
     log!("Insight skipped count=#{insight_result.skipped_count}")
@@ -319,18 +318,93 @@ class AicooDailyRunner
     log!("Calibration failed: #{error_message}")
   end
 
+  def run_action_generation!(run)
+    step = start_step!(run, "action_generation")
+    results = MetricActionCandidateGenerator.generate_all!
+    generated_count = results.sum(&:created_count)
+    skipped_reasons = results.flat_map(&:skipped)
+    metadata = {
+      created_count: generated_count,
+      skipped_count: results.sum(&:skipped_count),
+      result_count: results.size,
+      skipped_reasons: skipped_reasons.first(20)
+    }
+    if generated_count.zero?
+      metadata = metadata.merge(
+        warning: true,
+        reason: "no_action_candidates_generated",
+        message: action_generation_zero_message(skipped_reasons)
+      )
+    end
+    finish_step!(step, metadata:)
+    results
+  rescue StandardError => e
+    fail_step!(step, "#{e.class}: #{e.message}") if step
+    raise
+  end
+
+  def action_generation_zero_message(skipped_reasons)
+    return "ActionCandidate Generatorは実行されましたが、生成対象Businessがないか、生成条件に一致しませんでした。" if skipped_reasons.blank?
+
+    "ActionCandidate Generatorは実行されましたが0件でした。理由: #{skipped_reasons.first(5).join(' / ')}"
+  end
+
+  def run_insight_generation!(run)
+    step = start_step!(run, "insight_generation")
+    result = AicooInsight::Generator.generate_all!(source: "daily_run")
+    skipped_reasons = result.skipped.map(&:to_s)
+    metadata = {
+      created_count: result.created_count,
+      skipped_count: result.skipped_count,
+      skipped_reasons: skipped_reasons.first(20)
+    }
+    if result.created_count.zero?
+      metadata = metadata.merge(
+        warning: true,
+        reason: "no_insights_generated",
+        message: insight_generation_zero_message(skipped_reasons)
+      )
+    end
+    finish_step!(step, metadata:)
+    result
+  rescue StandardError => e
+    fail_step!(step, "#{e.class}: #{e.message}") if step
+    raise
+  end
+
+  def insight_generation_zero_message(skipped_reasons)
+    return "Insight Generatorは実行されましたが、生成条件に一致するBusinessがありませんでした。" if skipped_reasons.blank?
+
+    "Insight Generatorは実行されましたが0件でした。理由: #{skipped_reasons.first(5).join(' / ')}"
+  end
+
   def run_auto_revision_queue!(run)
     step = start_step!(run, "auto_revision_queue")
     result = AicooAutoRevisionDailyRunQueuer.new.call(daily_run: run)
     case result.reason
     when "created"
+      metadata = {
+        generated_tasks_count: result.queue_run.generated_tasks_count,
+        skipped_candidates_count: result.queue_run.skipped_candidates_count,
+        high_risk_candidates_count: result.queue_run.high_risk_candidates_count
+      }.merge(result.queue_run.metadata.to_h.slice(
+        "reason",
+        "message",
+        "skipped_reasons",
+        "candidate_count",
+        "minimum_final_score",
+        "max_tasks_per_run"
+      ))
+      if result.queue_run.generated_tasks_count.to_i.zero?
+        metadata = metadata.merge(
+          warning: true,
+          reason: metadata["reason"].presence || "no_auto_revision_tasks_generated",
+          message: metadata["message"].presence || "AutoRevision Queueは実行されましたが、投入できる改善候補がありませんでした。"
+        )
+      end
       finish_step!(
         step,
-        metadata: {
-          generated_tasks_count: result.queue_run.generated_tasks_count,
-          skipped_candidates_count: result.queue_run.skipped_candidates_count,
-          high_risk_candidates_count: result.queue_run.high_risk_candidates_count
-        }
+        metadata:
       )
       log!(
         "AutoRevisionQueue generated=#{result.queue_run.generated_tasks_count} " \

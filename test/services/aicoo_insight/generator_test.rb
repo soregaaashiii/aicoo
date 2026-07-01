@@ -101,6 +101,17 @@ module AicooInsight
       end
     end
 
+    test "explains why no insight was generated" do
+      business = create_business("No insight")
+
+      result = Generator.new(business:).call
+
+      assert_empty result.created
+      assert_equal 1, result.skipped_count
+      assert_includes result.skipped.first, "Insight生成条件に一致しません"
+      assert_includes result.skipped.first, "gsc_rows=0"
+    end
+
     test "generated insight candidate is included in revenue ranking" do
       business = create_business("Revenue linkage insight")
       create_gsc_snapshot(business, rows: [
@@ -127,7 +138,7 @@ module AicooInsight
       assert_equal "manual", run.source
       assert_equal "success", run.status
       assert_equal 1, run.generated_count
-      assert_equal 0, run.skipped_count
+      assert_operator run.skipped_count, :>=, 1
       assert run.finished_at
     end
 

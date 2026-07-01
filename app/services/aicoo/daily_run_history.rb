@@ -38,7 +38,12 @@ module Aicoo
       "disabled" => "Daily Run Disabled",
       "retry_limit_reached" => "Retry Limit Reached",
       "already_run" => "Already Run",
-      "auto queue disabled" => "Auto Queue Disabled"
+      "auto queue disabled" => "Auto Queue Disabled",
+      "no_action_candidates_generated" => "No Candidate Generated",
+      "no_insights_generated" => "No Insight Generated",
+      "no_auto_revision_tasks_generated" => "No Auto Revision Generated",
+      "no_eligible_candidates" => "No Eligible Candidate",
+      "all_candidates_skipped" => "All Candidates Skipped"
     }.freeze
 
     def self.comparison_rows(limit: 10)
@@ -129,7 +134,9 @@ module Aicoo
     end
 
     def warning_step?(step)
-      step.status == "skipped" && (
+      step.metadata.to_h["warning"] == true ||
+        step.metadata.to_h["warning"] == "true" ||
+        step.status == "skipped" && (
         step.metadata.to_h["warning"] == true ||
         step.metadata.to_h["warning"] == "true" ||
         step.metadata.to_h["reason"].to_s.in?(%w[serp_optional_missing analytics_optional_unavailable])
