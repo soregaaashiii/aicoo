@@ -21,6 +21,8 @@
           <th>Repository</th>
           <th>Type</th>
           <th>GitHub</th>
+          <th>Codex</th>
+          <th>作業フォルダ</th>
           <th>Test</th>
           <th>Lint</th>
           <th>Active</th>
@@ -35,6 +37,8 @@
             <td><%= profile.display_repository_name %></td>
             <td><span class="pill"><%= profile.repository_type %></span></td>
             <td><%= profile.github_repository.presence || "-" %></td>
+            <td><span class="pill"><%= profile.codex_enabled? ? "ON" : "OFF" %></span></td>
+            <td><%= profile.codex_project_folder.presence || "-" %></td>
             <td><%= profile.test_command.presence || "-" %></td>
             <td><%= profile.lint_command.presence || "-" %></td>
             <td><span class="pill"><%= profile.active? ? "有効" : "無効" %></span></td>
@@ -42,7 +46,7 @@
           </tr>
         <% end %>
         <% if @business_execution_profiles.empty? %>
-          <tr><td colspan="9">まだExecution Profileはありません。</td></tr>
+          <tr><td colspan="11">まだExecution Profileはありません。</td></tr>
         <% end %>
       </tbody>
     </table>

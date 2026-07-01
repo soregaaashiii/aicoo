@@ -21,6 +21,7 @@ class Business < ApplicationRecord
   has_many :auto_build_tasks, dependent: :destroy
   has_many :auto_revision_run_logs, dependent: :destroy
   has_many :codex_prompt_drafts, dependent: :nullify
+  has_many :codex_submissions, dependent: :destroy
   has_many :action_results, dependent: :destroy
   has_many :action_candidate_score_snapshots, dependent: :destroy
   has_many :meta_evaluation_snapshots, dependent: :destroy

@@ -84,6 +84,42 @@ module Owner
       assert_includes response.body, "1件"
     end
 
+    test "shows codex submission waiting summary" do
+      profile = BusinessExecutionProfile.create!(
+        business: businesses(:suelog),
+        repository_name: "suelog",
+        repository_type: "rails",
+        repository_path: "/apps/suelog",
+        github_repository: "https://github.com/example/suelog",
+        test_command: "bin/rails test",
+        deploy_command: "bin/deploy",
+        require_manual_approval: false,
+        codex_enabled: true,
+        codex_project_folder: "/workspace/suelog",
+        codex_repository_url: "https://github.com/example/suelog",
+        codex_auto_submit_enabled: true
+      )
+      candidate = create_candidate!(
+        title: "Codex Cloudへ送る改善",
+        immediate_value_yen: 30_000,
+        success_probability: 0.7,
+        expected_hours: 1
+      )
+      task = AutoRevisionTask.from_action_candidate(candidate)
+      task.approve!
+      task.update!(risk_level: "low")
+      Aicoo::CodexSubmissionBuilder.new(task).call
+
+      get owner_focus_url
+
+      assert_response :success
+      assert_includes response.body, "Codex送信待ち"
+      assert_includes response.body, "Codex送信一覧へ"
+      assert_includes response.body, "ready"
+      assert_includes response.body, "1件"
+      assert_equal profile, task.reload.codex_submission.business_execution_profile
+    end
+
     test "defer hides improvement from current ranking" do
       candidate = create_candidate!(
         title: "後で確認する改善",

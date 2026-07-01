@@ -26,6 +26,7 @@
   <% elsif @auto_revision_task.status == "sent_to_codex" %>
     <%= button_to "実装開始", start_implementation_auto_revision_task_path(@auto_revision_task), method: :patch, class: "button" %>
   <% end %>
+  <%= button_to "Codex送信用としてマーク", build_codex_submission_auto_revision_task_path(@auto_revision_task), method: :post, class: "button secondary" %>
 <% end %>
 
 <div class="aicoo-page">
@@ -56,6 +57,55 @@
       <div class="metric-card"><span>最終確認</span><strong><%= @auto_revision_task.last_checked_at ? l(@auto_revision_task.last_checked_at, format: :short) : "-" %></strong></div>
       <div class="metric-card"><span>放置判定</span><strong><%= @auto_revision_task.stale_codex_task? ? "要確認" : "正常" %></strong></div>
       <div class="metric-card"><span>Deploy Target</span><strong><%= @auto_revision_task.execution_profile&.deploy_command.present? ? "Render/GitHub" : "-" %></strong></div>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <% profile = @auto_revision_task.execution_profile %>
+    <% submission = @auto_revision_task.codex_submission %>
+    <% unavailable_reasons = Aicoo::CodexSubmissionBuilder.new(@auto_revision_task, force: true).unavailable_reasons %>
+    <div class="section-heading">
+      <div>
+        <h2>Codex送信カード</h2>
+        <p>Codex Cloudへ渡す個別サービス単位の作業設定です。実API送信はまだ行わず、送信用レコードを管理します。</p>
+      </div>
+      <%= link_to "Codex送信一覧", admin_codex_submissions_path, class: "button secondary" %>
+    </div>
+    <div class="metric-grid">
+      <div class="metric-card"><span>対象Business</span><strong><%= @auto_revision_task.business.name %></strong></div>
+      <div class="metric-card"><span>Execution Profile</span><strong><%= profile ? "設定済み ##{profile.id}" : "未設定" %></strong></div>
+      <div class="metric-card"><span>Codex Workspace</span><strong><%= profile&.codex_workspace_name.presence || "-" %></strong></div>
+      <div class="metric-card"><span>Codex作業フォルダ</span><strong><%= profile&.codex_project_folder.presence || "-" %></strong></div>
+      <div class="metric-card"><span>Repository</span><strong><%= profile&.effective_codex_repository_url.presence || "-" %></strong></div>
+      <div class="metric-card"><span>Base Branch</span><strong><%= profile&.effective_codex_base_branch.presence || "main" %></strong></div>
+      <div class="metric-card"><span>Working Branch</span><strong><%= @auto_revision_task.codex_working_branch_name %></strong></div>
+      <div class="metric-card"><span>Risk</span><strong><%= @auto_revision_task.risk_level %></strong></div>
+      <div class="metric-card"><span>Auto Submit</span><strong><%= profile&.codex_auto_submit_enabled? ? "ON" : "OFF" %></strong></div>
+      <div class="metric-card"><span>Auto PR</span><strong><%= profile&.codex_auto_pr_enabled? ? "ON" : "OFF" %></strong></div>
+      <div class="metric-card"><span>Auto Merge</span><strong><%= profile&.codex_auto_merge_enabled? ? "ON" : "OFF" %></strong></div>
+      <div class="metric-card"><span>Auto Deploy</span><strong><%= profile&.codex_auto_deploy_enabled? ? "ON" : "OFF" %></strong></div>
+      <div class="metric-card"><span>CodexSubmission</span><strong><%= submission ? submission.status : "未作成" %></strong></div>
+    </div>
+
+    <% if unavailable_reasons.any? %>
+      <div class="aicoo-card aicoo-card-compact">
+        <strong>Codex送信不可理由</strong>
+        <ul class="compact-list">
+          <% unavailable_reasons.each do |reason| %>
+            <li><%= reason %></li>
+          <% end %>
+        </ul>
+      </div>
+    <% end %>
+
+    <div class="actions compact-actions">
+      <%= link_to "Codex Promptを再生成", export_codex_prompt_auto_revision_task_path(@auto_revision_task), class: "button secondary" %>
+      <%= button_to "Codex送信用としてマーク", build_codex_submission_auto_revision_task_path(@auto_revision_task), method: :post, class: "button" %>
+      <% if submission %>
+        <%= link_to "送信詳細", admin_codex_submission_path(submission), class: "button secondary" %>
+        <%= button_to "送信済みにする", mark_codex_submission_submitted_auto_revision_task_path(@auto_revision_task), method: :patch, class: "button secondary" %>
+        <%= button_to "送信失敗として記録", mark_codex_submission_failed_auto_revision_task_path(@auto_revision_task), method: :patch, class: "button danger" %>
+      <% end %>
     </div>
   </section>
 

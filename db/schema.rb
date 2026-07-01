@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_01_140000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_02_010100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1117,7 +1117,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_01_140000) do
     t.string "auto_deploy_risk_limit", default: "low", null: false
     t.boolean "auto_merge_enabled", default: false, null: false
     t.bigint "business_id", null: false
+    t.boolean "codex_auto_deploy_enabled", default: false, null: false
+    t.boolean "codex_auto_merge_enabled", default: false, null: false
+    t.boolean "codex_auto_pr_enabled", default: true, null: false
+    t.boolean "codex_auto_submit_enabled", default: false, null: false
+    t.string "codex_base_branch", default: "main", null: false
+    t.boolean "codex_enabled", default: false, null: false
     t.text "codex_instructions"
+    t.text "codex_notes"
+    t.string "codex_project_folder"
+    t.string "codex_repository_url"
+    t.string "codex_risk_limit", default: "low", null: false
+    t.string "codex_working_branch_prefix", default: "aicoo/", null: false
+    t.string "codex_workspace_name"
     t.datetime "created_at", null: false
     t.string "default_branch", default: "main", null: false
     t.text "deploy_command"
@@ -1141,6 +1153,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_01_140000) do
     t.index ["auto_deploy_risk_limit"], name: "index_business_execution_profiles_on_auto_deploy_risk_limit"
     t.index ["auto_merge_enabled"], name: "index_business_execution_profiles_on_auto_merge_enabled"
     t.index ["business_id"], name: "index_business_execution_profiles_on_business_id", unique: true
+    t.index ["codex_auto_submit_enabled"], name: "index_business_execution_profiles_on_codex_auto_submit_enabled"
+    t.index ["codex_enabled"], name: "index_business_execution_profiles_on_codex_enabled"
+    t.index ["codex_risk_limit"], name: "index_business_execution_profiles_on_codex_risk_limit"
     t.index ["deploy_target"], name: "index_business_execution_profiles_on_deploy_target"
   end
 
@@ -1321,6 +1336,32 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_01_140000) do
     t.index ["auto_revision_task_id"], name: "index_codex_quality_checks_on_auto_revision_task_id", unique: true
     t.index ["result"], name: "index_codex_quality_checks_on_result"
     t.index ["test_status"], name: "index_codex_quality_checks_on_test_status"
+  end
+
+  create_table "codex_submissions", force: :cascade do |t|
+    t.bigint "auto_revision_task_id", null: false
+    t.string "base_branch"
+    t.bigint "business_execution_profile_id", null: false
+    t.bigint "business_id", null: false
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.text "error_message"
+    t.string "project_folder"
+    t.text "prompt"
+    t.string "repository_url"
+    t.jsonb "response_payload", default: {}, null: false
+    t.string "status", default: "draft", null: false
+    t.datetime "submitted_at"
+    t.datetime "updated_at", null: false
+    t.string "working_branch"
+    t.string "workspace_name"
+    t.index ["auto_revision_task_id"], name: "idx_codex_submissions_unique_task", unique: true
+    t.index ["auto_revision_task_id"], name: "index_codex_submissions_on_auto_revision_task_id"
+    t.index ["business_execution_profile_id"], name: "index_codex_submissions_on_business_execution_profile_id"
+    t.index ["business_id"], name: "index_codex_submissions_on_business_id"
+    t.index ["project_folder"], name: "index_codex_submissions_on_project_folder"
+    t.index ["status"], name: "index_codex_submissions_on_status"
+    t.index ["submitted_at"], name: "index_codex_submissions_on_submitted_at"
   end
 
   create_table "data_imports", force: :cascade do |t|
@@ -1883,6 +1924,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_01_140000) do
   add_foreign_key "codex_prompt_drafts", "businesses"
   add_foreign_key "codex_prompt_rules", "businesses"
   add_foreign_key "codex_quality_checks", "auto_revision_tasks"
+  add_foreign_key "codex_submissions", "auto_revision_tasks"
+  add_foreign_key "codex_submissions", "business_execution_profiles"
+  add_foreign_key "codex_submissions", "businesses"
   add_foreign_key "data_imports", "aicoo_analytics_sites"
   add_foreign_key "data_imports", "data_sources"
   add_foreign_key "data_sources", "businesses"

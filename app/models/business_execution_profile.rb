@@ -19,17 +19,22 @@ class BusinessExecutionProfile < ApplicationRecord
   ].freeze
 
   belongs_to :business
+  has_many :codex_submissions, dependent: :restrict_with_exception
 
   validates :business_id, uniqueness: true
   validates :execution_type, inclusion: { in: EXECUTION_TYPES }
   validates :repository_type, inclusion: { in: REPOSITORY_TYPES }
   validates :deploy_target, inclusion: { in: DEPLOY_TARGETS }
   validates :auto_deploy_risk_limit, inclusion: { in: RISK_LIMITS }
+  validates :codex_risk_limit, inclusion: { in: RISK_LIMITS }
   validates :default_branch, presence: true
+  validates :codex_base_branch, presence: true
+  validates :codex_working_branch_prefix, presence: true
 
   before_validation :set_defaults
 
   scope :active, -> { where(active: true) }
+  scope :codex_enabled, -> { where(codex_enabled: true) }
   scope :recent, -> { order(created_at: :desc) }
 
   def forbidden_pattern_lines
@@ -78,6 +83,51 @@ class BusinessExecutionProfile < ApplicationRecord
     }
   end
 
+  def codex_cloud_config
+    {
+      codex_enabled:,
+      workspace_name: codex_workspace_name.presence,
+      project_folder: codex_project_folder.presence,
+      repository_url: effective_codex_repository_url,
+      base_branch: effective_codex_base_branch,
+      working_branch_prefix: effective_codex_working_branch_prefix,
+      auto_submit_enabled: codex_auto_submit_enabled?,
+      auto_pr_enabled: codex_auto_pr_enabled?,
+      auto_merge_enabled: codex_auto_merge_enabled?,
+      auto_deploy_enabled: codex_auto_deploy_enabled?,
+      risk_limit: codex_risk_limit,
+      notes: codex_notes.presence
+    }
+  end
+
+  def effective_codex_repository_url
+    codex_repository_url.presence || github_repository.presence
+  end
+
+  def effective_codex_base_branch
+    codex_base_branch.presence || default_branch.presence || "main"
+  end
+
+  def effective_codex_working_branch_prefix
+    codex_working_branch_prefix.presence || working_branch_prefix.presence || "aicoo/"
+  end
+
+  def codex_required_missing_fields
+    missing = []
+    missing << "Codex作業フォルダ" if codex_project_folder.blank?
+    missing << "Repository URL" if effective_codex_repository_url.blank?
+    missing << "Base Branch" if effective_codex_base_branch.blank?
+    missing
+  end
+
+  def codex_ready_for_submission?
+    active? && codex_enabled? && codex_required_missing_fields.empty?
+  end
+
+  def codex_risk_allowed?(risk_level)
+    RISK_RANK.fetch(risk_level.to_s, 99) <= RISK_RANK.fetch(codex_risk_limit, 1)
+  end
+
   def repository_url
     github_repository
   end
@@ -88,6 +138,14 @@ class BusinessExecutionProfile < ApplicationRecord
 
   def working_branch_for(task)
     "#{working_branch_prefix.presence || 'codex/auto-revision'}-#{task.id}"
+  end
+
+  def codex_working_branch_for(task)
+    business_key = task.business&.then { |record| record.respond_to?(:slug) ? record.slug.presence : nil } || task.business_id
+    title_slug = task.title.to_s.parameterize.presence || "task"
+    prefix = effective_codex_working_branch_prefix
+    prefix = "#{prefix}/" unless prefix.end_with?("/")
+    "#{prefix}#{business_key}/#{task.id}-#{title_slug.truncate(40, omission: '')}"
   end
 
   def risk_allowed_for_auto_deploy?(risk_level)
@@ -147,6 +205,13 @@ class BusinessExecutionProfile < ApplicationRecord
     self.repository_type = "other" if repository_type.blank?
     self.default_branch = "main" if default_branch.blank?
     self.working_branch_prefix = "codex/auto-revision" if working_branch_prefix.blank?
+    self.codex_base_branch = default_branch.presence || "main" if codex_base_branch.blank?
+    self.codex_working_branch_prefix = "aicoo/" if codex_working_branch_prefix.blank?
+    self.codex_risk_limit = "low" if codex_risk_limit.blank?
+    self.codex_auto_pr_enabled = true if codex_auto_pr_enabled.nil?
+    self.codex_auto_submit_enabled = false if codex_auto_submit_enabled.nil?
+    self.codex_auto_merge_enabled = false if codex_auto_merge_enabled.nil?
+    self.codex_auto_deploy_enabled = false if codex_auto_deploy_enabled.nil?
     self.deploy_target = "render" if deploy_target.blank?
     self.auto_deploy_risk_limit = "low" if auto_deploy_risk_limit.blank?
     self.auto_merge_enabled = false if auto_merge_enabled.nil?

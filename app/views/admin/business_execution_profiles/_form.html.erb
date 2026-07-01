@@ -95,6 +95,70 @@
     <%= form.text_area :codex_instructions, rows: 5, placeholder: "この事業の改修時にCodexへ必ず伝える指示" %>
   </div>
 
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Codex連携設定</h2>
+      <p>Codex Cloudで個別サービスを改修するための作業スペース、フォルダ、PR方針です。初期はAuto Submit OFFのままにします。</p>
+    </div>
+
+    <label class="checkbox">
+      <%= form.check_box :codex_enabled %>
+      Codex連携 ON
+    </label>
+
+    <div class="grid">
+      <div class="field">
+        <%= form.label :codex_workspace_name, "Codex Workspace" %>
+        <%= form.text_field :codex_workspace_name, placeholder: "例: AICOO" %>
+      </div>
+      <div class="field">
+        <%= form.label :codex_project_folder, "Codex作業フォルダ" %>
+        <%= form.text_field :codex_project_folder, placeholder: "例: suelog / aicoo / vault" %>
+      </div>
+      <div class="field">
+        <%= form.label :codex_repository_url, "Repository URL" %>
+        <%= form.text_field :codex_repository_url, placeholder: "例: https://github.com/owner/suelog" %>
+      </div>
+      <div class="field">
+        <%= form.label :codex_base_branch, "Base Branch" %>
+        <%= form.text_field :codex_base_branch, placeholder: "main" %>
+      </div>
+      <div class="field">
+        <%= form.label :codex_working_branch_prefix, "Working Branch Prefix" %>
+        <%= form.text_field :codex_working_branch_prefix, placeholder: "aicoo/" %>
+      </div>
+      <div class="field">
+        <%= form.label :codex_risk_limit, "Codex Risk Limit" %>
+        <%= form.select :codex_risk_limit, BusinessExecutionProfile::RISK_LIMITS.map { |risk| [ risk, risk ] } %>
+      </div>
+    </div>
+
+    <label class="checkbox">
+      <%= form.check_box :codex_auto_submit_enabled %>
+      Auto Submit
+    </label>
+
+    <label class="checkbox">
+      <%= form.check_box :codex_auto_pr_enabled %>
+      Auto PR
+    </label>
+
+    <label class="checkbox">
+      <%= form.check_box :codex_auto_merge_enabled %>
+      Auto Merge
+    </label>
+
+    <label class="checkbox">
+      <%= form.check_box :codex_auto_deploy_enabled %>
+      Auto Deploy
+    </label>
+
+    <div class="field">
+      <%= form.label :codex_notes, "Codex Notes" %>
+      <%= form.text_area :codex_notes, rows: 4, placeholder: "Codex Cloud連携時の補足。外部API送信が未接続なら運用メモを残します。" %>
+    </div>
+  </section>
+
   <div class="field">
     <%= form.label :forbidden_patterns, "Forbidden Patterns" %>
     <%= form.text_area :forbidden_patterns, rows: 5, placeholder: "db:drop\ndb:reset\ndrop database" %>

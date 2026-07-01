@@ -1,0 +1,98 @@
+<% content_for :title, "Codex送信詳細" %>
+
+<% profile = @codex_submission.business_execution_profile %>
+<% task = @codex_submission.auto_revision_task %>
+<% header_actions = capture do %>
+  <%= link_to "一覧へ戻る", admin_codex_submissions_path, class: "button secondary" %>
+  <%= link_to "AutoRevisionTask", task, class: "button secondary" %>
+  <%= button_to "送信済みにする", mark_submitted_admin_codex_submission_path(@codex_submission), method: :patch, class: "button" unless @codex_submission.status == "submitted" %>
+  <%= button_to "完了にする", mark_completed_admin_codex_submission_path(@codex_submission), method: :patch, class: "button secondary" unless @codex_submission.status == "completed" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "Codex送信詳細",
+             description: "Codex Cloudへ渡す作業単位、プロンプト、Execution Profileを確認します。",
+             active_main: :dashboard,
+             actions: header_actions %>
+  <%= render "shared/purpose_context_bar",
+             business: @codex_submission.business,
+             section_label: "自動改修履歴",
+             detail_label: "Codex送信詳細",
+             list_path: admin_codex_submissions_path %>
+
+  <section class="dashboard-section">
+    <div class="metric-grid">
+      <div class="metric-card"><span>状態</span><strong><%= @codex_submission.status %></strong></div>
+      <div class="metric-card"><span>Business</span><strong><%= @codex_submission.business.name %></strong></div>
+      <div class="metric-card"><span>Codex作業フォルダ</span><strong><%= @codex_submission.project_folder %></strong></div>
+      <div class="metric-card"><span>Risk</span><strong><%= task.risk_level %></strong></div>
+      <div class="metric-card"><span>Base Branch</span><strong><%= @codex_submission.base_branch %></strong></div>
+      <div class="metric-card"><span>Working Branch</span><strong><%= @codex_submission.working_branch %></strong></div>
+      <div class="metric-card"><span>送信日時</span><strong><%= @codex_submission.submitted_at ? l(@codex_submission.submitted_at, format: :short) : "-" %></strong></div>
+      <div class="metric-card"><span>完了日時</span><strong><%= @codex_submission.completed_at ? l(@codex_submission.completed_at, format: :short) : "-" %></strong></div>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Execution Profile</h2>
+      <p>この送信で実際に使うCodex Cloud設定です。</p>
+    </div>
+    <dl class="detail-list">
+      <dt>Codex Workspace</dt>
+      <dd><%= profile.codex_workspace_name.presence || "-" %></dd>
+      <dt>Codex作業フォルダ</dt>
+      <dd><%= profile.codex_project_folder.presence || "-" %></dd>
+      <dt>Repository URL</dt>
+      <dd><%= profile.effective_codex_repository_url.presence || "-" %></dd>
+      <dt>Auto Submit</dt>
+      <dd><%= profile.codex_auto_submit_enabled? ? "ON" : "OFF" %></dd>
+      <dt>Auto PR</dt>
+      <dd><%= profile.codex_auto_pr_enabled? ? "ON" : "OFF" %></dd>
+      <dt>Auto Merge</dt>
+      <dd><%= profile.codex_auto_merge_enabled? ? "ON" : "OFF" %></dd>
+      <dt>Auto Deploy</dt>
+      <dd><%= profile.codex_auto_deploy_enabled? ? "ON" : "OFF" %></dd>
+      <dt>Risk Limit</dt>
+      <dd><%= profile.codex_risk_limit %></dd>
+      <dt>Production URL</dt>
+      <dd><%= profile.production_url.presence || "-" %></dd>
+      <dt>Health Check URL</dt>
+      <dd><%= profile.health_check_url.presence || "-" %></dd>
+      <dt>Render Service</dt>
+      <dd><%= profile.render_service_name.presence || "-" %></dd>
+    </dl>
+  </section>
+
+  <% if @codex_submission.error_message.present? %>
+    <section class="dashboard-section danger">
+      <div class="section-heading">
+        <h2>送信不可/失敗理由</h2>
+      </div>
+      <%= simple_format(@codex_submission.error_message) %>
+    </section>
+  <% end %>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Codex Prompt</h2>
+      <p>Codex Cloudへ渡す最終プロンプトです。</p>
+    </div>
+    <textarea readonly rows="34" class="code-textarea"><%= @codex_submission.prompt %></textarea>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>送信失敗として記録</h2>
+      <p>Codex Cloud API連携前のため、外部送信エラーや手動送信失敗をここに残します。</p>
+    </div>
+    <%= form_with url: mark_failed_admin_codex_submission_path(@codex_submission), method: :patch, class: "form" do |form| %>
+      <div class="field">
+        <%= form.label :error_message, "失敗理由" %>
+        <%= form.text_area :error_message, rows: 3 %>
+      </div>
+      <%= form.submit "送信失敗として記録", class: "button danger" %>
+    <% end %>
+  </section>
+</div>

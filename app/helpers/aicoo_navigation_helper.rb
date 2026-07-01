@@ -88,6 +88,7 @@ module AicooNavigationHelper
       instance_variable_get(:@auto_revision_task)&.business,
       instance_variable_get(:@business_activity_log)&.business,
       instance_variable_get(:@auto_build_task)&.business,
+      instance_variable_get(:@codex_submission)&.business,
       instance_variable_get(:@action_execution)&.action_candidate&.business,
       instance_variable_get(:@action_execution_log)&.business
     ].compact.find { |business| business.respond_to?(:persisted?) ? business.persisted? : business.present? }
@@ -108,7 +109,7 @@ module AicooNavigationHelper
     return nil unless aicoo_contextual_sidebar_category_key == :business
 
     path = request.path
-    return :business_improvements if path.match?(%r{\A/(action_candidates|action_executions|action_execution_logs|action_results|auto_revision_tasks)}) || path.match?(%r{\A/admin/business_activity_logs})
+    return :business_improvements if path.match?(%r{\A/(action_candidates|action_executions|action_execution_logs|action_results|auto_revision_tasks)}) || path.match?(%r{\A/admin/(business_activity_logs|codex_submissions)})
     return :business_numbers if path.match?(%r{\A/(revenue_events|business_metric_dailies)})
 
     :business_list
@@ -116,7 +117,7 @@ module AicooNavigationHelper
 
   def aicoo_business_context_path?
     request.path.match?(%r{\A/(businesses|action_candidates|action_executions|action_execution_logs|action_results|revenue_events|business_metric_dailies|auto_revision_tasks)}) ||
-      request.path.match?(%r{\A/admin/(business_activity_logs|auto_build_tasks)})
+      request.path.match?(%r{\A/admin/(business_activity_logs|auto_build_tasks|codex_submissions)})
   end
 
   def aicoo_business_context_breadcrumb_items
@@ -136,7 +137,7 @@ module AicooNavigationHelper
 
   def aicoo_context_objective_label
     path = request.path
-    return "改善履歴" if path.match?(%r{\A/(action_candidates|action_executions|action_execution_logs|action_results|auto_revision_tasks)}) || path.match?(%r{\A/admin/(business_activity_logs|auto_build_tasks)})
+    return "改善履歴" if path.match?(%r{\A/(action_candidates|action_executions|action_execution_logs|action_results|auto_revision_tasks)}) || path.match?(%r{\A/admin/(business_activity_logs|auto_build_tasks|codex_submissions)})
     return "売上" if path.start_with?("/revenue_events")
     return "分析データ" if path.start_with?("/business_metric_dailies")
     return "設定" if path.start_with?("/businesses") && path.include?("google_settings")
@@ -181,6 +182,8 @@ module AicooNavigationHelper
       "Activity詳細"
     elsif instance_variable_get(:@auto_build_task)
       "Auto Build詳細"
+    elsif instance_variable_get(:@codex_submission)
+      "Codex送信詳細"
     elsif request.path.include?("google_settings")
       "Google連携"
     else
@@ -297,7 +300,7 @@ module AicooNavigationHelper
           %r{\A/admin/cron_health},
           %r{\A/admin/aicoo_daily_run_health},
           %r{\A/admin/pipeline_e2e_check},
-          %r{\A/admin/(google_credentials|aicoo_daily_run_settings|aicoo_auto_revision_settings|business_execution_profiles|codex_prompt_rules|aicoo_resource_budget|explore)},
+          %r{\A/admin/(google_credentials|aicoo_daily_run_settings|aicoo_auto_revision_settings|business_execution_profiles|codex_submissions|codex_prompt_rules|aicoo_resource_budget|explore)},
           %r{\A/admin/source_app_(connections|diff_rules)},
           %r{\A/aicoo_setting},
           %r{\A/codex_quality_checks}
@@ -307,7 +310,7 @@ module AicooNavigationHelper
           { key: :settings_daily_run, label: "Cron / Daily Run", description: "定期実行設定", path: admin_cron_health_path, matchers: [ %r{\A/admin/(cron_health|aicoo_daily_run_health|aicoo_daily_run_settings)} ] },
           { key: :settings_loop, label: "1周チェック", description: "自動ループ確認", path: admin_pipeline_e2e_check_path, matchers: [ %r{\A/admin/pipeline_e2e_check} ] },
           { key: :settings_google, label: "Google連携", description: "OAuthとAPIキー", path: admin_google_credentials_path, matchers: [ %r{\A/admin/google_credentials} ] },
-          { key: :settings_codex, label: "Codex設定", description: "実行先とPromptルール", path: admin_business_execution_profiles_path, matchers: [ %r{\A/admin/(business_execution_profiles|codex_prompt_rules|aicoo_auto_revision_settings)} ] },
+          { key: :settings_codex, label: "Codex設定", description: "実行先とPromptルール", path: admin_business_execution_profiles_path, matchers: [ %r{\A/admin/(business_execution_profiles|codex_submissions|codex_prompt_rules|aicoo_auto_revision_settings)} ] },
           { key: :settings_resources, label: "Resource Budget", description: "予算とBuild制御", path: admin_aicoo_resource_budget_path, matchers: [ %r{\A/admin/aicoo_resource_budget} ] },
           { key: :settings_source, label: "外部連携差分", description: "DB変更検知", path: admin_source_app_connections_path, matchers: [ %r{\A/admin/source_app_(connections|diff_rules)} ] },
           { key: :settings_general, label: "全体設定", description: "API・安全設定", path: aicoo_setting_path, matchers: [ %r{\A/aicoo_setting}, %r{\A/admin/explore} ] }

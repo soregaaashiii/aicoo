@@ -1,0 +1,74 @@
+<% content_for :title, "Codex送信一覧" %>
+
+<% header_actions = capture do %>
+  <%= link_to "改修キュー", codex_queue_auto_revision_tasks_path, class: "button secondary" %>
+  <%= link_to "Execution Profile", admin_business_execution_profiles_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "Codex送信一覧",
+             description: "AutoRevisionTaskをCodex Cloudへ渡す前の作業単位として管理します。",
+             active_main: :dashboard,
+             actions: header_actions %>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>絞り込み</h2>
+      <p>status、Business、作業フォルダで送信待ちを確認します。</p>
+    </div>
+    <%= form_with url: admin_codex_submissions_path, method: :get, class: "inline-form", data: { turbo: false } do |form| %>
+      <div class="field compact-field">
+        <%= form.label :status, "状態" %>
+        <%= form.select :status, options_for_select([ [ "すべて", "" ] ] + CodexSubmission::STATUSES.map { |status| [ status, status ] }, @status_filter) %>
+      </div>
+      <div class="field compact-field">
+        <%= form.label :business_id, "Business" %>
+        <%= form.collection_select :business_id, Business.real_businesses.order(:name), :id, :name, { include_blank: "すべて" }, selected: @business_id %>
+      </div>
+      <div class="field compact-field">
+        <%= form.label :project_folder, "Codex作業フォルダ" %>
+        <%= form.text_field :project_folder, value: @project_folder, placeholder: "例: suelog" %>
+      </div>
+      <%= form.submit "絞り込む", class: "button secondary" %>
+    <% end %>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>状態</th>
+            <th>Business</th>
+            <th>作業フォルダ</th>
+            <th>Repository</th>
+            <th>Task</th>
+            <th>Risk</th>
+            <th>作成</th>
+            <th>送信</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @codex_submissions.each do |submission| %>
+            <tr>
+              <td><span class="pill"><%= submission.status %></span></td>
+              <td><%= link_to submission.business.name, submission.business %></td>
+              <td><%= submission.project_folder %></td>
+              <td class="wide-text"><%= submission.repository_url %></td>
+              <td class="wide-text"><%= link_to submission.auto_revision_task.title, submission.auto_revision_task %></td>
+              <td><span class="pill"><%= submission.auto_revision_task.risk_level %></span></td>
+              <td><%= l(submission.created_at, format: :short) %></td>
+              <td><%= submission.submitted_at ? l(submission.submitted_at, format: :short) : "-" %></td>
+              <td><%= link_to "詳細", admin_codex_submission_path(submission), class: "button secondary" %></td>
+            </tr>
+          <% end %>
+          <% if @codex_submissions.empty? %>
+            <tr><td colspan="9">Codex送信はまだありません。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>

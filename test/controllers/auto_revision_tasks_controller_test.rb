@@ -42,6 +42,8 @@ class AutoRevisionTasksControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Target Repository"
     assert_includes response.body, "Execution Profileがmissing"
     assert_includes response.body, "Execution Profileを作成"
+    assert_includes response.body, "Codex送信カード"
+    assert_includes response.body, "Codex Promptを再生成"
   end
 
   test "shows configured execution profile on task detail" do
@@ -67,6 +69,55 @@ class AutoRevisionTasksControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Allowed Risk Level"
     assert_includes response.body, "Health Check URL"
     assert_not_includes response.body, "Execution Profileがmissing"
+  end
+
+  test "builds codex submission from task detail" do
+    create_configured_codex_profile
+    task = AutoRevisionTask.from_action_candidate(action_candidates(:nagazakicho_article))
+    task.approve!
+    task.update!(risk_level: "low")
+
+    assert_difference("CodexSubmission.count", 1) do
+      post build_codex_submission_auto_revision_task_url(task)
+    end
+
+    submission = task.reload.codex_submission
+    assert_redirected_to auto_revision_task_url(task)
+    assert_equal "ready", submission.status
+    assert_equal "/workspace/suelog", submission.project_folder
+    assert_includes submission.prompt, "main直接pushは禁止"
+    assert_includes flash[:notice], "Codex送信用として準備しました"
+  end
+
+  test "marks codex submission as submitted" do
+    create_configured_codex_profile
+    task = AutoRevisionTask.from_action_candidate(action_candidates(:nagazakicho_article))
+    task.approve!
+    task.update!(risk_level: "low")
+    Aicoo::CodexSubmissionBuilder.new(task, force: true).call
+
+    patch mark_codex_submission_submitted_auto_revision_task_url(task)
+
+    submission = task.reload.codex_submission
+    assert_redirected_to auto_revision_task_url(task)
+    assert_equal "submitted", submission.status
+    assert_not_nil submission.submitted_at
+    assert_equal "sent_to_codex", task.status
+  end
+
+  test "records codex submission failure" do
+    create_configured_codex_profile
+    task = AutoRevisionTask.from_action_candidate(action_candidates(:nagazakicho_article))
+    task.approve!
+    task.update!(risk_level: "low")
+    Aicoo::CodexSubmissionBuilder.new(task, force: true).call
+
+    patch mark_codex_submission_failed_auto_revision_task_url(task)
+
+    submission = task.reload.codex_submission
+    assert_redirected_to auto_revision_task_url(task)
+    assert_equal "failed", submission.status
+    assert_equal "Ownerが送信失敗として記録しました。", submission.error_message
   end
 
   test "exports codex prompt for valid task" do
@@ -354,6 +405,31 @@ class AutoRevisionTasksControllerTest < ActionDispatch::IntegrationTest
       test_command: "bin/rails test",
       lint_command: "bundle exec rubocop",
       deploy_command: "bin/deploy"
+    )
+  end
+
+  def create_configured_codex_profile
+    BusinessExecutionProfile.create!(
+      business: businesses(:suelog),
+      repository_name: "suelog",
+      repository_type: "rails",
+      repository_path: "/apps/suelog",
+      github_repository: "https://github.com/example/suelog",
+      test_command: "bin/rails test",
+      lint_command: "bundle exec rubocop",
+      deploy_command: "bin/deploy",
+      require_manual_approval: false,
+      codex_enabled: true,
+      codex_workspace_name: "AICOO",
+      codex_project_folder: "/workspace/suelog",
+      codex_repository_url: "https://github.com/example/suelog",
+      codex_base_branch: "main",
+      codex_working_branch_prefix: "aicoo/",
+      codex_auto_submit_enabled: false,
+      codex_auto_pr_enabled: true,
+      codex_auto_merge_enabled: false,
+      codex_auto_deploy_enabled: false,
+      codex_risk_limit: "low"
     )
   end
 

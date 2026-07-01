@@ -118,6 +118,65 @@ class BusinessExecutionProfileTest < ActiveSupport::TestCase
     assert_equal "prompt_only_high_risk", profile.deploy_flow_for(high_task)
   end
 
+  test "sets safe codex cloud defaults" do
+    profile = BusinessExecutionProfile.create!(business: businesses(:suelog))
+
+    assert_not profile.codex_enabled?
+    assert_not profile.codex_auto_submit_enabled?
+    assert profile.codex_auto_pr_enabled?
+    assert_not profile.codex_auto_merge_enabled?
+    assert_not profile.codex_auto_deploy_enabled?
+    assert_equal "low", profile.codex_risk_limit
+    assert_equal "main", profile.codex_base_branch
+    assert_equal "aicoo/", profile.codex_working_branch_prefix
+  end
+
+  test "validates codex risk limit" do
+    profile = BusinessExecutionProfile.new(
+      business: businesses(:suelog),
+      codex_risk_limit: "danger"
+    )
+
+    assert_not profile.valid?
+    assert_includes profile.errors[:codex_risk_limit], "is not included in the list"
+  end
+
+  test "reports missing codex submission fields" do
+    profile = BusinessExecutionProfile.create!(
+      business: businesses(:suelog),
+      codex_enabled: true
+    )
+
+    assert_includes profile.codex_required_missing_fields, "Codex作業フォルダ"
+    assert_includes profile.codex_required_missing_fields, "Repository URL"
+
+    profile.update!(
+      codex_project_folder: "/workspace/suelog",
+      codex_repository_url: "https://github.com/example/suelog"
+    )
+
+    assert_empty profile.codex_required_missing_fields
+  end
+
+  test "builds codex cloud working branch from task and business" do
+    profile = BusinessExecutionProfile.create!(
+      business: businesses(:suelog),
+      codex_project_folder: "/workspace/suelog",
+      codex_repository_url: "https://github.com/example/suelog",
+      codex_working_branch_prefix: "aicoo/"
+    )
+    task = AutoRevisionTask.from_action_candidate(create_candidate!("吸えログ CV導線改善", business: businesses(:suelog)))
+
+    business_key =
+      if businesses(:suelog).respond_to?(:slug)
+        businesses(:suelog).slug.presence || businesses(:suelog).id
+      else
+        businesses(:suelog).id
+      end
+
+    assert_match(%r{\Aaicoo/#{business_key}/#{task.id}-}, profile.codex_working_branch_for(task))
+  end
+
   private
 
   def create_candidate!(title, business: businesses(:suelog))

@@ -22,6 +22,7 @@ class AutoRevisionTask < ApplicationRecord
   belongs_to :business
   belongs_to :target_business, class_name: "Business", optional: true
   has_one :codex_quality_check, dependent: :destroy
+  has_one :codex_submission, dependent: :destroy
   has_many :auto_revision_executions, dependent: :destroy
 
   validates :title, presence: true
@@ -43,6 +44,7 @@ class AutoRevisionTask < ApplicationRecord
 
   before_validation :set_defaults
   before_validation :copy_execution_profile_defaults
+  after_commit :prepare_codex_submission_if_auto_submit, on: :create
 
   def self.from_action_candidate(action_candidate, generated_by: "owner")
     active.find_by(action_candidate:) ||
@@ -216,6 +218,16 @@ class AutoRevisionTask < ApplicationRecord
       対象リポジトリ: #{target_repository_display}
       リポジトリ種別: #{target_repository_type.presence || "-"}
       GitHub Repository: #{execution_profile&.github_repository.presence || "-"}
+      Codex Workspace: #{execution_profile&.codex_workspace_name.presence || "-"}
+      Codex Project Folder: #{execution_profile&.codex_project_folder.presence || "-"}
+      Codex Repository URL: #{execution_profile&.effective_codex_repository_url.presence || "-"}
+      Codex Base Branch: #{execution_profile&.effective_codex_base_branch.presence || "main"}
+      Codex Working Branch: #{codex_working_branch_name}
+      Codex Auto Submit Enabled: #{execution_profile&.codex_auto_submit_enabled? ? "true" : "false"}
+      Codex Auto PR Enabled: #{execution_profile&.codex_auto_pr_enabled? ? "true" : "false"}
+      Codex Auto Merge Enabled: #{execution_profile&.codex_auto_merge_enabled? ? "true" : "false"}
+      Codex Auto Deploy Enabled: #{execution_profile&.codex_auto_deploy_enabled? ? "true" : "false"}
+      Codex Risk Limit: #{execution_profile&.codex_risk_limit.presence || "low"}
       Repository Path: #{execution_profile&.repository_path.presence || "-"}
       Default Branch: #{execution_profile&.default_branch.presence || "-"}
       Working Branch: #{working_branch_name}
@@ -336,6 +348,16 @@ class AutoRevisionTask < ApplicationRecord
       - Target Repository Name: #{target_repository_name.presence || "-"}
       - Target Repository Type: #{target_repository_type.presence || "-"}
       - GitHub Repository: #{profile&.github_repository.presence || "-"}
+      - Codex Workspace: #{profile&.codex_workspace_name.presence || "-"}
+      - Codex Project Folder: #{profile&.codex_project_folder.presence || "-"}
+      - Codex Repository URL: #{profile&.effective_codex_repository_url.presence || "-"}
+      - Codex Base Branch: #{profile&.effective_codex_base_branch.presence || "main"}
+      - Codex Working Branch: #{codex_working_branch_name}
+      - Codex Auto Submit Enabled: #{profile&.codex_auto_submit_enabled? ? "true" : "false"}
+      - Codex Auto PR Enabled: #{profile&.codex_auto_pr_enabled? ? "true" : "false"}
+      - Codex Auto Merge Enabled: #{profile&.codex_auto_merge_enabled? ? "true" : "false"}
+      - Codex Auto Deploy Enabled: #{profile&.codex_auto_deploy_enabled? ? "true" : "false"}
+      - Codex Risk Limit: #{profile&.codex_risk_limit.presence || "low"}
       - Repository Path: #{profile&.repository_path.presence || "-"}
       - Default Branch: #{profile&.default_branch.presence || "-"}
       - Working Branch: #{working_branch_name}
@@ -511,6 +533,14 @@ class AutoRevisionTask < ApplicationRecord
     end
   end
 
+  def prepare_codex_submission_if_auto_submit
+    return unless execution_profile&.codex_auto_submit_enabled?
+
+    Aicoo::CodexSubmissionBuilder.new(self).call
+  rescue StandardError => e
+    Rails.logger.warn("[CodexSubmissionBuilder] AutoRevisionTask##{id} failed: #{e.class} #{e.message}")
+  end
+
   public
 
   def current_execution
@@ -529,6 +559,13 @@ class AutoRevisionTask < ApplicationRecord
 
   def working_branch_name
     execution_profile&.working_branch_for(self) || "codex/auto-revision-#{id}"
+  end
+
+  def codex_working_branch_name
+    task_slug = title.to_s.parameterize.presence || "task"
+    business_key = business&.then { |record| record.respond_to?(:slug) ? record.slug.presence : nil } || business_id
+    execution_profile&.codex_working_branch_for(self) ||
+      "aicoo/#{business_key}/#{id}-#{task_slug.truncate(40, omission: '')}"
   end
 
   def auto_deploy_allowed?
@@ -558,6 +595,17 @@ class AutoRevisionTask < ApplicationRecord
       health_check_url: profile&.health_check_url,
       auto_deploy_enabled: profile&.auto_deploy_enabled? || false,
       auto_merge_enabled: profile&.auto_merge_enabled? || false,
+      codex_submission_id: codex_submission&.id,
+      codex_workspace_name: profile&.codex_workspace_name,
+      codex_project_folder: profile&.codex_project_folder,
+      codex_repository_url: profile&.effective_codex_repository_url,
+      codex_base_branch: profile&.effective_codex_base_branch,
+      codex_working_branch: codex_working_branch_name,
+      codex_auto_submit_enabled: profile&.codex_auto_submit_enabled? || false,
+      codex_auto_pr_enabled: profile&.codex_auto_pr_enabled? || false,
+      codex_auto_merge_enabled: profile&.codex_auto_merge_enabled? || false,
+      codex_auto_deploy_enabled: profile&.codex_auto_deploy_enabled? || false,
+      codex_risk_limit: profile&.codex_risk_limit,
       auto_deploy_allowed: auto_deploy_allowed?,
       auto_merge_allowed: auto_merge_allowed?,
       auto_deploy_risk_limit: profile&.auto_deploy_risk_limit,

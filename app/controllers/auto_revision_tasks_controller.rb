@@ -9,6 +9,9 @@ class AutoRevisionTasksController < ApplicationController
     start_implementation
     update_codex_tracking
     record_result
+    build_codex_submission
+    mark_codex_submission_submitted
+    mark_codex_submission_failed
     export_codex_prompt
   ]
 
@@ -86,6 +89,29 @@ class AutoRevisionTasksController < ApplicationController
     redirect_to @auto_revision_task, notice:
   end
 
+  def build_codex_submission
+    result = Aicoo::CodexSubmissionBuilder.new(@auto_revision_task, force: true).call
+    notice = result.ready ? "Codex送信用として準備しました。" : "Codex送信用Draftを作成しました。"
+    redirect_to @auto_revision_task, notice: "#{notice} #{result.reasons.join(' ')}".strip
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to @auto_revision_task, alert: "Codex送信用に作成できません: #{e.record.errors.full_messages.to_sentence}"
+  end
+
+  def mark_codex_submission_submitted
+    submission = ensure_codex_submission!
+    submission.mark_submitted!(payload: { "marked_by" => "owner", "source" => "auto_revision_task_detail" })
+    @auto_revision_task.mark_sent_to_codex! if @auto_revision_task.status.in?(%w[queued ready_for_codex approved])
+    redirect_to @auto_revision_task, notice: "Codex送信済みにしました。"
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to @auto_revision_task, alert: "Codex送信済みにできません: #{e.record.errors.full_messages.to_sentence}"
+  end
+
+  def mark_codex_submission_failed
+    submission = ensure_codex_submission!
+    submission.mark_failed!(params[:error_message].presence || "Ownerが送信失敗として記録しました。")
+    redirect_to @auto_revision_task, notice: "Codex送信失敗として記録しました。"
+  end
+
   def export_codex_prompt
     @target_validation = @auto_revision_task.codex_prompt_target_validation
     if @target_validation.invalid?
@@ -153,5 +179,10 @@ class AutoRevisionTasksController < ApplicationController
     return unless params[:create_action_execution_log] == "1"
 
     @auto_revision_task.create_action_execution_log!
+  end
+
+  def ensure_codex_submission!
+    @auto_revision_task.codex_submission ||
+      Aicoo::CodexSubmissionBuilder.new(@auto_revision_task, force: true).call.submission
   end
 end

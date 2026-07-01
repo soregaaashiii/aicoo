@@ -112,6 +112,9 @@ Rails.application.routes.draw do
     patch :start_implementation, on: :member
     patch :update_codex_tracking, on: :member
     patch :record_result, on: :member
+    post :build_codex_submission, on: :member
+    patch :mark_codex_submission_submitted, on: :member
+    patch :mark_codex_submission_failed, on: :member
     get :export_codex_prompt, on: :member
   end
 
@@ -166,6 +169,11 @@ Rails.application.routes.draw do
     patch "explore/observations/:id/reject", to: "explore#reject_observation", as: :explore_observation_reject
     patch "explore/observations/:id/hold", to: "explore#hold_observation", as: :explore_observation_hold
     resources :business_execution_profiles, except: %i[show destroy]
+    resources :codex_submissions, only: %i[index show] do
+      patch :mark_submitted, on: :member
+      patch :mark_failed, on: :member
+      patch :mark_completed, on: :member
+    end
     resources :google_credentials, except: %i[show destroy] do
       get :connect, on: :member
     end

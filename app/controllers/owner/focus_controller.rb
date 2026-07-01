@@ -3,6 +3,7 @@ module Owner
     def show
       @cron_health_summary = Aicoo::CronHealthDashboard.new.call.summary
       @auto_revision_execution_summary = Aicoo::AutoRevisionExecutionSummary.new.call
+      @codex_submission_summary = Aicoo::CodexSubmissionSummary.new.call
       @auto_build_summary = Aicoo::ResourceAwareAutoBuildSummary.new.call
       @ceo_improvement_board = Aicoo::CeoModeBusinessImprovementBoard.new(
         deferred_task_keys:
