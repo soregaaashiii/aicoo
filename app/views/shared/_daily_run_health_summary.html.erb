@@ -1,0 +1,31 @@
+<% if summary %>
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <div>
+        <h2>Daily Run Health</h2>
+        <p>Render Cronで昨夜のDaily Runが動いたかだけを要約します。</p>
+      </div>
+      <%= link_to "詳細を見る", admin_cron_health_path, class: "button secondary" %>
+    </div>
+
+    <div class="system-status-card status-<%= summary.severity %>">
+      <p><span class="system-status-pill status-<%= summary.severity %>"><%= summary.status %></span></p>
+      <h3><%= summary.title %></h3>
+      <p><%= summary.message %></p>
+      <div class="metric-grid aicoo-owner-secondary">
+        <div class="metric-card">
+          <span>最終成功</span>
+          <strong><%= summary.last_success_at ? l(summary.last_success_at, format: :short) : "-" %></strong>
+        </div>
+        <div class="metric-card">
+          <span>実行時間</span>
+          <strong><%= summary.duration_label %></strong>
+        </div>
+        <div class="metric-card">
+          <span>成功率</span>
+          <strong><%= summary.success_rate %>%</strong>
+        </div>
+      </div>
+    </div>
+  </section>
+<% end %>

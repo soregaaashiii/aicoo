@@ -78,6 +78,33 @@ class AicooDailyRunRakeTest < ActiveSupport::TestCase
     assert called
   end
 
+  test "daily_run task records failed run and step when scheduler raises" do
+    with_env("AICOO_DAILY_RUN_ENABLED", "true") do
+      with_scheduler_stub(->(source:) {
+        assert_equal "cron", source
+        raise RuntimeError, "scheduler exploded"
+      }) do
+        assert_difference -> { AicooDailyRun.count }, 1 do
+          assert_raises(RuntimeError) do
+            capture_io do
+              Rake::Task["aicoo:daily_run"].invoke
+            end
+          end
+        end
+      end
+    end
+
+    daily_run = AicooDailyRun.order(:created_at).last
+    assert_equal "failed", daily_run.status
+    assert_equal "cron", daily_run.source
+    assert_includes daily_run.error_message, "scheduler exploded"
+
+    step = daily_run.aicoo_daily_run_steps.find_by!(step_name: "cron_execution")
+    assert_equal "failed", step.status
+    assert_includes step.error_message, "scheduler exploded"
+    assert_equal "render_cron", step.metadata["source"]
+  end
+
   private
 
   def with_env(key, value)

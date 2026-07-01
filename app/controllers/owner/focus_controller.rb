@@ -1,6 +1,7 @@
 module Owner
   class FocusController < ApplicationController
     def show
+      @cron_health_summary = Aicoo::CronHealthDashboard.new.call.summary
       @ceo_improvement_board = Aicoo::CeoModeBusinessImprovementBoard.new(
         deferred_task_keys:
       ).call

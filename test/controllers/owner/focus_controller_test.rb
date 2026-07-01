@@ -26,9 +26,9 @@ module Owner
       assert_includes response.body, candidate.title
       assert_includes response.body, "AIがこの改善を勧める理由"
       assert_includes response.body, "Codexへ送る"
+      assert_includes response.body, "Daily Run Health"
       assert_not_includes response.body, "SERP走査"
       assert_not_includes response.body, "Cron Ready"
-      assert_not_includes response.body, "Daily Run Health"
       assert_not_includes response.body, "Google OAuth"
       assert_not_includes response.body, "AICOO Analytics Import"
     end

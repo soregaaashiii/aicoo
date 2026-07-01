@@ -30,3 +30,33 @@ services:
         sync: false
       - key: GOOGLE_REFRESH_TOKEN
         sync: false
+  - type: cron
+    name: aicoo-daily-run
+    runtime: ruby
+    plan: starter
+    schedule: "0 22,3,9,14 * * *"
+    buildCommand: bundle install
+    startCommand: bundle exec rails aicoo:daily_run
+    envVars:
+      - key: RAILS_ENV
+        value: production
+      - key: TZ
+        value: Asia/Tokyo
+      - key: AICOO_DAILY_RUN_ENABLED
+        value: "true"
+      - key: DATABASE_URL
+        sync: false
+      - key: SECRET_KEY_BASE
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REFRESH_TOKEN
+        sync: false
+      - key: AICOO_ACTIVITY_API_TOKEN
+        sync: false

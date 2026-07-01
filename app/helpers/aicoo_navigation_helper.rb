@@ -158,6 +158,8 @@ module AicooNavigationHelper
         matchers: [
           %r{\A/dashboard},
           %r{\A/admin/execution_runs},
+          %r{\A/admin/cron_health},
+          %r{\A/admin/aicoo_daily_run_health},
           %r{\A/admin/pipeline_e2e_check},
           %r{\A/admin/idea_pipeline},
           %r{\A/admin/(analytics|google|aicoo_datahub|aicoo_daily_run_settings|aicoo_auto_revision_settings|business_execution_profiles|explore)},
@@ -168,6 +170,7 @@ module AicooNavigationHelper
         ],
         children: [
           { label: "状態を見る", description: "エラーと実行状況", path: dashboard_path, matchers: [ %r{\A/dashboard}, %r{\A/codex_quality_checks} ] },
+          { label: "Daily Run確認", description: "CronとStep状態", path: admin_cron_health_path, matchers: [ %r{\A/admin/(cron_health|aicoo_daily_run_health)} ] },
           { label: "実行履歴", description: "処理結果を確認", path: admin_execution_runs_path, matchers: [ %r{\A/admin/execution_runs} ] },
           { label: "1周チェック", description: "自動ループ確認", path: admin_pipeline_e2e_check_path, matchers: [ %r{\A/admin/pipeline_e2e_check} ] },
           { label: "アイデアを育てる", description: "IdeaからMVPへ", path: admin_idea_pipeline_index_path, matchers: [ %r{\A/admin/idea_pipeline} ] },

@@ -13,6 +13,8 @@
              active_main: :revenue,
              actions: header_actions %>
 
+  <%= render "shared/daily_run_health_summary", summary: @cron_health_summary %>
+
   <% if @today_business_improvement %>
     <section class="dashboard-section">
       <div class="section-heading">
