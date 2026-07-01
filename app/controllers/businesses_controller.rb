@@ -260,7 +260,10 @@ class BusinessesController < ApplicationController
         :resource_status_reason,
         :next_review_on,
         :auto_revision_mode,
-        :auto_deploy_mode
+        :auto_deploy_mode,
+        :auto_build_enabled,
+        :auto_build_requires_approval,
+        :auto_build_risk_level
       ])
     end
 

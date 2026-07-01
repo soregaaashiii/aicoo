@@ -195,6 +195,8 @@ Rails.application.routes.draw do
     post "pipeline_e2e_check/repair", to: "pipeline_e2e_checks#repair", as: :pipeline_e2e_check_repair
     get "activity_learning_e2e_check", to: "activity_learning_e2e_checks#show", as: :activity_learning_e2e_check
     post "activity_learning_e2e_check/repair", to: "activity_learning_e2e_checks#repair", as: :activity_learning_e2e_check_repair
+    resource :aicoo_resource_budget, only: %i[show update]
+    resources :auto_build_tasks, only: %i[index show]
     post "pipeline_recoveries/:pipeline_run_id", to: "pipeline_recoveries#create", as: :pipeline_recovery
     patch "auto_revision_run_logs/:id/rollback", to: "auto_revision_run_logs#rollback", as: :auto_revision_run_log_rollback
     resources :idea_pipeline, controller: "idea_pipeline", only: %i[index show] do

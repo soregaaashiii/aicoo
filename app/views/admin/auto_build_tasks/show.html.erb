@@ -1,0 +1,46 @@
+<% content_for :title, "Auto Build Task ##{@auto_build_task.id}" %>
+
+<% header_actions = capture do %>
+  <%= link_to "Auto Build Queue", admin_auto_build_tasks_path, class: "button secondary" %>
+  <%= link_to "Business詳細", @auto_build_task.business, class: "button secondary" %>
+  <% if @auto_build_task.auto_revision_task %>
+    <%= link_to "AutoRevisionTask", @auto_build_task.auto_revision_task, class: "button secondary" %>
+  <% end %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "Auto Build Task ##{@auto_build_task.id}",
+             description: "#{@auto_build_task.business.name} のMVP自動生成候補です。",
+             active_main: :system,
+             actions: header_actions %>
+
+  <section class="dashboard-section">
+    <div class="metric-grid">
+      <div class="metric-card"><span>状態</span><strong><%= @auto_build_task.status %></strong></div>
+      <div class="metric-card"><span>Strategy</span><strong><%= @auto_build_task.build_strategy %></strong></div>
+      <div class="metric-card"><span>Risk</span><strong><%= @auto_build_task.risk_level %></strong></div>
+      <div class="metric-card"><span>期待値</span><strong><%= number_to_currency(@auto_build_task.expected_value_yen, unit: "¥", precision: 0) %></strong></div>
+      <div class="metric-card"><span>Learning</span><strong><%= number_with_precision(@auto_build_task.learning_value_score, precision: 0) %></strong></div>
+      <div class="metric-card"><span>想定費用</span><strong><%= number_to_currency(@auto_build_task.estimated_cost_yen, unit: "¥", precision: 0) %></strong></div>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>判定理由</h2>
+      <p>LP反応だけで止めず、Learning Valueとリソース余裕を含めて判断しています。</p>
+    </div>
+    <div class="aicoo-card">
+      <p><%= @auto_build_task.reason %></p>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Codex Prompt</h2>
+      <p>実際にCodexへ渡すMVP開発プロンプトです。自動merge/deployはExecution Profileに従います。</p>
+    </div>
+    <pre class="aicoo-code-block"><%= @auto_build_task.codex_prompt %></pre>
+  </section>
+</div>

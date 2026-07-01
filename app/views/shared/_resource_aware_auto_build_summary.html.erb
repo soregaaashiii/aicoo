@@ -1,0 +1,45 @@
+<section class="dashboard-section">
+  <div class="section-heading">
+    <div>
+      <h2>AI Resource / Auto Build</h2>
+      <p>Codex・Deploy・AI予算の余裕と、MVP自動生成Queueを確認します。</p>
+    </div>
+    <div class="actions compact-actions">
+      <%= link_to "Resource Budget", admin_aicoo_resource_budget_path, class: "button secondary" %>
+      <%= link_to "Build Queue", admin_auto_build_tasks_path, class: "button secondary" %>
+    </div>
+  </div>
+  <div class="metric-grid">
+    <div class="metric-card"><span>Auto Build</span><strong><%= summary.budget.auto_build_enabled? ? "ON" : "OFF" %></strong></div>
+    <div class="metric-card"><span>Build Queue</span><strong><%= summary.pending_count %>件</strong></div>
+    <div class="metric-card"><span>Build中</span><strong><%= summary.building_count %>件</strong></div>
+    <div class="metric-card"><span>Codex利用率</span><strong><%= summary.codex_utilization_percent %>%</strong></div>
+    <div class="metric-card"><span>Deploy利用率</span><strong><%= summary.deploy_utilization_percent %>%</strong></div>
+    <div class="metric-card"><span>残予算</span><strong><%= number_to_currency(summary.remaining_budget_yen, unit: "¥", precision: 0) %></strong></div>
+    <div class="metric-card"><span>今日生成予定MVP</span><strong><%= summary.scheduled_today_count %>件</strong></div>
+    <div class="metric-card"><span>失敗</span><strong><%= summary.failed_count %>件</strong></div>
+  </div>
+
+  <% if local_assigns.fetch(:show_learning_rank, false) && summary.learning_value_rows.any? %>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Business</th>
+            <th>Learning Value</th>
+            <th>理由</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% summary.learning_value_rows.each do |row| %>
+            <tr>
+              <td><%= link_to row.business.name, row.business %></td>
+              <td class="number"><%= row.learning_value_score %></td>
+              <td><%= row.reason %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</section>

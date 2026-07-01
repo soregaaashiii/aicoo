@@ -1,0 +1,70 @@
+<% content_for :title, "Auto Build Queue" %>
+
+<% header_actions = capture do %>
+  <%= link_to "Resource Budget", admin_aicoo_resource_budget_path, class: "button secondary" %>
+  <%= link_to "Auto Revision Tasks", auto_revision_tasks_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "Auto Build Queue",
+             description: "LP反応とLearning Value、リソース余裕から作成されたMVP生成候補です。",
+             active_main: :system,
+             actions: header_actions %>
+  <%= render "shared/aicoo_execution_tabs", active: :dashboard %>
+
+  <section class="dashboard-section">
+    <div class="metric-grid">
+      <div class="metric-card"><span>待機中</span><strong><%= @summary.pending_count %>件</strong></div>
+      <div class="metric-card"><span>Build中</span><strong><%= @summary.building_count %>件</strong></div>
+      <div class="metric-card"><span>今日生成予定MVP</span><strong><%= @summary.scheduled_today_count %>件</strong></div>
+      <div class="metric-card"><span>失敗</span><strong><%= @summary.failed_count %>件</strong></div>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Build Queue</h2>
+      <p>一覧には必要最小限だけ表示します。Codex Prompt全文は詳細で確認します。</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>状態</th>
+            <th>Business</th>
+            <th>Strategy</th>
+            <th>期待値</th>
+            <th>Learning</th>
+            <th>費用</th>
+            <th>AutoRevision</th>
+            <th>詳細</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @auto_build_tasks.each do |task| %>
+            <tr>
+              <td><span class="pill"><%= task.status %></span></td>
+              <td><%= link_to task.business.name, task.business %></td>
+              <td><%= task.build_strategy_label %></td>
+              <td class="number"><%= number_to_currency(task.expected_value_yen, unit: "¥", precision: 0) %></td>
+              <td class="number"><%= number_with_precision(task.learning_value_score, precision: 0) %></td>
+              <td class="number"><%= number_to_currency(task.estimated_cost_yen, unit: "¥", precision: 0) %></td>
+              <td>
+                <% if task.auto_revision_task %>
+                  <%= link_to "Task ##{task.auto_revision_task.id}", task.auto_revision_task %>
+                <% else %>
+                  -
+                <% end %>
+              </td>
+              <td><%= link_to "見る", admin_auto_build_task_path(task), class: "button secondary" %></td>
+            </tr>
+          <% end %>
+          <% if @auto_build_tasks.empty? %>
+            <tr><td colspan="8">Auto Build Taskはまだありません。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>

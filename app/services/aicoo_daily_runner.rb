@@ -205,6 +205,8 @@ class AicooDailyRunner
       "warning=#{system_mode_snapshot.warning_count}"
     )
 
+    run_resource_aware_auto_builder!(run)
+
     log!("Daily Run finished target_date=#{target_date}")
   end
 
@@ -495,6 +497,31 @@ class AicooDailyRunner
     partial_failures << "activity_log_evaluation_failed"
     fail_step!(step, error_message) if step
     log!("ActivityEvaluation failed: #{error_message}")
+  end
+
+  def run_resource_aware_auto_builder!(run)
+    step = start_step!(run, "resource_aware_auto_build")
+    result = Aicoo::ResourceAwareAutoBuilder.new(today: target_date).call(daily_run: run)
+    metadata = result.diagnostics.merge(
+      "budget_auto_build_enabled" => result.budget.auto_build_enabled?,
+      "codex_waiting_count" => result.budget.codex_waiting_count,
+      "build_queue_count" => result.budget.build_queue_count,
+      "remaining_budget_yen" => result.budget.remaining_budget_yen.to_s
+    )
+    if result.budget.auto_build_enabled?
+      finish_step!(step, metadata:)
+    else
+      skip_step!(step, metadata: metadata.merge(
+        reason: "auto_build_disabled",
+        message: "Auto BuildはOFFです。Resource BudgetでONにするとDaily Run末尾でMVP生成候補を作成します。"
+      ))
+    end
+    log!("ResourceAwareAutoBuilder created=#{result.created_count} skipped=#{result.skipped_count}")
+  rescue StandardError => e
+    error_message = "#{e.class}: #{e.message}"
+    Rails.logger.error("AICOO Daily Run resource aware auto build failed: #{error_message}")
+    fail_step!(step, error_message) if step
+    log!("ResourceAwareAutoBuilder failed: #{error_message}")
   end
 
   def fail_run!(run, error)

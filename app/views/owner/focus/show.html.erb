@@ -15,6 +15,7 @@
 
   <%= render "shared/daily_run_health_summary", summary: @cron_health_summary %>
   <%= render "shared/auto_revision_execution_summary", summary: @auto_revision_execution_summary %>
+  <%= render "shared/resource_aware_auto_build_summary", summary: @auto_build_summary, show_learning_rank: false %>
 
   <% if @today_business_improvement %>
     <section class="dashboard-section">

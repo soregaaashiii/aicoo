@@ -62,7 +62,7 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
       assert_match "PipelineStuckDetector checked=", run.run_log
       assert_match "BusinessPlaybook updated count=2", run.run_log
       assert_match "SERP optional mode", run.run_log
-      assert_equal 25, run.aicoo_daily_run_steps.count
+      assert_equal 26, run.aicoo_daily_run_steps.count
       assert_equal %w[
         analytics_fetch
         datahub_collect
@@ -87,6 +87,7 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
         analysis_orchestration
         business_playbook_update
         system_mode_snapshot
+        resource_aware_auto_build
         auto_revision_queue
         pipeline_stuck_detection
       ], run.aicoo_daily_run_steps.order(:created_at).pluck(:step_name)
@@ -96,6 +97,7 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
         keyword_discovery
         competitor_serp_analysis
         serp_based_idea_generation
+        resource_aware_auto_build
         auto_revision_queue
       ].sort, run.aicoo_daily_run_steps.skipped.pluck(:step_name).sort
       assert_equal "success", run.status

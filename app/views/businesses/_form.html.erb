@@ -59,6 +59,23 @@
   <% end %>
 
   <fieldset class="aicoo-card aicoo-card-compact">
+    <legend>Auto Build Policy</legend>
+    <p class="aicoo-lab-help">LP反応とLearning Valueを見てMVP生成候補を作るかを決めます。初期は承認必須で、merge/deployはExecution Profile設定に従います。</p>
+    <label>
+      <%= form.check_box :auto_build_enabled %>
+      Auto Build対象にする
+    </label>
+    <label>
+      <%= form.check_box :auto_build_requires_approval %>
+      Owner承認を必須にする
+    </label>
+    <div class="field">
+      <%= form.label :auto_build_risk_level, "Risk Level" %>
+      <%= form.select :auto_build_risk_level, Business::AUTO_BUILD_RISK_LEVELS.map { |level| [level, level] } %>
+    </div>
+  </fieldset>
+
+  <fieldset class="aicoo-card aicoo-card-compact">
     <legend>自動改訂</legend>
     <p class="aicoo-lab-help">このBusinessだけの自動改訂モードです。Codex改訂までの進め方を決めます。</p>
     <div class="aicoo-grid aicoo-grid-3">

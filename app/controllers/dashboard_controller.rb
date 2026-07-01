@@ -14,6 +14,7 @@ class DashboardController < ApplicationController
     @scaling_failure_warnings = @scaling_businesses.select { |business| Aicoo::ScalingEvaluationSummary.for_business(business).verdict == "not_ready" }
     @investment_waiting_businesses = @scaling_candidates.map(&:business)
     @resource_control_summary = Aicoo::ResourceControlSummary.new.call
+    @auto_build_summary = Aicoo::ResourceAwareAutoBuildSummary.new.call
     @running_daily_run = AicooDailyRun.running.includes(:aicoo_daily_run_steps).recent.first
     @daily_run_cron_status = Aicoo::DailyRunCronStatus.new.call
     @last_night_daily_run_history = last_night_daily_run_history

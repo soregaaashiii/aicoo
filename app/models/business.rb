@@ -1,9 +1,10 @@
 class Business < ApplicationRecord
   STATUSES = %w[idea researching building launched paused sold withdrawn].freeze
-  LIFECYCLE_STAGES = %w[idea lp_validation mvp production scaling archived].freeze
+  LIFECYCLE_STAGES = %w[idea lp_validation mvp production scaling pivot archived].freeze
   RESOURCE_STATUSES = %w[active watch paused archived].freeze
   AUTO_REVISION_MODES = %w[manual approval automatic].freeze
   AUTO_DEPLOY_MODES = %w[manual approval automatic].freeze
+  AUTO_BUILD_RISK_LEVELS = %w[low medium high].freeze
   SYSTEM_BUSINESS_NAMES = [
     "AICOO Analytics Import"
   ].freeze
@@ -11,6 +12,7 @@ class Business < ApplicationRecord
   has_many :action_candidates, dependent: :destroy
   has_many :opportunity_discovery_items, dependent: :nullify
   has_many :auto_revision_tasks, dependent: :destroy
+  has_many :auto_build_tasks, dependent: :destroy
   has_many :auto_revision_run_logs, dependent: :destroy
   has_many :codex_prompt_drafts, dependent: :nullify
   has_many :action_results, dependent: :destroy
@@ -41,6 +43,7 @@ class Business < ApplicationRecord
   validates :resource_status, inclusion: { in: RESOURCE_STATUSES }
   validates :auto_revision_mode, inclusion: { in: AUTO_REVISION_MODES }
   validates :auto_deploy_mode, inclusion: { in: AUTO_DEPLOY_MODES }
+  validates :auto_build_risk_level, inclusion: { in: AUTO_BUILD_RISK_LEVELS }
 
   scope :real_businesses, -> { where.not(name: SYSTEM_BUSINESS_NAMES) }
   scope :system_businesses, -> { where(name: SYSTEM_BUSINESS_NAMES) }
@@ -110,6 +113,10 @@ class Business < ApplicationRecord
 
   def automatic_auto_deploy?
     auto_deploy_mode == "automatic"
+  end
+
+  def lab_auto_build_candidate?
+    created_by_aicoo? || source.to_s.in?(%w[idea_pipeline aicoo_lab]) || aicoo_lab_landing_pages.exists?
   end
 
   def current_month_revenue
@@ -245,6 +252,7 @@ class Business < ApplicationRecord
     self.resource_status = "active" if resource_status.blank?
     self.auto_revision_mode = "manual" if auto_revision_mode.blank?
     self.auto_deploy_mode = "manual" if auto_deploy_mode.blank?
+    self.auto_build_risk_level = "low" if auto_build_risk_level.blank?
   end
 
   def record_resource_status_activity!(previous_status:, operator:)

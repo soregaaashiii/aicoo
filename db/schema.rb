@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_01_034739) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_01_124000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -797,6 +797,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_01_034739) do
     t.index ["waiting_until"], name: "index_aicoo_pipeline_runs_on_waiting_until"
   end
 
+  create_table "aicoo_resource_budgets", force: :cascade do |t|
+    t.boolean "auto_build_enabled", default: false, null: false
+    t.integer "build_queue_limit", default: 5, null: false
+    t.integer "codex_concurrent_limit", default: 1, null: false
+    t.integer "codex_waiting_limit", default: 5, null: false
+    t.datetime "created_at", null: false
+    t.decimal "current_month_ai_spend_yen", precision: 12, scale: 2, default: "0.0", null: false
+    t.integer "deploy_queue_limit", default: 2, null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.decimal "monthly_ai_budget_yen", precision: 12, scale: 2, default: "0.0", null: false
+    t.integer "render_service_limit", default: 3, null: false
+    t.integer "simultaneous_mvp_limit", default: 1, null: false
+    t.datetime "updated_at", null: false
+  end
+
   create_table "aicoo_revenue_executions", force: :cascade do |t|
     t.integer "actual_90d_profit_yen"
     t.integer "budget_yen"
@@ -914,6 +929,35 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_01_034739) do
     t.index ["authentication_mode"], name: "index_analytics_source_settings_on_authentication_mode"
     t.index ["google_credential_id"], name: "index_analytics_source_settings_on_google_credential_id"
     t.index ["source_type"], name: "index_analytics_source_settings_on_source_type"
+  end
+
+  create_table "auto_build_tasks", force: :cascade do |t|
+    t.bigint "aicoo_daily_run_id"
+    t.bigint "auto_revision_task_id"
+    t.string "build_strategy", null: false
+    t.bigint "business_id", null: false
+    t.text "codex_prompt"
+    t.datetime "created_at", null: false
+    t.decimal "estimated_build_hours", precision: 8, scale: 2, default: "0.0", null: false
+    t.decimal "estimated_cost_yen", precision: 12, scale: 2, default: "0.0", null: false
+    t.decimal "expected_value_yen", precision: 12, scale: 2, default: "0.0", null: false
+    t.datetime "finished_at"
+    t.decimal "learning_value_score", precision: 8, scale: 2, default: "0.0", null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.decimal "priority_score", precision: 12, scale: 2, default: "0.0", null: false
+    t.text "reason"
+    t.string "risk_level", default: "low", null: false
+    t.datetime "started_at"
+    t.string "status", default: "pending", null: false
+    t.datetime "updated_at", null: false
+    t.index ["aicoo_daily_run_id"], name: "index_auto_build_tasks_on_aicoo_daily_run_id"
+    t.index ["auto_revision_task_id"], name: "index_auto_build_tasks_on_auto_revision_task_id"
+    t.index ["build_strategy"], name: "index_auto_build_tasks_on_build_strategy"
+    t.index ["business_id", "status"], name: "index_auto_build_tasks_on_business_id_and_status"
+    t.index ["business_id"], name: "index_auto_build_tasks_on_business_id"
+    t.index ["priority_score"], name: "index_auto_build_tasks_on_priority_score"
+    t.index ["risk_level"], name: "index_auto_build_tasks_on_risk_level"
+    t.index ["status"], name: "index_auto_build_tasks_on_status"
   end
 
   create_table "auto_revision_executions", force: :cascade do |t|
@@ -1168,6 +1212,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_01_034739) do
   end
 
   create_table "businesses", force: :cascade do |t|
+    t.boolean "auto_build_enabled", default: false, null: false
+    t.boolean "auto_build_requires_approval", default: true, null: false
+    t.string "auto_build_risk_level", default: "low", null: false
     t.string "auto_deploy_mode", default: "manual", null: false
     t.string "auto_revision_mode", default: "manual", null: false
     t.string "category"
@@ -1192,6 +1239,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_01_034739) do
     t.string "source"
     t.string "status"
     t.datetime "updated_at", null: false
+    t.index ["auto_build_enabled"], name: "index_businesses_on_auto_build_enabled"
+    t.index ["auto_build_risk_level"], name: "index_businesses_on_auto_build_risk_level"
     t.index ["auto_deploy_mode"], name: "index_businesses_on_auto_deploy_mode"
     t.index ["auto_revision_mode"], name: "index_businesses_on_auto_revision_mode"
     t.index ["created_by_aicoo"], name: "index_businesses_on_created_by_aicoo"
@@ -1808,6 +1857,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_01_034739) do
   add_foreign_key "analytics_fetch_runs", "analytics_source_settings"
   add_foreign_key "analytics_source_settings", "aicoo_analytics_sites"
   add_foreign_key "analytics_source_settings", "aicoo_google_credentials", column: "google_credential_id"
+  add_foreign_key "auto_build_tasks", "aicoo_daily_runs"
+  add_foreign_key "auto_build_tasks", "auto_revision_tasks"
+  add_foreign_key "auto_build_tasks", "businesses"
   add_foreign_key "auto_revision_executions", "auto_revision_tasks"
   add_foreign_key "auto_revision_queue_runs", "aicoo_daily_runs"
   add_foreign_key "auto_revision_run_logs", "auto_revision_tasks"

@@ -29,6 +29,7 @@ module BusinessesHelper
     "mvp" => "MVP",
     "production" => "サービス公開",
     "scaling" => "拡大",
+    "pivot" => "Pivot",
     "archived" => "Archived"
   }.freeze
 
@@ -38,6 +39,7 @@ module BusinessesHelper
     "mvp" => "最小サービスを作り、実利用を確認する段階です。",
     "production" => "本番サービスとして運用・改善する段階です。",
     "scaling" => "伸びている事業を拡大する段階です。",
+    "pivot" => "方向転換して次の仮説を検証する段階です。",
     "archived" => "停止または終了した事業です。"
   }.freeze
 

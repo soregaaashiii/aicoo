@@ -360,6 +360,26 @@
     </div>
     <%= form_with model: @business, method: :patch, class: "aicoo-form" do |form| %>
       <%= hidden_field_tag :return_to, business_path(@business, anchor: "auto-revision") %>
+      <h4>Auto Build Policy</h4>
+      <div class="metric-grid aicoo-owner-secondary">
+        <div class="metric-card"><span>Auto Build</span><strong><%= @business.auto_build_enabled? ? "ON" : "OFF" %></strong></div>
+        <div class="metric-card"><span>承認</span><strong><%= @business.auto_build_requires_approval? ? "必須" : "不要" %></strong></div>
+        <div class="metric-card"><span>Risk</span><strong><%= @business.auto_build_risk_level %></strong></div>
+        <div class="metric-card"><span>Build Queue</span><strong><%= @business.auto_build_tasks.active.count %>件</strong></div>
+      </div>
+      <label>
+        <%= form.check_box :auto_build_enabled %>
+        Auto Build対象にする
+      </label>
+      <label>
+        <%= form.check_box :auto_build_requires_approval %>
+        Owner承認を必須にする
+      </label>
+      <div class="field">
+        <%= form.label :auto_build_risk_level, "Risk Level" %>
+        <%= form.select :auto_build_risk_level, Business::AUTO_BUILD_RISK_LEVELS.map { |level| [level, level] } %>
+      </div>
+
       <h4>Auto Revision Mode</h4>
       <div class="aicoo-grid aicoo-grid-3">
         <% Business::AUTO_REVISION_MODES.each do |mode| %>

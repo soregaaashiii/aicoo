@@ -1,0 +1,67 @@
+<% content_for :title, "AICOO Resource Budget" %>
+
+<% header_actions = capture do %>
+  <%= link_to "Auto Build Queue", admin_auto_build_tasks_path, class: "button secondary" %>
+  <%= link_to "SYSTEM MODE", dashboard_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "AICOO Resource Budget",
+             description: "Codex・Build・Deploy・AI予算の余裕を見て、MVP自動生成候補を作るための設定です。",
+             active_main: :system,
+             actions: header_actions %>
+  <%= render "shared/aicoo_execution_tabs", active: :dashboard %>
+
+  <section class="dashboard-section">
+    <div class="metric-grid">
+      <div class="metric-card"><span>Auto Build</span><strong><%= @budget.auto_build_enabled? ? "ON" : "OFF" %></strong></div>
+      <div class="metric-card"><span>Codex利用率</span><strong><%= @summary.codex_utilization_percent %>%</strong></div>
+      <div class="metric-card"><span>Deploy利用率</span><strong><%= @summary.deploy_utilization_percent %>%</strong></div>
+      <div class="metric-card"><span>Build Queue</span><strong><%= @summary.pending_count %>件</strong></div>
+      <div class="metric-card"><span>Build中</span><strong><%= @summary.building_count %>件</strong></div>
+      <div class="metric-card"><span>残予算</span><strong><%= number_to_currency(@summary.remaining_budget_yen, unit: "¥", precision: 0) %></strong></div>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>Resource Budget設定</h2>
+      <p>初期状態はAuto Build OFFです。ONにしても自動merge/deployは既存Execution Profileが許可しない限り進みません。</p>
+    </div>
+    <%= form_with model: @budget, url: admin_aicoo_resource_budget_path, method: :patch, class: "aicoo-form" do |form| %>
+      <div class="form-grid">
+        <label>Auto Build
+          <%= form.check_box :auto_build_enabled %>
+        </label>
+        <label>Codex同時実行数
+          <%= form.number_field :codex_concurrent_limit, min: 0 %>
+        </label>
+        <label>Codex待機数
+          <%= form.number_field :codex_waiting_limit, min: 0 %>
+        </label>
+        <label>Build Queue件数
+          <%= form.number_field :build_queue_limit, min: 0 %>
+        </label>
+        <label>Deploy Queue件数
+          <%= form.number_field :deploy_queue_limit, min: 0 %>
+        </label>
+        <label>Renderサービス数
+          <%= form.number_field :render_service_limit, min: 0 %>
+        </label>
+        <label>月間AI予算
+          <%= form.number_field :monthly_ai_budget_yen, min: 0, step: 100 %>
+        </label>
+        <label>今月使用額
+          <%= form.number_field :current_month_ai_spend_yen, min: 0, step: 100 %>
+        </label>
+        <label>同時MVP上限
+          <%= form.number_field :simultaneous_mvp_limit, min: 0 %>
+        </label>
+      </div>
+      <div class="actions">
+        <%= form.submit "保存", class: "button" %>
+      </div>
+    <% end %>
+  </section>
+</div>

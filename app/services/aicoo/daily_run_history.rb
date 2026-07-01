@@ -28,7 +28,8 @@ module Aicoo
       [ :action_result, "ActionResult", %w[action_result_evaluation], :action_results_evaluated_count ],
       [ :learning, "Learning", %w[activity_log_evaluation_queue_build business_playbook_update owner_task_digest], nil ],
       [ :calibration, "Calibration", %w[calibration], :updated_calibration_count ],
-      [ :data_preparation, "Data Preparation", %w[data_preparation_queue], :data_preparation_candidates_count ]
+      [ :data_preparation, "Data Preparation", %w[data_preparation_queue], :data_preparation_candidates_count ],
+      [ :auto_build, "Auto Build", %w[resource_aware_auto_build], nil ]
     ].freeze
 
     REASON_LABELS = {

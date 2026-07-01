@@ -112,6 +112,8 @@
     </div>
   </section>
 
+  <%= render "shared/resource_aware_auto_build_summary", summary: @auto_build_summary, show_learning_rank: true %>
+
   <%= render "dashboard/system_mode_monitor", monitor: @system_mode_monitor %>
 
   <section class="dashboard-section">
