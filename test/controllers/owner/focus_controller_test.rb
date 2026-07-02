@@ -19,12 +19,12 @@ module Owner
 
       assert_response :success
       assert_includes response.body, "今日の事業改善"
-      assert_includes response.body, "今日の1件"
+      assert_not_includes response.body, "今日の1件"
       assert_includes response.body, "今日おすすめの事業改善 TOP10"
       assert_includes response.body, "Businessカード"
       assert_includes response.body, businesses(:suelog).name
       assert_includes response.body, candidate.title
-      assert_includes response.body, "AIがこの改善を勧める理由"
+      assert_includes response.body, "期待利益が"
       assert_includes response.body, "Codexへ送る"
       assert_includes response.body, "CEO MODE"
       assert_includes response.body, "Businesses"
@@ -51,7 +51,6 @@ module Owner
       assert_not_includes response.body, "Pipeline E2E"
       assert_not_includes response.body, "Execution Profiles"
       assert_not_includes response.body, "AICOO Analytics Import"
-      assert_operator response.body.index("今日の1件"), :<, response.body.index("今日おすすめの事業改善 TOP10")
       assert_operator response.body.index("今日おすすめの事業改善 TOP10"), :<, response.body.index("Businessカード")
       assert_operator response.body.index("Businessカード"), :<, response.body.index("運用・実行管理")
       assert_operator response.body.index("運用・実行管理"), :<, response.body.index("Daily Run Health")

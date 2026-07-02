@@ -13,46 +13,6 @@
              active_main: :revenue,
              actions: header_actions %>
 
-  <% if @today_business_improvement %>
-    <section class="dashboard-section">
-      <div class="section-heading">
-        <div>
-          <h2>今日の1件</h2>
-          <p>期待利益、ROI、成功率、必要時間、学習価値を総合して一番おすすめの改善です。</p>
-        </div>
-        <span class="pill"><%= @today_business_improvement.category %></span>
-      </div>
-      <div class="aicoo-card">
-        <p>
-          <span class="pill">#1</span>
-          <strong><%= link_to @today_business_improvement.business.name, @today_business_improvement.business %></strong>
-        </p>
-        <h2><%= @today_business_improvement.title %></h2>
-        <div class="metric-grid aicoo-owner-secondary">
-          <div class="metric-card"><span>期待利益</span><strong><%= number_to_currency(@today_business_improvement.expected_profit_yen, unit: "¥", precision: 0) %></strong></div>
-          <div class="metric-card"><span>成功率</span><strong><%= number_to_percentage(@today_business_improvement.success_probability * 100, precision: 0) %></strong></div>
-          <div class="metric-card"><span>必要時間</span><strong><%= @today_business_improvement.required_minutes.positive? ? "#{@today_business_improvement.required_minutes}分" : "-" %></strong></div>
-          <div class="metric-card"><span>期待時給</span><strong><%= @today_business_improvement.expected_hourly_value_yen.positive? ? number_to_currency(@today_business_improvement.expected_hourly_value_yen, unit: "¥", precision: 0) : "-" %></strong></div>
-        </div>
-        <h3>AIがこの改善を勧める理由</h3>
-        <ul class="compact-list">
-          <% @today_business_improvement.reason_lines.each do |line| %>
-            <li><%= line %></li>
-          <% end %>
-        </ul>
-        <div class="actions compact-actions">
-          <% if @today_business_improvement.codex_method == :post %>
-            <%= button_to "今すぐ実行", @today_business_improvement.codex_path, method: :post, class: "button" %>
-          <% else %>
-            <%= link_to "今すぐ実行", @today_business_improvement.codex_path, class: "button" %>
-          <% end %>
-          <%= link_to "詳細", @today_business_improvement.detail_path, class: "button secondary" %>
-          <%= button_to "後で", @today_business_improvement.defer_path, method: :patch, class: "button secondary" %>
-        </div>
-      </div>
-    </section>
-  <% end %>
-
   <section class="dashboard-section">
     <div class="section-heading">
       <div>
