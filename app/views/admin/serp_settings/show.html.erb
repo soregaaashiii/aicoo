@@ -143,7 +143,7 @@
     <%= link_to "Business設定", "#serp-businesses", class: "button secondary" %>
     <%= link_to "検索クエリ管理", "#serp-keywords", class: "button secondary" %>
     <%= link_to "実行状況", "#serp-execution", class: "button secondary" %>
-    <%= link_to "履歴", "#serp-history", class: "button secondary" %>
+    <%= link_to "市場分析結果", "#serp-market-results", class: "button secondary" %>
   </nav>
 
   <section class="dashboard-section" id="serp-global">
@@ -374,7 +374,7 @@
             <%= link_to "検索クエリ管理へ", "#serp-keywords", class: "button" %>
             <%= button_to "選択中BusinessのSERPを実行", run_selected_business_admin_serp_settings_path(business_id: selected_business.id), method: :post, class: "button secondary" %>
             <%= button_to "上限を無視して実行", run_selected_business_admin_serp_settings_path(business_id: selected_business.id, ignore_limit: true), method: :post, class: "button secondary", data: { aicoo_confirm: "1日最大実行クエリ数を無視して実行します。" } %>
-            <%= link_to "履歴へ", "#serp-history", class: "button secondary" %>
+            <%= link_to "市場分析結果へ", "#serp-market-results", class: "button secondary" %>
           </div>
         <% else %>
           <p>Businessがありません。</p>
@@ -461,7 +461,7 @@
         </div>
       </div>
 
-      <div class="aicoo-card aicoo-card-compact">
+      <div class="aicoo-card aicoo-card-compact" id="serp-queries-executable">
         <div class="section-heading">
           <div>
             <h3>SERP検索クエリ</h3>
@@ -496,7 +496,7 @@
                 <% plan_row = @selected_plan_by_query_id[serp_query.id] %>
                 <tr id="serp-query-<%= serp_query.id %>">
                   <td><%= serp_query.priority %></td>
-                  <td><strong><%= serp_query.query %></strong></td>
+                  <td class="wide-text"><strong><%= serp_query.query %></strong><br><small><%= serp_query.metadata.to_h["source"].presence || "manual" %></small></td>
                   <td><span class="pill"><%= serp_query.status %> / <%= serp_query.enabled? ? "ON" : "OFF" %></span></td>
                   <td><%= serp_query.last_run_at ? l(serp_query.last_run_at, format: :short) : "未取得" %></td>
                   <td><%= plan_row&.status == "run" ? "今日実行対象" : serp_query.next_run_label %></td>
@@ -518,54 +518,26 @@
       </div>
 
       <div class="aicoo-card aicoo-card-compact">
-        <h3>手動追加した検索クエリ候補</h3>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>検索クエリ</th>
-                <th>Status</th>
-                <th>Priority</th>
-                <th>最終取得</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              <% manual_keywords.each do |keyword| %>
-                <tr>
-                  <td>
-                    <%= form_with url: keyword_admin_serp_settings_path(keyword), scope: :serp_keyword, method: :patch, class: "inline-form" do |form| %>
-                      <%= form.text_field :keyword, value: keyword.keyword %>
-                      <%= form.number_field :priority_score, value: keyword.priority_score, min: 0, max: 100, class: "compact-number" %>
-                      <%= form.submit "保存", class: "button secondary" %>
-                    <% end %>
-                  </td>
-                  <td><span class="pill"><%= keyword.status %></span></td>
-                  <td><%= keyword.priority_score %></td>
-                  <td><%= keyword.last_checked_at ? l(keyword.last_checked_at, format: :short) : "未取得" %></td>
-                  <td>
-                    <div class="compact-actions">
-                      <%= button_to "Pause", pause_keyword_admin_serp_settings_path(keyword), method: :patch, class: "button secondary" unless keyword.status == "paused" %>
-                      <%= button_to "Archive", archive_keyword_admin_serp_settings_path(keyword), method: :patch, class: "button secondary" %>
-                      <%= button_to "削除", destroy_keyword_admin_serp_settings_path(keyword), method: :delete, class: "button secondary", data: { aicoo_confirm: "この検索クエリ候補を削除します。" } %>
-                    </div>
-                  </td>
-                </tr>
-              <% end %>
-              <% if manual_keywords.empty? %>
-                <tr><td colspan="5">手動追加した検索クエリ候補はまだありません。</td></tr>
-              <% end %>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="aicoo-card aicoo-card-compact">
         <h3>AI候補</h3>
+        <p class="muted">承認すると実行対象のSERP検索クエリに追加されます。承認だけではSerper APIは実行されません。</p>
+        <%= form_with url: business_approve_pending_admin_serp_settings_path(selected_business), method: :post, class: "form" do %>
+          <%= hidden_field_tag :selected_only, "1" %>
+          <div class="compact-actions">
+            <%= submit_tag "選択した候補を承認", class: "button" %>
+            <%= link_to "Pendingをすべて承認",
+                        business_approve_pending_admin_serp_settings_path(selected_business),
+                        data: { turbo_method: :post, turbo_confirm: "承認待ち検索クエリをすべて実行対象へ追加します。" },
+                        class: "button secondary" %>
+            <%= link_to "候補を再生成",
+                        business_suggestions_admin_serp_settings_path(selected_business),
+                        data: { turbo_method: :post },
+                        class: "button secondary" %>
+          </div>
         <div class="table-wrap">
           <table>
             <thead>
               <tr>
+                <th>選択</th>
                 <th>検索クエリ候補</th>
                 <th>生成理由</th>
                 <th>検索意図</th>
@@ -577,6 +549,7 @@
             <tbody>
               <% pending_keywords.each do |keyword| %>
                 <tr>
+                  <td><%= check_box_tag "keyword_ids[]", keyword.id, false, id: "keyword_ids_#{keyword.id}" %></td>
                   <td><strong><%= keyword.keyword %></strong></td>
                   <td><%= keyword.reason.presence || "-" %></td>
                   <td><%= keyword.search_intent.presence || "-" %></td>
@@ -584,114 +557,19 @@
                   <td><%= keyword.source %></td>
                   <td>
                     <div class="compact-actions">
-                      <%= button_to "承認", approve_keyword_admin_serp_settings_path(keyword), method: :patch, class: "button" %>
-                      <%= button_to "除外", exclude_keyword_admin_serp_settings_path(keyword), method: :patch, class: "button secondary" %>
+                      <%= link_to "承認", approve_keyword_admin_serp_settings_path(keyword), data: { turbo_method: :patch }, class: "button" %>
+                      <%= link_to "除外", exclude_keyword_admin_serp_settings_path(keyword), data: { turbo_method: :patch }, class: "button secondary" %>
                     </div>
                   </td>
                 </tr>
               <% end %>
               <% if pending_keywords.empty? %>
-                <tr><td colspan="6">承認待ち候補はありません。</td></tr>
+                <tr><td colspan="7">承認待ち候補はありません。</td></tr>
               <% end %>
             </tbody>
           </table>
         </div>
-      </div>
-
-      <div class="aicoo-card aicoo-card-compact">
-        <h3>Active</h3>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>検索クエリ候補</th>
-                <th>Source</th>
-                <th>Priority</th>
-                <th>Latest</th>
-                <th>Metrics</th>
-                <th>寿命判定</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              <% active_keywords.each do |keyword| %>
-                <% inactive_reasons = keyword.metadata_json.to_h["inactive_reasons"].to_a %>
-                <tr>
-                  <td><strong><%= keyword.keyword %></strong></td>
-                  <td><%= keyword.source %></td>
-                  <td>
-                    <%= form_with url: keyword_admin_serp_settings_path(keyword), scope: :serp_keyword, method: :patch, class: "inline-form" do |form| %>
-                      <%= form.number_field :priority_score, value: keyword.priority_score, min: 0, max: 100, class: "compact-number" %>
-                      <%= form.submit "保存", class: "button secondary" %>
-                    <% end %>
-                  </td>
-                  <td>
-                    <%= keyword.last_checked_at ? l(keyword.last_checked_at, format: :short) : "未取得" %><br>
-                    <small><%= keyword.check_count %>回</small>
-                  </td>
-                  <td>
-                    Rank <%= keyword.latest_rank || "-" %><br>
-                    CTR <%= keyword.latest_ctr || "-" %> /
-                    Click <%= keyword.latest_clicks || "-" %> /
-                    Imp <%= keyword.latest_impressions || "-" %>
-                  </td>
-                  <td>
-                    <% if inactive_reasons.any? %>
-                      <span class="pill">Inactive候補</span><br>
-                      <small><%= inactive_reasons.join(" / ") %></small>
-                    <% else %>
-                      <span class="pill">継続</span>
-                    <% end %>
-                  </td>
-                  <td>
-                    <div class="compact-actions">
-                      <%= button_to "Pause", pause_keyword_admin_serp_settings_path(keyword), method: :patch, class: "button secondary" %>
-                      <%= button_to "Archive", archive_keyword_admin_serp_settings_path(keyword), method: :patch, class: "button secondary" %>
-                      <%= button_to "除外へ移動", exclude_keyword_admin_serp_settings_path(keyword), method: :patch, class: "button secondary" %>
-                    </div>
-                  </td>
-                </tr>
-              <% end %>
-              <% if active_keywords.empty? %>
-                <tr><td colspan="7">Active検索クエリ候補はまだありません。</td></tr>
-              <% end %>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="aicoo-card aicoo-card-compact">
-        <h3>Paused / Archived</h3>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>検索クエリ候補</th>
-                <th>Status</th>
-                <th>Priority</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              <% inactive_keywords.each do |keyword| %>
-                <tr>
-                  <td><%= keyword.keyword %></td>
-                  <td><span class="pill"><%= keyword.status %></span></td>
-                  <td><%= keyword.priority_score %></td>
-                  <td>
-                    <div class="compact-actions">
-                      <%= button_to "Resume", resume_keyword_admin_serp_settings_path(keyword), method: :patch, class: "button secondary" %>
-                      <%= button_to "除外へ移動", exclude_keyword_admin_serp_settings_path(keyword), method: :patch, class: "button secondary" %>
-                    </div>
-                  </td>
-                </tr>
-              <% end %>
-              <% if inactive_keywords.empty? %>
-                <tr><td colspan="4">Paused / Archived検索クエリ候補はありません。</td></tr>
-              <% end %>
-            </tbody>
-          </table>
-        </div>
+        <% end %>
       </div>
 
       <div class="aicoo-card aicoo-card-compact">
@@ -770,77 +648,39 @@
       </div>
     <% end %>
 
-    <div class="aicoo-grid aicoo-grid-2">
-      <div class="aicoo-card aicoo-card-compact">
-        <h3>Business別取得数</h3>
-        <div class="table-wrap">
-          <table>
-            <thead>
+    <div class="aicoo-card aicoo-card-compact">
+      <h3>Business別取得数</h3>
+      <p>Run履歴の確認は <%= link_to "Daily Run画面", aicoo_daily_runs_path %> に集約しています。</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Business</th>
+              <th>取得</th>
+              <th>成功</th>
+              <th>Fail</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @serp_businesses.each do |business| %>
               <tr>
-                <th>Business</th>
-                <th>取得</th>
-                <th>成功</th>
-                <th>Fail</th>
+                <td><%= business.name %></td>
+                <td><%= @business_period_serp_counts[business.id].to_i %></td>
+                <td><%= @business_period_success_counts[business.id].to_i %></td>
+                <td><%= @business_period_failed_counts[business.id].to_i %></td>
               </tr>
-            </thead>
-            <tbody>
-              <% @serp_businesses.each do |business| %>
-                <tr>
-                  <td><%= business.name %></td>
-                  <td><%= @business_period_serp_counts[business.id].to_i %></td>
-                  <td><%= @business_period_success_counts[business.id].to_i %></td>
-                  <td><%= @business_period_failed_counts[business.id].to_i %></td>
-                </tr>
-              <% end %>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="aicoo-card aicoo-card-compact">
-        <h3>SERP Run履歴</h3>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Run</th>
-                <th>Status</th>
-                <th>実行者</th>
-            <th>検索クエリ</th>
-                <th>成功</th>
-                <th>失敗</th>
-                <th>候補</th>
-                <th>Error</th>
-              </tr>
-            </thead>
-            <tbody>
-              <% @recent_serp_runs.each do |run| %>
-                <tr>
-                  <td>#<%= run.id %></td>
-                  <td><span class="pill"><%= run.status %></span></td>
-                  <td><%= run.executed_by %></td>
-                  <td><%= run.query_count %></td>
-                  <td><%= run.success_count %></td>
-                  <td><%= run.failure_count %></td>
-                  <td><%= run.candidate_count %></td>
-                  <td><%= truncate(run.error_message.to_s, length: 90) %></td>
-                </tr>
-              <% end %>
-              <% if @recent_serp_runs.empty? %>
-                <tr><td colspan="8">SERP Run履歴はまだありません。</td></tr>
-              <% end %>
-            </tbody>
-          </table>
-        </div>
+            <% end %>
+          </tbody>
+        </table>
       </div>
     </div>
   </section>
 
-  <section class="dashboard-section" id="serp-history">
+  <section class="dashboard-section" id="serp-market-results">
     <div class="section-heading">
       <div>
-        <h2>履歴</h2>
-        <p>SERP取得履歴とActionCandidate生成数を確認します。</p>
+        <h2>市場分析結果</h2>
+        <p>SERPで保存された検索結果とActionCandidate生成数を確認します。Run運用履歴はDaily Run画面で確認します。</p>
       </div>
       <%= link_to "E2E診断で詳しく見る", admin_serp_e2e_check_path(business_id: selected_business&.id), class: "button secondary" %>
     </div>
@@ -891,7 +731,7 @@
             </tr>
           <% end %>
           <% if @recent_serp_analyses.empty? %>
-            <tr><td colspan="8">SERP履歴はまだありません。</td></tr>
+            <tr><td colspan="8">市場分析結果はまだありません。</td></tr>
           <% end %>
         </tbody>
       </table>

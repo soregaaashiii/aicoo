@@ -19,6 +19,37 @@ module Admin
       assert_includes response.body, "SERP設定へ"
     end
 
+    test "serp row uses serp runs instead of traffic channel runs" do
+      Aicoo::Serp::Scheduler.update!("scheduler_enabled" => true)
+      started_at = Time.zone.local(2026, 7, 2, 8, 0)
+      travel_to started_at do
+        SerpRun.create!(
+          status: "success",
+          started_at:,
+          finished_at: started_at + 2.minutes,
+          executed_by: "scheduler",
+          query_count: 12,
+          success_count: 12,
+          failure_count: 0,
+          candidate_count: 3,
+          credit_estimate: 12
+        )
+
+        get admin_traffic_channels_url
+      end
+
+      assert_response :success
+      assert_select "tr#traffic-channel-serp" do |row|
+        html = row.to_s
+        assert_includes html, "Scheduler ON"
+        assert_includes html, "latest: scheduler"
+        assert_includes html, "12回"
+        assert_includes html, "0件"
+        assert_includes html, "SERP設定"
+        assert_not_includes html, "未実行"
+      end
+    end
+
     test "updates global channel enabled state" do
       patch admin_traffic_channel_url("x"), params: { traffic_channel: { enabled: "0" } }
 

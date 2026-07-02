@@ -19,9 +19,11 @@ module Admin
       assert_includes response.body, "Business設定"
       assert_includes response.body, "検索クエリ管理"
       assert_includes response.body, "実行状況"
-      assert_includes response.body, "履歴"
+      assert_includes response.body, "市場分析結果"
+      assert_includes response.body, "Run履歴の確認は"
       assert_includes response.body, "テスト検索"
       assert_includes response.body, "SERP Adapterでテスト検索"
+      assert_not_includes response.body, "SERP Run履歴"
     end
 
     test "shows new business candidate card" do
@@ -77,7 +79,7 @@ module Admin
       get admin_serp_settings_url
 
       assert_response :success
-      assert_includes response.body, "履歴"
+      assert_includes response.body, "市場分析結果"
       assert_includes response.body, "保存済み分析"
       assert_includes response.body, "保存済み結果"
       assert_includes response.body, "梅田 喫煙 カフェ"
@@ -102,16 +104,26 @@ module Admin
     end
 
     test "approves and excludes suggested keywords" do
-      keyword = businesses(:suelog).business_serp_keywords.create!(
+      business = businesses(:suelog)
+      keyword = business.business_serp_keywords.create!(
         keyword: "梅田 喫煙 カフェ",
         source: "ai_suggested",
         status: "pending",
-        reason: "Business情報から生成"
+        reason: "Business情報から生成",
+        priority_score: 72
       )
 
-      patch approve_keyword_admin_serp_settings_url(keyword)
-      assert_redirected_to admin_serp_settings_url(anchor: "serp-business-#{keyword.business_id}")
+      assert_difference -> { business.serp_queries.count }, 1 do
+        patch approve_keyword_admin_serp_settings_url(keyword)
+      end
+      assert_redirected_to admin_serp_settings_url(business_id: keyword.business_id, anchor: "serp-queries-executable")
       assert_equal "active", keyword.reload.status
+      serp_query = business.serp_queries.find_by!(query: "梅田 喫煙 カフェ")
+      assert serp_query.enabled?
+      assert_equal "active", serp_query.status
+      assert_equal 72, serp_query.priority
+      assert_equal "ai_suggested", serp_query.metadata["source"]
+      assert_equal serp_query.id, keyword.metadata_json["serp_query_id"]
 
       patch exclude_keyword_admin_serp_settings_url(keyword), params: { serp_keyword: { reason: "対象外" } }
       assert_redirected_to admin_serp_settings_url(anchor: "serp-business-#{keyword.business_id}")
@@ -124,10 +136,54 @@ module Admin
       business.business_serp_keywords.create!(keyword: "梅田 喫煙", source: "ai_suggested", status: "pending")
       business.business_serp_keywords.create!(keyword: "難波 喫煙", source: "ai_suggested", status: "pending")
 
-      post business_approve_pending_admin_serp_settings_url(business)
+      assert_difference -> { business.serp_queries.count }, 2 do
+        post business_approve_pending_admin_serp_settings_url(business)
+      end
 
-      assert_redirected_to admin_serp_settings_url(anchor: "serp-keywords")
+      assert_redirected_to admin_serp_settings_url(business_id: business.id, anchor: "serp-queries-executable")
       assert_equal 2, business.business_serp_keywords.where(status: "active").count
+      assert business.serp_queries.exists?(query: "梅田 喫煙", enabled: true, status: "active")
+      assert business.serp_queries.exists?(query: "難波 喫煙", enabled: true, status: "active")
+    end
+
+    test "selected bulk approve only promotes checked keyword" do
+      business = businesses(:suelog)
+      selected = business.business_serp_keywords.create!(keyword: "梅田 喫煙", source: "ai_suggested", status: "pending")
+      unselected = business.business_serp_keywords.create!(keyword: "難波 喫煙", source: "ai_suggested", status: "pending")
+
+      assert_difference -> { business.serp_queries.count }, 1 do
+        post business_approve_pending_admin_serp_settings_url(business), params: {
+          selected_only: "1",
+          keyword_ids: [ selected.id ]
+        }
+      end
+
+      assert_equal "active", selected.reload.status
+      assert_equal "pending", unselected.reload.status
+      assert business.serp_queries.exists?(query: "梅田 喫煙")
+      assert_not business.serp_queries.exists?(query: "難波 喫煙")
+    end
+
+    test "approving duplicate keyword activates existing serp query without duplication" do
+      business = businesses(:suelog)
+      existing = business.serp_queries.create!(
+        query: "梅田 喫煙",
+        category: "existing_business",
+        enabled: false,
+        status: "paused",
+        priority: 99
+      )
+      keyword = business.business_serp_keywords.create!(keyword: "梅田 喫煙", source: "ai_suggested", status: "pending", priority_score: 40)
+
+      assert_no_difference -> { business.serp_queries.count } do
+        patch approve_keyword_admin_serp_settings_url(keyword)
+      end
+
+      existing.reload
+      assert existing.enabled?
+      assert_equal "active", existing.status
+      assert_equal 40, existing.priority
+      assert_equal existing.id, keyword.reload.metadata_json["serp_query_id"]
     end
 
     test "updates keyword text and marks manual priority" do

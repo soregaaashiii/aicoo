@@ -91,6 +91,8 @@
           <% @channels.each do |channel| %>
             <% profile = @profiles_by_key[channel.key] || DataSourceCostProfile.for_source(channel.key) %>
             <% last_run = @last_runs_by_channel[channel.key] %>
+            <% serp_channel = channel.key == "serp" %>
+            <% serp_latest_run = @serp_channel_stats[:latest_run] if serp_channel %>
             <tr id="traffic-channel-<%= channel.key %>">
               <td>
                 <strong><%= channel.label %></strong><br>
@@ -106,10 +108,38 @@
                   <%= form.submit "保存", class: "button secondary" %>
                 <% end %>
               </td>
-              <td><span class="pill"><%= profile.execution_mode %></span></td>
-              <td><%= last_run ? l(last_run.ran_at, format: :short) : "未実行" %></td>
-              <td><%= @today_runs_by_channel[channel.key].to_i %>回</td>
-              <td><%= @today_failed_runs_by_channel[channel.key].to_i %>件</td>
+              <td>
+                <% if serp_channel %>
+                  <span class="pill"><%= @serp_channel_stats[:usage_label] %></span>
+                <% else %>
+                  <span class="pill"><%= profile.execution_mode %></span>
+                <% end %>
+              </td>
+              <td>
+                <% if serp_channel %>
+                  <% if serp_latest_run %>
+                    <%= serp_latest_run.started_at ? l(serp_latest_run.started_at, format: :short) : "-" %>
+                    <% if serp_latest_run.finished_at %>
+                      <br><small>完了 <%= l(serp_latest_run.finished_at, format: :short) %></small>
+                    <% end %>
+                  <% else %>
+                    未実行
+                  <% end %>
+                <% else %>
+                  <%= last_run ? l(last_run.ran_at, format: :short) : "未実行" %>
+                <% end %>
+              </td>
+              <td><%= serp_channel ? @serp_channel_stats[:today_count] : @today_runs_by_channel[channel.key].to_i %>回</td>
+              <td>
+                <% if serp_channel %>
+                  <%= @serp_channel_stats[:error_count] %>件
+                  <% if @serp_channel_stats[:problem_run_count].positive? || @serp_channel_stats[:failed_query_count].positive? %>
+                    <br><small>Run <%= @serp_channel_stats[:problem_run_count] %> / Query <%= @serp_channel_stats[:failed_query_count] %></small>
+                  <% end %>
+                <% else %>
+                  <%= @today_failed_runs_by_channel[channel.key].to_i %>件
+                <% end %>
+              </td>
               <td>
                 <% if channel.key == "serp" %>
                   <%= link_to "SERP設定", admin_serp_settings_path, class: "button secondary" %>

@@ -56,6 +56,52 @@
   </section>
 
   <section class="dashboard-section">
+    <%= render "serp_run_card", serp_run: @latest_serp_run %>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>同時間帯のSERP Run</h2>
+      <p>このDaily Runの開始前後30分から終了後30分までに実行されたSERP Runです。</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>実行日時</th>
+            <th>Status</th>
+            <th>実行者</th>
+            <th>検索クエリ</th>
+            <th>成功</th>
+            <th>skip</th>
+            <th>fail</th>
+            <th>候補</th>
+            <th>詳細</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @related_serp_runs.each do |serp_run| %>
+            <tr>
+              <td><%= serp_run.started_at ? l(serp_run.started_at, format: :short) : "-" %></td>
+              <td><span class="pill"><%= serp_run.status %></span></td>
+              <td><%= serp_run.executed_by %></td>
+              <td class="number"><%= serp_run.query_count %></td>
+              <td class="number"><%= serp_run.success_count %></td>
+              <td class="number"><%= serp_run.skipped_plan_rows.size %></td>
+              <td class="number"><%= serp_run.failure_count %></td>
+              <td class="number"><%= serp_run.candidate_count %></td>
+              <td><%= link_to "見る", admin_serp_run_path(serp_run), class: "button secondary" %></td>
+            </tr>
+          <% end %>
+          <% if @related_serp_runs.empty? %>
+            <tr><td colspan="9">同時間帯に実行されたSERP Runはありません。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
     <div class="section-heading">
       <h2>実行サマリー</h2>
       <p>主要カテゴリごとの件数、成功、warning、失敗を確認します。</p>

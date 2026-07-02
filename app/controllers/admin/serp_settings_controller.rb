@@ -156,15 +156,27 @@ module Admin
 
     def approve_pending_keywords
       business = find_business
-      updated_count = business.business_serp_keywords.pending.update_all(status: "active", updated_at: Time.current)
-      redirect_to admin_serp_settings_path(anchor: "serp-keywords"),
-                  notice: "#{business.name}の承認待ち検索クエリを#{updated_count}件Activeにしました。"
+      keywords = business.business_serp_keywords.pending
+      selected_ids = Array(params[:keyword_ids]).compact_blank
+      keywords =
+        if selected_ids.any?
+          keywords.where(id: selected_ids)
+        elsif params[:selected_only].present?
+          keywords.none
+        else
+          keywords
+        end
+      summary = Aicoo::Serp::CandidatePromoter.promote!(keywords)
+      redirect_to admin_serp_settings_path(business_id: business.id, anchor: "serp-queries-executable"),
+                  notice: "AI候補を#{summary.promoted_count}件承認し、実行対象の検索クエリに追加しました。作成 #{summary.created_count}件 / 既存更新 #{summary.updated_count}件 / skip #{summary.skipped_count}件。承認だけではSERP取得は実行されません。次に「選択中BusinessのSERPを実行」を押せます。"
     end
 
     def approve_keyword
       keyword = find_keyword
-      keyword.activate!
-      redirect_to admin_serp_settings_path(anchor: business_anchor(keyword.business)), notice: "#{keyword.keyword} を承認しました。"
+      summary = Aicoo::Serp::CandidatePromoter.promote!([ keyword ])
+      result = summary.results.first
+      redirect_to admin_serp_settings_path(business_id: keyword.business_id, anchor: "serp-queries-executable"),
+                  notice: "AI候補「#{keyword.keyword}」を承認し、実行対象の検索クエリに#{result.status == 'created' ? '追加' : '反映'}しました。承認だけではSERP取得は実行されません。"
     end
 
     def exclude_keyword
@@ -215,7 +227,6 @@ module Admin
       @new_business_candidate_board = Aicoo::NewBusinessCandidateBoard.call(limit: 5)
       @serp_scheduler_settings = Aicoo::Serp::Scheduler.settings
       @latest_serp_run = SerpRun.recent.first
-      @recent_serp_runs = SerpRun.recent.limit(10)
       @api_key_configured = @serp_optional_mode.api_key_configured
       @selected_period = params[:period].presence_in(%w[today yesterday seven_days]) || "today"
       @recent_serp_analyses = SerpAnalysis.includes(:business, :serp_results).order(analyzed_at: :desc, created_at: :desc).limit(30)

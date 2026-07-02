@@ -46,6 +46,10 @@
   </section>
 
   <section class="dashboard-section">
+    <%= render "serp_run_card", serp_run: @latest_serp_run %>
+  </section>
+
+  <section class="dashboard-section">
     <div class="section-heading">
       <h2>手動実行</h2>
       <p>対象日を指定して、AICOOの日次処理をまとめて実行します。</p>
@@ -152,11 +156,13 @@
             <th>Insight</th>
             <th>候補生成</th>
             <th>結果評価</th>
+            <th>関連SERP Run</th>
             <th>詳細</th>
           </tr>
         </thead>
         <tbody>
           <% @daily_runs.each do |daily_run| %>
+            <% related_serp_runs = @serp_runs_by_daily_run_id[daily_run.id].to_a %>
             <tr>
               <td><%= daily_run.started_at ? l(daily_run.started_at, format: :short) : "-" %></td>
               <td><%= daily_run.target_date %></td>
@@ -168,11 +174,27 @@
               <td class="number"><%= daily_run.insight_generated_count %></td>
               <td class="number"><%= daily_run.action_candidates_generated_count %></td>
               <td class="number"><%= daily_run.action_results_evaluated_count %></td>
+              <td>
+                <% if related_serp_runs.any? %>
+                  <% related_serp_runs.first(2).each do |serp_run| %>
+                    <div>
+                      <small>
+                        <%= serp_run.started_at ? l(serp_run.started_at, format: :short) : "-" %>
+                        SERP Run
+                        <%= link_to "##{serp_run.id}", admin_serp_run_path(serp_run) %>
+                        <span class="pill"><%= serp_run.status %></span>
+                      </small>
+                    </div>
+                  <% end %>
+                <% else %>
+                  <span class="muted">-</span>
+                <% end %>
+              </td>
               <td><%= link_to "詳細", daily_run, class: "button secondary" %></td>
             </tr>
           <% end %>
           <% if @daily_runs.empty? %>
-            <tr><td colspan="10">まだDaily Runはありません。</td></tr>
+            <tr><td colspan="12">まだDaily Runはありません。</td></tr>
           <% end %>
         </tbody>
       </table>

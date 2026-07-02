@@ -2,17 +2,41 @@ require "test_helper"
 
 class AicooDailyRunsControllerTest < ActionDispatch::IntegrationTest
   test "shows daily run index" do
-    daily_run = AicooDailyRun.create!(target_date: Date.yesterday, status: "success", started_at: Time.current, source: "cron")
+    started_at = Time.current.change(sec: 0)
+    daily_run = AicooDailyRun.create!(target_date: Date.yesterday, status: "success", started_at:, finished_at: started_at + 5.minutes, source: "cron")
     daily_run.aicoo_daily_run_steps.create!(
       step_name: "analytics_fetch",
       status: "skipped",
       metadata: { warning: true, reason: "analytics_optional_unavailable" }
+    )
+    serp_run = SerpRun.create!(
+      status: "success",
+      started_at: started_at + 2.minutes,
+      finished_at: started_at + 3.minutes,
+      executed_by: "scheduler",
+      query_count: 4,
+      success_count: 3,
+      failure_count: 1,
+      candidate_count: 2,
+      credit_estimate: 4,
+      metadata: {
+        plan: {
+          rows: [
+            { status: "run", query: "梅田 喫煙" },
+            { status: "skipped", query: "難波 喫煙", reason: "recently_fetched_24h" }
+          ]
+        }
+      }
     )
 
     get aicoo_daily_runs_url
 
     assert_response :success
     assert_includes response.body, "AICOO Daily Run"
+    assert_includes response.body, "SERP Run"
+    assert_includes response.body, "最新SERP Run"
+    assert_includes response.body, "関連SERP Run"
+    assert_includes response.body, admin_serp_run_path(serp_run)
     assert_includes response.body, "Daily Run調査履歴"
     assert_includes response.body, "検索・絞り込み"
     assert_includes response.body, "直近10Run比較"
@@ -61,7 +85,27 @@ class AicooDailyRunsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "shows daily run detail" do
-    daily_run = AicooDailyRun.create!(target_date: Date.yesterday, status: "success", source: "manual", run_log: "done")
+    started_at = Time.current.change(sec: 0)
+    daily_run = AicooDailyRun.create!(target_date: Date.yesterday, status: "success", source: "manual", run_log: "done", started_at:, finished_at: started_at + 6.minutes)
+    serp_run = SerpRun.create!(
+      status: "success",
+      started_at: started_at + 2.minutes,
+      finished_at: started_at + 4.minutes,
+      executed_by: "manual",
+      query_count: 5,
+      success_count: 4,
+      failure_count: 1,
+      candidate_count: 3,
+      credit_estimate: 5,
+      metadata: {
+        plan: {
+          rows: [
+            { status: "run", query: "梅田 喫煙" },
+            { status: "skipped", query: "難波 喫煙", reason: "daily_limit_reached" }
+          ]
+        }
+      }
+    )
     daily_run.aicoo_daily_run_steps.create!(
       step_name: "action_generation",
       status: "failed",
@@ -145,6 +189,10 @@ class AicooDailyRunsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "承認待ち補正"
     assert_includes response.body, "Auto Revision Queue"
     assert_includes response.body, "Auto Revision生成"
+    assert_includes response.body, "SERP Run"
+    assert_includes response.body, "同時間帯のSERP Run"
+    assert_includes response.body, admin_serp_run_path(serp_run)
+    assert_includes response.body, "使用クレジット"
     assert_includes response.body, "基本情報"
     assert_includes response.body, "Run ID"
     assert_includes response.body, "実行サマリー"

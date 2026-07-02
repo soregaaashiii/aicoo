@@ -1,0 +1,47 @@
+<% if serp_run %>
+  <div class="aicoo-card aicoo-card-compact">
+    <div class="section-heading">
+      <div>
+        <h2>SERP Run</h2>
+        <p>SERPはDaily Runとは別基盤ですが、運用確認はここでまとめて見ます。</p>
+      </div>
+      <span class="pill"><%= serp_run.status %></span>
+    </div>
+
+    <div class="metric-grid">
+      <div class="metric-card"><span>最新SERP Run</span><strong>#<%= serp_run.id %></strong></div>
+      <div class="metric-card"><span>実行日時</span><strong><%= serp_run.started_at ? l(serp_run.started_at, format: :short) : "-" %></strong></div>
+      <div class="metric-card"><span>実行者</span><strong><%= serp_run.executed_by %></strong></div>
+      <div class="metric-card"><span>実行検索クエリ数</span><strong><%= serp_run.query_count %></strong></div>
+      <div class="metric-card"><span>成功</span><strong><%= serp_run.success_count %></strong></div>
+      <div class="metric-card"><span>skip</span><strong><%= serp_run.skipped_plan_rows.size %></strong></div>
+      <div class="metric-card"><span>fail</span><strong><%= serp_run.failure_count %></strong></div>
+      <div class="metric-card"><span>ActionCandidate生成</span><strong><%= serp_run.candidate_count %></strong></div>
+      <div class="metric-card"><span>使用クレジット</span><strong><%= serp_run.credit_estimate %></strong></div>
+      <div class="metric-card"><span>実行時間</span><strong><%= serp_run.duration_seconds ? "#{serp_run.duration_seconds}s" : "-" %></strong></div>
+    </div>
+
+    <% if serp_run.error_message.present? %>
+      <div class="error-toast"><%= truncate(serp_run.error_message, length: 160) %></div>
+    <% end %>
+
+    <div class="actions compact-actions">
+      <%= link_to "詳細を見る", admin_serp_run_path(serp_run), class: "button" %>
+      <%= button_to "今すぐSERP実行", run_now_admin_serp_settings_path, method: :post, class: "button secondary" %>
+      <%= link_to "SERP設定", admin_serp_settings_path, class: "button secondary" %>
+    </div>
+  </div>
+<% else %>
+  <div class="aicoo-card aicoo-card-compact">
+    <div class="section-heading">
+      <div>
+        <h2>SERP Run</h2>
+        <p>SERP Runはまだ実行されていません。</p>
+      </div>
+    </div>
+    <div class="actions compact-actions">
+      <%= button_to "今すぐSERP実行", run_now_admin_serp_settings_path, method: :post, class: "button" %>
+      <%= link_to "SERP設定", admin_serp_settings_path, class: "button secondary" %>
+    </div>
+  </div>
+<% end %>

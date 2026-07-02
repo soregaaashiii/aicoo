@@ -3,6 +3,8 @@ class AicooDailyRunsController < ApplicationController
     @daily_runs = filtered_daily_runs.includes(:aicoo_daily_run_steps).limit(50)
     @comparison_rows = Aicoo::DailyRunHistory.comparison_rows(limit: 10)
     @running_daily_runs = AicooDailyRun.running.includes(:aicoo_daily_run_steps).recent
+    @latest_serp_run = SerpRun.includes(:serp_analyses).recent.first
+    @serp_runs_by_daily_run_id = related_serp_runs_for(@daily_runs)
   end
 
   def show
@@ -23,6 +25,8 @@ class AicooDailyRunsController < ApplicationController
                                                .order(final_score: :desc, created_at: :desc)
                                                .limit(5)
     @recent_auto_revision_tasks = AutoRevisionTask.includes(:business, :action_candidate).recent.limit(5)
+    @latest_serp_run = SerpRun.includes(:serp_analyses).recent.first
+    @related_serp_runs = related_serp_runs_for([ @daily_run ])[@daily_run.id] || []
   end
 
   def create
@@ -100,5 +104,21 @@ class AicooDailyRunsController < ApplicationController
 
   def step_ids_for_business(business_id)
     AicooDailyRunStep.where("metadata ->> 'business_id' = ?", business_id.to_s).select(:aicoo_daily_run_id)
+  end
+
+  def related_serp_runs_for(daily_runs)
+    daily_runs = Array(daily_runs).compact
+    started_daily_runs = daily_runs.select(&:started_at)
+    return {} if started_daily_runs.empty?
+
+    from = started_daily_runs.map(&:started_at).min - 30.minutes
+    to = started_daily_runs.map { |run| run.finished_at || run.started_at }.max + 30.minutes
+    serp_runs = SerpRun.includes(:serp_analyses).where(started_at: from..to).recent.to_a
+
+    started_daily_runs.each_with_object({}) do |daily_run, rows|
+      window_from = daily_run.started_at - 30.minutes
+      window_to = (daily_run.finished_at || daily_run.started_at) + 30.minutes
+      rows[daily_run.id] = serp_runs.select { |serp_run| serp_run.started_at && serp_run.started_at.between?(window_from, window_to) }
+    end
   end
 end

@@ -47,8 +47,30 @@ module Admin
       @last_runs_by_channel = TrafficChannelRun.recent.where(channel_key: @channel_keys).each_with_object({}) do |run, rows|
         rows[run.channel_key] ||= run
       end
+      @serp_channel_stats = serp_channel_stats
       @recent_runs = TrafficChannelRun.includes(:business).recent.limit(30)
       @performance_rows = Aicoo::TrafficChannels::PerformanceTable.call
+    end
+
+    def serp_channel_stats
+      today_runs = SerpRun.today
+      latest_run = SerpRun.recent.first
+      problem_run_count = today_runs.where(status: %w[failed partial_failed]).count
+      failed_query_count = today_runs.sum(:failure_count)
+      scheduler_enabled = Aicoo::Serp::Scheduler.enabled?
+      last_executor = latest_run&.executed_by
+
+      {
+        today_count: today_runs.sum(:query_count),
+        error_count: problem_run_count + failed_query_count,
+        failed_query_count:,
+        problem_run_count:,
+        latest_run:,
+        usage_label: [
+          scheduler_enabled ? "Scheduler ON" : "Scheduler OFF",
+          last_executor ? "latest: #{last_executor}" : nil
+        ].compact.join(" / ")
+      }
     end
   end
 end
