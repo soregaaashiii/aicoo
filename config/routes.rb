@@ -168,6 +168,7 @@ Rails.application.routes.draw do
     patch "explore/observations/:id/review", to: "explore#review_observation", as: :explore_observation_review
     patch "explore/observations/:id/reject", to: "explore#reject_observation", as: :explore_observation_reject
     patch "explore/observations/:id/hold", to: "explore#hold_observation", as: :explore_observation_hold
+    get "codex_connection", to: "codex_connection#show", as: :codex_connection
     resources :business_execution_profiles, except: %i[show destroy]
     resources :codex_submissions, only: %i[index show] do
       patch :mark_submitted, on: :member
