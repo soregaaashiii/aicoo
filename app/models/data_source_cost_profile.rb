@@ -10,6 +10,11 @@ class DataSourceCostProfile < ApplicationRecord
     "opportunity_scan" => { name: "Opportunity Scan", execution_mode: "smart", average_cost_yen: 8, average_expected_profit_yen: 800 },
     "learning" => { name: "Learning", execution_mode: "smart", average_cost_yen: 0, average_expected_profit_yen: 0 },
     "serp" => { name: "SERP", execution_mode: "manual", average_cost_yen: 18, average_expected_profit_yen: 950 },
+    "note" => { name: "note", execution_mode: "manual", average_cost_yen: 0, average_expected_profit_yen: 600 },
+    "hatena_bookmark" => { name: "はてなブックマーク", execution_mode: "manual", average_cost_yen: 0, average_expected_profit_yen: 500 },
+    "seo_article" => { name: "SEO記事", execution_mode: "smart", average_cost_yen: 0, average_expected_profit_yen: 1_500 },
+    "small_ads" => { name: "少額広告", execution_mode: "manual", average_cost_yen: 500, average_expected_profit_yen: 1_000 },
+    "manual_share" => { name: "手動共有", execution_mode: "manual", average_cost_yen: 0, average_expected_profit_yen: 400 },
     "deep_research" => { name: "Deep Research", execution_mode: "manual", average_cost_yen: 150, average_expected_profit_yen: 5_000 },
     "openai" => { name: "OpenAI", execution_mode: "manual", average_cost_yen: 30, average_expected_profit_yen: 1_500 },
     "x" => { name: "X Search", execution_mode: "manual", average_cost_yen: 40, average_expected_profit_yen: 1_200 },
@@ -105,6 +110,7 @@ class DataSourceCostProfile < ApplicationRecord
 
   def env_api_key
     return ENV["OPENAI_API_KEY"] if source_key == "openai"
+    return ENV["SERPER_API_KEY"].presence || ENV["SERP_API_KEY"] if source_key == "serp"
 
     nil
   end

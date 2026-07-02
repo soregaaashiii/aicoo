@@ -38,6 +38,8 @@ module Owner
       assert_includes response.body, "改修・Codex管理"
       assert_includes response.body, "AI Resource / Auto Build"
       assert_includes response.body, "システム状態"
+      assert_includes response.body, "Traffic Channel"
+      assert_includes response.body, "SERP"
       assert_includes response.body, "学習・履歴"
       assert_includes response.body, "Daily Run Health"
       assert_includes response.body, "改訂待ち"
@@ -54,6 +56,46 @@ module Owner
       assert_operator response.body.index("今日おすすめの事業改善 TOP10"), :<, response.body.index("Businessカード")
       assert_operator response.body.index("Businessカード"), :<, response.body.index("運用・実行管理")
       assert_operator response.body.index("運用・実行管理"), :<, response.body.index("Daily Run Health")
+    end
+
+    test "shows compact serp summary without keyword details" do
+      business = businesses(:suelog)
+      business.business_serp_keywords.create!(
+        keyword: "梅田 喫煙 カフェ",
+        source: "ai_suggested",
+        status: "pending",
+        priority_score: 70
+      )
+      business.serp_analyses.create!(
+        keyword: "難波 喫煙",
+        analyzed_at: Time.current,
+        search_engine: "google",
+        device: "desktop",
+        provider: "serper",
+        status: "failed",
+        error_message: "Rate limit"
+      )
+      ActionCandidate.create!(
+        business:,
+        title: "SERP由来の改善提案",
+        status: "approved",
+        action_type: "seo_improvement",
+        generation_source: "serp",
+        immediate_value_yen: 10_000,
+        success_probability: 0.5,
+        expected_hours: 1
+      )
+
+      get owner_focus_url
+
+      assert_response :success
+      assert_includes response.body, "承認待ちKeywordが1件あります。"
+      assert_includes response.body, "SERP取得に失敗したBusinessが1件あります。"
+      assert_includes response.body, "今日SERPから1件の改善提案が生成されています。"
+      assert_includes response.body, "SERP設定"
+      assert_includes response.body, "SERP E2E診断"
+      assert_not_includes response.body, "梅田 喫煙 カフェ"
+      assert_not_includes response.body, "Rate limit"
     end
 
     test "orders improvements by expected profit before lower value candidates" do

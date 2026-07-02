@@ -154,6 +154,71 @@
       <%= link_to "SYSTEM MODE", dashboard_path, class: "button secondary" %>
     </div>
 
+    <div class="aicoo-card <%= 'danger' if @traffic_channel_summary.health == 'Broken' %>">
+      <div class="section-heading">
+        <div>
+          <h3>Traffic Channel</h3>
+          <p>集客チャネル全体の要約です。詳細な設定・比較はTraffic Channel Centerで確認します。</p>
+        </div>
+        <span class="pill"><%= @traffic_channel_summary.health %></span>
+      </div>
+      <div class="metric-grid aicoo-owner-secondary">
+        <div class="metric-card"><span>止まっているチャネル</span><strong><%= @traffic_channel_summary.stopped_channel_count %>件</strong></div>
+        <div class="metric-card"><span>最も成果が良い</span><strong><%= @traffic_channel_summary.best_channel&.label || "未計測" %></strong></div>
+        <div class="metric-card"><span>最も成果が悪い</span><strong><%= @traffic_channel_summary.worst_channel&.label || "未計測" %></strong></div>
+        <div class="metric-card"><span>Traffic由来改善提案</span><strong><%= @traffic_channel_summary.today_traffic_action_candidate_count %>件</strong></div>
+      </div>
+      <div class="actions compact-actions">
+        <%= link_to "Traffic Channel Center", admin_traffic_channels_path, class: "button secondary" %>
+      </div>
+    </div>
+
+    <div class="aicoo-card <%= 'danger' if @serp_summary.health == 'Broken' %>">
+      <div class="section-heading">
+        <div>
+          <h3>SERP</h3>
+          <% if @serp_summary.health == "Healthy" %>
+            <p>SERPは正常です。</p>
+          <% else %>
+            <p>今日確認すべきSERP項目があります。詳細はSERP運用センターで確認してください。</p>
+          <% end %>
+        </div>
+        <span class="pill"><%= @serp_summary.health %></span>
+      </div>
+
+      <% if @serp_summary.pending_keyword_count.positive? || @serp_summary.failed_business_count.positive? || @serp_summary.stopped_business_count.positive? %>
+        <ul class="compact-list">
+          <% if @serp_summary.pending_keyword_count.positive? %>
+            <li>承認待ちKeywordが<%= @serp_summary.pending_keyword_count %>件あります。</li>
+          <% end %>
+          <% if @serp_summary.failed_business_count.positive? %>
+            <li>SERP取得に失敗したBusinessが<%= @serp_summary.failed_business_count %>件あります。</li>
+          <% end %>
+          <% if @serp_summary.stopped_business_count.positive? %>
+            <li>SERPが止まっているBusinessが<%= @serp_summary.stopped_business_count %>件あります。</li>
+          <% end %>
+        </ul>
+      <% end %>
+
+      <div class="metric-grid aicoo-owner-secondary">
+        <div class="metric-card"><span>止まっているBusiness</span><strong><%= @serp_summary.stopped_business_count %>件</strong></div>
+        <div class="metric-card"><span>承認待ちKeyword</span><strong><%= @serp_summary.pending_keyword_count %>件</strong></div>
+        <div class="metric-card"><span>SERP由来改善提案</span><strong><%= @serp_summary.today_serp_action_candidate_count %>件</strong></div>
+        <div class="metric-card"><span>取得失敗Business</span><strong><%= @serp_summary.failed_business_count %>件</strong></div>
+        <div class="metric-card"><span>最優先Business</span><strong><%= @serp_summary.top_priority_business&.name || "未設定" %></strong></div>
+        <div class="metric-card"><span>最終SERP実行</span><strong><%= @serp_summary.last_executed_at ? l(@serp_summary.last_executed_at, format: :short) : "未実行" %></strong></div>
+      </div>
+
+      <% if @serp_summary.today_serp_action_candidate_count.positive? %>
+        <p class="muted">今日SERPから<%= @serp_summary.today_serp_action_candidate_count %>件の改善提案が生成されています。</p>
+      <% end %>
+
+      <div class="actions compact-actions">
+        <%= link_to "SERP設定", admin_serp_settings_path, class: "button secondary" %>
+        <%= link_to "SERP E2E診断", admin_serp_e2e_check_path, class: "button secondary" %>
+      </div>
+    </div>
+
     <details class="aicoo-card">
       <summary><strong>改修・Codex管理</strong> <span class="muted">承認待ち改修、Codex送信待ち、PR/deploy前の作業単位</span></summary>
       <%= render "shared/auto_revision_execution_summary", summary: @auto_revision_execution_summary %>

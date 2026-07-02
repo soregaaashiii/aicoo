@@ -36,6 +36,31 @@ module Aicoo
         end
       end
 
+      test "uses active business serp keywords before legacy data source keywords" do
+        business = businesses(:suelog)
+        business.update!(status: "launched", serp_enabled: true)
+        business.business_serp_keywords.create!(
+          keyword: "大阪 喫煙 居酒屋",
+          source: "manual",
+          status: "active",
+          priority_score: 80
+        )
+        setting = business.business_data_source_settings.find_or_initialize_by(source_key: "serp")
+        setting.update!(metadata: { "connection_fields" => { "keyword" => "古い キーワード" } })
+
+        assert_equal [ "大阪 喫煙 居酒屋" ], ScanRunner.queries_for_business(business, max_queries_per_business: 1)
+
+        with_adapter_result do
+          ScanRunner.new(provider: :serper, max_queries_per_business: 1, target_businesses: [ business ]).call
+        end
+
+        keyword = business.business_serp_keywords.find_by!(keyword: "大阪 喫煙 居酒屋")
+        assert_equal 1, keyword.check_count
+        assert_equal 1, keyword.latest_rank
+        assert keyword.last_checked_at.present?
+        assert_equal "success", keyword.metadata_json["latest_serp_status"]
+      end
+
       private
 
       def with_adapter_result

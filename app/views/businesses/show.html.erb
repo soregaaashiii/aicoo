@@ -1470,10 +1470,29 @@
 <section class="dashboard-section" id="business-serp">
   <div class="section-heading">
     <h2>SERP競合分析</h2>
-    <p>検索結果を手入力またはCSV/TXTで保存し、競合強度をsuccess_probabilityの判断材料にします。</p>
+    <p>SERPのキーワード管理・候補承認・取得操作はSERP設定画面に集約しています。</p>
   </div>
 
   <% serp_cost = Aicoo::CostEngine.new(business: @business).estimate("serp") %>
+  <div class="metric-grid">
+    <div class="metric-card">
+      <span>SERP</span>
+      <strong><%= @business.serp_enabled? ? "ON" : "OFF" %></strong>
+    </div>
+    <div class="metric-card">
+      <span>承認済みKW</span>
+      <strong><%= @business.business_serp_keywords.active.count %>件</strong>
+    </div>
+    <div class="metric-card">
+      <span>承認待ち候補</span>
+      <strong><%= @business.business_serp_keywords.pending.count %>件</strong>
+    </div>
+    <div class="metric-card">
+      <span>前回取得</span>
+      <strong><%= @recent_serp_analyses.first&.analyzed_at ? l(@recent_serp_analyses.first.analyzed_at, format: :short) : "未実行" %></strong>
+    </div>
+  </div>
+
   <div class="aicoo-card aicoo-card-compact">
     <strong>SERP分析コスト</strong>
     <p>
@@ -1482,75 +1501,10 @@
       期待利益 <%= number_to_currency(serp_cost.expected_profit_yen, unit: "¥", precision: 0) %> /
       ROI <%= serp_cost.roi ? number_with_precision(serp_cost.roi, precision: 1) : "無料/未計算" %>
     </p>
-    <small>
-      前回取得:
-      <%= @recent_serp_analyses.first&.analyzed_at ? l(@recent_serp_analyses.first.analyzed_at, format: :short) : "未実行" %>
-      / 対象KW数: <%= @recent_serp_analyses.count %>
-    </small>
-  </div>
-
-  <%= form_with url: business_serp_analyses_path(@business), scope: :serp_analysis, multipart: true, class: "form" do |form| %>
-    <div class="grid">
-      <div class="field">
-        <%= form.label :keyword, "キーワード" %>
-        <%= form.text_field :keyword, placeholder: "例: 中崎町 喫煙所" %>
-      </div>
-      <div class="field">
-        <%= form.label :location, "地域" %>
-        <%= form.text_field :location, placeholder: "例: Japan / Osaka" %>
-      </div>
-      <div class="field">
-        <%= form.label :device, "デバイス" %>
-        <%= form.select :device, SerpAnalysis::DEVICES.map { |device| [device.humanize, device] } %>
-      </div>
-      <div class="field">
-        <%= form.label :file, "CSV/TXTファイル" %>
-        <%= form.file_field :file, accept: ".csv,.txt,text/csv,text/plain" %>
-      </div>
+    <div class="actions compact-actions">
+      <%= link_to "SERP設定を開く", admin_serp_settings_path(business_id: @business.id, anchor: "serp-business-detail"), class: "button" %>
+      <%= link_to "SERP履歴を見る", admin_serp_settings_path(business_id: @business.id, anchor: "serp-history"), class: "button secondary" %>
     </div>
-    <div class="field">
-      <%= form.label :raw_text, "検索結果テキスト" %>
-      <%= form.textarea :raw_text, rows: 6, placeholder: "1行に1検索結果。CSVの場合は position,title,url,snippet のヘッダー推奨。" %>
-    </div>
-    <div class="actions">
-      <%= form.submit "SERP分析を保存", class: "button" %>
-    </div>
-  <% end %>
-</section>
-
-<section class="dashboard-section">
-  <div class="section-heading">
-    <h2>SERP分析履歴</h2>
-    <p>競合強度スコアが高いほど、上位獲得難度が高い想定です。</p>
-  </div>
-
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th>日時</th>
-          <th>キーワード</th>
-          <th>地域</th>
-          <th>デバイス</th>
-          <th>結果数</th>
-          <th>競合強度</th>
-          <th>概要</th>
-        </tr>
-      </thead>
-      <tbody>
-        <% @recent_serp_analyses.each do |analysis| %>
-          <tr>
-            <td><%= l(analysis.analyzed_at, format: :short) %></td>
-            <td><%= analysis.keyword %></td>
-            <td><%= analysis.location.presence || "-" %></td>
-            <td><%= analysis.device.presence || "-" %></td>
-            <td class="number"><%= analysis.result_count %></td>
-            <td class="number"><%= analysis.competition_score %></td>
-            <td class="wide-text"><%= analysis.summary %></td>
-          </tr>
-        <% end %>
-      </tbody>
-    </table>
   </div>
 </section>
 

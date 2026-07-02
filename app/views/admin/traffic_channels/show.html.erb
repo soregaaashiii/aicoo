@@ -1,0 +1,265 @@
+<% content_for :title, "Traffic Channel Center" %>
+
+<% header_actions = capture do %>
+  <%= link_to "SERP設定", admin_serp_settings_path, class: "button secondary" %>
+  <%= link_to "SYSTEM MODE", dashboard_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "Traffic Channel Center",
+             description: "SERP、SNS、記事、広告、手動共有など、集客チャネル全体の運用状態を比較します。",
+             active_main: :system,
+             actions: header_actions %>
+
+  <nav class="aicoo-tab-nav" aria-label="Traffic Channel Center tabs">
+    <%= link_to "Overview", "#traffic-overview", class: "button secondary" %>
+    <%= link_to "Channel設定", "#traffic-channel-settings", class: "button secondary" %>
+    <%= link_to "Business設定", "#traffic-business-settings", class: "button secondary" %>
+    <%= link_to "実行履歴", "#traffic-runs", class: "button secondary" %>
+    <%= link_to "成果分析", "#traffic-performance", class: "button secondary" %>
+  </nav>
+
+  <section class="dashboard-section" id="traffic-overview">
+    <div class="section-heading">
+      <div>
+        <h2>Overview</h2>
+        <p>今日どの集客チャネルが動き、成果が出ているかだけを見ます。</p>
+      </div>
+      <span class="pill"><%= @summary.health %></span>
+    </div>
+
+    <div class="metric-grid">
+      <div class="metric-card"><span>有効チャネル</span><strong><%= @summary.enabled_channel_count %></strong></div>
+      <div class="metric-card"><span>今日稼働</span><strong><%= @summary.today_active_channel_count %></strong></div>
+      <div class="metric-card"><span>今日の総流入</span><strong><%= @summary.today_total_inflow_count %></strong></div>
+      <div class="metric-card"><span>今日のCV</span><strong><%= @summary.today_conversion_count %></strong></div>
+      <div class="metric-card"><span>今日のRevenue</span><strong><%= number_to_currency(@summary.today_revenue_yen, unit: "¥", precision: 0) %></strong></div>
+      <div class="metric-card"><span>今日の工数</span><strong><%= number_with_precision(@summary.today_hours, precision: 1) %>h</strong></div>
+      <div class="metric-card"><span>今日のコスト</span><strong><%= number_to_currency(@summary.today_cost_yen, unit: "¥", precision: 0) %></strong></div>
+      <div class="metric-card"><span>今日のROI</span><strong><%= @summary.today_roi ? number_with_precision(@summary.today_roi, precision: 1) : "未計算" %></strong></div>
+    </div>
+
+    <div class="aicoo-grid aicoo-grid-2">
+      <div class="aicoo-card aicoo-card-compact">
+        <h3>今日の見どころ</h3>
+        <ul class="compact-list">
+          <li>止まっているチャネル: <%= @summary.stopped_channel_count %>件</li>
+          <li>最も成果の良いチャネル: <%= @summary.best_channel&.label || "未計測" %></li>
+          <li>最も成果の悪いチャネル: <%= @summary.worst_channel&.label || "未計測" %></li>
+          <li>Traffic由来改善提案: <%= @summary.today_traffic_action_candidate_count %>件</li>
+        </ul>
+      </div>
+
+      <div class="aicoo-card aicoo-card-compact">
+        <h3>SERP連携</h3>
+        <p>SERPのKeyword管理・取得結果・E2E診断はSERP設定で扱います。</p>
+        <div class="metric-grid">
+          <div class="metric-card"><span>SERP Health</span><strong><%= @serp_summary.health %></strong></div>
+          <div class="metric-card"><span>承認待ちKW</span><strong><%= @serp_summary.pending_keyword_count %></strong></div>
+        </div>
+        <div class="actions compact-actions">
+          <%= link_to "SERP設定へ", admin_serp_settings_path, class: "button" %>
+          <%= link_to "SERP E2E診断", admin_serp_e2e_check_path, class: "button secondary" %>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="dashboard-section" id="traffic-channel-settings">
+    <div class="section-heading">
+      <div>
+        <h2>Channel設定</h2>
+        <p>全体で使うチャネルを管理します。SERPの詳細はSERP設定へ遷移します。</p>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Channel</th>
+            <th>ON/OFF</th>
+            <th>利用状況</th>
+            <th>最終実行</th>
+            <th>今日</th>
+            <th>エラー</th>
+            <th>詳細</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @channels.each do |channel| %>
+            <% profile = @profiles_by_key[channel.key] || DataSourceCostProfile.for_source(channel.key) %>
+            <% last_run = @last_runs_by_channel[channel.key] %>
+            <tr id="traffic-channel-<%= channel.key %>">
+              <td>
+                <strong><%= channel.label %></strong><br>
+                <small><%= channel.description %></small>
+              </td>
+              <td>
+                <%= form_with url: admin_traffic_channel_path(channel.key), scope: :traffic_channel, method: :patch, class: "inline-form" do |form| %>
+                  <%= form.hidden_field :enabled, value: "0" %>
+                  <label>
+                    <%= form.check_box :enabled, { checked: profile.enabled? }, "1", "0" %>
+                    <%= profile.enabled? ? "ON" : "OFF" %>
+                  </label>
+                  <%= form.submit "保存", class: "button secondary" %>
+                <% end %>
+              </td>
+              <td><span class="pill"><%= profile.execution_mode %></span></td>
+              <td><%= last_run ? l(last_run.ran_at, format: :short) : "未実行" %></td>
+              <td><%= @today_runs_by_channel[channel.key].to_i %>回</td>
+              <td><%= @today_failed_runs_by_channel[channel.key].to_i %>件</td>
+              <td>
+                <% if channel.key == "serp" %>
+                  <%= link_to "SERP設定", admin_serp_settings_path, class: "button secondary" %>
+                <% else %>
+                  <span class="muted">詳細画面未実装</span>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="dashboard-section" id="traffic-business-settings">
+    <div class="section-heading">
+      <div>
+        <h2>Business設定</h2>
+        <p>Businessごとに使う集客チャネルを一括管理します。</p>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Business</th>
+            <% @channels.each do |channel| %>
+              <th><%= channel.label %></th>
+            <% end %>
+          </tr>
+        </thead>
+        <tbody>
+          <% @businesses.each do |business| %>
+            <tr>
+              <td><strong><%= link_to business.name, business_path(business) %></strong></td>
+              <% @channels.each do |channel| %>
+                <% setting = @business_settings[[business.id, channel.key]] %>
+                <% enabled = setting.nil? ? true : setting.enabled? %>
+                <td>
+                  <%= form_with url: admin_business_traffic_channel_path(channel.key, business), scope: :traffic_channel, method: :patch, class: "inline-form" do |form| %>
+                    <%= form.hidden_field :enabled, value: "0" %>
+                    <%= form.check_box :enabled, { checked: enabled }, "1", "0" %>
+                    <%= form.submit enabled ? "ON" : "OFF", class: "button secondary" %>
+                  <% end %>
+                </td>
+              <% end %>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="dashboard-section" id="traffic-runs">
+    <div class="section-heading">
+      <div>
+        <h2>実行履歴</h2>
+        <p>チャネルごとの実行結果です。詳細分析ではなく、状態確認用の一覧です。</p>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>実行日時</th>
+            <th>Business</th>
+            <th>Channel</th>
+            <th>Status</th>
+            <th>流入</th>
+            <th>CV</th>
+            <th>Revenue</th>
+            <th>所要時間</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @recent_runs.each do |run| %>
+            <% channel = Aicoo::TrafficChannels::Registry.find(run.channel_key) %>
+            <tr>
+              <td><%= l(run.ran_at, format: :short) %></td>
+              <td><%= run.business ? link_to(run.business.name, business_path(run.business)) : "全体" %></td>
+              <td><%= channel&.label || run.channel_key %></td>
+              <td><span class="pill"><%= run.status %></span></td>
+              <td><%= run.inflow_count %></td>
+              <td><%= run.conversions %></td>
+              <td><%= number_to_currency(run.revenue_yen, unit: "¥", precision: 0) %></td>
+              <td><%= number_with_precision(run.hours_spent, precision: 1) %>h</td>
+            </tr>
+          <% end %>
+          <% if @recent_runs.empty? %>
+            <tr><td colspan="8">Traffic Channelの実行履歴はまだありません。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="dashboard-section" id="traffic-performance">
+    <div class="section-heading">
+      <div>
+        <h2>成果分析</h2>
+        <p>直近30日のチャネル成果です。ROI・Revenue・流入の順で並べています。</p>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Channel</th>
+            <th>Sessions</th>
+            <th>Clicks</th>
+            <th>CV</th>
+            <th>Revenue</th>
+            <th>Cost</th>
+            <th>Hours</th>
+            <th>ROI</th>
+            <th>Expected Value</th>
+            <th>Success Rate</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @performance_rows.each do |row| %>
+            <tr>
+              <td><strong><%= row.label %></strong></td>
+              <td><%= row.sessions %></td>
+              <td><%= row.clicks %></td>
+              <td><%= row.conversions %></td>
+              <td><%= number_to_currency(row.revenue_yen, unit: "¥", precision: 0) %></td>
+              <td><%= number_to_currency(row.cost_yen, unit: "¥", precision: 0) %></td>
+              <td><%= number_with_precision(row.hours, precision: 1) %></td>
+              <td><%= row.roi ? number_with_precision(row.roi, precision: 1) : "-" %></td>
+              <td><%= number_to_currency(row.expected_value_yen, unit: "¥", precision: 0) %></td>
+              <td><%= number_to_percentage(row.success_rate * 100, precision: 0) %></td>
+              <td>
+                <% if @businesses.first %>
+                  <%= button_to "改善候補を作成",
+                                admin_traffic_channel_action_candidate_path(row.channel_key, @businesses.first),
+                                method: :post,
+                                class: "button secondary" %>
+                <% else %>
+                  -
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>

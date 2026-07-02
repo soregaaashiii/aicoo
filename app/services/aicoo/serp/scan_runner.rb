@@ -18,6 +18,12 @@ module Aicoo
       )
 
       def self.queries_for_business(business, max_queries_per_business: 3)
+        active_keywords = business.business_serp_keywords
+                                  .fetchable
+                                  .limit(max_queries_per_business)
+                                  .pluck(:keyword)
+        return active_keywords if active_keywords.present?
+
         configured_keywords = business.business_data_source_settings
                                       .find { |setting| setting.source_key == "serp" }
                                       &.connection_field_value("keyword")
@@ -37,12 +43,13 @@ module Aicoo
           .first(max_queries_per_business)
       end
 
-      def initialize(provider: nil, location: "Japan", language: "ja", limit: nil, max_queries_per_business: 3)
+      def initialize(provider: nil, location: "Japan", language: "ja", limit: nil, max_queries_per_business: 3, target_businesses: nil)
         @provider = (provider.presence || ENV["AICOO_SERP_PROVIDER"].presence || "serper").to_s
         @location = location.presence || "Japan"
         @language = language.presence || "ja"
         @limit = limit.to_i.positive? ? limit.to_i : Aicoo::Serp::ScanPlan.configured_limit
         @max_queries_per_business = max_queries_per_business.to_i.positive? ? max_queries_per_business.to_i : 3
+        @target_businesses = target_businesses
         @scan_batch_id = SecureRandom.uuid
       end
 
@@ -81,7 +88,7 @@ module Aicoo
       def target_businesses
         @target_businesses ||= Business.real_businesses
                                       .where(status: "launched", serp_enabled: true)
-                                      .includes(:business_data_source_settings)
+                                      .includes(:business_data_source_settings, :business_serp_keywords)
                                       .order(:name)
                                       .to_a
       end
@@ -158,6 +165,7 @@ module Aicoo
             "related_searches" => payload.fetch("related_searches", []).first(5)
           }
         )
+        update_keyword_status!(analysis, organic_results)
         analysis
       end
 
@@ -176,10 +184,34 @@ module Aicoo
               "scan_finished_at" => Time.current.iso8601
             )
           )
+          update_keyword_status!(analysis, [])
           analysis
         else
           raise error
         end
+      end
+
+      def update_keyword_status!(analysis, organic_results)
+        normalized = BusinessSerpKeyword.normalize(analysis.keyword)
+        keyword = analysis.business.business_serp_keywords.find_or_initialize_by(normalized_keyword: normalized)
+        keyword.keyword = analysis.keyword
+        keyword.source = keyword.source.presence || "imported"
+        keyword.status = "active" if keyword.status.blank? || keyword.status == "pending"
+        keyword.priority_score = keyword.priority_score.presence || 50
+        previous_rank = keyword.latest_rank
+        keyword.last_checked_at = Time.current
+        keyword.check_count = keyword.check_count.to_i + 1
+        keyword.latest_rank = organic_results.filter_map { |row| row["position"].presence }.map(&:to_i).min
+        keyword.metadata_json = keyword.metadata_json.to_h.merge(
+          "latest_serp_analysis_id" => analysis.id,
+          "latest_serp_status" => analysis.status,
+          "latest_result_count" => analysis.result_count.to_i,
+          "latest_error_message" => analysis.error_message,
+          "previous_latest_rank" => previous_rank
+        )
+        keyword.save!
+      rescue ActiveRecord::RecordInvalid => e
+        Rails.logger.warn("[SERP] keyword status update failed analysis_id=#{analysis.id} errors=#{e.record.errors.full_messages.to_sentence}")
       end
 
       def competition_score(results)

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_02_023000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_02_043000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1207,6 +1207,34 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_02_023000) do
     t.index ["business_id"], name: "index_business_playbooks_on_business_id", unique: true
   end
 
+  create_table "business_serp_keywords", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.integer "check_count", default: 0, null: false
+    t.integer "confidence"
+    t.datetime "created_at", null: false
+    t.string "keyword", null: false
+    t.datetime "last_checked_at"
+    t.integer "latest_clicks"
+    t.decimal "latest_ctr", precision: 10, scale: 4
+    t.integer "latest_impressions"
+    t.integer "latest_rank"
+    t.jsonb "metadata_json", default: {}, null: false
+    t.string "normalized_keyword", null: false
+    t.integer "opportunity_score"
+    t.integer "priority_score", default: 50, null: false
+    t.text "reason"
+    t.string "search_intent"
+    t.string "source", default: "manual", null: false
+    t.string "status", default: "pending", null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id", "normalized_keyword"], name: "index_business_serp_keywords_on_business_and_keyword", unique: true
+    t.index ["business_id", "status"], name: "index_business_serp_keywords_on_business_id_and_status"
+    t.index ["business_id"], name: "index_business_serp_keywords_on_business_id"
+    t.index ["last_checked_at"], name: "index_business_serp_keywords_on_last_checked_at"
+    t.index ["priority_score"], name: "index_business_serp_keywords_on_priority_score"
+    t.index ["source"], name: "index_business_serp_keywords_on_source"
+  end
+
   create_table "business_services", force: :cascade do |t|
     t.string "api_endpoint"
     t.bigint "business_id", null: false
@@ -1868,6 +1896,29 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_02_023000) do
     t.index ["captured_at"], name: "index_system_mode_snapshots_on_captured_at"
   end
 
+  create_table "traffic_channel_runs", force: :cascade do |t|
+    t.bigint "business_id"
+    t.string "channel_key", null: false
+    t.integer "clicks", default: 0, null: false
+    t.integer "conversions", default: 0, null: false
+    t.integer "cost_yen", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.text "error_message"
+    t.decimal "hours_spent", precision: 8, scale: 2, default: "0.0", null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "ran_at", null: false
+    t.integer "revenue_yen", default: 0, null: false
+    t.integer "sessions", default: 0, null: false
+    t.string "source", default: "daily_run", null: false
+    t.string "status", default: "success", null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id", "channel_key", "ran_at"], name: "idx_traffic_runs_business_channel_ran_at"
+    t.index ["business_id"], name: "index_traffic_channel_runs_on_business_id"
+    t.index ["channel_key"], name: "index_traffic_channel_runs_on_channel_key"
+    t.index ["ran_at"], name: "index_traffic_channel_runs_on_ran_at"
+    t.index ["status"], name: "index_traffic_channel_runs_on_status"
+  end
+
   add_foreign_key "action_candidate_score_snapshots", "action_candidates"
   add_foreign_key "action_candidate_score_snapshots", "businesses"
   add_foreign_key "action_candidates", "businesses"
@@ -1921,6 +1972,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_02_023000) do
   add_foreign_key "business_execution_profiles", "businesses"
   add_foreign_key "business_metric_dailies", "businesses"
   add_foreign_key "business_playbooks", "businesses"
+  add_foreign_key "business_serp_keywords", "businesses"
   add_foreign_key "business_services", "businesses"
   add_foreign_key "codex_prompt_drafts", "action_candidates"
   add_foreign_key "codex_prompt_drafts", "businesses"
@@ -1963,4 +2015,5 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_02_023000) do
   add_foreign_key "source_app_connections", "businesses"
   add_foreign_key "source_app_diff_cursors", "source_app_diff_rules"
   add_foreign_key "source_app_diff_rules", "source_app_connections"
+  add_foreign_key "traffic_channel_runs", "businesses"
 end

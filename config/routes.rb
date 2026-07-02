@@ -203,6 +203,12 @@ Rails.application.routes.draw do
     get "aicoo_daily_run_health", to: "aicoo_daily_run_health#show", as: :aicoo_daily_run_health
     get "pipeline_e2e_check", to: "pipeline_e2e_checks#show", as: :pipeline_e2e_check
     post "pipeline_e2e_check/repair", to: "pipeline_e2e_checks#repair", as: :pipeline_e2e_check_repair
+    get "serp_e2e_check", to: "serp_e2e_checks#show", as: :serp_e2e_check
+    post "serp_e2e_check/repair", to: "serp_e2e_checks#repair", as: :serp_e2e_check_repair
+    get "traffic_channels", to: "traffic_channels#show", as: :traffic_channels
+    patch "traffic_channels/:channel_key", to: "traffic_channels#update_channel", as: :traffic_channel
+    patch "traffic_channels/:channel_key/businesses/:business_id", to: "traffic_channels#update_business_channel", as: :business_traffic_channel
+    post "traffic_channels/:channel_key/businesses/:business_id/action_candidate", to: "traffic_channels#create_action_candidate", as: :traffic_channel_action_candidate
     get "activity_learning_e2e_check", to: "activity_learning_e2e_checks#show", as: :activity_learning_e2e_check
     post "activity_learning_e2e_check/repair", to: "activity_learning_e2e_checks#repair", as: :activity_learning_e2e_check_repair
     resource :aicoo_resource_budget, only: %i[show update]
@@ -224,6 +230,19 @@ Rails.application.routes.draw do
     end
     resource :serp_settings, only: %i[show update] do
       post :test_search
+      patch "businesses/:business_id", action: :update_business, as: :business
+      post "businesses/:business_id/keywords", action: :add_keywords, as: :business_keywords
+      post "businesses/:business_id/suggestions", action: :regenerate_suggestions, as: :business_suggestions
+      post "businesses/:business_id/approve_pending", action: :approve_pending_keywords, as: :business_approve_pending
+      post "businesses/:business_id/scan", action: :scan_business, as: :business_scan
+      patch "keywords/:id", action: :update_keyword, as: :keyword
+      patch "keywords/:id/approve", action: :approve_keyword, as: :approve_keyword
+      patch "keywords/:id/exclude", action: :exclude_keyword, as: :exclude_keyword
+      patch "keywords/:id/pause", action: :pause_keyword, as: :pause_keyword
+      patch "keywords/:id/resume", action: :resume_keyword, as: :resume_keyword
+      patch "keywords/:id/archive", action: :archive_keyword, as: :archive_keyword
+      patch "keywords/:id/restore", action: :restore_keyword, as: :restore_keyword
+      delete "keywords/:id", action: :destroy_keyword, as: :destroy_keyword
     end
     resources :analytics_imports, only: %i[index create] do
       post :reprocess, on: :member

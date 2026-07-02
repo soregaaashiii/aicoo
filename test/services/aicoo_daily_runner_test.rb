@@ -62,7 +62,7 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
       assert_match "PipelineStuckDetector checked=", run.run_log
       assert_match "BusinessPlaybook updated count=2", run.run_log
       assert_match "SERP optional mode", run.run_log
-      assert_equal 26, run.aicoo_daily_run_steps.count
+      assert_equal 28, run.aicoo_daily_run_steps.count
       assert_equal %w[
         analytics_fetch
         datahub_collect
@@ -86,6 +86,8 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
         owner_execution_queue
         analysis_orchestration
         business_playbook_update
+        serp_keyword_learning
+        traffic_channel_recording
         system_mode_snapshot
         resource_aware_auto_build
         auto_revision_queue
@@ -102,7 +104,7 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
       ].sort, run.aicoo_daily_run_steps.skipped.pluck(:step_name).sort
       assert_equal "success", run.status
       assert_equal 0, AutoRevisionQueueRun.count
-      assert_equal %i[analytics datahub import source_diff adjust_all generate insight evaluate activity_eval snapshot queue meta_snapshot calibration owner_queue analysis playbook], order
+      assert_equal %i[analytics datahub import source_diff adjust_all generate insight evaluate activity_eval snapshot queue meta_snapshot calibration owner_queue analysis playbook serp_learning traffic_channel], order
     end
   end
 
@@ -439,7 +441,22 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
                                       playbooks: [ Object.new, Object.new ]
                                     )
                                   }) do
-                                    yield
+                                    with_singleton_stub(Aicoo::Serp::PriorityUpdater, :update_all!, -> {
+                                      order << :serp_learning
+                                      Aicoo::Serp::PriorityUpdater::Result.new(
+                                        updated_count: 1,
+                                        suggested_count: 2,
+                                        inactive_candidate_count: 0,
+                                        skipped_count: 0
+                                      )
+                                    }) do
+                                      with_singleton_stub(Aicoo::TrafficChannels::DailyRecorder, :record!, ->(daily_run:) {
+                                        order << :traffic_channel
+                                        Aicoo::TrafficChannels::DailyRecorder::Result.new(recorded_count: 1, skipped_count: 7)
+                                      }) do
+                                        yield
+                                      end
+                                    end
                                   end
                                 end
                               end

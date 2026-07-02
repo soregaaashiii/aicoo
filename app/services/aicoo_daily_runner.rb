@@ -195,6 +195,24 @@ class AicooDailyRunner
     end
     log!("BusinessPlaybook updated count=#{playbook_result.updated_count}")
 
+    serp_learning_result = record_step!(run, "serp_keyword_learning") do
+      Aicoo::Serp::PriorityUpdater.update_all!
+    end
+    log!(
+      "SERP keyword learning updated=#{serp_learning_result.updated_count} " \
+      "suggested=#{serp_learning_result.suggested_count} " \
+      "inactive=#{serp_learning_result.inactive_candidate_count} " \
+      "manual_skipped=#{serp_learning_result.skipped_count}"
+    )
+
+    traffic_channel_result = record_step!(run, "traffic_channel_recording") do
+      Aicoo::TrafficChannels::DailyRecorder.record!(daily_run: run)
+    end
+    log!(
+      "TrafficChannel recorded=#{traffic_channel_result.recorded_count} " \
+      "skipped=#{traffic_channel_result.skipped_count}"
+    )
+
     system_mode_snapshot = record_step!(run, "system_mode_snapshot") do
       Aicoo::SystemModeSnapshotBuilder.new.call
     end

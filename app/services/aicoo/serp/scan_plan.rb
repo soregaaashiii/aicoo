@@ -67,7 +67,11 @@ module Aicoo
       attr_reader :profile, :provider
 
       def target_businesses
-        @target_businesses ||= Business.real_businesses.where(status: "launched").includes(:business_data_source_settings).order(:name).to_a
+        @target_businesses ||= Business.real_businesses
+                                      .where(status: "launched", serp_enabled: true)
+                                      .includes(:business_data_source_settings, :business_serp_keywords)
+                                      .order(:name)
+                                      .to_a
       end
 
       def unit_result_cost_yen
