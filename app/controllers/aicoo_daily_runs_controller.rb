@@ -1,7 +1,6 @@
 class AicooDailyRunsController < ApplicationController
   def index
     @daily_runs = filtered_daily_runs.includes(:aicoo_daily_run_steps).limit(50)
-    @comparison_rows = Aicoo::DailyRunHistory.comparison_rows(limit: 10)
     @running_daily_runs = AicooDailyRun.running.includes(:aicoo_daily_run_steps).recent
     @latest_serp_run = SerpRun.includes(:serp_analyses).recent.first
     @serp_runs_by_daily_run_id = related_serp_runs_for(@daily_runs)
@@ -11,7 +10,6 @@ class AicooDailyRunsController < ApplicationController
     @daily_run = AicooDailyRun.find(params[:id])
     @daily_run_steps = @daily_run.aicoo_daily_run_steps.order(:started_at, :created_at)
     @daily_run_history = Aicoo::DailyRunHistory.new(@daily_run)
-    @comparison_rows = Aicoo::DailyRunHistory.comparison_rows(limit: 10)
     @correction_readiness = AicooCorrectionReadinessService.new.call
     @execution_feasibility_insight = AicooExecutionFeasibilityInsightService.new.call
     @execution_feasibility_correction_overview = AicooExecutionFeasibilityCorrectionOverviewService.new.call

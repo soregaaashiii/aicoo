@@ -39,7 +39,7 @@ class AicooDailyRunsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, admin_serp_run_path(serp_run)
     assert_includes response.body, "Daily Run調査履歴"
     assert_includes response.body, "検索・絞り込み"
-    assert_includes response.body, "直近10Run比較"
+    assert_not_includes response.body, "直近10Run比較"
     assert_includes response.body, "source"
     assert_includes response.body, "Analytics"
     assert_includes response.body, "Insight"
@@ -219,7 +219,7 @@ class AicooDailyRunsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "再実行不可"
     assert_includes response.body, "Cooldown"
     assert_includes response.body, "Recovery cooldown active"
-    assert_includes response.body, "直近10Run比較"
+    assert_not_includes response.body, "直近10Run比較"
     assert_includes response.body, "自動改修タスク候補"
     assert_includes response.body, "Daily Run auto revision candidate"
     assert_includes response.body, "最近作成されたAuto Revision Task"

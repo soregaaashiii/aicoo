@@ -336,46 +336,6 @@
 
   <section class="dashboard-section">
     <div class="section-heading">
-      <h2>直近10Run比較</h2>
-      <p>前後のRunと、status・duration・候補生成・warning/failed数を比較します。</p>
-    </div>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>日時</th>
-            <th>target_date</th>
-            <th>status</th>
-            <th>duration</th>
-            <th>候補生成</th>
-            <th>warning</th>
-            <th>failed</th>
-            <th>source</th>
-            <th>詳細</th>
-          </tr>
-        </thead>
-        <tbody>
-          <% @comparison_rows.each do |row| %>
-            <% run = row.run %>
-            <tr>
-              <td><%= run.started_at ? l(run.started_at, format: :short) : "-" %></td>
-              <td><%= run.target_date %></td>
-              <td><span class="pill"><%= run.status %></span></td>
-              <td><%= row.duration_label %></td>
-              <td class="number"><%= run.action_candidates_generated_count %></td>
-              <td class="number"><%= row.warning_count %></td>
-              <td class="number"><%= row.failed_count %></td>
-              <td><span class="pill"><%= run.source %></span></td>
-              <td><%= link_to(run.id == @daily_run.id ? "表示中" : "見る", run, class: "button secondary") %></td>
-            </tr>
-          <% end %>
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-  <section class="dashboard-section">
-    <div class="section-heading">
       <h2>自動改修タスク候補</h2>
       <p>このDaily Run対象日に生成され、Codex投入用タスク化できるActionCandidateです。</p>
     </div>
