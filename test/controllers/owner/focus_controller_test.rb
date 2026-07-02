@@ -26,6 +26,19 @@ module Owner
       assert_includes response.body, candidate.title
       assert_includes response.body, "AIがこの改善を勧める理由"
       assert_includes response.body, "Codexへ送る"
+      assert_includes response.body, "CEO MODE"
+      assert_includes response.body, "Businesses"
+      assert_includes response.body, "Today"
+      assert_includes response.body, "Action Candidates"
+      assert_includes response.body, "Auto Revision"
+      assert_includes response.body, "Auto Build"
+      assert_includes response.body, "Revenue"
+      assert_includes response.body, "Learning"
+      assert_includes response.body, "運用・実行管理"
+      assert_includes response.body, "改修・Codex管理"
+      assert_includes response.body, "AI Resource / Auto Build"
+      assert_includes response.body, "システム状態"
+      assert_includes response.body, "学習・履歴"
       assert_includes response.body, "Daily Run Health"
       assert_includes response.body, "改訂待ち"
       assert_includes response.body, "承認待ち改訂"
@@ -35,7 +48,13 @@ module Owner
       assert_not_includes response.body, "SERP走査"
       assert_not_includes response.body, "Cron Ready"
       assert_not_includes response.body, "Google OAuth"
+      assert_not_includes response.body, "Pipeline E2E"
+      assert_not_includes response.body, "Execution Profiles"
       assert_not_includes response.body, "AICOO Analytics Import"
+      assert_operator response.body.index("今日の1件"), :<, response.body.index("今日おすすめの事業改善 TOP10")
+      assert_operator response.body.index("今日おすすめの事業改善 TOP10"), :<, response.body.index("Businessカード")
+      assert_operator response.body.index("Businessカード"), :<, response.body.index("運用・実行管理")
+      assert_operator response.body.index("運用・実行管理"), :<, response.body.index("Daily Run Health")
     end
 
     test "orders improvements by expected profit before lower value candidates" do

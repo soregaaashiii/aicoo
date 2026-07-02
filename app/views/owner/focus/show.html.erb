@@ -13,11 +13,6 @@
              active_main: :revenue,
              actions: header_actions %>
 
-  <%= render "shared/daily_run_health_summary", summary: @cron_health_summary %>
-  <%= render "shared/auto_revision_execution_summary", summary: @auto_revision_execution_summary %>
-  <%= render "shared/codex_submission_summary", summary: @codex_submission_summary %>
-  <%= render "shared/resource_aware_auto_build_summary", summary: @auto_build_summary, show_learning_rank: false %>
-
   <% if @today_business_improvement %>
     <section class="dashboard-section">
       <div class="section-heading">
@@ -189,4 +184,38 @@
       </div>
     </section>
   <% end %>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <div>
+        <h2>運用・実行管理</h2>
+        <p>改修キュー、Codex送信、AI Resource、Daily Runなどは必要な時だけ開いて確認します。</p>
+      </div>
+      <%= link_to "SYSTEM MODE", dashboard_path, class: "button secondary" %>
+    </div>
+
+    <details class="aicoo-card">
+      <summary><strong>改修・Codex管理</strong> <span class="muted">承認待ち改修、Codex送信待ち、PR/deploy前の作業単位</span></summary>
+      <%= render "shared/auto_revision_execution_summary", summary: @auto_revision_execution_summary %>
+      <%= render "shared/codex_submission_summary", summary: @codex_submission_summary %>
+    </details>
+
+    <details class="aicoo-card">
+      <summary><strong>AI Resource / Auto Build</strong> <span class="muted">Build Queue、AI予算、Auto Build状況</span></summary>
+      <%= render "shared/resource_aware_auto_build_summary", summary: @auto_build_summary, show_learning_rank: false %>
+    </details>
+
+    <details class="aicoo-card">
+      <summary><strong>システム状態</strong> <span class="muted">Daily Run Health、Cron Health、Google警告</span></summary>
+      <%= render "shared/daily_run_health_summary", summary: @cron_health_summary %>
+    </details>
+
+    <details class="aicoo-card">
+      <summary><strong>学習・履歴</strong> <span class="muted">Learning詳細、実行履歴、SYSTEM MODEへの導線</span></summary>
+      <div class="actions compact-actions">
+        <%= link_to "実行履歴を見る", admin_execution_runs_path, class: "button secondary" %>
+        <%= link_to "SYSTEM MODEで確認", dashboard_path, class: "button secondary" %>
+      </div>
+    </details>
+  </section>
 </div>

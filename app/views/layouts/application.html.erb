@@ -61,11 +61,13 @@
 
         <nav class="aicoo-sidebar-nav">
           <% aicoo_sidebar_items.each do |category| %>
-            <section class="aicoo-sidebar-group <%= 'active' if aicoo_sidebar_category_active?(category) %>">
-              <%= link_to category[:path], class: ["aicoo-sidebar-link", "aicoo-sidebar-category", ("active" if aicoo_sidebar_category_active?(category))] do %>
-                <strong><%= category[:label] %></strong>
-                <span><%= category[:description] %></span>
-              <% end %>
+            <details class="aicoo-sidebar-group <%= 'active' if aicoo_sidebar_category_active?(category) %>" <%= "open" if aicoo_sidebar_category_active?(category) %>>
+              <summary class="aicoo-sidebar-link aicoo-sidebar-category <%= 'active' if aicoo_sidebar_category_active?(category) %>">
+                <span>
+                  <strong><%= category[:label] %></strong>
+                  <small><%= category[:description] %></small>
+                </span>
+              </summary>
               <div class="aicoo-sidebar-children">
                 <% category.fetch(:children, []).each do |item| %>
                   <%= link_to item[:path], class: ["aicoo-sidebar-link", "aicoo-sidebar-child", ("active" if aicoo_sidebar_child_active?(item))] do %>
@@ -74,7 +76,7 @@
                   <% end %>
                 <% end %>
               </div>
-            </section>
+            </details>
           <% end %>
         </nav>
       </aside>

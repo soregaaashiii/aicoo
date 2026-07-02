@@ -13,14 +13,18 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Notifications"
     assert_includes response.body, "Profile"
     assert_includes response.body, "目的から探す"
-    assert_includes response.body, "事業"
-    assert_includes response.body, "事業ごとの状態"
-    assert_includes response.body, "今日やること"
-    assert_includes response.body, "AI活動"
-    assert_includes response.body, "新規事業 / Lab"
-    assert_includes response.body, "学習"
-    assert_includes response.body, "分析"
-    assert_includes response.body, "設定"
+    assert_includes response.body, "今日どのBusinessを改善するか"
+    assert_includes response.body, "Home"
+    assert_includes response.body, "Businesses"
+    assert_includes response.body, "Today"
+    assert_includes response.body, "Action Candidates"
+    assert_includes response.body, "Auto Revision"
+    assert_includes response.body, "Auto Build"
+    assert_includes response.body, "Revenue"
+    assert_includes response.body, "Learning"
+    assert_includes response.body, "Dashboard"
+    assert_not_includes response.body, "Pipeline E2E"
+    assert_not_includes response.body, "Execution Profiles"
     assert_includes response.body, "現在位置"
   end
 
@@ -30,23 +34,31 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.body, "AICOO"
     assert_includes response.body, "SYSTEM MODE"
-    assert_includes response.body, "事業"
-    assert_includes response.body, "AI活動"
-    assert_includes response.body, "新規事業 / Lab"
-    assert_includes response.body, "学習"
-    assert_includes response.body, "分析"
-    assert_includes response.body, "設定"
-    assert_includes response.body, "状態を見る"
+    assert_includes response.body, "AICOOの運用・復旧"
+    assert_includes response.body, "Daily Runs"
+    assert_includes response.body, "Cron Health"
+    assert_includes response.body, "Google"
+    assert_includes response.body, "SERP"
+    assert_includes response.body, "Pipeline E2E"
+    assert_includes response.body, "Activity Learning"
+    assert_includes response.body, "DataHub"
+    assert_includes response.body, "Calibration"
+    assert_includes response.body, "Judge"
+    assert_includes response.body, "Resource Budget"
+    assert_includes response.body, "Source App"
+    assert_includes response.body, "Settings"
+    assert_includes response.body, "Execution Profiles"
+    assert_includes response.body, "Codex Rules"
+    assert_not_includes response.body, "今日どのBusinessを改善するか"
     assert_includes response.body, "現在位置"
   end
 
-  test "business pages keep the same system shell" do
+  test "business pages use the ceo shell" do
     get business_url(businesses(:suelog))
 
     assert_response :success
-    assert_includes response.body, "SYSTEM MODE"
-    assert_includes response.body, "事業"
-    assert_includes response.body, "事業一覧"
+    assert_includes response.body, "CEO MODE"
+    assert_includes response.body, "Businesses"
     assert_includes response.body, "Google連携"
     assert_includes response.body, "現在位置"
   end
@@ -57,7 +69,8 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
     get action_candidate_url(action_candidate)
 
     assert_response :success
-    assert_select ".aicoo-sidebar-group.active .aicoo-sidebar-category strong", text: "事業"
+    assert_select ".aicoo-sidebar-group.active .aicoo-sidebar-category strong", text: "CEO MODE"
+    assert_select ".aicoo-sidebar-child.active strong", text: "Businesses"
     assert_select ".purpose-context-bar", text: /改善案/
     assert_includes response.body, "この事業へ戻る"
   end
@@ -73,7 +86,8 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
     get revenue_event_url(revenue_event)
 
     assert_response :success
-    assert_select ".aicoo-sidebar-group.active .aicoo-sidebar-category strong", text: "事業"
+    assert_select ".aicoo-sidebar-group.active .aicoo-sidebar-category strong", text: "CEO MODE"
+    assert_select ".aicoo-sidebar-child.active strong", text: "Businesses"
     assert_select ".purpose-context-bar", text: /売上/
     assert_includes response.body, "この事業へ戻る"
   end

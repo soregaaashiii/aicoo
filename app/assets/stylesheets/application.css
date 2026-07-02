@@ -189,6 +189,15 @@ a:hover {
   padding-bottom: 8px;
 }
 
+.aicoo-sidebar-group summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.aicoo-sidebar-group summary::-webkit-details-marker {
+  display: none;
+}
+
 .aicoo-sidebar-group:last-child {
   border-bottom: 0;
 }
@@ -238,6 +247,14 @@ a:hover {
 .aicoo-sidebar-link span {
   color: var(--muted);
   font-size: 12px;
+}
+
+.aicoo-sidebar-link small {
+  color: var(--muted);
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  margin-top: 2px;
 }
 
 .aicoo-sidebar-link.active,
