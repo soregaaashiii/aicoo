@@ -13,7 +13,7 @@ class ActionCandidateDepartmentClassifierService
   ].freeze
 
   LAB_ACTION_TYPES = %w[data_preparation].freeze
-  NEW_BUSINESS_ACTION_TYPES = %w[market_research build_mvp pivot].freeze
+  NEW_BUSINESS_ACTION_TYPES = %w[market_research new_business lp_experiment market_test build_lp build_mvp pivot].freeze
 
   REVENUE_KEYWORDS = %w[
     既存事業 改善 SEO seo CTR ctr CV cv 導線 店舗 店舗登録 記事 リライト GA4 ga4 GSC gsc SERP serp

@@ -4,6 +4,9 @@ class ActionCandidate < ApplicationRecord
     seo_improvement
     serp_research
     market_research
+    new_business
+    lp_experiment
+    market_test
     build_lp
     build_mvp
     ui_improvement

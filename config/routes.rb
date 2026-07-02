@@ -236,6 +236,8 @@ Rails.application.routes.draw do
     end
     resource :serp_settings, only: %i[show update] do
       post :run_now
+      post :run_selected_business
+      post :run_all_businesses
       patch :update_scheduler
       post :test_search
       patch "businesses/:business_id", action: :update_business, as: :business
@@ -259,6 +261,7 @@ Rails.application.routes.draw do
       patch :archive, on: :member
       post :run_now, on: :member
     end
+    resources :serp_runs, only: %i[show]
     resources :analytics_imports, only: %i[index create] do
       post :reprocess, on: :member
     end

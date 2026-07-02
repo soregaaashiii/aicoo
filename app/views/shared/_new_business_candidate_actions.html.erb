@@ -1,0 +1,12 @@
+<% candidate = row.action_candidate %>
+<div class="compact-actions">
+  <%= link_to "詳しく見る", candidate, class: "button secondary" %>
+  <% if %w[idea pending].include?(candidate.status) %>
+    <%= button_to "LP検証へ進める", approve_action_candidate_path(candidate), method: :patch, class: "button" %>
+    <%= button_to "却下", reject_action_candidate_path(candidate), method: :patch, class: "button secondary", data: { aicoo_confirm: "この新規事業候補を却下します。" } %>
+  <% elsif candidate.status == "approved" %>
+    <%= link_to "LP検証状況", candidate, class: "button" %>
+  <% else %>
+    <span class="pill"><%= candidate.status %></span>
+  <% end %>
+</div>

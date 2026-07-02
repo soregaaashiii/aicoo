@@ -22,6 +22,8 @@ class SerpQueryTest < ActiveSupport::TestCase
     )
 
     assert_not query.runnable_today?
+    assert_equal "daily_limit_reached", query.next_run_reason
+    assert_equal "未取得: 今日の上限により未実行", query.next_run_label
   end
 
   test "serp action candidate updates query candidate counters" do

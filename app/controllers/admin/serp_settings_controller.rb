@@ -36,7 +36,7 @@ module Admin
     def run_now
       result = Aicoo::Serp::Scheduler.run!(executed_by: "manual", force: ActiveModel::Type::Boolean.new.cast(params[:force]))
       if result.serp_run
-        redirect_to admin_serp_settings_path(anchor: "serp-execution"),
+        redirect_to admin_serp_run_path(result.serp_run),
                     notice: "SERP Runを実行しました。status=#{result.serp_run.status} query=#{result.serp_run.query_count}"
       else
         redirect_to admin_serp_settings_path(anchor: "serp-execution"),
@@ -44,6 +44,32 @@ module Admin
       end
     rescue StandardError => e
       redirect_to admin_serp_settings_path(anchor: "serp-execution"), alert: "SERP Runに失敗しました: #{e.message}"
+    end
+
+    def run_selected_business
+      business = find_business
+      serp_run = Aicoo::Serp::RunExecutor.new(
+        executed_by: "manual",
+        target_businesses: [ business ],
+        ignore_limit: ActiveModel::Type::Boolean.new.cast(params[:ignore_limit])
+      ).call
+      redirect_to admin_serp_run_path(serp_run),
+                  notice: "#{business.name}のSERP Runを実行しました。query=#{serp_run.query_count}"
+    rescue StandardError => e
+      redirect_to admin_serp_settings_path(business_id: params[:business_id], anchor: "serp-business-detail"),
+                  alert: "選択中BusinessのSERP実行に失敗しました: #{e.message}"
+    end
+
+    def run_all_businesses
+      serp_run = Aicoo::Serp::RunExecutor.new(
+        executed_by: "manual",
+        ignore_limit: ActiveModel::Type::Boolean.new.cast(params[:ignore_limit])
+      ).call
+      redirect_to admin_serp_run_path(serp_run),
+                  notice: "全BusinessのSERP Runを実行しました。query=#{serp_run.query_count}"
+    rescue StandardError => e
+      redirect_to admin_serp_settings_path(anchor: "serp-execution"),
+                  alert: "全BusinessのSERP実行に失敗しました: #{e.message}"
     end
 
     def test_search
@@ -93,24 +119,24 @@ module Admin
       messages << "除外済み #{result.excluded.size}件" if result.excluded.any?
       messages << "無効 #{result.invalid.size}件" if result.invalid.any?
       flash_type = result.excluded.any? || result.invalid.any? ? :alert : :notice
-      redirect_to admin_serp_settings_path(anchor: business_anchor(business)), flash: { flash_type => "キーワード処理: #{messages.presence&.join(' / ') || '変更なし'}" }
+      redirect_to admin_serp_settings_path(anchor: business_anchor(business)), flash: { flash_type => "検索クエリ処理: #{messages.presence&.join(' / ') || '変更なし'}" }
     end
 
     def regenerate_suggestions
       business = find_business
       suggestions = Aicoo::Serp::KeywordManager.generate_suggestions!(business:)
-      redirect_to admin_serp_settings_path(anchor: business_anchor(business)), notice: "#{business.name}のキーワード候補を#{suggestions.size}件生成しました。"
+      redirect_to admin_serp_settings_path(anchor: business_anchor(business)), notice: "#{business.name}の検索クエリ候補を#{suggestions.size}件生成しました。"
     end
 
     def scan_business
       business = find_business
-      result = Aicoo::Serp::ScanRunner.new(target_businesses: [ business ]).call
-      if result.failed_count.positive?
-        redirect_to admin_serp_settings_path(anchor: business_anchor(business)),
-                    alert: "#{business.name}のSERP取得で失敗があります。成功 #{result.success_count}件 / 失敗 #{result.failed_count}件"
+      serp_run = Aicoo::Serp::RunExecutor.new(executed_by: "manual", target_businesses: [ business ]).call
+      if serp_run.failure_count.positive?
+        redirect_to admin_serp_run_path(serp_run),
+                    alert: "#{business.name}のSERP取得で失敗があります。成功 #{serp_run.success_count}件 / 失敗 #{serp_run.failure_count}件"
       else
-        redirect_to admin_serp_settings_path(anchor: business_anchor(business)),
-                    notice: "#{business.name}のSERP取得が完了しました。#{result.query_count}キーワード / #{result.result_count}件"
+        redirect_to admin_serp_run_path(serp_run),
+                    notice: "#{business.name}のSERP取得が完了しました。#{serp_run.query_count}検索クエリ"
       end
     rescue StandardError => e
       redirect_to admin_serp_settings_path(anchor: business_anchor(business)), alert: "#{business.name}のSERP取得に失敗しました: #{e.message}"
@@ -125,14 +151,14 @@ module Admin
       )
       redirect_to admin_serp_settings_path(anchor: business_anchor(keyword.business)), notice: "#{keyword.keyword} の優先度を保存しました。"
     rescue ActiveRecord::RecordInvalid => e
-      redirect_to admin_serp_settings_path, alert: "キーワードを保存できませんでした: #{e.record.errors.full_messages.to_sentence}"
+      redirect_to admin_serp_settings_path, alert: "検索クエリを保存できませんでした: #{e.record.errors.full_messages.to_sentence}"
     end
 
     def approve_pending_keywords
       business = find_business
       updated_count = business.business_serp_keywords.pending.update_all(status: "active", updated_at: Time.current)
       redirect_to admin_serp_settings_path(anchor: "serp-keywords"),
-                  notice: "#{business.name}の承認待ちキーワードを#{updated_count}件Activeにしました。"
+                  notice: "#{business.name}の承認待ち検索クエリを#{updated_count}件Activeにしました。"
     end
 
     def approve_keyword
@@ -186,6 +212,7 @@ module Admin
       @serp_profile = DataSourceCostProfile.for_source("serp")
       @serp_optional_mode = Aicoo::Serp::OptionalMode.call
       @serp_summary = Aicoo::Serp::Summary.call
+      @new_business_candidate_board = Aicoo::NewBusinessCandidateBoard.call(limit: 5)
       @serp_scheduler_settings = Aicoo::Serp::Scheduler.settings
       @latest_serp_run = SerpRun.recent.first
       @recent_serp_runs = SerpRun.recent.limit(10)
@@ -196,21 +223,18 @@ module Admin
       @serp_analysis_count = SerpAnalysis.count
       @serp_result_count = SerpResult.count
       @today_serp_analysis_count = SerpAnalysis.where(analyzed_at: Time.zone.today.all_day).count
-      @latest_daily_run_serp_steps = AicooDailyRunStep
-        .includes(:aicoo_daily_run)
-        .where(step_name: Aicoo::Serp::OptionalMode::SERP_DEPENDENT_STEPS)
-        .order(created_at: :desc)
-        .limit(12)
+      @today_serp_forced_count = SerpRun.today.where("metadata ->> 'ignore_limit' = ?", "true").sum(:query_count)
       @serp_businesses = Business.real_businesses
                                 .includes(:business_serp_keywords, :business_data_source_settings, :serp_queries)
                                 .order(:name)
       @selected_business = @serp_businesses.find { |business| business.id == params[:business_id].to_i } || @serp_businesses.first
+      @selected_business_plan = serp_plan_for([ @selected_business ].compact)
+      @all_business_plan = serp_plan_for(@serp_businesses)
+      @selected_plan_by_query_id = @selected_business_plan.rows.index_by { |row| row.serp_query.id }
       @serp_keyword_counts = BusinessSerpKeyword.where(business: @serp_businesses).group(:business_id, :status).count
       @serp_query_counts = SerpQuery.where(business: @serp_businesses).group(:business_id, :enabled).count
       @serp_latest_checked_at = BusinessSerpKeyword.where(business: @serp_businesses).group(:business_id).maximum(:last_checked_at)
-      @serp_today_planned_counts = @serp_businesses.index_with do |business|
-        Aicoo::Serp::ScanRunner.queries_for_business(business).size
-      end
+      @serp_today_planned_counts = @serp_businesses.index_with { |business| serp_plan_for([ business ]).run_rows.size }
       @serp_latest_analysis_by_business_id = SerpAnalysis
         .where(business: @serp_businesses)
         .order(analyzed_at: :asc, created_at: :asc)
@@ -257,6 +281,14 @@ module Admin
 
     def find_keyword
       BusinessSerpKeyword.includes(:business).find(params[:id])
+    end
+
+    def serp_plan_for(businesses)
+      Aicoo::Serp::RunPlanner.new(
+        target_businesses: businesses,
+        max_total_queries: Aicoo::Serp::Scheduler.settings["daily_query_limit"].to_i,
+        force: false
+      )
     end
 
     def business_anchor(business)

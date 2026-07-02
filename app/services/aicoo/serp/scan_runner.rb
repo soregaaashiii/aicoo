@@ -64,7 +64,7 @@ module Aicoo
         end
       end
 
-      def initialize(provider: nil, location: "Japan", language: "ja", limit: nil, max_queries_per_business: 3, target_businesses: nil, serp_run: nil, force: false, max_total_queries: nil, single_serp_query: nil)
+      def initialize(provider: nil, location: "Japan", language: "ja", limit: nil, max_queries_per_business: 3, target_businesses: nil, serp_run: nil, force: false, max_total_queries: nil, single_serp_query: nil, allowed_serp_query_ids: nil)
         @provider = (provider.presence || ENV["AICOO_SERP_PROVIDER"].presence || "serper").to_s
         @location = location.presence || "Japan"
         @language = language.presence || "ja"
@@ -73,8 +73,9 @@ module Aicoo
         @target_businesses = target_businesses
         @serp_run = serp_run
         @force = force
-        @max_total_queries = max_total_queries.to_i.positive? ? max_total_queries.to_i : nil
+        @max_total_queries = max_total_queries.present? && max_total_queries.to_i.positive? ? max_total_queries.to_i : nil
         @single_serp_query = single_serp_query
+        @allowed_serp_query_ids = allowed_serp_query_ids
         @scan_batch_id = SecureRandom.uuid
       end
 
@@ -124,8 +125,15 @@ module Aicoo
 
       def query_plans_for(business)
         return [ QueryPlan.new(single_serp_query.query, single_serp_query, single_serp_query.country, single_serp_query.language) ] if single_serp_query
+        return allowed_query_plans_for(business) if @allowed_serp_query_ids
 
         self.class.query_plans_for_business(business, max_queries_per_business:, force: @force)
+      end
+
+      def allowed_query_plans_for(business)
+        business.serp_queries.where(id: @allowed_serp_query_ids).by_priority.map do |serp_query|
+          QueryPlan.new(serp_query.query, serp_query, serp_query.country, serp_query.language)
+        end
       end
 
       def scan_plans

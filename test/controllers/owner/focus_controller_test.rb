@@ -98,6 +98,35 @@ module Owner
       assert_not_includes response.body, "Rate limit"
     end
 
+    test "shows new business candidates near daily decision area" do
+      candidate = ActionCandidate.create!(
+        business: businesses(:suelog),
+        title: "新規事業候補: 警備AI",
+        description: "警備AIのLP検証",
+        action_type: "build_lp",
+        department: "new_business",
+        generation_source: "integrated_decision",
+        status: "idea",
+        immediate_value_yen: 80_000,
+        success_probability: 0.25,
+        expected_hours: 2,
+        metadata: {
+          "candidate_kind" => "new_business",
+          "source_query" => "警備 AI",
+          "market_memo" => "上位にSaaS競合あり"
+        }
+      )
+
+      get owner_focus_url
+
+      assert_response :success
+      assert_includes response.body, "新規事業候補"
+      assert_includes response.body, candidate.title
+      assert_includes response.body, "LP検証へ進める"
+      assert_operator response.body.index("今日おすすめの事業改善 TOP10"), :<, response.body.index("新規事業候補")
+      assert_operator response.body.index("新規事業候補"), :<, response.body.index("Businessカード")
+    end
+
     test "orders improvements by expected profit before lower value candidates" do
       low = create_candidate!(
         title: "小さい改善",

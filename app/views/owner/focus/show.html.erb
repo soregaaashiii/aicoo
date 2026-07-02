@@ -83,6 +83,50 @@
   <section class="dashboard-section">
     <div class="section-heading">
       <div>
+        <h2>新規事業候補</h2>
+        <p>今すぐLP検証に進める候補だけを表示します。詳細分析は総合判断で確認します。</p>
+      </div>
+      <%= link_to "総合判断を見る", admin_integrated_decision_path, class: "button secondary" %>
+    </div>
+
+    <% if @new_business_candidate_board.candidates.any? %>
+      <div class="aicoo-card-grid">
+        <% @new_business_candidate_board.candidates.first(3).each do |row| %>
+          <div class="aicoo-card">
+            <p><span class="pill">#<%= row.rank %></span> <span class="pill"><%= row.status %></span></p>
+            <h2><%= row.title %></h2>
+            <p><%= row.reason %></p>
+            <dl class="aicoo-definition-list">
+              <dt>なぜ今やるべきか</dt>
+              <dd><%= row.market_memo %></dd>
+              <dt>最初の一手</dt>
+              <dd><%= row.validation_step %></dd>
+              <dt>根拠検索クエリ</dt>
+              <dd><%= row.source_query %></dd>
+            </dl>
+            <div class="metric-grid aicoo-owner-secondary">
+              <div class="metric-card"><span>期待利益</span><strong><%= number_to_currency(row.expected_profit_yen, unit: "¥", precision: 0) %></strong></div>
+              <div class="metric-card"><span>必要作業時間</span><strong><%= row.expected_hours.positive? ? "#{row.expected_hours.to_f.round(1)}h" : "-" %></strong></div>
+            </div>
+            <%= render "shared/new_business_candidate_actions", row: row %>
+          </div>
+        <% end %>
+      </div>
+    <% else %>
+      <div class="aicoo-card aicoo-empty-state">
+        <h3>今すぐ検証すべき新規事業候補はありません。</h3>
+        <ul class="compact-list">
+          <% @new_business_candidate_board.zero_reasons.each do |reason| %>
+            <li><%= reason %></li>
+          <% end %>
+        </ul>
+      </div>
+    <% end %>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <div>
         <h2>Businessカード</h2>
         <p>事業ごとの今日の期待利益、Attention Score、改善候補数を一覧します。</p>
       </div>

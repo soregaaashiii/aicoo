@@ -26,6 +26,39 @@ module Aicoo
         end
       end
 
+      test "selected business run does not execute other business fallback queries" do
+        business = businesses(:suelog)
+        other_business = businesses(:cards)
+        business.update!(status: "launched", serp_enabled: true)
+        other_business.update!(status: "launched", serp_enabled: true)
+        business_query = business.serp_queries.create!(
+          query: "梅田 喫煙 選択 #{SecureRandom.hex(4)}",
+          category: "existing_business",
+          status: "active",
+          enabled: true,
+          priority: 1,
+          daily_limit: 5
+        )
+        other_business.serp_queries.create!(
+          query: "名刺 共有 対象外 #{SecureRandom.hex(4)}",
+          category: "existing_business",
+          status: "active",
+          enabled: true,
+          priority: 1,
+          daily_limit: 5
+        )
+
+        with_adapter_result do
+          run = Aicoo::Serp::RunExecutor.new(executed_by: "manual", target_businesses: [ business ]).call
+
+          assert_equal "success", run.status
+          assert_equal [ business_query.id ], run.run_plan_rows.map { |row| row["serp_query_id"] }
+          assert_equal 1, business.serp_analyses.where(serp_run: run).count
+          assert_equal 0, other_business.serp_analyses.where(serp_run: run).count
+          assert run.plan_rows.all? { |row| row["business_id"] == business.id }
+        end
+      end
+
       private
 
       def with_adapter_result

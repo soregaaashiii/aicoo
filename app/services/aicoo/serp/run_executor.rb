@@ -1,28 +1,40 @@
 module Aicoo
   module Serp
     class RunExecutor
-      def initialize(executed_by: "manual", force: false, serp_query: nil)
+      def initialize(executed_by: "manual", force: false, serp_query: nil, target_businesses: nil, ignore_limit: false)
         @executed_by = executed_by
         @force = force
         @serp_query = serp_query
+        @target_businesses = target_businesses
+        @ignore_limit = ignore_limit
       end
 
       def call
+        planner = Aicoo::Serp::RunPlanner.new(
+          target_businesses: target_businesses,
+          max_total_queries: ignore_limit ? 0 : max_total_queries,
+          force:,
+          single_serp_query: serp_query
+        )
         serp_run = SerpRun.create!(
           status: "running",
           started_at: Time.current,
           executed_by: executed_by,
-          metadata: {
+          metadata: planner.metadata.merge(
             "force" => force,
-            "serp_query_id" => serp_query&.id
-          }.compact
+            "ignore_limit" => ignore_limit,
+            "serp_query_id" => serp_query&.id,
+            "target_business_ids" => target_businesses.map(&:id)
+          ).compact
         )
 
         result = Aicoo::Serp::ScanRunner.new(
           serp_run:,
           force:,
           single_serp_query: serp_query,
-          max_total_queries: max_total_queries,
+          target_businesses: target_businesses,
+          allowed_serp_query_ids: planner.run_query_ids,
+          max_total_queries: ignore_limit ? nil : max_total_queries,
           max_queries_per_business: max_queries_per_business
         ).call
         run_priority_learning!
@@ -37,10 +49,21 @@ module Aicoo
 
       private
 
-      attr_reader :executed_by, :force, :serp_query
+      attr_reader :executed_by, :force, :serp_query, :ignore_limit
 
       def settings
         Aicoo::Serp::Scheduler.settings
+      end
+
+      def target_businesses
+        @target_businesses ||= begin
+          return [ serp_query.business ] if serp_query
+
+          Business.real_businesses.where(status: "launched", serp_enabled: true)
+                  .includes(:business_data_source_settings, :business_serp_keywords, :serp_queries)
+                  .order(:name)
+                  .to_a
+        end
       end
 
       def max_total_queries

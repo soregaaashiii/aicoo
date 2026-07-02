@@ -57,6 +57,35 @@ class SerpQuery < ApplicationRecord
     business.serp_analyses.where(keyword: query, analyzed_at: Time.zone.today.all_day).count
   end
 
+  def next_run_reason
+    return "paused" if status == "paused"
+    return "archived" if status == "archived"
+    return "disabled" unless enabled?
+    return "daily_limit_reached" if daily_limit.to_i <= 0 || today_run_count >= daily_limit.to_i
+    return "recently_fetched_24h" if recently_successful?
+
+    "priority_selected"
+  end
+
+  def next_run_label
+    case next_run_reason
+    when "priority_selected"
+      "次回SERP Run対象"
+    when "daily_limit_reached"
+      "未取得: 今日の上限により未実行"
+    when "recently_fetched_24h"
+      "未取得: 24時間以内に取得済み"
+    when "paused"
+      "未取得: Pause中"
+    when "archived"
+      "未取得: Archive済み"
+    when "disabled"
+      "未取得: OFF"
+    else
+      "未取得: #{next_run_reason}"
+    end
+  end
+
   def record_run!
     update!(last_run_at: Time.current)
   end

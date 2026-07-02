@@ -14,12 +14,40 @@ module Admin
     end
 
     def create
-      @serp_query = SerpQuery.new(serp_query_params)
-      if @serp_query.save
-        redirect_to admin_serp_queries_path(business_id: @serp_query.business_id, anchor: "serp-query-#{@serp_query.id}"),
-                    notice: "SERP検索クエリを追加しました。追加しただけでは検索は実行されません。"
+      attrs = serp_query_params.to_h
+      business = Business.real_businesses.find(attrs.fetch("business_id"))
+      queries = SerpQuery.parse_queries(attrs["query"])
+      return redirect_to create_failure_location(attrs), alert: "SERP検索クエリを入力してください。" if queries.empty?
+
+      added = []
+      existing = []
+      invalid = []
+      queries.each do |query_text|
+        normalized_query = SerpQuery.normalize(query_text)
+        serp_query = business.serp_queries.find_or_initialize_by(normalized_query:)
+        if serp_query.persisted?
+          existing << serp_query
+          next
+        end
+
+        serp_query.assign_attributes(attrs.except("business_id", "query").merge("query" => query_text))
+        if serp_query.save
+          added << serp_query
+        else
+          invalid << [ query_text, serp_query.errors.full_messages.to_sentence ]
+        end
+      end
+
+      if invalid.any? && added.empty?
+        redirect_to create_failure_location(attrs),
+                    alert: "SERP検索クエリを追加できません: #{invalid.map { |query, error| "#{query}: #{error}" }.join(' / ')}"
       else
-        redirect_to admin_serp_queries_path(business_id: @serp_query.business_id), alert: "SERP検索クエリを追加できません: #{@serp_query.errors.full_messages.to_sentence}"
+        parts = []
+        parts << "追加 #{added.size}件" if added.any?
+        parts << "既存 #{existing.size}件" if existing.any?
+        parts << "無効 #{invalid.size}件" if invalid.any?
+        redirect_to create_success_location(business, added.first || existing.first),
+                    notice: "SERP検索クエリを#{added.size}件追加しました。#{parts.join(' / ')}。追加しただけでは検索は実行されません。"
       end
     end
 
@@ -58,8 +86,8 @@ module Admin
 
     def run_now
       serp_run = Aicoo::Serp::RunExecutor.new(executed_by: "manual", force: true, serp_query: @serp_query).call
-      redirect_back fallback_location: admin_serp_queries_path(business_id: @serp_query.business_id),
-                    notice: "#{@serp_query.query} を今すぐ実行しました。status=#{serp_run.status}"
+      redirect_to admin_serp_run_path(serp_run),
+                  notice: "#{@serp_query.query} を今すぐ実行しました。status=#{serp_run.status}"
     rescue StandardError => e
       redirect_back fallback_location: admin_serp_queries_path(business_id: @serp_query.business_id),
                     alert: "#{@serp_query.query} のSERP実行に失敗しました: #{e.message}"
@@ -101,6 +129,16 @@ module Admin
           :daily_limit
         ]
       )
+    end
+
+    def create_success_location(business, serp_query)
+      return params[:return_to] if params[:return_to].present?
+
+      admin_serp_queries_path(business_id: business.id, anchor: "serp-query-#{serp_query&.id}")
+    end
+
+    def create_failure_location(attrs)
+      params[:return_to].presence || admin_serp_queries_path(business_id: attrs["business_id"])
     end
   end
 end

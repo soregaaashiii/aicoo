@@ -37,6 +37,30 @@ module Admin
       assert_equal "難波 喫煙", SerpQuery.last.query
     end
 
+    test "creates multiple serp queries from multiline input" do
+      business = businesses(:suelog)
+
+      assert_difference("SerpQuery.count", 2) do
+        post admin_serp_queries_url, params: {
+          serp_query: {
+            business_id: business.id,
+            query: "梅田 喫煙\n難波 喫煙,梅田 喫煙",
+            category: "existing_business",
+            priority: 30,
+            daily_limit: 1,
+            country: "jp",
+            language: "ja",
+            enabled: "1"
+          },
+          return_to: admin_serp_settings_path(business_id: business.id, anchor: "serp-keywords")
+        }
+      end
+
+      assert_redirected_to admin_serp_settings_path(business_id: business.id, anchor: "serp-keywords")
+      assert business.serp_queries.exists?(query: "梅田 喫煙")
+      assert business.serp_queries.exists?(query: "難波 喫煙")
+    end
+
     test "toggles serp query" do
       query = SerpQuery.create!(business: businesses(:suelog), query: "梅田 喫煙", category: "existing_business", enabled: true)
 

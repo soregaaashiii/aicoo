@@ -7,6 +7,7 @@ module Admin
 
       assert_response :success
       assert_includes response.body, "SERP設定"
+      assert_includes response.body, "新規事業候補"
       assert_includes response.body, "SERP Summary"
       assert_includes response.body, "全体設定"
       assert_includes response.body, "Provider"
@@ -16,11 +17,38 @@ module Admin
       assert_includes response.body, "serp_fetch"
       assert_includes response.body, "action_candidate_generation"
       assert_includes response.body, "Business設定"
-      assert_includes response.body, "Keyword管理"
+      assert_includes response.body, "検索クエリ管理"
       assert_includes response.body, "実行状況"
       assert_includes response.body, "履歴"
       assert_includes response.body, "テスト検索"
       assert_includes response.body, "SERP Adapterでテスト検索"
+    end
+
+    test "shows new business candidate card" do
+      candidate = ActionCandidate.create!(
+        business: businesses(:suelog),
+        title: "新規事業候補: 警備AI",
+        description: "警備AIのLP検証",
+        action_type: "build_lp",
+        department: "new_business",
+        generation_source: "integrated_decision",
+        status: "idea",
+        immediate_value_yen: 80_000,
+        success_probability: 0.25,
+        expected_hours: 2,
+        metadata: {
+          "candidate_kind" => "new_business",
+          "source_query" => "警備 AI",
+          "market_memo" => "上位にSaaS競合あり"
+        }
+      )
+
+      get admin_serp_settings_url
+
+      assert_response :success
+      assert_includes response.body, candidate.title
+      assert_includes response.body, "LP検証へ進める"
+      assert_includes response.body, "警備 AI"
     end
 
     test "shows saved serp analyses and latest error" do
@@ -144,28 +172,46 @@ module Admin
 
     test "scans one business from settings page" do
       business = businesses(:suelog)
-      result = Aicoo::Serp::ScanRunner::Result.new(
-        started_at: Time.current,
-        finished_at: Time.current,
-        provider: "serper",
-        target_business_count: 1,
-        query_count: 1,
-        success_count: 1,
-        failed_count: 0,
-        result_count: 10,
-        duration_seconds: 1,
-        estimated_cost_yen: 3,
-        limit: 10,
-        scan_batch_id: "test",
-        analyses: []
+      business.update!(status: "launched", serp_enabled: true)
+      business.serp_queries.create!(
+        query: "梅田 喫煙 カフェ #{SecureRandom.hex(4)}",
+        category: "existing_business",
+        status: "active",
+        enabled: true,
+        priority: 1,
+        daily_limit: 5
       )
 
-      stub_scan_runner(result) do
+      result = Aicoo::Serp::SearchResult.new(
+        provider: "serper",
+        type: "google_search",
+        query: "梅田 喫煙 カフェ",
+        location: "Japan",
+        language: "ja",
+        fetched_at: Time.current.iso8601,
+        organic_results: [
+          {
+            position: 1,
+            title: "梅田の喫煙カフェ",
+            url: "https://example.com/umeda",
+            displayed_url: "example.com",
+            snippet: "梅田で喫煙できるカフェ",
+            source: "serper",
+            raw: {}
+          }
+        ],
+        people_also_ask: [],
+        related_searches: [],
+        ai_overview: nil,
+        raw_response: {}
+      )
+
+      stub_adapter(lambda { |**_kwargs| result }) do
         post business_scan_admin_serp_settings_url(business)
       end
 
-      assert_redirected_to admin_serp_settings_url(anchor: "serp-business-#{business.id}")
-      assert_equal "吸えログのSERP取得が完了しました。1キーワード / 10件", flash[:notice]
+      assert_redirected_to admin_serp_run_url(SerpRun.last)
+      assert_equal "吸えログのSERP取得が完了しました。1検索クエリ", flash[:notice]
     end
 
     test "test search uses adapter and displays normalized result" do

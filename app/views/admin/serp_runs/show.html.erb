@@ -1,0 +1,78 @@
+<% content_for :title, "SERP Run ##{@serp_run.id}" %>
+
+<% header_actions = capture do %>
+  <%= link_to "SERP設定", admin_serp_settings_path(anchor: "serp-execution"), class: "button secondary" %>
+  <%= link_to "新規事業候補を確認する", admin_serp_settings_path(anchor: "serp-new-business-candidates"), class: "button" %>
+  <%= link_to "SERP検索クエリ", admin_serp_queries_path, class: "button secondary" %>
+  <%= link_to "総合判断", admin_integrated_decision_path, class: "button secondary" %>
+  <%= link_to "LP検証へ進める", admin_integrated_decision_path(anchor: "new-business-candidates"), class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "SERP Run ##{@serp_run.id}",
+             description: "このSERP Runで実行された検索クエリとskip理由を確認します。",
+             active_main: :system,
+             actions: header_actions %>
+
+  <section class="dashboard-section">
+    <div class="metric-grid">
+      <div class="metric-card"><span>Status</span><strong><%= @serp_run.status %></strong></div>
+      <div class="metric-card"><span>実行者</span><strong><%= @serp_run.executed_by %></strong></div>
+      <div class="metric-card"><span>開始</span><strong><%= @serp_run.started_at ? l(@serp_run.started_at, format: :short) : "-" %></strong></div>
+      <div class="metric-card"><span>終了</span><strong><%= @serp_run.finished_at ? l(@serp_run.finished_at, format: :short) : "-" %></strong></div>
+      <div class="metric-card"><span>検索クエリ</span><strong><%= @serp_run.query_count %></strong></div>
+      <div class="metric-card"><span>成功</span><strong><%= @serp_run.success_count %></strong></div>
+      <div class="metric-card"><span>失敗</span><strong><%= @serp_run.failure_count %></strong></div>
+      <div class="metric-card"><span>skip</span><strong><%= @serp_run.skipped_plan_rows.size %></strong></div>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <div>
+        <h2>実行・skip一覧</h2>
+        <p>Business、検索クエリ、実行結果、保存結果数、ActionCandidate生成数、skip理由を確認します。</p>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Business</th>
+            <th>検索クエリ</th>
+            <th>Plan</th>
+            <th>実行結果</th>
+            <th>保存結果数</th>
+            <th>ActionCandidate</th>
+            <th>skip理由</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @serp_run.plan_rows.each do |row| %>
+            <% analysis = @analyses_by_query_id[row["serp_query_id"].to_i] %>
+            <tr>
+              <td><%= row["business_name"] %></td>
+              <td class="wide-text"><%= row["query"] %></td>
+              <td><span class="pill"><%= row["status"] %></span></td>
+              <td><span class="pill"><%= analysis&.status || "-" %></span></td>
+              <td><%= analysis&.result_count.to_i %></td>
+              <td><%= @serp_run.action_candidate_count_for_query(row["query"]) %></td>
+              <td><%= row["status"] == "run" ? "-" : row["reason"] %></td>
+            </tr>
+          <% end %>
+          <% if @serp_run.plan_rows.empty? %>
+            <tr><td colspan="7">このRunにはplanが保存されていません。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <% if @serp_run.error_message.present? %>
+    <section class="dashboard-section danger">
+      <h2>Error</h2>
+      <p><%= @serp_run.error_message %></p>
+    </section>
+  <% end %>
+</div>

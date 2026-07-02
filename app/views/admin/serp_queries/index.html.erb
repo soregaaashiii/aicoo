@@ -82,7 +82,7 @@
         <thead>
           <tr>
             <th>Priority</th>
-            <th>Query</th>
+            <th>検索クエリ</th>
             <th>Status</th>
             <th>Business</th>
             <th>Category</th>
@@ -108,14 +108,14 @@
               <td><span class="pill"><%= query.enabled? ? "ON" : "OFF" %></span></td>
               <td><%= query.daily_limit %></td>
               <td><%= query.last_run_at ? l(query.last_run_at, format: :short) : "-" %></td>
-              <td><%= query.enabled? && query.status == "active" ? "次回SERP Run対象" : "-" %></td>
+              <td><%= query.next_run_label %></td>
               <td><%= query.success_count %></td>
               <td><%= query.failure_count %></td>
               <td><%= query.total_candidates_generated %> / 承認 <%= query.total_candidates_approved %></td>
               <td>¥<%= number_with_delimiter(query.total_revenue_yen) %></td>
               <td class="actions compact-actions">
                 <%= link_to "編集", edit_admin_serp_query_path(query), class: "button secondary" %>
-                <%= button_to "今すぐ実行", run_now_admin_serp_query_path(query), method: :post, class: "button secondary" %>
+                <%= button_to "この検索クエリだけ実行", run_now_admin_serp_query_path(query), method: :post, class: "button secondary" %>
                 <%= button_to query.enabled? ? "OFF" : "ON", toggle_admin_serp_query_path(query), method: :patch, class: "button secondary" %>
                 <%= button_to "Pause", pause_admin_serp_query_path(query), method: :patch, class: "button secondary" %>
                 <%= button_to "Archive", archive_admin_serp_query_path(query), method: :patch, class: "button secondary" %>
@@ -123,7 +123,7 @@
                 <% if query.failure_count.to_i.positive? %>
                   <%= link_to "エラーを見る", admin_serp_settings_path(business_id: query.business_id, anchor: "serp-history"), class: "button secondary" %>
                 <% end %>
-                <%= button_to "削除", admin_serp_query_path(query), method: :delete, class: "button danger", form: { data: { turbo_confirm: "このSERP Queryを削除しますか？" } } %>
+                <%= button_to "削除", admin_serp_query_path(query), method: :delete, class: "button danger", form: { data: { turbo_confirm: "このSERP検索クエリを削除しますか？" } } %>
               </td>
             </tr>
           <% end %>

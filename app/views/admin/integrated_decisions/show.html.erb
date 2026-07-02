@@ -13,6 +13,66 @@
              active_main: :system,
              actions: header_actions %>
 
+  <section class="dashboard-section" id="new-business-candidates">
+    <div class="section-heading">
+      <div>
+        <h2>開始すべき新規事業 TOP10</h2>
+        <p>SERP市場観測とDaily Runの内部データを統合して、LP検証へ進める候補を期待値順に表示します。</p>
+      </div>
+      <%= link_to "SERP設定", admin_serp_settings_path, class: "button secondary" %>
+    </div>
+
+    <% if @new_business_candidate_board.candidates.any? %>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>順位</th>
+              <th>新規事業名</th>
+              <th>解決する課題</th>
+              <th>想定顧客</th>
+              <th>収益モデル</th>
+              <th>期待利益</th>
+              <th>期待時給</th>
+              <th>初期コスト</th>
+              <th>7日以内にやる検証</th>
+              <th>根拠SERPクエリ</th>
+              <th>関連Business</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @new_business_candidate_board.candidates.each do |row| %>
+              <tr>
+                <td><span class="pill">#<%= row.rank %></span></td>
+                <td class="wide-text"><strong><%= row.title %></strong><br><small><%= row.market_memo %></small></td>
+                <td><%= truncate(row.problem, length: 100) %></td>
+                <td><%= row.target_customer %></td>
+                <td><%= row.revenue_model %></td>
+                <td><%= number_to_currency(row.expected_profit_yen, unit: "¥", precision: 0) %></td>
+                <td><%= number_to_currency(row.expected_hourly_value_yen, unit: "¥", precision: 0) %></td>
+                <td><%= number_to_currency(row.initial_cost_yen, unit: "¥", precision: 0) %></td>
+                <td><%= row.validation_step %></td>
+                <td><%= row.source_query %></td>
+                <td><%= link_to row.business.name, row.business %></td>
+                <td><%= render "shared/new_business_candidate_actions", row: row %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% else %>
+      <div class="aicoo-card aicoo-empty-state">
+        <h3>開始すべき新規事業候補は0件です。</h3>
+        <ul class="compact-list">
+          <% @new_business_candidate_board.zero_reasons.each do |reason| %>
+            <li><%= reason %></li>
+          <% end %>
+        </ul>
+      </div>
+    <% end %>
+  </section>
+
   <section class="dashboard-section">
     <div class="section-heading">
       <div>

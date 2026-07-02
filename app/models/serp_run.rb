@@ -26,6 +26,25 @@ class SerpRun < ApplicationRecord
     (finished_at - started_at).round(2)
   end
 
+  def plan_rows
+    metadata.to_h.dig("plan", "rows").to_a
+  end
+
+  def skipped_plan_rows
+    plan_rows.reject { |row| row["status"] == "run" }
+  end
+
+  def run_plan_rows
+    plan_rows.select { |row| row["status"] == "run" }
+  end
+
+  def action_candidate_count_for_query(query)
+    ActionCandidate
+      .where(generation_source: %w[serp integrated_decision])
+      .where("metadata ->> 'source_query' = ? OR metadata ->> 'serp_keyword' = ?", query, query)
+      .count
+  end
+
   def finish_from_result!(result)
     final_status =
       if result.failed_count.to_i.zero?
