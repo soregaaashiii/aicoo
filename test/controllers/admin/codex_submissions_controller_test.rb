@@ -90,5 +90,34 @@ module Admin
       assert_equal "completed", @submission.reload.status
       assert_not_nil @submission.completed_at
     end
+
+    test "updates pull request tracking" do
+      patch update_tracking_admin_codex_submission_url(@submission), params: {
+        codex_submission: {
+          pull_request_url: "https://github.com/example/suelog/pull/12",
+          pr_status: "pr_created",
+          review_status: "pending",
+          ci_status: "success",
+          merge_status: "未merge",
+          deploy_status: "未deploy"
+        }
+      }
+
+      assert_redirected_to admin_codex_connection_url
+      @submission.reload
+      assert_equal "https://github.com/example/suelog/pull/12", @submission.pr_url
+      assert_equal "success", @submission.tracking_value(:ci_status)
+      assert_equal "pending", @submission.tracking_value(:review_status)
+    end
+
+    test "retries failed submission" do
+      @submission.mark_failed!("Codex Cloud timeout")
+
+      patch retry_admin_codex_submission_url(@submission)
+
+      assert_redirected_to admin_codex_connection_url
+      assert_equal "ready", @submission.reload.status
+      assert_nil @submission.error_message
+    end
   end
 end

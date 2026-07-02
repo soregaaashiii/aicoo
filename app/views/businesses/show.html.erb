@@ -2,13 +2,7 @@
 
 <% header_actions = capture do %>
     <%= link_to "Edit", edit_business_path(@business), class: "button secondary" %>
-    <% unless @business.aicoo_internal_codex? %>
-      <% if @business.business_execution_profile %>
-        <%= link_to "Execution Profile編集", edit_admin_business_execution_profile_path(@business.business_execution_profile), class: "button secondary" %>
-      <% else %>
-        <%= link_to "Execution Profile作成", new_admin_business_execution_profile_path(business_id: @business.id), class: "button secondary" %>
-      <% end %>
-    <% end %>
+    <%= link_to "Codex接続を開く", admin_codex_connection_path(business_id: @business.id, anchor: "codex-businesses"), class: "button secondary" %>
     <%= link_to "収益記録を追加", new_revenue_event_path(revenue_event: { business_id: @business.id }), class: "button secondary" %>
     <%= link_to "代理指標を追加", new_business_metric_daily_path(business_metric_daily: { business_id: @business.id }), class: "button secondary" %>
 <% end %>
@@ -842,12 +836,12 @@
       <dd><%= simple_format(profile.forbidden_pattern_lines.join("\n").presence || "-") %></dd>
     </dl>
     <div class="actions compact-actions">
-      <%= link_to "Execution Profile編集", edit_admin_business_execution_profile_path(profile), class: "button secondary" %>
+      <%= link_to "Codex接続を開く", admin_codex_connection_path(business_id: @business.id, anchor: "codex-businesses"), class: "button secondary" %>
     </div>
   <% else %>
     <p class="aicoo-empty-state">このBusinessにはまだExecution Profileがありません。AutoRevisionTaskの対象リポジトリを明確にするため、設定してください。</p>
     <div class="actions compact-actions">
-      <%= link_to "Execution Profile作成", new_admin_business_execution_profile_path(business_id: @business.id), class: "button" %>
+      <%= link_to "Codex接続を開く", admin_codex_connection_path(business_id: @business.id, anchor: "codex-businesses"), class: "button" %>
     </div>
   <% end %>
 </section>

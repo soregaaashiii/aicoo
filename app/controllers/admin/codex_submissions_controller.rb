@@ -1,6 +1,15 @@
 module Admin
   class CodexSubmissionsController < ApplicationController
-    before_action :set_codex_submission, only: %i[show mark_submitted mark_failed mark_completed]
+    before_action :set_codex_submission, only: %i[
+      show
+      mark_submitted
+      mark_failed
+      mark_completed
+      retry
+      update_tracking
+      mark_merged
+      mark_deployed
+    ]
 
     def index
       @status_filter = params[:status].presence
@@ -31,6 +40,26 @@ module Admin
       redirect_to admin_codex_submission_path(@codex_submission), notice: "Codex完了として記録しました。"
     end
 
+    def retry
+      @codex_submission.retry!
+      redirect_back fallback_location: admin_codex_connection_path, notice: "Codex送信を再試行待ちに戻しました。"
+    end
+
+    def update_tracking
+      @codex_submission.update_tracking!(tracking_params.merge(tracking_updated_by: "owner"))
+      redirect_back fallback_location: admin_codex_connection_path, notice: "PR追跡情報を更新しました。"
+    end
+
+    def mark_merged
+      @codex_submission.mark_merged!
+      redirect_back fallback_location: admin_codex_connection_path, notice: "PRをmerge済みとして記録しました。"
+    end
+
+    def mark_deployed
+      @codex_submission.mark_deployed!
+      redirect_back fallback_location: admin_codex_connection_path, notice: "deploy済みとして記録しました。"
+    end
+
     private
 
     def set_codex_submission
@@ -46,6 +75,20 @@ module Admin
         scope = scope.joins(:auto_revision_task).where(auto_revision_tasks: { risk_level: @risk_filter })
       end
       scope
+    end
+
+    def tracking_params
+      params.expect(
+        codex_submission: [
+          :pull_request_url,
+          :pr_status,
+          :review_status,
+          :ci_status,
+          :test_result,
+          :merge_status,
+          :deploy_status
+        ]
+      )
     end
   end
 end

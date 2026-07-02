@@ -174,6 +174,10 @@ Rails.application.routes.draw do
       patch :mark_submitted, on: :member
       patch :mark_failed, on: :member
       patch :mark_completed, on: :member
+      patch :retry, on: :member
+      patch :update_tracking, on: :member
+      patch :mark_merged, on: :member
+      patch :mark_deployed, on: :member
     end
     resources :google_credentials, except: %i[show destroy] do
       get :connect, on: :member

@@ -1,4 +1,4 @@
-<% content_for :title, "Codex Connection" %>
+<% content_for :title, "Codex Cloud Connection Center" %>
 
 <% header_actions = capture do %>
   <%= link_to "Execution Profile", admin_business_execution_profiles_path, class: "button secondary" %>
@@ -8,54 +8,52 @@
 
 <div class="aicoo-page">
   <%= render "shared/aicoo_header",
-             title: "Codex Connection",
-             description: "Codex Cloud、GitHub PR、Render deployへつなぐための全体状態を確認します。",
+             title: "Codex Cloud Connection Center",
+             description: "Codex Cloud接続、対象Repository、タスク送信、PR追跡を一元管理します。",
              active_main: :dashboard,
              actions: header_actions %>
 
-  <section class="dashboard-section">
+  <nav class="aicoo-sub-tabs" aria-label="Codex Connection navigation">
+    <%= link_to "全体設定", "#codex-global" %>
+    <%= link_to "Business別接続", "#codex-businesses" %>
+    <%= link_to "Codexタスク", "#codex-tasks" %>
+    <%= link_to "PR追跡", "#codex-prs" %>
+    <%= link_to "E2E診断", "#codex-e2e" %>
+  </nav>
+
+  <section class="dashboard-section" id="codex-global">
     <div class="section-heading">
       <h2>全体設定</h2>
-      <p>BusinessごとのExecution Profileを集約した現在値です。設定変更はExecution Profileで行います。</p>
+      <p>初期値は安全側です。自動merge / 自動deployはBusiness別Execution Profileで明示ONにしたものだけ有効です。</p>
     </div>
     <div class="metric-grid">
       <div class="metric-card">
         <span>Codex利用</span>
         <strong><%= @summary.global_settings.codex_enabled_count.positive? ? "ON" : "OFF" %></strong>
-        <small><%= @summary.global_settings.codex_enabled_count %>/<%= @summary.global_settings.profile_count %>件がCodex有効</small>
+        <small><%= @summary.global_settings.codex_enabled_count %>/<%= @summary.global_settings.profile_count %>件が有効</small>
       </div>
       <div class="metric-card">
         <span>GitHub接続状態</span>
-        <strong><%= @summary.global_settings.github_configured_count.positive? ? "設定あり" : "未設定" %></strong>
+        <strong><%= @summary.global_settings.github_configured_count.positive? ? "Repository設定あり" : "未設定" %></strong>
         <small>GitHub token: <%= @summary.global_settings.github_token_configured ? "設定済み" : "未設定" %></small>
       </div>
-      <div class="metric-card">
-        <span>デフォルト作業ブランチ</span>
-        <strong><%= @summary.global_settings.default_working_branch %></strong>
-        <small>Execution Profileの最多設定</small>
-      </div>
-      <div class="metric-card">
-        <span>PR作成ルール</span>
-        <strong>Profile基準</strong>
-        <small><%= @summary.global_settings.pr_rule %></small>
-      </div>
-      <div class="metric-card">
-        <span>自動レビュー</span>
-        <strong>ON</strong>
-        <small><%= @summary.global_settings.auto_review_label %></small>
-      </div>
-      <div class="metric-card">
-        <span>自動merge / deploy</span>
-        <strong><%= @summary.global_settings.auto_merge_enabled_count %> / <%= @summary.global_settings.auto_deploy_enabled_count %></strong>
-        <small>有効Profile数。high riskは自動不可。</small>
-      </div>
+      <div class="metric-card"><span>デフォルトbase branch</span><strong><%= @summary.global_settings.default_base_branch %></strong></div>
+      <div class="metric-card"><span>working branch prefix</span><strong><%= @summary.global_settings.default_working_branch %></strong></div>
+      <div class="metric-card"><span>PR作成ルール</span><strong>Profile基準</strong><small><%= @summary.global_settings.pr_rule %></small></div>
+      <div class="metric-card"><span>Codex自動実行</span><strong><%= @summary.global_settings.auto_submit_enabled_count.positive? ? "一部ON" : "OFF" %></strong><small>v1はOwner確認を優先</small></div>
+      <div class="metric-card"><span>自動review</span><strong>ON</strong><small><%= @summary.global_settings.auto_review_label %></small></div>
+      <div class="metric-card"><span>自動merge</span><strong><%= @summary.global_settings.auto_merge_enabled_count.positive? ? "一部ON" : "OFF" %></strong><small>high riskは禁止</small></div>
+      <div class="metric-card"><span>自動deploy</span><strong><%= @summary.global_settings.auto_deploy_enabled_count.positive? ? "一部ON" : "OFF" %></strong><small>初期OFF</small></div>
+      <div class="metric-card"><span>失敗時の停止ルール</span><strong>Business単位で停止</strong><small>failedはOwner確認へ</small></div>
+      <div class="metric-card"><span>最終接続確認</span><strong><%= @summary.global_settings.last_connection_checked_at ? l(@summary.global_settings.last_connection_checked_at, format: :short) : "-" %></strong></div>
+      <div class="metric-card"><span>最終エラー</span><strong><%= @summary.global_settings.last_error.present? ? "あり" : "なし" %></strong><small><%= truncate(@summary.global_settings.last_error.to_s, length: 80) %></small></div>
     </div>
   </section>
 
-  <section class="dashboard-section">
+  <section class="dashboard-section" id="codex-businesses">
     <div class="section-heading">
-      <h2>Business別設定</h2>
-      <p>CodexがどのRepository、branch、deploy先を使うかをBusiness単位で確認します。</p>
+      <h2>Business別接続</h2>
+      <p>Business詳細では編集せず、この画面からExecution Profileへ移動します。</p>
     </div>
     <div class="table-wrap">
       <table>
@@ -63,12 +61,15 @@
           <tr>
             <th>Business</th>
             <th>Codex</th>
-            <th>GitHub repo</th>
+            <th>GitHub repository</th>
             <th>base branch</th>
             <th>working prefix</th>
             <th>deploy target</th>
-            <th>production URL</th>
-            <th>health check URL</th>
+            <th>deploy command</th>
+            <th>test command</th>
+            <th>最終Codex実行</th>
+            <th>最終PR</th>
+            <th>Health</th>
             <th>操作</th>
           </tr>
         </thead>
@@ -76,55 +77,45 @@
           <% @summary.business_rows.each do |row| %>
             <tr>
               <td><%= link_to row.business.name, row.business %></td>
-              <td>
-                <% if row.codex_ready %>
-                  <span class="pill">実行可能</span>
-                <% elsif row.codex_enabled %>
-                  <span class="pill">要設定</span>
-                  <div class="muted"><%= row.missing_fields.join(" / ") %></div>
-                <% else %>
-                  <span class="pill">OFF</span>
-                <% end %>
-              </td>
+              <td><span class="pill"><%= row.codex_enabled ? "ON" : "OFF" %></span></td>
               <td class="wide-text"><%= row.github_repo %></td>
               <td><%= row.base_branch %></td>
               <td><%= row.working_branch_prefix %></td>
               <td><%= row.deploy_target %></td>
+              <td class="wide-text"><%= row.deploy_command %></td>
+              <td class="wide-text"><%= row.test_command %></td>
+              <td><%= row.last_codex_run_at ? l(row.last_codex_run_at, format: :short) : "-" %></td>
               <td class="wide-text">
-                <% if row.production_url == "-" %>
-                  -
+                <% if row.last_pr_url.present? %>
+                  <%= link_to "PR", row.last_pr_url, target: "_blank", rel: "noopener" %>
                 <% else %>
-                  <%= link_to row.production_url, row.production_url, target: "_blank", rel: "noopener" %>
+                  -
                 <% end %>
               </td>
-              <td class="wide-text">
-                <% if row.health_check_url == "-" %>
-                  -
-                <% else %>
-                  <%= link_to row.health_check_url, row.health_check_url, target: "_blank", rel: "noopener" %>
+              <td>
+                <span class="pill"><%= row.health %></span>
+                <% if row.missing_fields.present? %>
+                  <div class="muted"><%= row.missing_fields.join(" / ") %></div>
                 <% end %>
               </td>
               <td>
                 <% if row.profile %>
-                  <%= link_to "編集", edit_admin_business_execution_profile_path(row.profile), class: "button secondary" %>
+                  <%= link_to "設定", edit_admin_business_execution_profile_path(row.profile), class: "button secondary" %>
                 <% else %>
                   <%= link_to "作成", new_admin_business_execution_profile_path(business_id: row.business.id), class: "button secondary" %>
                 <% end %>
               </td>
             </tr>
           <% end %>
-          <% if @summary.business_rows.empty? %>
-            <tr><td colspan="9">Businessがまだありません。</td></tr>
-          <% end %>
         </tbody>
       </table>
     </div>
   </section>
 
-  <section class="dashboard-section">
+  <section class="dashboard-section" id="codex-tasks">
     <div class="section-heading">
-      <h2>Task確認</h2>
-      <p>AutoRevisionTaskからCodex送信、PR、merge、deployへ進む状態を確認します。</p>
+      <h2>Codexタスク</h2>
+      <p>AutoRevisionTaskからCodexへ渡す作業単位です。v1では完全プロンプト確認と手動PR追跡を優先します。</p>
     </div>
     <div class="metric-grid">
       <div class="metric-card"><span>Codex送信待ち</span><strong><%= @summary.task_summary.waiting_count %></strong></div>
@@ -136,76 +127,166 @@
       <div class="metric-card"><span>失敗</span><strong><%= @summary.task_summary.failed_count %></strong></div>
     </div>
 
-    <div class="two-column">
-      <div class="aicoo-card">
-        <h3>最近のCodex送信</h3>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>状態</th>
-                <th>Business</th>
-                <th>Task</th>
-                <th>作成</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              <% @summary.recent_submissions.each do |submission| %>
-                <tr>
-                  <td><span class="pill"><%= submission.status %></span></td>
-                  <td><%= link_to submission.business.name, submission.business %></td>
-                  <td class="wide-text"><%= link_to submission.auto_revision_task.title, submission.auto_revision_task %></td>
-                  <td><%= l(submission.created_at, format: :short) %></td>
-                  <td><%= link_to "詳細", admin_codex_submission_path(submission), class: "button secondary" %></td>
-                </tr>
-              <% end %>
-              <% if @summary.recent_submissions.empty? %>
-                <tr><td colspan="5">Codex送信はまだありません。</td></tr>
-              <% end %>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="aicoo-card">
-        <h3>最近のAutoRevisionTask</h3>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>状態</th>
-                <th>Business</th>
-                <th>Task</th>
-                <th>Risk</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              <% @summary.recent_tasks.each do |task| %>
-                <tr>
-                  <td><span class="pill"><%= task.status %></span></td>
-                  <td><%= link_to task.business.name, task.business %></td>
-                  <td class="wide-text"><%= link_to task.title, task %></td>
-                  <td><span class="pill"><%= task.risk_level %></span></td>
-                  <td><%= link_to "詳細", task, class: "button secondary" %></td>
-                </tr>
-              <% end %>
-              <% if @summary.recent_tasks.empty? %>
-                <tr><td colspan="5">AutoRevisionTaskはまだありません。</td></tr>
-              <% end %>
-            </tbody>
-          </table>
-        </div>
-      </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>status</th>
+            <th>Task名</th>
+            <th>Business</th>
+            <th>risk</th>
+            <th>priority</th>
+            <th>target repo</th>
+            <th>base branch</th>
+            <th>expected files</th>
+            <th>last error</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @summary.task_rows.each do |row| %>
+            <tr>
+              <td><span class="pill"><%= row.status %></span></td>
+              <td class="wide-text"><%= link_to row.title, row.task %></td>
+              <td><%= link_to row.business.name, row.business %></td>
+              <td><span class="pill"><%= row.risk %></span></td>
+              <td><%= number_with_delimiter(row.priority.to_i) %></td>
+              <td class="wide-text"><%= row.target_repo %></td>
+              <td><%= row.base_branch %></td>
+              <td class="wide-text"><%= row.expected_files.join(", ") %></td>
+              <td class="wide-text"><%= truncate(row.last_error.to_s, length: 70) %></td>
+              <td class="actions compact-actions">
+                <% if row.submission %>
+                  <%= link_to "Prompt確認", admin_codex_submission_path(row.submission), class: "button secondary" %>
+                  <%= button_to "送信済みにする", mark_submitted_admin_codex_submission_path(row.submission), method: :patch, class: "button secondary" unless row.submission.status == "submitted" %>
+                  <%= button_to "再試行", retry_admin_codex_submission_path(row.submission), method: :patch, class: "button secondary" if row.submission.status == "failed" %>
+                <% else %>
+                  <%= button_to "Codex送信準備", build_codex_submission_auto_revision_task_path(row.task), method: :post, class: "button" %>
+                  <%= link_to "Prompt確認", row.task, class: "button secondary" %>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+          <% if @summary.task_rows.empty? %>
+            <tr><td colspan="10">Codex対象Taskはまだありません。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
     </div>
   </section>
 
-  <section class="dashboard-section">
+  <section class="dashboard-section" id="codex-prs">
+    <div class="section-heading">
+      <h2>PR追跡</h2>
+      <p>Codexが作成したPRをAICOO側で追跡します。GitHub API未連携でも手動更新できます。</p>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>PR</th>
+            <th>Business</th>
+            <th>repo</th>
+            <th>branch</th>
+            <th>status</th>
+            <th>review</th>
+            <th>CI</th>
+            <th>merge</th>
+            <th>deploy</th>
+            <th>last checked</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @summary.pr_rows.each do |row| %>
+            <tr>
+              <td><%= link_to "PR", row.pr_url, target: "_blank", rel: "noopener" %></td>
+              <td><%= link_to row.business.name, row.business %></td>
+              <td class="wide-text"><%= row.github_repo %></td>
+              <td><%= row.branch %></td>
+              <td><span class="pill"><%= row.status %></span></td>
+              <td><%= row.review_status %></td>
+              <td><%= row.ci_status %></td>
+              <td><%= row.merge_status %></td>
+              <td><%= row.deploy_status %></td>
+              <td><%= row.last_checked_at ? l(Time.zone.parse(row.last_checked_at.to_s), format: :short) : "-" %></td>
+              <td class="actions compact-actions">
+                <%= link_to "詳細", admin_codex_submission_path(row.submission), class: "button secondary" %>
+                <%= button_to "merge済み", mark_merged_admin_codex_submission_path(row.submission), method: :patch, class: "button secondary" %>
+                <%= button_to "deploy済み", mark_deployed_admin_codex_submission_path(row.submission), method: :patch, class: "button secondary" %>
+              </td>
+            </tr>
+          <% end %>
+          <% if @summary.pr_rows.empty? %>
+            <tr><td colspan="11">追跡中のPRはまだありません。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+
+    <section class="aicoo-card">
+      <h3>PR URL登録 / ステータス更新</h3>
+      <p class="muted">Codex送信済みTaskにPR URLを登録すると、上のPR追跡に表示されます。</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Task</th>
+              <th>PR URL</th>
+              <th>review</th>
+              <th>CI</th>
+              <th>merge</th>
+              <th>deploy</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @summary.task_rows.select(&:submission).each do |row| %>
+              <% payload = row.submission.response_payload.to_h %>
+              <tr>
+                <td class="wide-text"><%= link_to row.title, admin_codex_submission_path(row.submission) %></td>
+                <%= form_with model: row.submission, url: update_tracking_admin_codex_submission_path(row.submission), method: :patch, data: { turbo: false } do |form| %>
+                  <td><%= form.url_field :pull_request_url, value: row.submission.pr_url, placeholder: "https://github.com/.../pull/1" %></td>
+                  <td><%= form.select :review_status, options_for_select(%w[未確認 pending approved changes_requested failed], payload["review_status"]) %></td>
+                  <td><%= form.select :ci_status, options_for_select(%w[未確認 pending success failed], payload["ci_status"]) %></td>
+                  <td><%= form.select :merge_status, options_for_select(%w[未merge pending merged failed], payload["merge_status"]) %></td>
+                  <td><%= form.select :deploy_status, options_for_select(%w[未deploy pending deployed failed], payload["deploy_status"]) %></td>
+                  <td><%= form.submit "更新", class: "button secondary" %></td>
+                <% end %>
+              </tr>
+            <% end %>
+            <% if @summary.task_rows.select(&:submission).empty? %>
+              <tr><td colspan="7">PR URLを登録できるCodexSubmissionはまだありません。</td></tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </section>
+
+  <section class="dashboard-section" id="codex-e2e">
     <div class="section-heading">
       <h2>E2E診断</h2>
-      <p>Codex投入からPR追跡、deploy確認までの土台が揃っているかを確認します。</p>
+      <p>Businessを選ぶだけで、Codex投入からPR追跡、deploy確認までの準備状態を診断します。</p>
     </div>
+
+    <%= form_with url: admin_codex_connection_path(anchor: "codex-e2e"), method: :get, class: "inline-form", data: { turbo: false } do |form| %>
+      <div class="field compact-field">
+        <%= form.label :business_id, "Business" %>
+        <%= form.collection_select :business_id, @summary.business_options, :id, :name, { selected: @summary.e2e.business&.id } %>
+      </div>
+      <%= form.submit "診断", class: "button secondary" %>
+    <% end %>
+
+    <div class="metric-grid">
+      <div class="metric-card">
+        <span>Codex Health</span>
+        <strong><%= @summary.e2e.health %></strong>
+        <small><%= @summary.e2e.business&.name || "-" %></small>
+      </div>
+    </div>
+
     <div class="table-wrap">
       <table>
         <thead>
@@ -216,7 +297,7 @@
           </tr>
         </thead>
         <tbody>
-          <% @summary.checks.each do |check| %>
+          <% @summary.e2e.checks.each do |check| %>
             <tr>
               <td>
                 <% label = { "pass" => "PASS", "warning" => "WARNING", "fail" => "FAIL" }.fetch(check.status, check.status.upcase) %>

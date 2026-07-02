@@ -30,10 +30,11 @@ module Admin
       get admin_codex_connection_url
 
       assert_response :success
-      assert_includes response.body, "Codex Connection"
+      assert_includes response.body, "Codex Cloud Connection Center"
       assert_includes response.body, "全体設定"
-      assert_includes response.body, "Business別設定"
-      assert_includes response.body, "Task確認"
+      assert_includes response.body, "Business別接続"
+      assert_includes response.body, "Codexタスク"
+      assert_includes response.body, "PR追跡"
       assert_includes response.body, "E2E診断"
       assert_includes response.body, @business.name
       assert_includes response.body, @profile.codex_repository_url

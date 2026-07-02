@@ -4,6 +4,7 @@
 <% task = @codex_submission.auto_revision_task %>
 <% header_actions = capture do %>
   <%= link_to "一覧へ戻る", admin_codex_submissions_path, class: "button secondary" %>
+  <%= link_to "Codex接続", admin_codex_connection_path(business_id: @codex_submission.business_id, anchor: "codex-tasks"), class: "button secondary" %>
   <%= link_to "AutoRevisionTask", task, class: "button secondary" %>
   <%= button_to "送信済みにする", mark_submitted_admin_codex_submission_path(@codex_submission), method: :patch, class: "button" unless @codex_submission.status == "submitted" %>
   <%= button_to "完了にする", mark_completed_admin_codex_submission_path(@codex_submission), method: :patch, class: "button secondary" unless @codex_submission.status == "completed" %>
@@ -29,8 +30,51 @@
       <div class="metric-card"><span>Risk</span><strong><%= task.risk_level %></strong></div>
       <div class="metric-card"><span>Base Branch</span><strong><%= @codex_submission.base_branch %></strong></div>
       <div class="metric-card"><span>Working Branch</span><strong><%= @codex_submission.working_branch %></strong></div>
+      <div class="metric-card"><span>PR URL</span><strong><%= @codex_submission.pr_url.present? ? "登録済み" : "-" %></strong></div>
+      <div class="metric-card"><span>Deploy</span><strong><%= @codex_submission.tracking_value(:deploy_status).presence || "-" %></strong></div>
       <div class="metric-card"><span>送信日時</span><strong><%= @codex_submission.submitted_at ? l(@codex_submission.submitted_at, format: :short) : "-" %></strong></div>
       <div class="metric-card"><span>完了日時</span><strong><%= @codex_submission.completed_at ? l(@codex_submission.completed_at, format: :short) : "-" %></strong></div>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>PR Tracking</h2>
+      <p>Codexが作成したPR、CI、review、merge、deploy状態をAICOO側に保存します。</p>
+    </div>
+    <%= form_with model: @codex_submission, url: update_tracking_admin_codex_submission_path(@codex_submission), method: :patch, class: "form", data: { turbo: false } do |form| %>
+      <% payload = @codex_submission.response_payload.to_h %>
+      <div class="grid">
+        <div class="field">
+          <%= form.label :pull_request_url, "PR URL" %>
+          <%= form.url_field :pull_request_url, value: @codex_submission.pr_url, placeholder: "https://github.com/.../pull/1" %>
+        </div>
+        <div class="field">
+          <%= form.label :pr_status, "PR status" %>
+          <%= form.select :pr_status, options_for_select(%w[未作成 pr_created review_waiting merge_waiting merged failed], payload["pr_status"]) %>
+        </div>
+        <div class="field">
+          <%= form.label :review_status, "Review status" %>
+          <%= form.select :review_status, options_for_select(%w[未確認 pending approved changes_requested failed], payload["review_status"]) %>
+        </div>
+        <div class="field">
+          <%= form.label :ci_status, "CI status" %>
+          <%= form.select :ci_status, options_for_select(%w[未確認 pending success failed], payload["ci_status"]) %>
+        </div>
+        <div class="field">
+          <%= form.label :merge_status, "Merge status" %>
+          <%= form.select :merge_status, options_for_select(%w[未merge pending merged failed], payload["merge_status"]) %>
+        </div>
+        <div class="field">
+          <%= form.label :deploy_status, "Deploy status" %>
+          <%= form.select :deploy_status, options_for_select(%w[未deploy pending deployed failed], payload["deploy_status"]) %>
+        </div>
+      </div>
+      <%= form.submit "PR追跡を保存", class: "button" %>
+    <% end %>
+    <div class="actions compact-actions">
+      <%= button_to "merge済みにする", mark_merged_admin_codex_submission_path(@codex_submission), method: :patch, class: "button secondary" %>
+      <%= button_to "deploy済みにする", mark_deployed_admin_codex_submission_path(@codex_submission), method: :patch, class: "button secondary" %>
     </div>
   </section>
 
