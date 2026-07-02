@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_02_043000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_02_062000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1782,12 +1782,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_02_043000) do
     t.jsonb "raw_summary", default: {}, null: false
     t.integer "result_count"
     t.string "search_engine", default: "google", null: false
+    t.bigint "serp_run_id"
     t.string "status", default: "success", null: false
     t.text "summary"
     t.datetime "updated_at", null: false
     t.index ["business_id"], name: "index_serp_analyses_on_business_id"
     t.index ["data_import_id"], name: "index_serp_analyses_on_data_import_id"
     t.index ["provider"], name: "index_serp_analyses_on_provider"
+    t.index ["serp_run_id"], name: "index_serp_analyses_on_serp_run_id"
     t.index ["status"], name: "index_serp_analyses_on_status"
   end
 
@@ -1814,6 +1816,37 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_02_043000) do
     t.index ["status"], name: "index_serp_landing_page_candidates_on_status"
   end
 
+  create_table "serp_queries", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.string "category", default: "existing_business", null: false
+    t.string "country", default: "jp", null: false
+    t.datetime "created_at", null: false
+    t.integer "daily_limit", default: 1, null: false
+    t.boolean "enabled", default: true, null: false
+    t.integer "failure_count", default: 0, null: false
+    t.string "language", default: "ja", null: false
+    t.datetime "last_run_at"
+    t.datetime "last_success_at"
+    t.jsonb "metadata", default: {}, null: false
+    t.string "normalized_query", null: false
+    t.integer "priority", default: 100, null: false
+    t.string "query", null: false
+    t.string "status", default: "active", null: false
+    t.integer "success_count", default: 0, null: false
+    t.integer "total_candidates_approved", default: 0, null: false
+    t.integer "total_candidates_generated", default: 0, null: false
+    t.integer "total_revenue_yen", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id", "enabled", "priority"], name: "index_serp_queries_on_business_id_and_enabled_and_priority"
+    t.index ["business_id", "normalized_query"], name: "index_serp_queries_on_business_and_query", unique: true
+    t.index ["business_id", "status", "priority"], name: "index_serp_queries_on_business_id_and_status_and_priority"
+    t.index ["business_id"], name: "index_serp_queries_on_business_id"
+    t.index ["category"], name: "index_serp_queries_on_category"
+    t.index ["enabled"], name: "index_serp_queries_on_enabled"
+    t.index ["priority"], name: "index_serp_queries_on_priority"
+    t.index ["status"], name: "index_serp_queries_on_status"
+  end
+
   create_table "serp_results", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.integer "position", null: false
@@ -1823,6 +1856,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_02_043000) do
     t.datetime "updated_at", null: false
     t.string "url"
     t.index ["serp_analysis_id"], name: "index_serp_results_on_serp_analysis_id"
+  end
+
+  create_table "serp_runs", force: :cascade do |t|
+    t.integer "candidate_count", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.integer "credit_estimate", default: 0, null: false
+    t.text "error_message"
+    t.string "executed_by", default: "manual", null: false
+    t.integer "failure_count", default: 0, null: false
+    t.datetime "finished_at"
+    t.jsonb "metadata", default: {}, null: false
+    t.integer "query_count", default: 0, null: false
+    t.datetime "started_at"
+    t.string "status", default: "running", null: false
+    t.integer "success_count", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.index ["executed_by"], name: "index_serp_runs_on_executed_by"
+    t.index ["started_at"], name: "index_serp_runs_on_started_at"
+    t.index ["status"], name: "index_serp_runs_on_status"
   end
 
   create_table "source_app_connections", force: :cascade do |t|
@@ -2009,8 +2061,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_02_043000) do
   add_foreign_key "revenue_events", "businesses"
   add_foreign_key "serp_analyses", "businesses"
   add_foreign_key "serp_analyses", "data_imports"
+  add_foreign_key "serp_analyses", "serp_runs"
   add_foreign_key "serp_landing_page_candidates", "aicoo_lab_landing_pages"
   add_foreign_key "serp_landing_page_candidates", "serp_analyses"
+  add_foreign_key "serp_queries", "businesses"
   add_foreign_key "serp_results", "serp_analyses"
   add_foreign_key "source_app_connections", "businesses"
   add_foreign_key "source_app_diff_cursors", "source_app_diff_rules"

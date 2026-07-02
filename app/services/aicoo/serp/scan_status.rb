@@ -71,7 +71,7 @@ module Aicoo
       def target_businesses
         @target_businesses ||= Business.real_businesses
                                       .where(status: "launched", serp_enabled: true)
-                                      .includes(:business_data_source_settings, :business_serp_keywords)
+                                      .includes(:business_data_source_settings, :business_serp_keywords, :serp_queries)
                                       .order(:name)
                                       .to_a
       end

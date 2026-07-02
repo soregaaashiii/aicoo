@@ -89,7 +89,7 @@ module Owner
       get owner_focus_url
 
       assert_response :success
-      assert_includes response.body, "承認待ちKeywordが1件あります。"
+      assert_includes response.body, "承認待ち検索クエリが1件あります。"
       assert_includes response.body, "SERP取得に失敗したBusinessが1件あります。"
       assert_includes response.body, "今日SERPから1件の改善提案が生成されています。"
       assert_includes response.body, "SERP設定"

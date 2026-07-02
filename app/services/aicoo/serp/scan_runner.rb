@@ -1,6 +1,7 @@
 module Aicoo
   module Serp
     class ScanRunner
+      QueryPlan = Data.define(:query, :serp_query, :country, :language)
       Result = Data.define(
         :started_at,
         :finished_at,
@@ -18,6 +19,13 @@ module Aicoo
       )
 
       def self.queries_for_business(business, max_queries_per_business: 3)
+        serp_queries = business.serp_queries
+                               .enabled
+                               .by_priority
+                               .limit(max_queries_per_business)
+                               .pluck(:query)
+        return serp_queries if serp_queries.present?
+
         active_keywords = business.business_serp_keywords
                                   .fetchable
                                   .limit(max_queries_per_business)
@@ -43,21 +51,36 @@ module Aicoo
           .first(max_queries_per_business)
       end
 
-      def initialize(provider: nil, location: "Japan", language: "ja", limit: nil, max_queries_per_business: 3, target_businesses: nil)
+      def self.query_plans_for_business(business, max_queries_per_business: 3, force: false)
+        all_serp_queries = business.serp_queries.enabled.by_priority.to_a
+        serp_queries = all_serp_queries.select do |serp_query|
+          force || (serp_query.runnable_today? && !serp_query.recently_successful?)
+        end.first(max_queries_per_business)
+        return serp_queries.map { |serp_query| QueryPlan.new(serp_query.query, serp_query, serp_query.country, serp_query.language) } if serp_queries.present?
+        return [] if all_serp_queries.present?
+
+        queries_for_business(business, max_queries_per_business:).map do |query|
+          QueryPlan.new(query, nil, "jp", "ja")
+        end
+      end
+
+      def initialize(provider: nil, location: "Japan", language: "ja", limit: nil, max_queries_per_business: 3, target_businesses: nil, serp_run: nil, force: false, max_total_queries: nil, single_serp_query: nil)
         @provider = (provider.presence || ENV["AICOO_SERP_PROVIDER"].presence || "serper").to_s
         @location = location.presence || "Japan"
         @language = language.presence || "ja"
         @limit = limit.to_i.positive? ? limit.to_i : Aicoo::Serp::ScanPlan.configured_limit
         @max_queries_per_business = max_queries_per_business.to_i.positive? ? max_queries_per_business.to_i : 3
         @target_businesses = target_businesses
+        @serp_run = serp_run
+        @force = force
+        @max_total_queries = max_total_queries.to_i.positive? ? max_total_queries.to_i : nil
+        @single_serp_query = single_serp_query
         @scan_batch_id = SecureRandom.uuid
       end
 
       def call
         started_at = Time.current
-        analyses = target_businesses.flat_map do |business|
-          queries_for(business).map { |query| scan_query(business, query) }
-        end
+        analyses = scan_plans.map { |business, query_plan| scan_query(business, query_plan) }
         finished_at = Time.current
         query_count = analyses.size
         result_count = analyses.sum { |analysis| analysis.result_count.to_i }
@@ -83,12 +106,14 @@ module Aicoo
 
       private
 
-      attr_reader :provider, :location, :language, :limit, :max_queries_per_business, :scan_batch_id
+      attr_reader :provider, :location, :language, :limit, :max_queries_per_business, :scan_batch_id, :serp_run, :single_serp_query
 
       def target_businesses
+        return [ single_serp_query.business ] if single_serp_query
+
         @target_businesses ||= Business.real_businesses
                                       .where(status: "launched", serp_enabled: true)
-                                      .includes(:business_data_source_settings, :business_serp_keywords)
+                                      .includes(:business_data_source_settings, :business_serp_keywords, :serp_queries)
                                       .order(:name)
                                       .to_a
       end
@@ -97,12 +122,29 @@ module Aicoo
         self.class.queries_for_business(business, max_queries_per_business:)
       end
 
-      def scan_query(business, query)
+      def query_plans_for(business)
+        return [ QueryPlan.new(single_serp_query.query, single_serp_query, single_serp_query.country, single_serp_query.language) ] if single_serp_query
+
+        self.class.query_plans_for_business(business, max_queries_per_business:, force: @force)
+      end
+
+      def scan_plans
+        pairs = target_businesses.flat_map do |business|
+          query_plans_for(business).map { |query_plan| [ business, query_plan ] }
+        end
+        return pairs unless @max_total_queries
+
+        pairs.first(@max_total_queries)
+      end
+
+      def scan_query(business, query_plan)
         started_at = Time.current
+        query_plan.serp_query&.record_run!
         analysis = business.serp_analyses.create!(
-          keyword: query,
+          serp_run:,
+          keyword: query_plan.query,
           search_engine: "google",
-          location:,
+          location: country_to_location(query_plan.country),
           device: "desktop",
           provider:,
           status: "running",
@@ -111,7 +153,9 @@ module Aicoo
           raw_summary: {
             "source" => "ceo_mode_serp_scan",
             "provider" => provider,
-            "query" => query,
+            "query" => query_plan.query,
+            "serp_query_id" => query_plan.serp_query&.id,
+            "serp_run_id" => serp_run&.id,
             "limit" => limit,
             "scan_batch_id" => scan_batch_id,
             "scan_started_at" => started_at.iso8601
@@ -121,9 +165,9 @@ module Aicoo
         result = Adapter.call(
           provider: provider.to_sym,
           type: :google_search,
-          query:,
-          location:,
-          language:,
+          query: query_plan.query,
+          location: country_to_location(query_plan.country),
+          language: query_plan.language.presence || language,
           limit:
         )
         save_success!(analysis, result)
@@ -152,6 +196,8 @@ module Aicoo
             "provider" => payload["provider"],
             "type" => payload["type"],
             "query" => payload["query"],
+            "serp_query_id" => analysis.raw_summary["serp_query_id"],
+            "serp_run_id" => analysis.raw_summary["serp_run_id"],
             "location" => payload["location"],
             "language" => payload["language"],
             "limit" => limit,
@@ -166,6 +212,7 @@ module Aicoo
           }
         )
         update_keyword_status!(analysis, organic_results)
+        update_serp_query_success!(analysis)
         analysis
       end
 
@@ -185,6 +232,7 @@ module Aicoo
             )
           )
           update_keyword_status!(analysis, [])
+          update_serp_query_failure!(analysis)
           analysis
         else
           raise error
@@ -214,6 +262,33 @@ module Aicoo
         Rails.logger.warn("[SERP] keyword status update failed analysis_id=#{analysis.id} errors=#{e.record.errors.full_messages.to_sentence}")
       end
 
+      def update_serp_query_success!(analysis)
+        serp_query = serp_query_for(analysis)
+        return unless serp_query
+
+        candidate_count = ActionCandidate
+          .where(business: analysis.business, generation_source: "serp")
+          .where("metadata ->> 'source_query' = ? OR metadata ->> 'serp_keyword' = ?", analysis.keyword, analysis.keyword)
+          .count
+        serp_query.record_success!(candidate_count:)
+      rescue ActiveRecord::RecordInvalid => e
+        Rails.logger.warn("[SERP] serp query success update failed analysis_id=#{analysis.id} errors=#{e.record.errors.full_messages.to_sentence}")
+      end
+
+      def update_serp_query_failure!(analysis)
+        serp_query = serp_query_for(analysis)
+        serp_query&.record_failure!
+      rescue ActiveRecord::RecordInvalid => e
+        Rails.logger.warn("[SERP] serp query failure update failed analysis_id=#{analysis.id} errors=#{e.record.errors.full_messages.to_sentence}")
+      end
+
+      def serp_query_for(analysis)
+        id = analysis.raw_summary.to_h["serp_query_id"]
+        return SerpQuery.find_by(id:) if id.present?
+
+        analysis.business.serp_queries.find_by(normalized_query: SerpQuery.normalize(analysis.keyword))
+      end
+
       def competition_score(results)
         [ results.size * 8, 100 ].min
       end
@@ -241,6 +316,10 @@ module Aicoo
           monthly_spend_yen: profile.monthly_spend_yen.to_i + estimated_cost_yen.to_i,
           last_run_at: Time.current
         )
+      end
+
+      def country_to_location(country)
+        { "jp" => "Japan", "us" => "United States" }.fetch(country.to_s.downcase, location)
       end
     end
   end

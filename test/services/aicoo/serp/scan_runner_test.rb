@@ -61,6 +61,58 @@ module Aicoo
         assert_equal "success", keyword.metadata_json["latest_serp_status"]
       end
 
+      test "uses serp queries before keyword records and updates query counters" do
+        business = businesses(:suelog)
+        business.update!(status: "launched", serp_enabled: true)
+        business.business_serp_keywords.create!(
+          keyword: "古い キーワード",
+          source: "manual",
+          status: "active",
+          priority_score: 100
+        )
+        serp_query = business.serp_queries.create!(
+          query: "警備 AI",
+          category: "existing_business",
+          enabled: true,
+          priority: 10,
+          daily_limit: 1
+        )
+
+        assert_equal [ "警備 AI" ], ScanRunner.queries_for_business(business, max_queries_per_business: 1)
+
+        with_adapter_result do
+          ScanRunner.new(provider: :serper, max_queries_per_business: 1, target_businesses: [ business ]).call
+        end
+
+        serp_query.reload
+        assert_equal 1, serp_query.success_count
+        assert_equal 0, serp_query.failure_count
+        assert serp_query.last_run_at.present?
+        assert serp_query.last_success_at.present?
+        latest = business.serp_analyses.order(:created_at).last
+        assert_equal serp_query.id, latest.raw_summary["serp_query_id"]
+      end
+
+      test "updates serp query failure count when provider fails" do
+        business = businesses(:suelog)
+        business.update!(status: "launched", serp_enabled: true)
+        serp_query = business.serp_queries.create!(
+          query: "失敗 テスト",
+          category: "existing_business",
+          enabled: true,
+          priority: 10,
+          daily_limit: 1
+        )
+
+        with_adapter_error(RuntimeError.new("provider failed")) do
+          ScanRunner.new(provider: :serper, max_queries_per_business: 1, target_businesses: [ business ]).call
+        end
+
+        serp_query.reload
+        assert_equal 0, serp_query.success_count
+        assert_equal 1, serp_query.failure_count
+      end
+
       private
 
       def with_adapter_result

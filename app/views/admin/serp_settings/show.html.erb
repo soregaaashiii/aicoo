@@ -2,6 +2,7 @@
 
 <% selected_business = @selected_business %>
 <% selected_keywords = selected_business ? selected_business.business_serp_keywords.sort_by { |keyword| [keyword.status, -keyword.priority_score.to_i, keyword.keyword] } : [] %>
+<% selected_serp_queries = selected_business ? selected_business.serp_queries.by_priority.limit(20) : [] %>
 <% manual_keywords = selected_keywords.select { |keyword| keyword.source == "manual" && keyword.status != "excluded" } %>
 <% pending_keywords = selected_keywords.select { |keyword| keyword.status == "pending" } %>
 <% active_keywords = selected_keywords.select { |keyword| keyword.status == "active" } %>
@@ -12,6 +13,8 @@
 
 <% header_actions = capture do %>
   <%= link_to "SERP E2E診断", admin_serp_e2e_check_path, class: "button" %>
+  <%= button_to "今すぐSERP実行", run_now_admin_serp_settings_path, method: :post, class: "button" %>
+  <%= link_to "SERP検索クエリ", admin_serp_queries_path(business_id: selected_business&.id), class: "button secondary" %>
   <%= link_to "AICOO全体設定", aicoo_setting_path, class: "button secondary" %>
 <% end %>
 
@@ -41,11 +44,11 @@
         <strong><%= @serp_summary.business_count %></strong>
       </div>
       <div class="metric-card">
-        <span>Active Keyword</span>
+        <span>Active検索クエリ</span>
         <strong><%= @serp_summary.active_keyword_count %></strong>
       </div>
       <div class="metric-card">
-        <span>Today's Scan</span>
+        <span>今日の市場観測</span>
         <strong><%= @serp_summary.today_scan_count %></strong>
       </div>
       <div class="metric-card">
@@ -61,7 +64,7 @@
         <strong><%= @serp_summary.fail_count %></strong>
       </div>
       <div class="metric-card">
-        <span>承認待ちKeyword</span>
+        <span>承認待ち検索クエリ</span>
         <strong><%= @serp_summary.pending_keyword_count %></strong>
       </div>
       <div class="metric-card">
@@ -78,7 +81,7 @@
   <nav class="aicoo-tab-nav" aria-label="SERP設定タブ">
     <%= link_to "全体設定", "#serp-global", class: "button secondary" %>
     <%= link_to "Business設定", "#serp-businesses", class: "button secondary" %>
-    <%= link_to "Keyword管理", "#serp-keywords", class: "button secondary" %>
+    <%= link_to "検索クエリ管理", "#serp-keywords", class: "button secondary" %>
     <%= link_to "実行状況", "#serp-execution", class: "button secondary" %>
     <%= link_to "履歴", "#serp-history", class: "button secondary" %>
   </nav>
@@ -87,7 +90,7 @@
     <div class="section-heading">
       <div>
         <h2>全体設定</h2>
-        <p>全Business共通のProvider、API Key、Daily Run利用、予算だけを管理します。</p>
+        <p>全Business共通のProvider、API Key、SERP Scheduler、予算だけを管理します。SERPはDaily Runとは分離して動きます。</p>
       </div>
     </div>
 
@@ -95,9 +98,10 @@
       <div class="metric-card"><span>Provider</span><strong><%= @current_provider %></strong></div>
       <div class="metric-card"><span>API Key</span><strong><%= @api_key_configured ? "設定済み" : "未設定" %></strong></div>
       <div class="metric-card"><span>Optional Mode</span><strong><%= @serp_optional_mode.status %></strong><small><%= @serp_optional_mode.reason %></small></div>
-      <div class="metric-card"><span>Daily RunでSERP利用</span><strong><%= @serp_profile.enabled? ? "ON" : "OFF" %></strong></div>
+      <div class="metric-card"><span>SERP Scheduler</span><strong><%= ActiveModel::Type::Boolean.new.cast(@serp_scheduler_settings["scheduler_enabled"]) ? "ON" : "OFF" %></strong></div>
       <div class="metric-card"><span>1日取得上限</span><strong><%= Aicoo::Serp::ScanPlan.configured_limit(@serp_profile) %></strong></div>
       <div class="metric-card"><span>今日の取得件数</span><strong><%= @today_serp_analysis_count %></strong></div>
+      <div class="metric-card"><span>最終SERP Run</span><strong><%= @latest_serp_run ? "##{@latest_serp_run.id} #{@latest_serp_run.status}" : "未実行" %></strong></div>
       <div class="metric-card"><span>月間予算</span><strong><%= number_to_currency(@serp_profile.monthly_budget_yen, unit: "¥", precision: 0) %></strong></div>
       <div class="metric-card"><span>今月使用額</span><strong><%= number_to_currency(@serp_profile.monthly_spend_yen, unit: "¥", precision: 0) %></strong></div>
     </div>
@@ -212,7 +216,10 @@
         <h2>Business設定</h2>
         <p>BusinessごとのSERP ON/OFF、Keyword数、Health、取得予定を確認します。編集はこの画面内で行います。</p>
       </div>
-      <%= link_to "Business一覧", businesses_path, class: "button secondary" %>
+      <div class="actions compact-actions">
+        <%= link_to "SERP Queries", admin_serp_queries_path(business_id: selected_business&.id), class: "button secondary" %>
+        <%= link_to "Business一覧", businesses_path, class: "button secondary" %>
+      </div>
     </div>
 
     <div class="aicoo-grid aicoo-grid-2">
@@ -223,6 +230,7 @@
               <th>Business</th>
               <th>SERP</th>
               <th>Keyword</th>
+              <th>Query</th>
               <th>取得予定</th>
               <th>最終取得</th>
               <th>Health</th>
@@ -233,6 +241,7 @@
             <% @serp_businesses.each do |business| %>
               <% active_count = @serp_keyword_counts[[business.id, "active"]].to_i %>
               <% pending_count = @serp_keyword_counts[[business.id, "pending"]].to_i %>
+              <% enabled_query_count = @serp_query_counts[[business.id, true]].to_i %>
               <% latest_analysis = @serp_latest_analysis_by_business_id[business.id] %>
               <% health_label = if !business.serp_enabled?
                                   "OFF"
@@ -263,6 +272,10 @@
                 <td>
                   Active <strong><%= active_count %></strong><br>
                   <small>Pending <%= pending_count %> / Excluded <%= @serp_keyword_counts[[business.id, "excluded"]].to_i %></small>
+                </td>
+                <td>
+                  Enabled <strong><%= enabled_query_count %></strong><br>
+                  <small><%= link_to "Query管理", admin_serp_queries_path(business_id: business.id) %></small>
                 </td>
                 <td><%= @serp_today_planned_counts[business].to_i %> KW</td>
                 <td><%= @serp_latest_checked_at[business.id] ? l(@serp_latest_checked_at[business.id], format: :short) : "未取得" %></td>
@@ -303,6 +316,40 @@
         <% else %>
           <p>Businessがありません。</p>
         <% end %>
+      </div>
+
+      <div class="aicoo-card aicoo-card-compact">
+        <h3>SERP Scheduler</h3>
+        <%= form_with url: update_scheduler_admin_serp_settings_path, scope: :serp_scheduler, method: :patch, class: "form" do |form| %>
+          <div class="form-grid">
+            <div>
+              <%= form.label :scheduler_enabled, "SERP Scheduler ON/OFF" %><br>
+              <%= form.check_box :scheduler_enabled, { checked: ActiveModel::Type::Boolean.new.cast(@serp_scheduler_settings["scheduler_enabled"]) }, "1", "0" %>
+            </div>
+            <div>
+              <%= form.label :frequency, "実行頻度" %>
+              <%= form.select :frequency, options_for_select([["毎日", "daily"], ["毎週", "weekly"], ["毎月", "monthly"]], @serp_scheduler_settings["frequency"]) %>
+            </div>
+            <div>
+              <%= form.label :run_time, "実行時刻" %>
+              <%= form.time_field :run_time, value: @serp_scheduler_settings["run_time"] %>
+            </div>
+            <div>
+              <%= form.label :daily_query_limit, "1日最大実行クエリ数" %>
+              <%= form.number_field :daily_query_limit, value: @serp_scheduler_settings["daily_query_limit"], min: 1 %>
+            </div>
+            <div>
+              <%= form.label :max_concurrency, "最大同時実行数" %>
+              <%= form.number_field :max_concurrency, value: @serp_scheduler_settings["max_concurrency"], min: 1 %>
+            </div>
+          </div>
+          <div class="actions compact-actions">
+            <%= form.submit "SERP Scheduler設定を保存", class: "button" %>
+          </div>
+        <% end %>
+        <div class="actions compact-actions">
+          <%= button_to "1件だけテスト実行", run_now_admin_serp_settings_path(force: true), method: :post, class: "button secondary" %>
+        </div>
       </div>
     </div>
   </section>
@@ -562,7 +609,7 @@
     <div class="section-heading">
       <div>
         <h2>実行状況</h2>
-        <p>Daily RunでSERPがどう扱われたかを期間別に確認します。</p>
+        <p>SERP専用Runの実行状況を期間別に確認します。Daily Runとは分離されています。</p>
       </div>
       <div class="compact-actions">
         <%= link_to "今日", admin_serp_settings_path(period: "today", business_id: selected_business&.id, anchor: "serp-execution"), class: "button secondary" %>
@@ -580,6 +627,7 @@
       <div class="metric-card"><span>Skip</span><strong><%= @period_skip_count %></strong></div>
       <div class="metric-card"><span>Error</span><strong><%= @period_failed_count %></strong></div>
       <div class="metric-card"><span>API使用量</span><strong><%= period_total %> request</strong></div>
+      <div class="metric-card"><span>最新Run</span><strong><%= @latest_serp_run ? "##{@latest_serp_run.id} #{@latest_serp_run.status}" : "未実行" %></strong></div>
     </div>
 
     <% if @period_error_messages.any? %>
@@ -621,30 +669,36 @@
       </div>
 
       <div class="aicoo-card aicoo-card-compact">
-        <h3>Daily Run SERP Step</h3>
+        <h3>SERP Run履歴</h3>
         <div class="table-wrap">
           <table>
             <thead>
               <tr>
                 <th>Run</th>
-                <th>Step</th>
                 <th>Status</th>
-                <th>理由</th>
-                <th>Message</th>
+                <th>実行者</th>
+                <th>Query</th>
+                <th>成功</th>
+                <th>失敗</th>
+                <th>候補</th>
+                <th>Error</th>
               </tr>
             </thead>
             <tbody>
-              <% @latest_daily_run_serp_steps.each do |step| %>
+              <% @recent_serp_runs.each do |run| %>
                 <tr>
-                  <td><%= link_to "##{step.aicoo_daily_run_id}", aicoo_daily_run_path(step.aicoo_daily_run) %></td>
-                  <td><%= step.step_name %></td>
-                  <td><span class="pill"><%= step.status %></span></td>
-                  <td><%= step.metadata.to_h["reason"].presence || "-" %></td>
-                  <td><%= truncate(step.metadata.to_h["message"].presence || step.error_message.to_s, length: 90) %></td>
+                  <td>#<%= run.id %></td>
+                  <td><span class="pill"><%= run.status %></span></td>
+                  <td><%= run.executed_by %></td>
+                  <td><%= run.query_count %></td>
+                  <td><%= run.success_count %></td>
+                  <td><%= run.failure_count %></td>
+                  <td><%= run.candidate_count %></td>
+                  <td><%= truncate(run.error_message.to_s, length: 90) %></td>
                 </tr>
               <% end %>
-              <% if @latest_daily_run_serp_steps.empty? %>
-                <tr><td colspan="5">SERP関連Step履歴はまだありません。</td></tr>
+              <% if @recent_serp_runs.empty? %>
+                <tr><td colspan="8">SERP Run履歴はまだありません。</td></tr>
               <% end %>
             </tbody>
           </table>

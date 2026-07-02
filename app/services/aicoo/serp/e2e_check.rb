@@ -2,7 +2,7 @@ module Aicoo
   module Serp
     class E2eCheck
       Check = Data.define(:key, :label, :status, :message, :repair_action, :details)
-      Result = Data.define(:business, :checks, :scan_plan_keywords, :latest_analysis, :serp_candidates, :daily_run_steps, :generated_at) do
+      Result = Data.define(:business, :checks, :scan_plan_keywords, :latest_analysis, :serp_candidates, :serp_runs, :generated_at) do
         def overall_status
           return "broken" if checks.any? { |check| check.status == "fail" }
           return "warning" if checks.any? { |check| check.status == "warning" }
@@ -48,7 +48,7 @@ module Aicoo
           scan_plan_keywords:,
           latest_analysis:,
           serp_candidates:,
-          daily_run_steps:,
+          serp_runs:,
           generated_at: Time.current
         )
       end
@@ -60,7 +60,7 @@ module Aicoo
         when "regenerate_keyword_suggestions"
           Aicoo::Serp::KeywordManager.generate_suggestions!(business:)
         when "run_serp_scan"
-          Aicoo::Serp::ScanRunner.new(target_businesses: [ business ]).call
+          Aicoo::Serp::RunExecutor.new(executed_by: "manual", force: true).call
         when "regenerate_action_candidates"
           MetricActionCandidateGenerator.new(business:).call
         end
@@ -81,7 +81,7 @@ module Aicoo
           serp_result_check,
           learning_check,
           action_candidate_check,
-          daily_run_check
+          serp_run_check
         ]
       end
 
@@ -108,25 +108,28 @@ module Aicoo
         details = counts.merge(
           manual_count: keyword_scope.where(source: "manual").count,
           ai_suggested_count: keyword_scope.where(source: "ai_suggested").count,
-          gsc_count: keyword_scope.where(source: "gsc").count
+          gsc_count: keyword_scope.where(source: "gsc").count,
+          active_query_count: query_scope.enabled.count,
+          archived_query_count: query_scope.where(status: "archived").count
         )
-        return check(:keywords, "Keyword診断", "pass", "Active keywordが#{counts.fetch('active', 0)}件あります。", details:) if counts.fetch("active", 0).positive?
+        return check(:keywords, "検索クエリ診断", "pass", "Active検索クエリが#{query_scope.enabled.count}件あります。", details:) if query_scope.enabled.exists?
+        return check(:keywords, "検索クエリ診断", "pass", "Active keywordが#{counts.fetch('active', 0)}件あります。", details:) if counts.fetch("active", 0).positive?
         if counts.fetch("pending", 0).positive?
-          return check(:keywords, "Keyword診断", "warning", "Pending keywordだけ存在します。承認すると取得対象になります。", repair_action: "approve_pending_keywords", details:)
+          return check(:keywords, "検索クエリ診断", "warning", "Pending検索クエリだけ存在します。承認すると取得対象になります。", repair_action: "approve_pending_keywords", details:)
         end
 
-        check(:keywords, "Keyword診断", "fail", "Active keywordが0件です。", repair_action: "regenerate_keyword_suggestions", details:)
+        check(:keywords, "検索クエリ診断", "fail", "Active検索クエリが0件です。", repair_action: "regenerate_keyword_suggestions", details:)
       end
 
       def scan_plan_check
         details = {
           planned_count: scan_plan_keywords.size,
           keywords: scan_plan_keywords,
-          priority_order: active_keywords.map { |keyword| { keyword: keyword.keyword, priority_score: keyword.priority_score } }
+          priority_order: query_scope.enabled.by_priority.limit(10).map { |query| { query: query.query, priority: query.priority } }
         }
         return check(:scan_plan, "Scan Plan", "pass", "今日取得予定は#{scan_plan_keywords.size}件です。", details:) if scan_plan_keywords.any?
 
-        check(:scan_plan, "Scan Plan", "fail", "取得予定キーワードがありません。", repair_action: "regenerate_keyword_suggestions", details:)
+        check(:scan_plan, "Scan Plan", "fail", "取得予定の検索クエリがありません。", repair_action: "regenerate_keyword_suggestions", details:)
       end
 
       def scan_execution_check
@@ -194,29 +197,35 @@ module Aicoo
         check(:action_candidate, "Action Candidate", "warning", "SERP由来候補はまだありません。", details:)
       end
 
-      def daily_run_check
-        details = daily_run_steps.map do |step|
+      def serp_run_check
+        details = serp_runs.map do |run|
           {
-            run_id: step.aicoo_daily_run_id,
-            step_name: step.step_name,
-            status: step.status,
-            reason: step.metadata.to_h["reason"],
-            message: step.metadata.to_h["message"] || step.error_message
+            run_id: run.id,
+            status: run.status,
+            executed_by: run.executed_by,
+            query_count: run.query_count,
+            success_count: run.success_count,
+            failure_count: run.failure_count,
+            message: run.error_message
           }
         end
-        failed = daily_run_steps.any? { |step| step.status == "failed" }
-        running = daily_run_steps.any? { |step| step.status == "running" }
-        skipped = daily_run_steps.any? { |step| step.status == "skipped" }
-        return check(:daily_run, "Daily Run", "fail", "SERP関連stepにfailedがあります。", details:) if failed
-        return check(:daily_run, "Daily Run", "warning", "SERP関連stepがrunningです。", details:) if running
-        return check(:daily_run, "Daily Run", "warning", "SERP関連stepはskippedです。理由を確認してください。", details:) if skipped
-        return check(:daily_run, "Daily Run", "pass", "SERP関連stepは実行済みです。", details:) if daily_run_steps.any?
+        failed = serp_runs.any? { |run| run.status == "failed" }
+        running = serp_runs.any? { |run| run.status == "running" }
+        partial = serp_runs.any? { |run| run.status == "partial_failed" }
+        return check(:serp_run, "SERP Run", "fail", "SERP Runにfailedがあります。", details:) if failed
+        return check(:serp_run, "SERP Run", "warning", "SERP Runがrunningです。", details:) if running
+        return check(:serp_run, "SERP Run", "warning", "SERP Runにpartial_failedがあります。", details:) if partial
+        return check(:serp_run, "SERP Run", "pass", "SERP専用Runは保存されています。", details:) if serp_runs.any?
 
-        check(:daily_run, "Daily Run", "warning", "SERP関連step履歴がありません。", details:)
+        check(:serp_run, "SERP Run", "warning", "SERP専用Run履歴がありません。", details:)
       end
 
       def keyword_scope
         @keyword_scope ||= business.business_serp_keywords
+      end
+
+      def query_scope
+        @query_scope ||= business.serp_queries
       end
 
       def keyword_counts
@@ -252,18 +261,12 @@ module Aicoo
         @serp_candidates ||= business.action_candidates.where(generation_source: "serp").order(created_at: :desc)
       end
 
-      def daily_run_steps
-        @daily_run_steps ||= AicooDailyRunStep
-          .joins(:aicoo_daily_run)
-          .where(step_name: Aicoo::Serp::OptionalMode::SERP_DEPENDENT_STEPS)
-          .where("aicoo_daily_runs.created_at >= ?", 30.days.ago)
-          .order(created_at: :desc)
-          .limit(12)
-          .to_a
+      def serp_runs
+        @serp_runs ||= SerpRun.recent.limit(12).to_a
       end
 
       def latest_skipped_step_count
-        daily_run_steps.count { |step| step.status == "skipped" }
+        0
       end
 
       def check(key, label, status, message, repair_action: nil, details: {})

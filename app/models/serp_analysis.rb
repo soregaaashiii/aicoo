@@ -5,6 +5,7 @@ class SerpAnalysis < ApplicationRecord
 
   belongs_to :business
   belongs_to :data_import, optional: true
+  belongs_to :serp_run, optional: true
   has_many :serp_results, dependent: :destroy
 
   validates :keyword, :analyzed_at, presence: true

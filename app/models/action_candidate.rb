@@ -23,7 +23,7 @@ class ActionCandidate < ApplicationRecord
 
   STATUSES = %w[idea pending approved executor_queued in_progress done rejected archived].freeze
   INACTIVE_STATUSES = %w[archived rejected done].freeze
-  GENERATION_SOURCES = %w[manual seed ai_business ai_cross_business ai_reevaluation ai_insight learning_report opportunity_discovery serp traffic_channel].freeze
+  GENERATION_SOURCES = %w[manual seed ai_business ai_cross_business ai_reevaluation ai_insight learning_report opportunity_discovery serp traffic_channel integrated_decision].freeze
   DEPARTMENTS = %w[general revenue lab new_business].freeze
 
   belongs_to :business
@@ -44,6 +44,7 @@ class ActionCandidate < ApplicationRecord
   before_validation :set_defaults
   before_save :apply_execution_feasibility_correction
   before_save :calculate_scores
+  after_commit :sync_serp_query_counters, on: %i[create update]
 
   validates :title, presence: true
   validates :action_type, inclusion: { in: ACTION_TYPES }, allow_blank: true
@@ -339,5 +340,28 @@ class ActionCandidate < ApplicationRecord
         "last_calculated_at" => calibration.last_calculated_at&.iso8601
       }
     )
+  end
+
+  def sync_serp_query_counters
+    return unless generation_source == "serp"
+
+    source_query = metadata.to_h["source_query"].presence || metadata.to_h["serp_keyword"].presence
+    return if source_query.blank?
+
+    serp_query = business.serp_queries.find_by(normalized_query: SerpQuery.normalize(source_query))
+    return unless serp_query
+
+    counts = business.action_candidates.where(generation_source: "serp").where(
+      "metadata ->> 'source_query' = ? OR metadata ->> 'serp_keyword' = ?",
+      source_query,
+      source_query
+    )
+    serp_query.update_columns(
+      total_candidates_generated: counts.count,
+      total_candidates_approved: counts.where(status: "approved").count,
+      updated_at: Time.current
+    )
+  rescue StandardError => e
+    Rails.logger.warn("[SERP] ActionCandidate##{id} serp query counter sync failed: #{e.class} #{e.message}")
   end
 end

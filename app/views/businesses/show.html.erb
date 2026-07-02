@@ -1478,12 +1478,56 @@
       <strong><%= @business.business_serp_keywords.active.count %>件</strong>
     </div>
     <div class="metric-card">
+      <span>SERP Queries</span>
+      <strong><%= @business.serp_queries.enabled.count %>件</strong>
+    </div>
+    <div class="metric-card">
       <span>承認待ち候補</span>
       <strong><%= @business.business_serp_keywords.pending.count %>件</strong>
     </div>
     <div class="metric-card">
       <span>前回取得</span>
       <strong><%= @recent_serp_analyses.first&.analyzed_at ? l(@recent_serp_analyses.first.analyzed_at, format: :short) : "未実行" %></strong>
+    </div>
+  </div>
+
+  <div class="aicoo-card aicoo-card-compact">
+    <strong>SERP Queries</strong>
+    <p>Daily Runで実行する検索クエリです。Priorityが小さいものから順に実行します。</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Priority</th>
+            <th>Query</th>
+            <th>Category</th>
+            <th>Enabled</th>
+            <th>Last Run</th>
+            <th>Success</th>
+            <th>Failure</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @business.serp_queries.by_priority.limit(8).each do |query| %>
+            <tr>
+              <td><%= query.priority %></td>
+              <td class="wide-text"><%= query.query %></td>
+              <td><span class="pill"><%= query.category %></span></td>
+              <td><span class="pill"><%= query.enabled? ? "ON" : "OFF" %></span></td>
+              <td><%= query.last_run_at ? l(query.last_run_at, format: :short) : "-" %></td>
+              <td><%= query.success_count %></td>
+              <td><%= query.failure_count %></td>
+            </tr>
+          <% end %>
+          <% if @business.serp_queries.empty? %>
+            <tr><td colspan="7">SERP Queryはまだありません。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+    <div class="actions compact-actions">
+      <%= link_to "追加・編集", admin_serp_queries_path(business_id: @business.id), class: "button" %>
+      <%= link_to "SERP設定を開く", admin_serp_settings_path(business_id: @business.id, anchor: "serp-business-detail"), class: "button secondary" %>
     </div>
   </div>
 

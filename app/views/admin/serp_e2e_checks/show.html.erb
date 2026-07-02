@@ -8,7 +8,7 @@
 <div class="aicoo-page">
   <%= render "shared/aicoo_header",
              title: "SERP E2E診断",
-             description: "API、Keyword、Scan Plan、SERP取得、Learning、Action Candidate、Daily Runまで一画面で確認します。",
+             description: "API、検索クエリ、Scan Plan、SERP Run、取得結果、Learning、Action Candidateまで一画面で確認します。",
              active_main: :system,
              actions: header_actions %>
 
@@ -32,7 +32,7 @@
       <div class="metric-grid">
         <div class="metric-card"><span>Business</span><strong><%= @business.name %></strong></div>
         <div class="metric-card"><span>総合判定</span><strong><%= @serp_e2e_check.health_label %></strong></div>
-        <div class="metric-card"><span>Scan予定KW</span><strong><%= @serp_e2e_check.scan_plan_keywords.size %>件</strong></div>
+        <div class="metric-card"><span>Scan予定クエリ</span><strong><%= @serp_e2e_check.scan_plan_keywords.size %>件</strong></div>
         <div class="metric-card"><span>SERP候補</span><strong><%= @serp_e2e_check.serp_candidates.count %>件</strong></div>
       </div>
       <% if (problem = @serp_e2e_check.first_problem) %>
@@ -97,7 +97,7 @@
     <section class="dashboard-section">
       <div class="section-heading">
         <h2>Scan Plan</h2>
-        <p>Daily Runで実際に取得予定のキーワードです。</p>
+        <p>SERP Schedulerで実際に取得予定の検索クエリです。</p>
       </div>
       <div class="metric-grid">
         <% @serp_e2e_check.scan_plan_keywords.each_with_index do |keyword, index| %>
@@ -107,7 +107,7 @@
           </div>
         <% end %>
         <% if @serp_e2e_check.scan_plan_keywords.empty? %>
-          <div class="metric-card"><span>Keyword</span><strong>なし</strong></div>
+          <div class="metric-card"><span>検索クエリ</span><strong>なし</strong></div>
         <% end %>
       </div>
     </section>
@@ -122,7 +122,7 @@
         <div class="metric-grid">
           <div class="metric-card"><span>実行日時</span><strong><%= l(analysis.analyzed_at, format: :short) %></strong></div>
           <div class="metric-card"><span>Status</span><strong><%= analysis.status %></strong></div>
-          <div class="metric-card"><span>Keyword</span><strong><%= analysis.keyword %></strong></div>
+          <div class="metric-card"><span>検索クエリ</span><strong><%= analysis.keyword %></strong></div>
           <div class="metric-card"><span>Result</span><strong><%= analysis.result_count.to_i %>件</strong></div>
         </div>
         <% if analysis.error_message.present? %>
@@ -171,32 +171,36 @@
 
     <section class="dashboard-section">
       <div class="section-heading">
-        <h2>Daily Run SERP Step</h2>
-        <p>keyword_discovery / competitor_serp_analysis / serp_based_idea_generation を含むSERP関連stepです。</p>
+        <h2>SERP Run</h2>
+        <p>Daily Runから分離されたSERP専用Runの履歴です。</p>
       </div>
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
               <th>Run</th>
-              <th>Step</th>
               <th>Status</th>
-              <th>理由</th>
+              <th>実行者</th>
+              <th>Query</th>
+              <th>成功</th>
+              <th>失敗</th>
               <th>Message</th>
             </tr>
           </thead>
           <tbody>
-            <% @serp_e2e_check.daily_run_steps.each do |step| %>
+            <% @serp_e2e_check.serp_runs.each do |run| %>
               <tr>
-                <td><%= link_to "##{step.aicoo_daily_run_id}", aicoo_daily_run_path(step.aicoo_daily_run) %></td>
-                <td><%= step.step_name %></td>
-                <td><span class="pill"><%= step.status %></span></td>
-                <td><%= step.metadata.to_h["reason"].presence || "-" %></td>
-                <td><%= truncate(step.metadata.to_h["message"].presence || step.error_message.to_s, length: 120) %></td>
+                <td>#<%= run.id %></td>
+                <td><span class="pill"><%= run.status %></span></td>
+                <td><%= run.executed_by %></td>
+                <td><%= run.query_count %></td>
+                <td><%= run.success_count %></td>
+                <td><%= run.failure_count %></td>
+                <td><%= truncate(run.error_message.to_s, length: 120) %></td>
               </tr>
             <% end %>
-            <% if @serp_e2e_check.daily_run_steps.empty? %>
-              <tr><td colspan="5">SERP関連step履歴はまだありません。</td></tr>
+            <% if @serp_e2e_check.serp_runs.empty? %>
+              <tr><td colspan="7">SERP Run履歴はまだありません。</td></tr>
             <% end %>
           </tbody>
         </table>

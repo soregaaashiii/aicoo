@@ -210,6 +210,7 @@ Rails.application.routes.draw do
     post "pipeline_e2e_check/repair", to: "pipeline_e2e_checks#repair", as: :pipeline_e2e_check_repair
     get "serp_e2e_check", to: "serp_e2e_checks#show", as: :serp_e2e_check
     post "serp_e2e_check/repair", to: "serp_e2e_checks#repair", as: :serp_e2e_check_repair
+    get "integrated_decision", to: "integrated_decisions#show", as: :integrated_decision
     get "traffic_channels", to: "traffic_channels#show", as: :traffic_channels
     patch "traffic_channels/:channel_key", to: "traffic_channels#update_channel", as: :traffic_channel
     patch "traffic_channels/:channel_key/businesses/:business_id", to: "traffic_channels#update_business_channel", as: :business_traffic_channel
@@ -234,6 +235,8 @@ Rails.application.routes.draw do
       end
     end
     resource :serp_settings, only: %i[show update] do
+      post :run_now
+      patch :update_scheduler
       post :test_search
       patch "businesses/:business_id", action: :update_business, as: :business
       post "businesses/:business_id/keywords", action: :add_keywords, as: :business_keywords
@@ -248,6 +251,13 @@ Rails.application.routes.draw do
       patch "keywords/:id/archive", action: :archive_keyword, as: :archive_keyword
       patch "keywords/:id/restore", action: :restore_keyword, as: :restore_keyword
       delete "keywords/:id", action: :destroy_keyword, as: :destroy_keyword
+    end
+    resources :serp_queries, except: %i[show] do
+      patch :toggle, on: :member
+      patch :pause, on: :member
+      patch :resume, on: :member
+      patch :archive, on: :member
+      post :run_now, on: :member
     end
     resources :analytics_imports, only: %i[index create] do
       post :reprocess, on: :member

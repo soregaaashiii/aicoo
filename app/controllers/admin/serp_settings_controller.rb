@@ -22,6 +22,30 @@ module Admin
       render :show, status: :unprocessable_entity
     end
 
+    def update_scheduler
+      Aicoo::Serp::Scheduler.update!(
+        "scheduler_enabled" => ActiveModel::Type::Boolean.new.cast(params.dig(:serp_scheduler, :scheduler_enabled)),
+        "frequency" => params.dig(:serp_scheduler, :frequency).presence_in(%w[daily weekly monthly]) || "daily",
+        "run_time" => params.dig(:serp_scheduler, :run_time).presence || "07:00",
+        "daily_query_limit" => params.dig(:serp_scheduler, :daily_query_limit).to_i,
+        "max_concurrency" => params.dig(:serp_scheduler, :max_concurrency).to_i
+      )
+      redirect_to admin_serp_settings_path(anchor: "serp-global"), notice: "SERP Scheduler設定を保存しました。"
+    end
+
+    def run_now
+      result = Aicoo::Serp::Scheduler.run!(executed_by: "manual", force: ActiveModel::Type::Boolean.new.cast(params[:force]))
+      if result.serp_run
+        redirect_to admin_serp_settings_path(anchor: "serp-execution"),
+                    notice: "SERP Runを実行しました。status=#{result.serp_run.status} query=#{result.serp_run.query_count}"
+      else
+        redirect_to admin_serp_settings_path(anchor: "serp-execution"),
+                    alert: "SERP Runは実行されませんでした: #{result.reason}"
+      end
+    rescue StandardError => e
+      redirect_to admin_serp_settings_path(anchor: "serp-execution"), alert: "SERP Runに失敗しました: #{e.message}"
+    end
+
     def test_search
       load_settings
       @test_params = test_search_params.to_h.symbolize_keys
@@ -162,6 +186,9 @@ module Admin
       @serp_profile = DataSourceCostProfile.for_source("serp")
       @serp_optional_mode = Aicoo::Serp::OptionalMode.call
       @serp_summary = Aicoo::Serp::Summary.call
+      @serp_scheduler_settings = Aicoo::Serp::Scheduler.settings
+      @latest_serp_run = SerpRun.recent.first
+      @recent_serp_runs = SerpRun.recent.limit(10)
       @api_key_configured = @serp_optional_mode.api_key_configured
       @selected_period = params[:period].presence_in(%w[today yesterday seven_days]) || "today"
       @recent_serp_analyses = SerpAnalysis.includes(:business, :serp_results).order(analyzed_at: :desc, created_at: :desc).limit(30)
@@ -175,10 +202,11 @@ module Admin
         .order(created_at: :desc)
         .limit(12)
       @serp_businesses = Business.real_businesses
-                                .includes(:business_serp_keywords, :business_data_source_settings)
+                                .includes(:business_serp_keywords, :business_data_source_settings, :serp_queries)
                                 .order(:name)
       @selected_business = @serp_businesses.find { |business| business.id == params[:business_id].to_i } || @serp_businesses.first
       @serp_keyword_counts = BusinessSerpKeyword.where(business: @serp_businesses).group(:business_id, :status).count
+      @serp_query_counts = SerpQuery.where(business: @serp_businesses).group(:business_id, :enabled).count
       @serp_latest_checked_at = BusinessSerpKeyword.where(business: @serp_businesses).group(:business_id).maximum(:last_checked_at)
       @serp_today_planned_counts = @serp_businesses.index_with do |business|
         Aicoo::Serp::ScanRunner.queries_for_business(business).size
@@ -192,9 +220,7 @@ module Admin
       @period_success_count = @period_serp_analyses.successful.count
       @period_failed_count = @period_serp_analyses.failed.count
       @period_running_count = @period_serp_analyses.running.count
-      @period_skip_count = AicooDailyRunStep
-        .where(step_name: Aicoo::Serp::OptionalMode::SERP_DEPENDENT_STEPS, status: "skipped", created_at: selected_period_range)
-        .count
+      @period_skip_count = 0
       @period_error_messages = @period_serp_analyses.failed.limit(5).pluck(:keyword, :error_message)
       @business_period_success_counts = @period_serp_analyses.successful.group(:business_id).count
       @business_period_failed_counts = @period_serp_analyses.failed.group(:business_id).count

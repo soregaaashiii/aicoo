@@ -9,10 +9,10 @@ module Admin
       assert_includes response.body, "SERP E2E診断"
       assert_includes response.body, "SERP Health"
       assert_includes response.body, "API"
-      assert_includes response.body, "Keyword診断"
+      assert_includes response.body, "検索クエリ診断"
       assert_includes response.body, "Scan Plan"
       assert_includes response.body, "Action Candidate"
-      assert_includes response.body, "Daily Run SERP Step"
+      assert_includes response.body, "SERP Run"
     end
 
     test "repair approves pending keywords" do

@@ -189,7 +189,7 @@
       <% if @serp_summary.pending_keyword_count.positive? || @serp_summary.failed_business_count.positive? || @serp_summary.stopped_business_count.positive? %>
         <ul class="compact-list">
           <% if @serp_summary.pending_keyword_count.positive? %>
-            <li>承認待ちKeywordが<%= @serp_summary.pending_keyword_count %>件あります。</li>
+            <li>承認待ち検索クエリが<%= @serp_summary.pending_keyword_count %>件あります。</li>
           <% end %>
           <% if @serp_summary.failed_business_count.positive? %>
             <li>SERP取得に失敗したBusinessが<%= @serp_summary.failed_business_count %>件あります。</li>
@@ -202,11 +202,16 @@
 
       <div class="metric-grid aicoo-owner-secondary">
         <div class="metric-card"><span>止まっているBusiness</span><strong><%= @serp_summary.stopped_business_count %>件</strong></div>
-        <div class="metric-card"><span>承認待ちKeyword</span><strong><%= @serp_summary.pending_keyword_count %>件</strong></div>
+        <div class="metric-card"><span>Scheduler</span><strong><%= @serp_summary.scheduler_enabled ? "ON" : "OFF" %></strong></div>
+        <div class="metric-card"><span>承認待ち検索クエリ</span><strong><%= @serp_summary.pending_keyword_count %>件</strong></div>
+        <div class="metric-card"><span>今日実行Query</span><strong><%= @serp_summary.today_query_count %>件</strong></div>
+        <div class="metric-card"><span>成功Query</span><strong><%= @serp_summary.today_success_query_count %>件</strong></div>
+        <div class="metric-card"><span>失敗Query</span><strong><%= @serp_summary.today_failed_query_count %>件</strong></div>
         <div class="metric-card"><span>SERP由来改善提案</span><strong><%= @serp_summary.today_serp_action_candidate_count %>件</strong></div>
         <div class="metric-card"><span>取得失敗Business</span><strong><%= @serp_summary.failed_business_count %>件</strong></div>
         <div class="metric-card"><span>最優先Business</span><strong><%= @serp_summary.top_priority_business&.name || "未設定" %></strong></div>
         <div class="metric-card"><span>最終SERP実行</span><strong><%= @serp_summary.last_executed_at ? l(@serp_summary.last_executed_at, format: :short) : "未実行" %></strong></div>
+        <div class="metric-card"><span>次回予定</span><strong><%= @serp_summary.next_scheduled_at ? l(@serp_summary.next_scheduled_at, format: :short) : "未設定" %></strong></div>
       </div>
 
       <% if @serp_summary.today_serp_action_candidate_count.positive? %>
@@ -214,8 +219,10 @@
       <% end %>
 
       <div class="actions compact-actions">
+        <%= button_to "今すぐSERP実行", run_now_admin_serp_settings_path, method: :post, class: "button secondary" %>
         <%= link_to "SERP設定", admin_serp_settings_path, class: "button secondary" %>
         <%= link_to "SERP E2E診断", admin_serp_e2e_check_path, class: "button secondary" %>
+        <%= link_to "総合判断を見る", admin_integrated_decision_path, class: "button secondary" %>
       </div>
     </div>
 

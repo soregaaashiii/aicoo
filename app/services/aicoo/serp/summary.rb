@@ -13,9 +13,15 @@ module Aicoo
         :stopped_business_count,
         :pending_keyword_count,
         :today_serp_action_candidate_count,
+        :today_query_count,
+        :today_success_query_count,
+        :today_failed_query_count,
         :top_priority_business,
         :inactive_candidate_count,
-        :last_executed_at
+        :last_executed_at,
+        :scheduler_enabled,
+        :latest_run,
+        :next_scheduled_at
       )
 
       def self.call
@@ -35,9 +41,15 @@ module Aicoo
           stopped_business_count: stopped_businesses.count,
           pending_keyword_count: BusinessSerpKeyword.pending.count,
           today_serp_action_candidate_count: today_serp_candidates.count,
+          today_query_count: today_query_count,
+          today_success_query_count: today_success_query_count,
+          today_failed_query_count: today_failed_query_count,
           top_priority_business:,
           inactive_candidate_count:,
-          last_executed_at:
+          last_executed_at:,
+          scheduler_enabled: Aicoo::Serp::Scheduler.enabled?,
+          latest_run:,
+          next_scheduled_at:
         )
       end
 
@@ -74,19 +86,51 @@ module Aicoo
           .to_a.count { |step| step.status == "skipped" || step.metadata.to_h["warning"] == true }
       end
 
+      def today_query_ids
+        @today_query_ids ||= today_analyses.filter_map { |analysis| analysis.raw_summary.to_h["serp_query_id"] }.uniq
+      end
+
+      def today_query_count
+        latest_run&.query_count.to_i.positive? ? latest_run.query_count : today_query_ids.size
+      end
+
+      def today_success_query_count
+        latest_run&.success_count.to_i.positive? ? latest_run.success_count : today_analyses.successful.filter_map { |analysis| analysis.raw_summary.to_h["serp_query_id"] }.uniq.size
+      end
+
+      def today_failed_query_count
+        latest_run&.failure_count.to_i.positive? ? latest_run.failure_count : today_analyses.failed.filter_map { |analysis| analysis.raw_summary.to_h["serp_query_id"] }.uniq.size
+      end
+
       def top_priority_business
+        query = SerpQuery.enabled.includes(:business).order(:priority, updated_at: :desc).first
+        return query.business if query
+
         keyword = BusinessSerpKeyword.active.includes(:business).order(priority_score: :desc, updated_at: :desc).first
         keyword&.business
       end
 
       def last_executed_at
-        [
-          SerpAnalysis.maximum(:analyzed_at),
-          AicooDailyRunStep.where(step_name: Aicoo::Serp::OptionalMode::SERP_DEPENDENT_STEPS).maximum(:created_at)
-        ].compact.max
+        latest_run&.started_at || SerpAnalysis.maximum(:analyzed_at)
+      end
+
+      def latest_run
+        @latest_run ||= SerpRun.recent.first
+      end
+
+      def next_scheduled_at
+        settings = Aicoo::Serp::Scheduler.settings
+        return nil unless ActiveModel::Type::Boolean.new.cast(settings["scheduler_enabled"])
+
+        hour, min = settings["run_time"].to_s.split(":").map(&:to_i)
+        today = Time.zone.today
+        scheduled = Time.zone.local(today.year, today.month, today.day, hour || 7, min || 0)
+        scheduled.future? ? scheduled : scheduled + 1.day
       end
 
       def health
+        return "Broken" if latest_run&.status == "failed"
+        return "Warning" if latest_run&.status == "partial_failed"
         return "Broken" if today_analyses.failed.exists?
         return "Warning" if stopped_businesses.any? || BusinessSerpKeyword.pending.exists?
 

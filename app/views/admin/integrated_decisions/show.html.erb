@@ -1,0 +1,71 @@
+<% content_for :title, "総合判断" %>
+
+<% header_actions = capture do %>
+  <%= link_to "SERP設定", admin_serp_settings_path, class: "button secondary" %>
+  <%= link_to "Daily Run", aicoo_daily_runs_path, class: "button secondary" %>
+  <%= link_to "Owner Home", owner_focus_path, class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "総合判断",
+             description: "SERP市場観測とDaily Runの内部データを統合して、今日の改善判断を確認します。",
+             active_main: :system,
+             actions: header_actions %>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <div>
+        <h2>Integrated Summary</h2>
+        <p>SERP単独、Daily Run単独ではなく、最後に統合して意思決定します。</p>
+      </div>
+      <span class="pill"><%= @summary.top_business ? "Ready" : "Waiting" %></span>
+    </div>
+    <div class="metric-grid">
+      <div class="metric-card"><span>最重要Business</span><strong><%= @summary.top_business&.name || "未判定" %></strong></div>
+      <div class="metric-card"><span>Unified ActionCandidate</span><strong><%= @summary.candidate_count %>件</strong></div>
+      <div class="metric-card"><span>最大期待利益</span><strong><%= number_to_currency(@summary.expected_profit_yen, unit: "¥", precision: 0) %></strong></div>
+      <div class="metric-card"><span>最新SERP Run</span><strong><%= @latest_serp_run ? "##{@latest_serp_run.id} #{@latest_serp_run.status}" : "未実行" %></strong></div>
+      <div class="metric-card"><span>最新Daily Run</span><strong><%= @latest_daily_run ? "##{@latest_daily_run.id} #{@latest_daily_run.status}" : "未実行" %></strong></div>
+    </div>
+    <p><%= @summary.message %></p>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <div>
+        <h2>Unified ActionCandidate</h2>
+        <p>SERP RunとDaily Runを統合して生成された改善候補です。</p>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>作成日</th>
+            <th>Business</th>
+            <th>改善案</th>
+            <th>期待利益</th>
+            <th>状態</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @unified_candidates.each do |candidate| %>
+            <tr>
+              <td><%= l(candidate.created_at, format: :short) %></td>
+              <td><%= link_to candidate.business.name, candidate.business %></td>
+              <td class="wide-text"><%= candidate.title %></td>
+              <td><%= number_to_currency(candidate.expected_profit_yen, unit: "¥", precision: 0) %></td>
+              <td><span class="pill"><%= candidate.status %></span></td>
+              <td><%= link_to "詳細", candidate, class: "button secondary" %></td>
+            </tr>
+          <% end %>
+          <% if @unified_candidates.empty? %>
+            <tr><td colspan="6">総合判断からの改善候補はまだありません。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
