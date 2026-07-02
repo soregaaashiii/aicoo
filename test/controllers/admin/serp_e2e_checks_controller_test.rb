@@ -11,6 +11,10 @@ module Admin
       assert_includes response.body, "API"
       assert_includes response.body, "検索クエリ診断"
       assert_includes response.body, "Scan Plan"
+      assert_includes response.body, "取得からCandidate生成まで"
+      assert_includes response.body, "取得件数"
+      assert_includes response.body, "保存件数"
+      assert_includes response.body, "解析件数"
       assert_includes response.body, "Action Candidate"
       assert_includes response.body, "SERP Run"
     end

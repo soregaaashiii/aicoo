@@ -1,0 +1,57 @@
+<% status = local_assigns[:status] %>
+<% mode = local_assigns[:mode] || :full %>
+
+<% if status&.running? %>
+  <div class="aicoo-card <%= 'danger' if status.rows.any?(&:stuck?) %>">
+    <div class="section-heading">
+      <div>
+        <h2>現在の実行状態</h2>
+        <p>Daily Runの実行中判定はこの表示に統一しています。</p>
+      </div>
+      <span class="pill"><%= status.status_label %></span>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Run ID</th>
+            <th>status</th>
+            <th>started_at</th>
+            <th>現在step</th>
+            <th>経過時間</th>
+            <th>stuck判定</th>
+            <th>最終ログ</th>
+            <th>詳細</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% status.rows.each do |row| %>
+            <tr>
+              <td>#<%= row.run_id %></td>
+              <td><span class="pill"><%= row.status_label %></span><br><small><%= row.status %> / <%= row.source %></small></td>
+              <td><%= row.started_at ? l(row.started_at, format: :short) : "-" %></td>
+              <td><%= row.current_step_name %></td>
+              <td><%= row.elapsed_label %></td>
+              <td><%= row.stuck? ? "stuckの可能性あり" : "通常実行中" %></td>
+              <td><%= row.last_log.presence || "-" %></td>
+              <td><%= link_to "詳細を見る", row.path, class: "button secondary" %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+<% else %>
+  <div class="aicoo-card aicoo-card-compact">
+    <strong>Daily Runは現在実行されていません。</strong>
+    <% if status&.latest_run %>
+      <p class="muted">
+        最終実行:
+        #<%= status.latest_run.id %>
+        <span class="pill"><%= status.latest_run.status %></span>
+        <%= status.latest_run.finished_at ? l(status.latest_run.finished_at, format: :short) : l(status.latest_run.created_at, format: :short) %>
+      </p>
+    <% end %>
+  </div>
+<% end %>

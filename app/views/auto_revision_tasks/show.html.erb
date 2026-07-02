@@ -22,11 +22,11 @@
     <%= button_to "再実行", retry_execution_auto_revision_task_path(@auto_revision_task), method: :patch, class: "button secondary" %>
   <% end %>
   <% if %w[queued ready_for_codex].include?(@auto_revision_task.status) %>
-    <%= button_to "Codex投入済みにする", mark_sent_to_codex_auto_revision_task_path(@auto_revision_task), method: :patch, class: "button" %>
+    <%= button_to "手動送信済みにする", mark_sent_to_codex_auto_revision_task_path(@auto_revision_task), method: :patch, class: "button" %>
   <% elsif @auto_revision_task.status == "sent_to_codex" %>
     <%= button_to "実装開始", start_implementation_auto_revision_task_path(@auto_revision_task), method: :patch, class: "button" %>
   <% end %>
-  <%= button_to "Codex送信用としてマーク", build_codex_submission_auto_revision_task_path(@auto_revision_task), method: :post, class: "button secondary" %>
+  <%= button_to "Codex手動送信用として準備", build_codex_submission_auto_revision_task_path(@auto_revision_task), method: :post, class: "button secondary" %>
 <% end %>
 
 <div class="aicoo-page">
@@ -52,7 +52,7 @@
       <div class="metric-card"><span>Branch</span><strong><%= @auto_revision_task.execution_profile&.default_branch.presence || "main" %></strong></div>
       <div class="metric-card"><span>Repository</span><strong><%= @auto_revision_task.target_repository_display %></strong></div>
       <div class="metric-card"><span>Repository Type</span><strong><%= @auto_revision_task.target_repository_type.presence || "-" %></strong></div>
-      <div class="metric-card"><span>Codex投入</span><strong><%= @auto_revision_task.sent_to_codex_at ? l(@auto_revision_task.sent_to_codex_at, format: :short) : "-" %></strong></div>
+      <div class="metric-card"><span>Codex手動送信</span><strong><%= @auto_revision_task.sent_to_codex_at ? l(@auto_revision_task.sent_to_codex_at, format: :short) : "-" %></strong></div>
       <div class="metric-card"><span>実装開始</span><strong><%= @auto_revision_task.started_running_at ? l(@auto_revision_task.started_running_at, format: :short) : "-" %></strong></div>
       <div class="metric-card"><span>最終確認</span><strong><%= @auto_revision_task.last_checked_at ? l(@auto_revision_task.last_checked_at, format: :short) : "-" %></strong></div>
       <div class="metric-card"><span>放置判定</span><strong><%= @auto_revision_task.stale_codex_task? ? "要確認" : "正常" %></strong></div>
@@ -66,10 +66,10 @@
     <% unavailable_reasons = Aicoo::CodexSubmissionBuilder.new(@auto_revision_task, force: true).unavailable_reasons %>
     <div class="section-heading">
       <div>
-        <h2>Codex送信カード</h2>
-        <p>Codex Cloudへ渡す個別サービス単位の作業設定です。実API送信はまだ行わず、送信用レコードを管理します。</p>
+        <h2>Codex手動送信カード</h2>
+        <p>Cloud Codexへ手動で渡すための作業設定です。実API送信はまだ行わず、プロンプトコピーと送信済み記録を管理します。</p>
       </div>
-      <%= link_to "Codex送信一覧", admin_codex_submissions_path, class: "button secondary" %>
+      <%= link_to "Codex手動送信一覧", admin_codex_submissions_path, class: "button secondary" %>
     </div>
     <div class="metric-grid">
       <div class="metric-card"><span>対象Business</span><strong><%= @auto_revision_task.business.name %></strong></div>
@@ -89,7 +89,7 @@
 
     <% if unavailable_reasons.any? %>
       <div class="aicoo-card aicoo-card-compact">
-        <strong>Codex送信不可理由</strong>
+        <strong>Codex手動送信不可理由</strong>
         <ul class="compact-list">
           <% unavailable_reasons.each do |reason| %>
             <li><%= reason %></li>
@@ -99,13 +99,20 @@
     <% end %>
 
     <div class="actions compact-actions">
-      <%= link_to "Codex Promptを再生成", export_codex_prompt_auto_revision_task_path(@auto_revision_task), class: "button secondary" %>
-      <%= button_to "Codex送信用としてマーク", build_codex_submission_auto_revision_task_path(@auto_revision_task), method: :post, class: "button" %>
+      <button type="button"
+              class="button"
+              onclick="navigator.clipboard.writeText(document.getElementById('auto-revision-codex-prompt').value)">
+        Codex用プロンプトをコピー
+      </button>
+      <%= link_to "Cloud Codexで開く（手動）", "https://chatgpt.com/codex", target: "_blank", rel: "noopener", class: "button secondary" %>
+      <%= link_to "プロンプト確認", export_codex_prompt_auto_revision_task_path(@auto_revision_task), class: "button secondary" %>
+      <%= button_to "Codex手動送信用として準備", build_codex_submission_auto_revision_task_path(@auto_revision_task), method: :post, class: "button secondary" %>
       <% if submission %>
         <%= link_to "送信詳細", admin_codex_submission_path(submission), class: "button secondary" %>
-        <%= button_to "送信済みにする", mark_codex_submission_submitted_auto_revision_task_path(@auto_revision_task), method: :patch, class: "button secondary" %>
+        <%= button_to "手動送信済みにする", mark_codex_submission_submitted_auto_revision_task_path(@auto_revision_task), method: :patch, class: "button secondary" %>
         <%= button_to "送信失敗として記録", mark_codex_submission_failed_auto_revision_task_path(@auto_revision_task), method: :patch, class: "button danger" %>
       <% end %>
+      <%= link_to "PR URLを登録", "#codex-tracking", class: "button secondary" %>
     </div>
   </section>
 
@@ -169,7 +176,7 @@
     <% if @auto_revision_task.repository_target_warning? %>
       <p class="aicoo-empty-state">
         ⚠ この事業はExecution Profileが<%= @auto_revision_task.repository_target_status %>です。
-        Codex投入前に設定してください。不足: <%= @auto_revision_task.repository_target_missing_fields_label %>
+        Codex手動送信前に設定してください。不足: <%= @auto_revision_task.repository_target_missing_fields_label %>
       </p>
       <div class="actions compact-actions">
         <% if @auto_revision_task.business.business_execution_profile %>
@@ -229,7 +236,7 @@
   <section class="dashboard-section">
     <div class="section-heading">
       <h2>Codex Prompt Target Validation</h2>
-      <p>Codexへ投入する前に、対象Repositoryとプロンプトの安全性を確認します。</p>
+      <p>Codexへ手動送信する前に、対象Repositoryとプロンプトの安全性を確認します。</p>
     </div>
     <% target_validation = @auto_revision_task.codex_prompt_target_validation %>
     <div class="metric-grid">
@@ -259,10 +266,10 @@
     <% end %>
   </section>
 
-  <section class="dashboard-section">
+  <section class="dashboard-section" id="codex-tracking">
     <div class="section-heading">
       <h2>Codex Execution Tracking</h2>
-      <p>Codexへ投入した日時、実行スレッド、最終確認日時を記録します。</p>
+      <p>Codexへ手動送信した日時、実行スレッド、PR URL、最終確認日時を記録します。</p>
     </div>
     <dl class="detail-list">
       <dt>status</dt>
@@ -298,6 +305,10 @@
         <%= form.text_field :codex_session_label, placeholder: "SUELOG-SEO-001" %>
       </div>
       <div class="field">
+        <%= form.label :pull_request_url, "PR URL" %>
+        <%= form.url_field :pull_request_url, placeholder: "https://github.com/owner/repo/pull/123" %>
+      </div>
+      <div class="field">
         <%= form.label :last_checked_at, "最終確認日時" %>
         <%= form.datetime_field :last_checked_at,
                                 value: (@auto_revision_task.last_checked_at&.strftime("%Y-%m-%dT%H:%M")) %>
@@ -312,13 +323,13 @@
   <section class="dashboard-section">
     <div class="section-heading">
       <h2>Codex用プロンプト</h2>
-      <p>この内容をCodexに貼って、承認済みタスクとして実行できます。</p>
+      <p>この内容をCloud Codexに手動で貼って、承認済みタスクとして実行できます。</p>
     </div>
     <div class="actions compact-actions">
       <button type="button"
               class="button secondary"
               onclick="navigator.clipboard.writeText(document.getElementById('auto-revision-codex-prompt').value)">
-        Codexプロンプトをコピー
+        Codex用プロンプトをコピー
       </button>
     </div>
     <div class="field">

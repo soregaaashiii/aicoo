@@ -112,7 +112,9 @@
           <% end %>
         </div>
 
-        <%= render "shared/operation_status_panel", monitor: @long_running_operation_monitor %>
+        <%= render "shared/operation_status_panel",
+                   monitor: @long_running_operation_monitor,
+                   daily_run_status: @daily_run_execution_status %>
 
         <%= yield %>
       </main>

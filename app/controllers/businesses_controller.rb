@@ -25,6 +25,10 @@ class BusinessesController < ApplicationController
                                                    .by_recommendation
                                                    .limit(10)
     @ai_improvement_auto_revision_tasks = @business.auto_revision_tasks.active.by_priority.limit(10)
+    @business_codex_waiting_tasks = @business.auto_revision_tasks
+                                           .where(status: %w[ready_for_codex queued approved])
+                                           .by_priority
+                                           .limit(5)
     @data_sources = @business.data_sources.includes(:data_imports).order(:name)
     @recent_data_imports = @business.data_imports.includes(:data_source).recent.limit(5)
     @recent_serp_analyses = @business.serp_analyses.order(analyzed_at: :desc).limit(10)

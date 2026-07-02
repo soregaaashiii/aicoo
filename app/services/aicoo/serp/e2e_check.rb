@@ -2,7 +2,7 @@ module Aicoo
   module Serp
     class E2eCheck
       Check = Data.define(:key, :label, :status, :message, :repair_action, :details)
-      Result = Data.define(:business, :checks, :scan_plan_keywords, :latest_analysis, :serp_candidates, :serp_runs, :generated_at) do
+      Result = Data.define(:business, :checks, :scan_plan_keywords, :latest_analysis, :serp_candidates, :serp_runs, :pipeline_metrics, :generated_at) do
         def overall_status
           return "broken" if checks.any? { |check| check.status == "fail" }
           return "warning" if checks.any? { |check| check.status == "warning" }
@@ -49,6 +49,7 @@ module Aicoo
           latest_analysis:,
           serp_candidates:,
           serp_runs:,
+          pipeline_metrics:,
           generated_at: Time.current
         )
       end
@@ -156,8 +157,26 @@ module Aicoo
       end
 
       def serp_result_check
-        return check(:serp_result, "SERP取得結果", "fail", "SERP取得結果がありません。", repair_action: "run_serp_scan") unless latest_analysis
-        return check(:serp_result, "SERP取得結果", "fail", "SERP成功結果がありません。", repair_action: "run_serp_scan") unless latest_analysis.successful?
+        unless latest_analysis
+          return check(
+            :serp_result,
+            "SERP取得結果",
+            "fail",
+            "選択BusinessのSerpAnalysis保存0件です。SERP Runは成功していても、このBusinessには解析結果が紐付いていません。",
+            repair_action: "run_serp_scan",
+            details: pipeline_metrics.merge(fail_reason: "business_serp_analysis_missing")
+          )
+        end
+        unless latest_analysis.successful?
+          return check(
+            :serp_result,
+            "SERP取得結果",
+            "fail",
+            "選択BusinessのSERP成功結果がありません。最後の解析status=#{latest_analysis.status}です。",
+            repair_action: "run_serp_scan",
+            details: pipeline_metrics.merge(fail_reason: "business_serp_analysis_not_success", latest_status: latest_analysis.status, latest_error: latest_analysis.error_message)
+          )
+        end
 
         details = {
           title_count: latest_analysis.serp_results.where.not(title: [ nil, "" ]).count,
@@ -167,7 +186,14 @@ module Aicoo
         }
         return check(:serp_result, "SERP取得結果", "pass", "SERP結果が保存されています。", details:) if latest_analysis.serp_results.exists?
 
-        check(:serp_result, "SERP取得結果", "fail", "SERP分析はsuccessですが、serp_resultsが0件です。", repair_action: "run_serp_scan", details:)
+        check(
+          :serp_result,
+          "SERP取得結果",
+          "fail",
+          "SerpResult保存0件です。SerpAnalysisはsuccessですが、検索結果行が保存されていません。",
+          repair_action: "run_serp_scan",
+          details: details.merge(pipeline_metrics).merge(fail_reason: "serp_result_missing")
+        )
       end
 
       def learning_check
@@ -191,7 +217,20 @@ module Aicoo
           return check(:action_candidate, "Action Candidate", "pass", "SERP由来候補が#{serp_candidates.count}件あります。", details:)
         end
         if latest_analysis&.successful?
-          return check(:action_candidate, "Action Candidate", "fail", "SERP成功済みですが候補が0件です。", repair_action: "regenerate_action_candidates", details:)
+          reason =
+            if pipeline_metrics[:business_result_count].zero?
+              "SerpResult保存0件のためCandidate生成材料がありません。"
+            else
+              "Candidate生成件数0件です。候補生成ルール未達、OpenAI失敗、またはMetricActionCandidateGeneratorのSERP分岐を確認してください。"
+            end
+          return check(
+            :action_candidate,
+            "Action Candidate",
+            "fail",
+            "SERP成功済みですが候補が0件です。#{reason}",
+            repair_action: "regenerate_action_candidates",
+            details: details.merge(pipeline_metrics).merge(fail_reason: "serp_candidate_missing")
+          )
         end
 
         check(:action_candidate, "Action Candidate", "warning", "SERP由来候補はまだありません。", details:)
@@ -263,6 +302,42 @@ module Aicoo
 
       def serp_runs
         @serp_runs ||= SerpRun.recent.limit(12).to_a
+      end
+
+      def latest_serp_run
+        @latest_serp_run ||= serp_runs.first
+      end
+
+      def latest_run_analyses
+        @latest_run_analyses ||= latest_serp_run ? latest_serp_run.serp_analyses.includes(:serp_results).to_a : []
+      end
+
+      def latest_run_business_analyses
+        @latest_run_business_analyses ||= latest_run_analyses.select { |analysis| analysis.business_id == business.id }
+      end
+
+      def pipeline_metrics
+        @pipeline_metrics ||= begin
+          run_analyses = latest_run_analyses
+          business_analyses = latest_run_business_analyses
+          run_result_count = run_analyses.sum { |analysis| analysis.serp_results.size }
+          business_result_count = business_analyses.sum { |analysis| analysis.serp_results.size }
+          candidate_scope = latest_serp_run ? serp_candidates.where(created_at: latest_serp_run.started_at..Time.current) : serp_candidates
+
+          {
+            latest_serp_run_id: latest_serp_run&.id,
+            latest_serp_run_status: latest_serp_run&.status,
+            fetched_query_count: latest_serp_run&.query_count.to_i,
+            saved_analysis_count: run_analyses.size,
+            saved_result_count: run_result_count,
+            business_analysis_count: business_analyses.size,
+            business_result_count:,
+            parsed_result_count: run_result_count,
+            candidate_count: candidate_scope.count,
+            latest_run_started_at: latest_serp_run&.started_at,
+            latest_run_finished_at: latest_serp_run&.finished_at
+          }
+        end
       end
 
       def latest_skipped_step_count

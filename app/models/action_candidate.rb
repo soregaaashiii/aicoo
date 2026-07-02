@@ -1,4 +1,6 @@
 class ActionCandidate < ApplicationRecord
+  attr_reader :business_promotion_result
+
   ACTION_TYPES = %w[
     seo_article
     seo_improvement
@@ -90,6 +92,7 @@ class ActionCandidate < ApplicationRecord
 
   def approve!(approved_by: nil)
     transaction do
+      @business_promotion_result = Aicoo::ActionCandidateBusinessPromoter.new(self).call
       update!(status: "approved", approved_at: Time.current, approved_by:)
       ensure_action_execution!
       AutoRevisionTask.from_action_candidate(self, generated_by: "action_candidate_approval")

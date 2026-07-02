@@ -1696,7 +1696,7 @@
                 <td class="number"><%= number_to_currency(candidate.expected_profit_yen, unit: "¥", precision: 0) %></td>
                 <td class="wide-text"><%= truncate(candidate.evaluation_reason.presence || candidate.description, length: 90) %></td>
                 <td class="actions compact-actions">
-                  <%= button_to "Codexへ送る",
+                  <%= button_to "Codex用プロンプト作成",
                                 generate_codex_prompt_draft_action_candidate_path(candidate),
                                 method: :post,
                                 class: "button secondary" %>
@@ -1713,6 +1713,42 @@
 
     <div class="aicoo-card aicoo-card-compact">
       <h3>Codex改修候補</h3>
+      <div class="aicoo-inline-panel">
+        <h4>このBusinessの送信待ちTask</h4>
+        <p class="muted">Cloud Codex API連携は未実装です。プロンプトをコピーして手動送信し、送信後に記録してください。</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>改修</th>
+                <th>状態</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% @business_codex_waiting_tasks.each do |task| %>
+                <tr>
+                  <td><%= link_to task.title, task %></td>
+                  <td><span class="pill"><%= task.status %></span></td>
+                  <td class="actions compact-actions">
+                    <button type="button"
+                            class="button secondary"
+                            onclick="navigator.clipboard.writeText(this.dataset.prompt)"
+                            data-prompt="<%= h(task.codex_prompt) %>">
+                      Codex用プロンプトをコピー
+                    </button>
+                    <%= link_to "プロンプト確認", export_codex_prompt_auto_revision_task_path(task), class: "button secondary" %>
+                    <%= button_to "手動送信済みにする", mark_codex_submission_submitted_auto_revision_task_path(task), method: :patch, class: "button" %>
+                  </td>
+                </tr>
+              <% end %>
+              <% if @business_codex_waiting_tasks.empty? %>
+                <tr><td colspan="3">このBusinessの送信待ちTaskはありません。</td></tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      </div>
       <div class="table-wrap">
         <table>
           <thead>
@@ -1730,7 +1766,7 @@
                 <td><span class="pill"><%= task.status %></span></td>
                 <td><span class="pill"><%= task.risk_level %></span></td>
                 <td class="actions compact-actions">
-                  <%= link_to "Codexへ送る", export_codex_prompt_auto_revision_task_path(task), class: "button secondary" %>
+                  <%= link_to "プロンプト確認", export_codex_prompt_auto_revision_task_path(task), class: "button secondary" %>
                 </td>
               </tr>
             <% end %>

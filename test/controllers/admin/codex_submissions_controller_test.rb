@@ -42,7 +42,7 @@ module Admin
       get admin_codex_submissions_url
 
       assert_response :success
-      assert_includes response.body, "Codex送信一覧"
+      assert_includes response.body, "Codex手動送信一覧"
       assert_includes response.body, @business.name
       assert_includes response.body, @submission.project_folder
       assert_includes response.body, @task.title
@@ -75,7 +75,7 @@ module Admin
       get admin_codex_submission_url(@submission)
 
       assert_response :success
-      assert_includes response.body, "Codex送信詳細"
+      assert_includes response.body, "Codex手動送信詳細"
       assert_includes response.body, "Execution Profile"
       assert_includes response.body, "AutoRevisionTask"
       assert_includes response.body, "Response Payload"

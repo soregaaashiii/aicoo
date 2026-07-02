@@ -35,11 +35,81 @@
         <div class="metric-card"><span>Scan予定クエリ</span><strong><%= @serp_e2e_check.scan_plan_keywords.size %>件</strong></div>
         <div class="metric-card"><span>SERP候補</span><strong><%= @serp_e2e_check.serp_candidates.count %>件</strong></div>
       </div>
+      <% metrics = @serp_e2e_check.pipeline_metrics %>
+      <div class="metric-grid">
+        <div class="metric-card"><span>取得件数</span><strong><%= metrics[:fetched_query_count] %></strong><small>SerpRun.query_count</small></div>
+        <div class="metric-card"><span>保存件数</span><strong><%= metrics[:saved_result_count] %></strong><small>SerpResult全体</small></div>
+        <div class="metric-card"><span>解析件数</span><strong><%= metrics[:saved_analysis_count] %></strong><small>SerpAnalysis全体</small></div>
+        <div class="metric-card"><span>Business解析</span><strong><%= metrics[:business_analysis_count] %></strong><small><%= @business.name %></small></div>
+        <div class="metric-card"><span>Business保存</span><strong><%= metrics[:business_result_count] %></strong><small>Business紐付け済みSerpResult</small></div>
+        <div class="metric-card"><span>Candidate生成件数</span><strong><%= metrics[:candidate_count] %></strong><small>SERP由来</small></div>
+      </div>
       <% if (problem = @serp_e2e_check.first_problem) %>
         <div class="<%= problem.status == "fail" ? "error-toast" : "notice-toast" %>">
           最優先: <strong><%= problem.label %></strong> - <%= problem.message %>
+          <% if problem.details.to_h[:fail_reason].present? %>
+            <br><small>FAIL理由: <%= problem.details[:fail_reason] %></small>
+          <% end %>
         </div>
       <% end %>
+    </section>
+
+    <section class="dashboard-section">
+      <div class="section-heading">
+        <h2>取得からCandidate生成まで</h2>
+        <p>どの段階で止まっているかを件数で確認します。</p>
+      </div>
+      <% metrics = @serp_e2e_check.pipeline_metrics %>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>段階</th>
+              <th>参照モデル</th>
+              <th>件数</th>
+              <th>見る場所</th>
+              <th>0件時の主な原因</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>取得</td>
+              <td>SerpRun</td>
+              <td><%= metrics[:fetched_query_count] %></td>
+              <td>latest run #<%= metrics[:latest_serp_run_id] || "-" %> / <%= metrics[:latest_serp_run_status] || "-" %></td>
+              <td>Scheduler OFF、API Key未設定、実行対象クエリなし</td>
+            </tr>
+            <tr>
+              <td>保存</td>
+              <td>SerpResult</td>
+              <td><%= metrics[:saved_result_count] %></td>
+              <td>最新SerpRunに紐づく検索結果全体</td>
+              <td>Providerレスポンス空、保存処理失敗、SerpAnalysisのみ作成</td>
+            </tr>
+            <tr>
+              <td>解析</td>
+              <td>SerpAnalysis</td>
+              <td><%= metrics[:saved_analysis_count] %></td>
+              <td>最新SerpRunに紐づく解析</td>
+              <td>RunはあるがScanRunnerが解析保存まで到達していない</td>
+            </tr>
+            <tr>
+              <td>Business紐付け</td>
+              <td>SerpAnalysis / SerpResult</td>
+              <td><%= metrics[:business_analysis_count] %> / <%= metrics[:business_result_count] %></td>
+              <td><%= @business.name %> に紐づく結果</td>
+              <td>選択Business以外のクエリが実行された、business_id紐付けなし</td>
+            </tr>
+            <tr>
+              <td>Candidate生成</td>
+              <td>ActionCandidate</td>
+              <td><%= metrics[:candidate_count] %></td>
+              <td>generation_source=serp</td>
+              <td>候補生成ルール未達、OpenAI失敗、ActionCandidate化未実行</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </section>
 
     <section class="dashboard-section">

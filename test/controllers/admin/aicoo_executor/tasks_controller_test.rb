@@ -74,6 +74,20 @@ module Admin
         assert_not_includes response.body, "Other task"
       end
 
+      test "shows codex waiting auto revision tasks filter" do
+        task = AutoRevisionTask.from_action_candidate(action_candidates(:nagazakicho_article))
+        task.approve!
+
+        get admin_aicoo_executor_url(codex_filter: "waiting")
+
+        assert_response :success
+        assert_includes response.body, "Codex送信待ち"
+        assert_includes response.body, task.title
+        assert_includes response.body, businesses(:suelog).name
+        assert_includes response.body, "プロンプト確認"
+        assert_includes response.body, "手動送信済みにする"
+      end
+
       test "creates executor task from revenue execution" do
         candidate = create_candidate(title: "Executor LP candidate")
         execution = create_revenue_execution(source_id: candidate.id, title: candidate.title)

@@ -28,9 +28,9 @@ module Aicoo
       summary = BusinessGoogleConnectionSummary.new(@business, source_key: "ga4").call
 
       assert_equal "536889590", summary.identifier
-      assert_equal "AnalyticsSourceSetting", summary.setting_source
+      assert_equal "全体設定を使用", summary.setting_source
       assert summary.reauthentication_required
-      assert_equal "再認証が必要", summary.status_label
+      assert_equal "再認証が必要（全体設定を使用）", summary.status_label
     end
 
     test "business data source setting requires explicit credential" do
@@ -55,9 +55,9 @@ module Aicoo
       summary = BusinessGoogleConnectionSummary.new(@business, source_key: "ga4").call
 
       assert_equal "536889590", summary.identifier
-      assert_equal "BusinessDataSourceSetting", summary.setting_source
+      assert_equal "Business個別設定", summary.setting_source
       assert_nil summary.credential
-      assert_equal "Google Credential未設定", summary.status_label
+      assert_equal "再認証が必要（Business個別設定）", summary.status_label
     end
   end
 end

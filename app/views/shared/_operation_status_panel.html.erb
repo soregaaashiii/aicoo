@@ -1,11 +1,19 @@
 <% monitor = local_assigns[:monitor] %>
-<% if monitor&.running? %>
+<% daily_run_status = local_assigns[:daily_run_status] %>
+<% daily_run_running = daily_run_status&.running? %>
+<% running_operations = Array(monitor&.running_operations) %>
+<% running_operations = running_operations.reject { |operation| operation.kind == "Daily Run" } if daily_run_running %>
+<% if daily_run_running || running_operations.any? %>
   <section
     id="aicoo-operation-status-panel"
     class="operation-status-panel"
     data-aicoo-operation-panel="true"
-    data-aicoo-auto-refresh="<%= monitor.running? ? 5000 : nil %>">
-    <% if monitor.running_operations.any? %>
+    data-aicoo-auto-refresh="5000">
+    <% if daily_run_running %>
+      <%= render "shared/daily_run_execution_status", status: daily_run_status, mode: :compact %>
+    <% end %>
+
+    <% if running_operations.any? %>
       <div class="status-banner status-banner-running">
         <span class="aicoo-spinner" aria-hidden="true"></span>
         <div>
@@ -29,7 +37,7 @@
             </tr>
           </thead>
           <tbody>
-            <% monitor.running_operations.each do |operation| %>
+            <% running_operations.each do |operation| %>
               <%= render "shared/operation_status", operation:, mode: :compact %>
             <% end %>
           </tbody>

@@ -71,6 +71,7 @@ module Aicoo
       profile = DataSourceCostProfile.for_source(source_key)
       business_setting = business ? BusinessDataSourceSetting.for_business_and_source(business, source_key) : nil
       business_enabled = business_setting.nil? ? true : business_setting.enabled?
+      business_connection = business ? Aicoo::BusinessConnectionStatus.new(business, source_key:).call : nil
       global_connection = global_connection_for(profile)
       cost = estimated_cost_yen || profile.average_cost_yen
       expected_profit = expected_profit_yen || profile.average_expected_profit_yen
@@ -90,11 +91,11 @@ module Aicoo
         last_run_at: profile.last_run_at,
         last_error: profile.last_error,
         business_enabled:,
-        connection_status: global_connection[:status] || business_setting&.connection_status,
-        connection_label: global_connection[:label] || business_setting&.connection_status_label,
-        connection_status_level: global_connection[:level] || business_setting&.connection_status_level || "attention",
-        connection_summary: global_connection[:summary] || business_setting&.connection_summary,
-        linked: global_connection[:linked] || business_setting&.linked? || false,
+        connection_status: business_connection&.status_key || global_connection[:status] || business_setting&.connection_status,
+        connection_label: business_connection&.display_label || global_connection[:label] || business_setting&.connection_status_label,
+        connection_status_level: business_connection&.status_level || global_connection[:level] || business_setting&.connection_status_level || "attention",
+        connection_summary: business_connection&.summary || global_connection[:summary] || business_setting&.connection_summary,
+        linked: business_connection&.configured? || global_connection[:linked] || business_setting&.linked? || false,
         manual: profile.execution_mode == "manual",
         smart: profile.execution_mode == "smart",
         auto: profile.execution_mode == "auto",

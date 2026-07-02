@@ -27,12 +27,12 @@ module Admin
 
     def mark_submitted
       @codex_submission.mark_submitted!(payload: { "marked_by" => "owner", "source" => "codex_submission_detail" })
-      redirect_to admin_codex_submission_path(@codex_submission), notice: "Codex送信済みにしました。"
+      redirect_to admin_codex_submission_path(@codex_submission), notice: "Codexへ手動送信済みとして記録しました。"
     end
 
     def mark_failed
       @codex_submission.mark_failed!(params[:error_message].presence || "Ownerが送信失敗として記録しました。")
-      redirect_to admin_codex_submission_path(@codex_submission), notice: "Codex送信失敗として記録しました。"
+      redirect_to admin_codex_submission_path(@codex_submission), notice: "Codex手動送信失敗として記録しました。"
     end
 
     def mark_completed
@@ -42,7 +42,7 @@ module Admin
 
     def retry
       @codex_submission.retry!
-      redirect_back fallback_location: admin_codex_connection_path, notice: "Codex送信を再試行待ちに戻しました。"
+      redirect_back fallback_location: admin_codex_connection_path, notice: "Codex手動送信を再試行待ちに戻しました。"
     end
 
     def update_tracking

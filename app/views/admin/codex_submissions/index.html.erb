@@ -1,4 +1,4 @@
-<% content_for :title, "Codex送信一覧" %>
+<% content_for :title, "Codex手動送信一覧" %>
 
 <% header_actions = capture do %>
   <%= link_to "改修キュー", codex_queue_auto_revision_tasks_path, class: "button secondary" %>
@@ -7,15 +7,15 @@
 
 <div class="aicoo-page">
   <%= render "shared/aicoo_header",
-             title: "Codex送信一覧",
-             description: "AutoRevisionTaskをCodex Cloudへ渡す前の作業単位として管理します。",
+             title: "Codex手動送信一覧",
+             description: "AutoRevisionTaskをCloud Codexへ手動で渡す前の作業単位として管理します。",
              active_main: :dashboard,
              actions: header_actions %>
 
   <section class="dashboard-section">
     <div class="section-heading">
       <h2>絞り込み</h2>
-      <p>status、Business、作業フォルダ、riskで送信待ちを確認します。</p>
+      <p>status、Business、作業フォルダ、riskで手動送信待ちを確認します。</p>
     </div>
     <%= form_with url: admin_codex_submissions_path, method: :get, class: "inline-form", data: { turbo: false } do |form| %>
       <div class="field compact-field">
@@ -50,7 +50,7 @@
             <th>Task</th>
             <th>Risk</th>
             <th>作成</th>
-            <th>送信</th>
+            <th>手動送信</th>
             <th>操作</th>
           </tr>
         </thead>
@@ -69,7 +69,7 @@
             </tr>
           <% end %>
           <% if @codex_submissions.empty? %>
-            <tr><td colspan="9">Codex送信はまだありません。</td></tr>
+            <tr><td colspan="9">Codex手動送信はまだありません。</td></tr>
           <% end %>
         </tbody>
       </table>

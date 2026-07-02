@@ -3,7 +3,7 @@
 <div class="aicoo-page">
   <%= render "shared/aicoo_header",
              title: "実行指示",
-             description: "今日やることや新規事業の候補を、Codexへ渡せる実行タスクとして整理します。まだ自動実行はしません。",
+             description: "今日やることや新規事業の候補を、Codexへ貼り付ける実行タスクとして整理します。まだ自動実行はしません。",
              active_main: :executor %>
 
 <section class="dashboard-section">
@@ -17,6 +17,7 @@
   <div class="metric-grid">
     <div class="metric-card"><span>実行待ち</span><strong><%= @summary.waiting_count %></strong></div>
     <div class="metric-card"><span>承認待ち</span><strong><%= @summary.approval_pending_count %></strong></div>
+    <div class="metric-card"><span>Codex送信待ち</span><strong><%= @summary.codex_waiting_count %></strong></div>
     <div class="metric-card"><span>データ整備タスク</span><strong><%= @summary.data_preparation_count %></strong></div>
     <div class="metric-card"><span>完了</span><strong><%= @summary.done_count %></strong></div>
   </div>
@@ -28,6 +29,11 @@
     <p>Codex実行指示を確認し、人間が承認してから実行に進めます。</p>
   </div>
 
+  <div class="actions compact-actions">
+    <%= link_to "すべて", admin_aicoo_executor_path, class: "button #{'secondary' if @codex_filter.present?}" %>
+    <%= link_to "Codex送信待ち", admin_aicoo_executor_path(codex_filter: "waiting"), class: "button #{'secondary' unless @codex_filter == 'waiting'}" %>
+  </div>
+
   <%= form_with url: admin_aicoo_executor_path, method: :get, class: "filters" do |form| %>
     <div class="field compact-field">
       <%= form.label :execution_type, "タスク種別" %>
@@ -36,6 +42,51 @@
     </div>
     <%= form.submit "絞り込み", class: "button" %>
     <%= link_to "解除", admin_aicoo_executor_path, class: "button secondary" %>
+  <% end %>
+
+  <% if @codex_filter == "waiting" %>
+    <div class="aicoo-card aicoo-card-compact">
+      <div class="section-heading">
+        <div>
+          <h3>Codex送信待ち</h3>
+          <p>Cloud Codex API連携は未実装のため、ここではプロンプト確認と手動送信済み記録を行います。</p>
+        </div>
+        <%= link_to "Auto Revision Queue", codex_queue_auto_revision_tasks_path, class: "button secondary" %>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>改修</th>
+              <th>Business</th>
+              <th>status</th>
+              <th>risk</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @codex_waiting_tasks.each do |task| %>
+              <tr>
+                <td><%= link_to task.title, task %></td>
+                <td><%= link_to task.business.name, task.business %></td>
+                <td><span class="pill"><%= task.status %></span></td>
+                <td><span class="pill"><%= task.risk_level %></span></td>
+                <td class="actions compact-actions">
+                  <%= link_to "プロンプト確認", export_codex_prompt_auto_revision_task_path(task), class: "button secondary" %>
+                  <%= link_to "詳細", task, class: "button secondary" %>
+                  <% if %w[queued ready_for_codex approved].include?(task.status) %>
+                    <%= button_to "手動送信済みにする", mark_codex_submission_submitted_auto_revision_task_path(task), method: :patch, class: "button" %>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+            <% if @codex_waiting_tasks.empty? %>
+              <tr><td colspan="5">Codex送信待ちの改修タスクはありません。</td></tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
   <% end %>
 
   <div class="table-wrap">

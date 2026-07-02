@@ -27,6 +27,7 @@ module Aicoo
       :status_level,
       :global_status,
       :uses_global,
+      :setting_label,
       :connection_summary,
       :execution_mode,
       :monthly_budget_yen,
@@ -110,41 +111,13 @@ module Aicoo
     end
 
     def codex_status(business)
-      if business.aicoo_internal_codex?
-        return CodexStatus.new(
-          status_key: "aicoo_internal",
-          status_label: "🟢 AICOO内部プロジェクト（接続済み）",
-          status_level: "healthy",
-          summary: "AICOO本体Repositoryを使用"
-        )
-      end
-
-      configured = business.project_key.present? &&
-        business.local_project_path.present? &&
-        business.repository_name.present?
-      profile = business.business_execution_profile
-      if configured
-        CodexStatus.new(
-          status_key: "individual",
-          status_label: "✅ 個別設定済み",
-          status_level: "healthy",
-          summary: business.repository_name
-        )
-      elsif profile&.coverage_status == "configured"
-        CodexStatus.new(
-          status_key: "profile",
-          status_label: "🟢 Execution Profile使用",
-          status_level: "healthy",
-          summary: profile.display_repository_name
-        )
-      else
-        CodexStatus.new(
-          status_key: "missing",
-          status_label: "🔴 未設定",
-          status_level: "critical",
-          summary: "project_key / path / repository未設定"
-        )
-      end
+      status = Aicoo::BusinessConnectionStatus.new(business, source_key: "codex").call
+      CodexStatus.new(
+        status_key: status.status_key,
+        status_label: status.display_label,
+        status_level: status.status_level,
+        summary: status.summary
+      )
     end
 
     private
@@ -189,66 +162,24 @@ module Aicoo
       setting = settings_by_business_and_source[[ business.id, profile.source_key ]] ||
         BusinessDataSourceSetting.new(business:, source_key: profile.source_key)
       global_status = build_global_status(profile)
-      uses_global = use_global?(setting)
-      google_identifier = google_business_identifier(business, profile.source_key, setting)
-      status_key, status_label, status_level = business_status_tuple(setting, global_status, uses_global, google_identifier:)
+      status = Aicoo::BusinessConnectionStatus.new(business, source_key: profile.source_key).call
       BusinessStatus.new(
         source_key: profile.source_key,
         name: profile.name,
-        enabled: setting.enabled?,
-        status_key:,
-        status_label:,
-        status_level:,
+        enabled: status.enabled?,
+        status_key: status.status_key,
+        status_label: status.display_label,
+        status_level: status.status_level,
         global_status:,
-        uses_global:,
-        connection_summary: google_identifier.presence || setting.connection_summary,
+        uses_global: status.uses_global?,
+        setting_label: status.setting_label,
+        connection_summary: status.summary.presence || setting.connection_summary,
         execution_mode: source_binding(setting)["execution_mode"].presence || profile.execution_mode,
         monthly_budget_yen: source_binding(setting)["monthly_budget_yen"].presence || profile.monthly_budget_yen,
-        last_sync_at: setting.last_connected_at || profile.last_run_at,
+        last_sync_at: status.last_fetched_at || setting.last_connected_at || profile.last_run_at,
         manual_paid: manual_paid?(profile),
-        warning: business_warning(setting, global_status, uses_global, google_identifier:)
+        warning: status.warning
       )
-    end
-
-    def business_status_tuple(setting, global_status, uses_global, google_identifier: nil)
-      return [ "disabled", "無効", "attention" ] unless setting.enabled?
-      return [ "error", "🔴 エラー", "critical" ] if setting.connection_status == "error"
-      if setting.linked?
-        return [ "individual", "✅ 個別設定済み", "healthy" ]
-      end
-      if google_identifier.present? && uses_global && global_status.global_default_available
-        return [ "global", "🟢 全体設定使用", "healthy" ]
-      end
-      if setting.connection_status == "needs_attention"
-        return [ "needs_attention", "⚠ 設定済みだが未同期", "warning" ]
-      end
-      if uses_global && global_status.global_default_available
-        return [ "global", "🟢 全体設定使用", "healthy" ]
-      end
-      if setting_present?(setting)
-        return [ "needs_attention", "⚠ 設定済みだが未同期", "warning" ]
-      end
-
-      [ "missing", "🔴 未設定", "critical" ]
-    end
-
-    def business_warning(setting, global_status, uses_global, google_identifier: nil)
-      return "Business側で無効です" unless setting.enabled?
-      return setting.notes.presence || "接続エラーを確認してください" if setting.connection_status == "error"
-      return "AICOO全体設定の認証情報が未設定です" if uses_global && !global_status.global_default_available
-      return "設定済みですが同期成功がまだありません" if google_identifier.present? && setting.connection_status == "needs_attention"
-      return "Business固有のProperty / Account / Keywordが未設定です" if setting.connection_status == "unlinked" && !uses_global
-      return "設定済みですが同期成功がまだありません" if setting.connection_status == "needs_attention"
-
-      nil
-    end
-
-    def setting_present?(setting)
-      setting.property_identifier.present? ||
-        setting.external_account_id.present? ||
-        setting.endpoint_url.present? ||
-        setting.credential_reference.present? ||
-        setting.connection_field_values.values.any?(&:present?)
     end
 
     def use_global?(setting)
@@ -269,32 +200,6 @@ module Aicoo
       return true if profile.source_key.in?(%w[gsc ga4]) && AicooGoogleCredential.default&.connected?
 
       false
-    end
-
-    def google_business_identifier(business, source_key, setting)
-      return unless source_key.in?(%w[gsc ga4])
-
-      key = source_key == "gsc" ? "site_url" : "property_id"
-      setting.connection_field_value(key).presence ||
-        setting.property_identifier.presence ||
-        analytics_site_identifier(business, source_key) ||
-        named_analytics_setting_identifier(business, source_key) ||
-        (business.gsc_site_url.presence if source_key == "gsc")
-    end
-
-    def analytics_site_identifier(business, source_key)
-      site = AicooAnalyticsSite.where(business:).recent.first
-      source_key == "gsc" ? site&.gsc_site_url.presence : site&.ga4_property_id.presence
-    end
-
-    def named_analytics_setting_identifier(business, source_key)
-      return unless source_key.in?(%w[gsc ga4])
-
-      setting = AnalyticsSourceSetting
-        .where(source_type: source_key, enabled: true)
-        .to_a
-        .find { |row| row.name.to_s.match?(/\A#{Regexp.escape(business.name)}\b/i) }
-      source_key == "gsc" ? setting&.site_url.presence : setting&.property_id.presence
     end
 
     def profile_for(source_key)

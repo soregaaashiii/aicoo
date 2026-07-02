@@ -20,17 +20,25 @@ module Aicoo
       status = DataSourceSettingsPresenter.new.business_status(@business, "serp")
 
       assert_equal "global", status.status_key
-      assert_equal "🟢 全体設定使用", status.status_label
+      assert_equal "設定済み（全体設定を使用）", status.status_label
       assert status.uses_global
     end
 
     test "business status is individual when linked" do
+      credential = AicooGoogleCredential.create!(
+        name: "吸えログGoogle認証",
+        client_id: "client",
+        client_secret: "secret",
+        refresh_token: "refresh-token",
+        connected_at: Time.current
+      )
       BusinessDataSourceSetting.create!(
         business: @business,
         source_key: "ga4",
         connection_status: "linked",
         property_identifier: "properties/123",
         metadata: {
+          "google_credential_id" => credential.id,
           "source_binding" => { "use_global" => false },
           "connection_fields" => { "property_id" => "properties/123" }
         }
@@ -38,8 +46,8 @@ module Aicoo
 
       status = DataSourceSettingsPresenter.new.business_status(@business, "ga4")
 
-      assert_equal "individual", status.status_key
-      assert_equal "✅ 個別設定済み", status.status_label
+      assert_equal "business", status.status_key
+      assert_equal "設定済み（Business個別設定）", status.status_label
       assert_not status.uses_global
     end
 
@@ -63,7 +71,7 @@ module Aicoo
       status = DataSourceSettingsPresenter.new.business_status(@business, "ga4")
 
       assert_equal "global", status.status_key
-      assert_equal "🟢 全体設定使用", status.status_label
+      assert_equal "設定済み（全体設定を使用）", status.status_label
       assert_equal "properties/999", status.connection_summary
     end
 
@@ -86,7 +94,7 @@ module Aicoo
       status = DataSourceSettingsPresenter.new.business_status(@business, "ga4")
 
       assert_equal "global", status.status_key
-      assert_equal "🟢 全体設定使用", status.status_label
+      assert_equal "設定済み（全体設定を使用）", status.status_label
       assert_equal "536889590", status.connection_summary
     end
 
@@ -94,7 +102,7 @@ module Aicoo
       status = DataSourceSettingsPresenter.new.business_status(@business, "x")
 
       assert_equal "missing", status.status_key
-      assert_equal "🔴 未設定", status.status_label
+      assert_equal "未設定（未設定）", status.status_label
       assert_equal "critical", status.status_level
     end
 
@@ -121,8 +129,8 @@ module Aicoo
 
       status = DataSourceSettingsPresenter.new.codex_status(@business)
 
-      assert_equal "individual", status.status_key
-      assert_equal "✅ 個別設定済み", status.status_label
+      assert_equal "business", status.status_key
+      assert_equal "設定済み（Business個別設定）", status.status_label
     end
 
     test "codex status is internal for aicoo created business" do
@@ -131,9 +139,9 @@ module Aicoo
       status = DataSourceSettingsPresenter.new.codex_status(@business)
 
       assert_equal "aicoo_internal", status.status_key
-      assert_equal "🟢 AICOO内部プロジェクト（接続済み）", status.status_label
+      assert_equal "設定済み（Business個別設定）", status.status_label
       assert_equal "healthy", status.status_level
-      assert_equal "AICOO本体Repositoryを使用", status.summary
+      assert_equal "AICOO内部プロジェクト（接続済み）", status.summary
     end
   end
 end

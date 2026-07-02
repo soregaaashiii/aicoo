@@ -254,6 +254,84 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
     assert_equal auto_revision_task.id, OwnerTaskCompletionLog.last.metadata["auto_revision_task_id"]
   end
 
+  test "approving new business candidate creates visible business and reassigns candidate" do
+    source_business = businesses(:suelog)
+    candidate = ActionCandidate.create!(
+      business: source_business,
+      title: "フリーランス請求前チェックリスト",
+      description: "請求前の抜け漏れを防ぐ新規サービス候補",
+      action_type: "build_lp",
+      department: "new_business",
+      generation_source: "integrated_decision",
+      status: "idea",
+      immediate_value_yen: 80_000,
+      success_probability: 0.3,
+      expected_hours: 2,
+      metadata: {
+        "candidate_kind" => "new_business",
+        "source_query" => "フリーランス 請求 チェックリスト",
+        "problem" => "請求前の確認漏れ",
+        "target_customer" => "個人で請求業務を行うフリーランス",
+        "revenue_model" => "テンプレート販売またはSaaS"
+      }
+    )
+
+    assert_difference("Business.real_businesses.count", 1) do
+      assert_difference("AutoRevisionTask.count", 1) do
+        patch approve_action_candidate_url(candidate)
+      end
+    end
+
+    business = Business.real_businesses.find_by!(name: "フリーランス請求前チェックリスト")
+    assert_redirected_to auto_revision_task_url(AutoRevisionTask.last)
+    assert_equal business, candidate.reload.business
+    assert_equal "approved", candidate.status
+    assert_equal "integrated_decision", business.source
+    assert_equal "lp_validation", business.lifecycle_stage
+    assert_equal "idea", business.status
+    assert business.created_by_aicoo?
+    assert business.daily_run_enabled?
+    assert business.serp_enabled?
+    assert_includes business.metadata, "action_candidate_id"
+    assert_includes flash[:notice], "Businessを作成しました: #{business.name}"
+
+    get businesses_url
+    assert_response :success
+    assert_includes response.body, business.name
+  end
+
+  test "approving new business candidate links existing business without duplicate" do
+    existing = Business.create!(
+      name: "既存AIメモ事業",
+      description: "既に存在する新規事業",
+      status: "idea",
+      lifecycle_stage: "lp_validation",
+      resource_status: "active",
+      business_type: "landing_page",
+      source: "manual"
+    )
+    candidate = ActionCandidate.create!(
+      business: businesses(:suelog),
+      title: existing.name,
+      action_type: "new_business",
+      department: "new_business",
+      generation_source: "serp",
+      status: "idea",
+      immediate_value_yen: 50_000,
+      success_probability: 0.2,
+      metadata: { "candidate_kind" => "new_business" }
+    )
+
+    assert_no_difference("Business.count") do
+      patch approve_action_candidate_url(candidate)
+    end
+
+    assert_redirected_to auto_revision_task_url(AutoRevisionTask.last)
+    assert_equal existing, candidate.reload.business
+    assert_equal "approved", candidate.status
+    assert_includes flash[:notice], "既存Businessに紐付けました: #{existing.name}"
+  end
+
   test "rejects action candidate from quick action" do
     @action_candidate.update!(status: "idea")
 

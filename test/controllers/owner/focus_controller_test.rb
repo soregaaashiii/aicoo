@@ -25,7 +25,7 @@ module Owner
       assert_includes response.body, businesses(:suelog).name
       assert_includes response.body, candidate.title
       assert_includes response.body, "期待利益が"
-      assert_includes response.body, "Codexへ送る"
+      assert_includes response.body, "Codex用プロンプト作成"
       assert_includes response.body, "CEO MODE"
       assert_includes response.body, "Businesses"
       assert_includes response.body, "Today"
@@ -203,7 +203,8 @@ module Owner
 
       assert_response :success
       assert_includes response.body, "Codex送信待ち"
-      assert_includes response.body, "Codex送信一覧へ"
+      assert_includes response.body, "Codex送信待ちを見る"
+      assert_includes response.body, "Codex手動送信一覧へ"
       assert_includes response.body, "ready"
       assert_includes response.body, "1件"
       assert_equal profile, task.reload.codex_submission.business_execution_profile

@@ -2,16 +2,16 @@
   <section class="dashboard-section">
     <div class="section-heading">
       <div>
-        <h2>Codex送信待ち</h2>
-        <p>AutoRevisionTaskをCodex Cloudへ渡すための作業単位です。初期は自動送信せず、Owner承認後に送信できます。</p>
+        <h2>Codex手動送信待ち</h2>
+        <p>AutoRevisionTaskをCloud Codexへ手動で渡すための作業単位です。現時点ではAPI自動送信は行いません。</p>
       </div>
-      <%= link_to "Codex送信一覧へ", admin_codex_submissions_path, class: "button secondary" %>
+      <%= link_to "Codex手動送信一覧へ", admin_codex_submissions_path, class: "button secondary" %>
     </div>
     <div class="metric-grid">
       <div class="metric-card"><span>ready</span><strong><%= summary.ready_count %>件</strong></div>
       <div class="metric-card"><span>draft</span><strong><%= summary.draft_count %>件</strong></div>
       <div class="metric-card"><span>failed</span><strong><%= summary.failed_count %>件</strong></div>
-      <div class="metric-card"><span>今日submitted</span><strong><%= summary.submitted_today_count %>件</strong></div>
+      <div class="metric-card"><span>今日手動送信済み</span><strong><%= summary.submitted_today_count %>件</strong></div>
       <div class="metric-card"><span>送信不可理由あり</span><strong><%= summary.blocked_count %>件</strong></div>
     </div>
   </section>

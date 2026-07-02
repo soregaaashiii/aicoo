@@ -62,10 +62,10 @@ class AutoRevisionTasksController < ApplicationController
 
   def mark_sent_to_codex
     @auto_revision_task.mark_sent_to_codex!
-    redirect_back fallback_location: codex_queue_auto_revision_tasks_path, notice: "Codex投入済みにしました。"
+    redirect_back fallback_location: codex_queue_auto_revision_tasks_path, notice: "Codexへ手動送信済みとして記録しました。"
   rescue ActiveRecord::RecordInvalid => e
     redirect_back fallback_location: codex_queue_auto_revision_tasks_path,
-                  alert: "Codex投入前のTarget Validationに失敗しました: #{e.record.errors.full_messages.to_sentence}"
+                  alert: "Codex手動送信前のTarget Validationに失敗しました: #{e.record.errors.full_messages.to_sentence}"
   end
 
   def start_implementation
@@ -91,25 +91,25 @@ class AutoRevisionTasksController < ApplicationController
 
   def build_codex_submission
     result = Aicoo::CodexSubmissionBuilder.new(@auto_revision_task, force: true).call
-    notice = result.ready ? "Codex送信用として準備しました。" : "Codex送信用Draftを作成しました。"
+    notice = result.ready ? "Codex手動送信用として準備しました。" : "Codex手動送信用Draftを作成しました。"
     redirect_to @auto_revision_task, notice: "#{notice} #{result.reasons.join(' ')}".strip
   rescue ActiveRecord::RecordInvalid => e
-    redirect_to @auto_revision_task, alert: "Codex送信用に作成できません: #{e.record.errors.full_messages.to_sentence}"
+    redirect_to @auto_revision_task, alert: "Codex手動送信用に作成できません: #{e.record.errors.full_messages.to_sentence}"
   end
 
   def mark_codex_submission_submitted
     submission = ensure_codex_submission!
     submission.mark_submitted!(payload: { "marked_by" => "owner", "source" => "auto_revision_task_detail" })
     @auto_revision_task.mark_sent_to_codex! if @auto_revision_task.status.in?(%w[queued ready_for_codex approved])
-    redirect_to @auto_revision_task, notice: "Codex送信済みにしました。"
+    redirect_to @auto_revision_task, notice: "Codexへ手動送信済みとして記録しました。"
   rescue ActiveRecord::RecordInvalid => e
-    redirect_to @auto_revision_task, alert: "Codex送信済みにできません: #{e.record.errors.full_messages.to_sentence}"
+    redirect_to @auto_revision_task, alert: "Codex手動送信済みにできません: #{e.record.errors.full_messages.to_sentence}"
   end
 
   def mark_codex_submission_failed
     submission = ensure_codex_submission!
     submission.mark_failed!(params[:error_message].presence || "Ownerが送信失敗として記録しました。")
-    redirect_to @auto_revision_task, notice: "Codex送信失敗として記録しました。"
+    redirect_to @auto_revision_task, notice: "Codex手動送信失敗として記録しました。"
   end
 
   def export_codex_prompt
@@ -158,6 +158,7 @@ class AutoRevisionTasksController < ApplicationController
       auto_revision_task: [
         :codex_thread_url,
         :codex_session_label,
+        :pull_request_url,
         :last_checked_at
       ]
     )

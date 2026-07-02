@@ -1,4 +1,4 @@
-<% content_for :title, "Codex送信詳細" %>
+<% content_for :title, "Codex手動送信詳細" %>
 
 <% profile = @codex_submission.business_execution_profile %>
 <% task = @codex_submission.auto_revision_task %>
@@ -6,20 +6,20 @@
   <%= link_to "一覧へ戻る", admin_codex_submissions_path, class: "button secondary" %>
   <%= link_to "Codex接続", admin_codex_connection_path(business_id: @codex_submission.business_id, anchor: "codex-tasks"), class: "button secondary" %>
   <%= link_to "AutoRevisionTask", task, class: "button secondary" %>
-  <%= button_to "送信済みにする", mark_submitted_admin_codex_submission_path(@codex_submission), method: :patch, class: "button" unless @codex_submission.status == "submitted" %>
+  <%= button_to "手動送信済みにする", mark_submitted_admin_codex_submission_path(@codex_submission), method: :patch, class: "button" unless @codex_submission.status == "submitted" %>
   <%= button_to "完了にする", mark_completed_admin_codex_submission_path(@codex_submission), method: :patch, class: "button secondary" unless @codex_submission.status == "completed" %>
 <% end %>
 
 <div class="aicoo-page">
   <%= render "shared/aicoo_header",
-             title: "Codex送信詳細",
-             description: "Codex Cloudへ渡す作業単位、プロンプト、Execution Profileを確認します。",
+             title: "Codex手動送信詳細",
+             description: "Cloud Codexへ手動で渡す作業単位、プロンプト、Execution Profileを確認します。",
              active_main: :dashboard,
              actions: header_actions %>
   <%= render "shared/purpose_context_bar",
              business: @codex_submission.business,
              section_label: "自動改修履歴",
-             detail_label: "Codex送信詳細",
+             detail_label: "Codex手動送信詳細",
              list_path: admin_codex_submissions_path %>
 
   <section class="dashboard-section">

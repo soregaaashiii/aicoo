@@ -213,7 +213,7 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "順位急落を確認するためSERP分析を推奨"
     assert_includes response.body, "SERP分析コスト"
     assert_includes response.body, "予想コスト"
-    assert_includes response.body, "未紐付け"
+    assert_includes response.body, "未設定（未設定）"
     assert_includes response.body, "Data Source紐付けを編集"
     assert_includes response.body, "紐付け設定"
     assert_includes response.body, "CODEX"
@@ -231,7 +231,8 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Manual"
     assert_includes response.body, "AI改善提案"
     assert_includes response.body, "AI改善提案テスト"
-    assert_includes response.body, "Codexへ送る"
+    assert_includes response.body, "Codex用プロンプト作成"
+    assert_includes response.body, "このBusinessの送信待ちTask"
   end
 
   test "business google section shows reauthentication actions" do
@@ -286,11 +287,40 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "GSC Site URL"
     assert_includes response.body, "536889590"
     assert_includes response.body, "sc-domain:suelog.jp"
-    assert_includes response.body, "AicooAnalyticsSite"
+    assert_includes response.body, "全体設定を使用"
     assert_includes response.body, "GA4だけテスト取得"
     assert_includes response.body, "GSCだけ再取得"
     assert_includes response.body, "GA4/GSCまとめて再取得"
     assert_includes response.body, credential.name
+  end
+
+  test "connection status labels match across business screens when global settings are usable" do
+    AicooGoogleCredential.create!(
+      name: "AICOO共通Google認証",
+      client_id: "client",
+      client_secret: "secret",
+      refresh_token: "refresh-token",
+      connected_at: Time.current
+    )
+    DataSourceCostProfile.ensure_defaults!
+    DataSourceCostProfile.find_by!(source_key: "serp").update!(api_key: "serper-key")
+
+    get businesses_url
+    assert_response :success
+    assert_includes response.body, "GA4 設定済み（全体設定を使用）"
+    assert_includes response.body, "GSC 設定済み（全体設定を使用）"
+    assert_includes response.body, "SERP 設定済み（全体設定を使用）"
+
+    get business_url(@business)
+    assert_response :success
+    assert_includes response.body, "GA4</span>\n          <strong>設定済み（全体設定を使用）</strong>"
+    assert_includes response.body, "GSC</span>\n          <strong>設定済み（全体設定を使用）</strong>"
+    assert_includes response.body, "SERP</span>\n          <strong>設定済み（全体設定を使用）</strong>"
+
+    get google_settings_business_url(@business)
+    assert_response :success
+    assert_includes response.body, "GA4接続</span>\n          <strong>設定済み（全体設定を使用）</strong>"
+    assert_includes response.body, "GSC接続</span>\n          <strong>設定済み（全体設定を使用）</strong>"
   end
 
   test "updates business google settings and syncs analytics settings" do

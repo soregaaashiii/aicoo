@@ -2,6 +2,8 @@ module Admin
   module AicooExecutor
     class TasksController < ApplicationController
       def index
+        @codex_filter = params[:codex_filter].presence
+        @codex_waiting_tasks = codex_waiting_tasks
         @tasks = filtered_tasks
         @summary = Summary.new
       end
@@ -48,7 +50,17 @@ module Admin
       def filtered_tasks
         tasks = ::AicooExecutorTask.recent
         tasks = tasks.where(execution_type: params[:execution_type]) if params[:execution_type].present?
+        tasks = tasks.none if @codex_filter == "waiting"
         tasks
+      end
+
+      def codex_waiting_tasks
+        return ::AutoRevisionTask.none unless params[:codex_filter] == "waiting"
+
+        ::AutoRevisionTask
+          .includes(:business, :action_candidate)
+          .where(status: %w[ready_for_codex queued approved])
+          .by_priority
       end
 
       Summary = Data.define do
@@ -66,6 +78,10 @@ module Admin
 
         def data_preparation_count
           ::AicooExecutorTask.data_preparation.count
+        end
+
+        def codex_waiting_count
+          ::AutoRevisionTask.where(status: %w[ready_for_codex queued approved]).count
         end
       end
     end

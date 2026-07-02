@@ -61,9 +61,9 @@
                 <td class="actions compact-actions">
                   <%= link_to "詳細", item.detail_path, class: "button secondary" %>
                   <% if item.codex_method == :post %>
-                    <%= button_to "Codexへ送る", item.codex_path, method: :post, class: "button secondary" %>
+                    <%= button_to "Codex用プロンプト作成", item.codex_path, method: :post, class: "button secondary" %>
                   <% else %>
-                    <%= link_to "Codexへ送る", item.codex_path, class: "button secondary" %>
+                    <%= link_to "Codex用プロンプト確認", item.codex_path, class: "button secondary" %>
                   <% end %>
                   <%= button_to "後で", item.defer_path, method: :patch, class: "button secondary" %>
                 </td>
@@ -271,7 +271,16 @@
     </div>
 
     <details class="aicoo-card">
-      <summary><strong>改修・Codex管理</strong> <span class="muted">承認待ち改修、Codex送信待ち、PR/deploy前の作業単位</span></summary>
+      <summary><strong>改修・Codex管理</strong> <span class="muted">承認待ち改修、Codex手動送信待ち、PR/deploy前の作業単位</span></summary>
+      <div class="metric-grid aicoo-owner-secondary">
+        <div class="metric-card"><span>Codex送信待ち</span><strong><%= @codex_submission_summary&.ready_count.to_i %>件</strong></div>
+        <div class="metric-card"><span>承認待ち改修</span><strong><%= @auto_revision_execution_summary&.waiting_approval_count.to_i %>件</strong></div>
+        <div class="metric-card"><span>PR待ち</span><strong><%= @auto_revision_execution_summary&.pr_review_waiting_count.to_i %>件</strong></div>
+      </div>
+      <div class="actions compact-actions">
+        <%= link_to "Codex送信待ちを見る", admin_aicoo_executor_path(codex_filter: "waiting"), class: "button" %>
+        <%= link_to "Codex手動送信一覧", admin_codex_submissions_path(status: "ready"), class: "button secondary" %>
+      </div>
       <%= render "shared/auto_revision_execution_summary", summary: @auto_revision_execution_summary %>
       <%= render "shared/codex_submission_summary", summary: @codex_submission_summary %>
     </details>

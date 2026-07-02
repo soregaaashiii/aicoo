@@ -33,18 +33,29 @@ module Aicoo
 
     test "returns business connection status" do
       DataSourceCostProfile.ensure_defaults!
+      credential = AicooGoogleCredential.create!(
+        name: "吸えログGoogle認証",
+        client_id: "client",
+        client_secret: "secret",
+        refresh_token: "refresh",
+        connected_at: Time.current
+      )
       BusinessDataSourceSetting.create!(
         business: @business,
         source_key: "ga4",
         connection_status: "linked",
         property_identifier: "properties/123",
-        credential_reference: "AICOO共通Google認証"
+        credential_reference: "吸えログGoogle認証",
+        metadata: {
+          "google_credential_id" => credential.id,
+          "connection_fields" => { "property_id" => "properties/123" }
+        }
       )
 
       estimate = CostEngine.new(business: @business).estimate("ga4")
 
       assert estimate.linked?
-      assert_equal "紐付け済み", estimate.connection_label
+      assert_equal "設定済み（Business個別設定）", estimate.connection_label
       assert_equal "healthy", estimate.connection_status_level
       assert_equal "properties/123", estimate.connection_summary
     end
@@ -58,7 +69,7 @@ module Aicoo
       estimate = CostEngine.new(business: @business).estimate("openai")
 
       assert estimate.linked?
-      assert_equal "全体設定使用", estimate.connection_label
+      assert_equal "設定済み（全体設定を使用）", estimate.connection_label
       assert_equal "healthy", estimate.connection_status_level
       assert_equal "OPENAI_API_KEY", estimate.connection_summary
     ensure
@@ -74,7 +85,7 @@ module Aicoo
       estimate = CostEngine.new(business: @business).estimate("openai")
 
       assert_not estimate.linked?
-      assert_equal "未設定", estimate.connection_label
+      assert_equal "未設定（未設定）", estimate.connection_label
       assert_equal "critical", estimate.connection_status_level
       assert_equal "OPENAI_API_KEY未設定", estimate.connection_summary
     ensure

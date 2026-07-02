@@ -8,7 +8,7 @@
 <div class="aicoo-page">
   <%= render "shared/aicoo_header",
              title: "Codex Executor Queue",
-             description: "承認済みAutoRevisionTaskをCodex投入待ち・投入済み・実装中として管理します。",
+             description: "承認済みAutoRevisionTaskをCodex手動送信待ち・手動送信済み・実装中として管理します。",
              active_main: :dashboard,
              actions: header_actions %>
 
@@ -17,8 +17,8 @@
       <% [
         [ "すべて", nil ],
         [ "実行待ち", "queued" ],
-        [ "投入待ち", "ready_for_codex" ],
-        [ "投入済み", "sent_to_codex" ],
+        [ "手動送信待ち", "ready_for_codex" ],
+        [ "手動送信済み", "sent_to_codex" ],
         [ "実装中", "running" ],
         [ "放置", "stale" ]
       ].each do |label, status| %>
@@ -40,7 +40,7 @@
             <th>risk</th>
             <th>status</th>
             <th>優先度</th>
-            <th>Codex投入</th>
+            <th>Codex手動送信</th>
             <th>実装開始</th>
             <th>最終確認</th>
             <th>Codexスレッド</th>
@@ -95,26 +95,26 @@
                           onclick="navigator.clipboard.writeText(this.dataset.prompt)"
                           data-prompt="<%= h(task.codex_prompt_markdown) %>"
                           <%= "disabled" if target_validation.invalid? %>>
-                    Copy
+                    プロンプトをコピー
                   </button>
                   <% if target_validation.invalid? %>
-                    <button class="button secondary" disabled>Export不可</button>
+                    <button class="button secondary" disabled>プロンプト確認不可</button>
                   <% else %>
-                    <%= link_to "Export", export_codex_prompt_auto_revision_task_path(task), class: "button secondary" %>
+                    <%= link_to "プロンプト確認", export_codex_prompt_auto_revision_task_path(task), class: "button secondary" %>
                   <% end %>
                   <%= link_to "詳細", task, class: "button secondary" %>
                   <% if %w[ready_for_codex approved].include?(task.status) && task.risk_level != "high" %>
                     <%= button_to "実行キューへ追加", enqueue_auto_revision_task_path(task), method: :patch, class: "button secondary" %>
                   <% elsif task.status == "queued" %>
                     <% if target_validation.invalid? %>
-                      <button class="button" disabled>Codex投入不可</button>
+                      <button class="button" disabled>手動送信不可</button>
                       <% if task.business.business_execution_profile %>
                         <%= link_to "Execution Profileを修正", edit_admin_business_execution_profile_path(task.business.business_execution_profile), class: "button secondary" %>
                       <% else %>
                         <%= link_to "Execution Profileを作成", new_admin_business_execution_profile_path(business_id: task.business_id), class: "button secondary" %>
                       <% end %>
                     <% else %>
-                      <%= button_to "Codex投入済みにする", mark_sent_to_codex_auto_revision_task_path(task), method: :patch, class: "button" %>
+                      <%= button_to "手動送信済みにする", mark_sent_to_codex_auto_revision_task_path(task), method: :patch, class: "button" %>
                     <% end %>
                   <% elsif task.status == "sent_to_codex" %>
                     <%= button_to "実装開始", start_implementation_auto_revision_task_path(task), method: :patch, class: "button" %>
@@ -126,7 +126,7 @@
             </tr>
           <% end %>
           <% if @auto_revision_tasks.empty? %>
-            <tr><td colspan="14">Codex投入待ちのAuto Revision Taskはありません。</td></tr>
+            <tr><td colspan="14">Codex手動送信待ちのAuto Revision Taskはありません。</td></tr>
           <% end %>
         </tbody>
       </table>

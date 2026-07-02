@@ -35,15 +35,16 @@ class AutoRevisionTasksControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Codex用プロンプト"
     assert_includes response.body, "db:drop / db:reset / drop database は絶対に実行しない"
     assert_includes response.body, "bin/rails test"
-    assert_includes response.body, "Codexプロンプトをコピー"
+    assert_includes response.body, "Codex用プロンプトをコピー"
     assert_includes response.body, "承認"
     assert_includes response.body, "Codex Quality Check"
     assert_includes response.body, "実装結果を登録"
     assert_includes response.body, "Target Repository"
     assert_includes response.body, "Execution Profileがmissing"
     assert_includes response.body, "Execution Profileを作成"
-    assert_includes response.body, "Codex送信カード"
-    assert_includes response.body, "Codex Promptを再生成"
+    assert_includes response.body, "Codex手動送信カード"
+    assert_includes response.body, "Cloud Codexで開く（手動）"
+    assert_includes response.body, "PR URLを登録"
   end
 
   test "shows configured execution profile on task detail" do
@@ -86,7 +87,7 @@ class AutoRevisionTasksControllerTest < ActionDispatch::IntegrationTest
     assert_equal "ready", submission.status
     assert_equal "/workspace/suelog", submission.project_folder
     assert_includes submission.prompt, "main直接pushは禁止"
-    assert_includes flash[:notice], "Codex送信用として準備しました"
+    assert_includes flash[:notice], "Codex手動送信用として準備しました"
   end
 
   test "marks codex submission as submitted" do
@@ -364,16 +365,16 @@ class AutoRevisionTasksControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, sent.title
     assert_includes response.body, running.title
     assert_not_includes response.body, waiting.title
-    assert_includes response.body, "Codex投入"
+    assert_includes response.body, "Codex手動送信"
     assert_includes response.body, "実装開始"
     assert_includes response.body, "最終確認"
     assert_includes response.body, "Codexスレッド"
     assert_includes response.body, "Target"
     assert_includes response.body, "valid"
-    assert_includes response.body, "Export"
-    assert_includes response.body, "Copy"
+    assert_includes response.body, "プロンプト確認"
+    assert_includes response.body, "プロンプトをコピー"
     assert_includes response.body, "詳細"
-    assert_includes response.body, "Codex投入済みにする"
+    assert_includes response.body, "手動送信済みにする"
     assert_includes response.body, "実行キューへ追加"
     assert_includes response.body, "実装開始"
     assert_includes response.body, "結果登録"

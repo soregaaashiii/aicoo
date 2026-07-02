@@ -2,7 +2,7 @@
 
 <% header_actions = capture do %>
   <%= link_to "Execution Profile", admin_business_execution_profiles_path, class: "button secondary" %>
-  <%= link_to "Codex送信一覧", admin_codex_submissions_path, class: "button secondary" %>
+  <%= link_to "Codex手動送信一覧", admin_codex_submissions_path, class: "button secondary" %>
   <%= link_to "Codex Rules", admin_codex_prompt_rules_path, class: "button secondary" %>
 <% end %>
 
@@ -158,10 +158,10 @@
               <td class="actions compact-actions">
                 <% if row.submission %>
                   <%= link_to "Prompt確認", admin_codex_submission_path(row.submission), class: "button secondary" %>
-                  <%= button_to "送信済みにする", mark_submitted_admin_codex_submission_path(row.submission), method: :patch, class: "button secondary" unless row.submission.status == "submitted" %>
+                  <%= button_to "手動送信済みにする", mark_submitted_admin_codex_submission_path(row.submission), method: :patch, class: "button secondary" unless row.submission.status == "submitted" %>
                   <%= button_to "再試行", retry_admin_codex_submission_path(row.submission), method: :patch, class: "button secondary" if row.submission.status == "failed" %>
                 <% else %>
-                  <%= button_to "Codex送信準備", build_codex_submission_auto_revision_task_path(row.task), method: :post, class: "button" %>
+                  <%= button_to "Codex手動送信準備", build_codex_submission_auto_revision_task_path(row.task), method: :post, class: "button" %>
                   <%= link_to "Prompt確認", row.task, class: "button secondary" %>
                 <% end %>
               </td>
@@ -227,7 +227,7 @@
 
     <section class="aicoo-card">
       <h3>PR URL登録 / ステータス更新</h3>
-      <p class="muted">Codex送信済みTaskにPR URLを登録すると、上のPR追跡に表示されます。</p>
+      <p class="muted">Codex手動送信済みTaskにPR URLを登録すると、上のPR追跡に表示されます。</p>
       <div class="table-wrap">
         <table>
           <thead>
@@ -268,7 +268,7 @@
   <section class="dashboard-section" id="codex-e2e">
     <div class="section-heading">
       <h2>E2E診断</h2>
-      <p>Businessを選ぶだけで、Codex投入からPR追跡、deploy確認までの準備状態を診断します。</p>
+      <p>Businessを選ぶだけで、Codex手動送信からPR追跡、deploy確認までの準備状態を診断します。</p>
     </div>
 
     <%= form_with url: admin_codex_connection_path(anchor: "codex-e2e"), method: :get, class: "inline-form", data: { turbo: false } do |form| %>

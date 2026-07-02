@@ -6,6 +6,7 @@ class ApplicationController < ActionController::Base
 
   before_action :protect_aicoo_management_area
   before_action :set_robots_header
+  before_action :load_daily_run_execution_status
   before_action :load_long_running_operation_monitor
 
   # Changes to the importmap will invalidate the etag for HTML responses
@@ -58,6 +59,16 @@ class ApplicationController < ActionController::Base
   rescue StandardError => e
     Rails.logger.warn("Long running operation monitor unavailable: #{e.class}: #{e.message}")
     @long_running_operation_monitor = nil
+  end
+
+  def load_daily_run_execution_status
+    return if public_render_path?
+    return unless request.format.html?
+
+    @daily_run_execution_status = Aicoo::DailyRunExecutionStatus.call
+  rescue StandardError => e
+    Rails.logger.warn("Daily run execution status unavailable: #{e.class}: #{e.message}")
+    @daily_run_execution_status = nil
   end
 
   def owner_focus_path?

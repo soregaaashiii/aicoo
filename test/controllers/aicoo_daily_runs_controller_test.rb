@@ -80,8 +80,52 @@ class AicooDailyRunsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.body, "現在の実行状態"
     assert_includes response.body, "実行中"
+    assert_includes response.body, "Run ID"
+    assert_includes response.body, "stuck判定"
+    assert_includes response.body, "通常実行中"
+    assert_includes response.body, "最終ログ"
     assert_includes response.body, "action_generation"
     assert_includes response.body, aicoo_daily_run_path(daily_run)
+  end
+
+  test "shows not running message when no daily run is running" do
+    AicooDailyRun.create!(
+      target_date: Date.yesterday,
+      status: "success",
+      source: "cron",
+      started_at: 1.hour.ago,
+      finished_at: 50.minutes.ago
+    )
+
+    get aicoo_daily_runs_url
+
+    assert_response :success
+    assert_includes response.body, "Daily Runは現在実行されていません。"
+    assert_includes response.body, "最終実行"
+    assert_not_includes response.body, "通常実行中"
+  end
+
+  test "shows stale running daily run as stuck possibility consistently" do
+    daily_run = AicooDailyRun.create!(
+      target_date: Date.yesterday,
+      status: "running",
+      source: "cron",
+      started_at: 45.minutes.ago,
+      run_log: "still running"
+    )
+    daily_run.aicoo_daily_run_steps.create!(
+      step_name: "analytics_fetch",
+      status: "running",
+      started_at: 44.minutes.ago,
+      metadata: { message: "fetching analytics" }
+    )
+
+    get aicoo_daily_runs_url
+
+    assert_response :success
+    assert_includes response.body, "stuckの可能性あり"
+    assert_includes response.body, "analytics_fetch"
+    assert_includes response.body, "fetching analytics"
   end
 
   test "shows daily run detail" do

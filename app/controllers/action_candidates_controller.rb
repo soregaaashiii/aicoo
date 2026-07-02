@@ -79,7 +79,11 @@ class ActionCandidatesController < ApplicationController
     previous_status = @action_candidate.status
     auto_revision_task = @action_candidate.approve!(approved_by: "owner")
     record_owner_decision!("approve", previous_status:)
-    message = "ActionCandidate『#{@action_candidate.title}』を承認し、AutoRevisionTask ##{auto_revision_task.id} を作成しました。"
+    promotion_message = @action_candidate.business_promotion_result&.message
+    message = [
+      promotion_message,
+      "ActionCandidate『#{@action_candidate.title}』を承認し、AutoRevisionTask ##{auto_revision_task.id} を作成しました。"
+    ].compact.join(" ")
     OwnerTaskCompletionLog.record_success!(
       task_type: "action_candidate_approval",
       target: @action_candidate,
@@ -93,6 +97,8 @@ class ActionCandidatesController < ApplicationController
       }
     )
     redirect_to auto_revision_task, notice: message
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to @action_candidate, alert: "承認できませんでした。Business化に失敗しました: #{e.record.errors.full_messages.to_sentence}"
   end
 
   def reject

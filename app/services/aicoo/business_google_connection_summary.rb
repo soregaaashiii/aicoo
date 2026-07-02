@@ -31,23 +31,24 @@ module Aicoo
     end
 
     def call
+      connection_status = Aicoo::BusinessConnectionStatus.new(business, source_key:, health:).call
       Summary.new(
         source_key:,
         label: SOURCE_LABELS.fetch(source_key),
-        connected: connected?,
-        configured: identifier.present?,
-        enabled: business_data_source_setting.nil? || business_data_source_setting.enabled?,
-        identifier:,
-        credential:,
-        setting:,
-        latest_run:,
-        latest_success_run:,
-        last_fetched_at: latest_run&.finished_at || latest_run&.started_at || setting&.last_fetched_at,
-        last_count: latest_run&.snapshot_count.to_i,
-        last_error: latest_failed_run&.error_message,
-        setting_source:,
-        reauthentication_required: reauthentication_required?,
-        status_label:
+        connected: connection_status.configured?,
+        configured: connection_status.configured?,
+        enabled: connection_status.enabled?,
+        identifier: connection_status.identifier,
+        credential: connection_status.credential,
+        setting: connection_status.setting,
+        latest_run: connection_status.latest_run,
+        latest_success_run: connection_status.latest_success_run,
+        last_fetched_at: connection_status.last_fetched_at,
+        last_count: connection_status.last_count,
+        last_error: connection_status.last_error,
+        setting_source: connection_status.setting_label,
+        reauthentication_required: connection_status.reauthentication_required,
+        status_label: connection_status.display_label
       )
     end
 
