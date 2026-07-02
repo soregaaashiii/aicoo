@@ -228,24 +228,30 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
   test "approves action candidate from quick action" do
     @action_candidate.update!(status: "idea")
 
-    assert_difference("OwnerTaskCompletionLog.count", 1) do
-      assert_difference("OwnerDecisionLog.count", 1) do
-        assert_difference("ActionExecution.count", 1) do
-          patch approve_action_candidate_url(@action_candidate), headers: { "HTTP_REFERER" => owner_tasks_url }
+    assert_difference("AutoRevisionTask.count", 1) do
+      assert_difference("OwnerTaskCompletionLog.count", 1) do
+        assert_difference("OwnerDecisionLog.count", 1) do
+          assert_difference("ActionExecution.count", 1) do
+            patch approve_action_candidate_url(@action_candidate), headers: { "HTTP_REFERER" => owner_tasks_url }
+          end
         end
       end
     end
 
-    assert_redirected_to owner_tasks_url
+    auto_revision_task = AutoRevisionTask.last
+    assert_redirected_to auto_revision_task_url(auto_revision_task)
     assert_equal "approved", @action_candidate.reload.status
     assert_equal "ready", @action_candidate.action_execution.status
     assert_equal "manual", @action_candidate.action_execution.execution_type
     assert_includes @action_candidate.action_execution.execution_prompt, @action_candidate.title
+    assert_equal @action_candidate, auto_revision_task.action_candidate
+    assert_equal "waiting_approval", auto_revision_task.status
     assert_not_nil @action_candidate.approved_at
-    assert_equal "ActionCandidate『#{@action_candidate.title}』を承認しました。承認待ちタスクから削除されました。", flash[:notice]
+    assert_equal "ActionCandidate『#{@action_candidate.title}』を承認し、AutoRevisionTask ##{auto_revision_task.id} を作成しました。", flash[:notice]
     assert_equal "承認", OwnerTaskCompletionLog.last.action_label
     assert_equal "approve", OwnerDecisionLog.last.decision_type
     assert_equal "action_candidate_detail", OwnerDecisionLog.last.decision_source
+    assert_equal auto_revision_task.id, OwnerTaskCompletionLog.last.metadata["auto_revision_task_id"]
   end
 
   test "rejects action candidate from quick action" do

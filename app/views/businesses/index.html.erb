@@ -19,6 +19,7 @@
       <tr>
         <th>事業名</th>
         <th>状態</th>
+        <th>Type</th>
         <th>Lifecycle</th>
         <th>Resource</th>
         <th>Health</th>
@@ -44,6 +45,7 @@
         <tr>
           <td><%= link_to business.name, business %></td>
           <td><span class="pill"><%= business.status %></span></td>
+          <td><span class="pill"><%= business_type_label(business.business_type) %></span></td>
           <td>
             <span class="pill"><%= lifecycle_stage_label(business.lifecycle_stage) %></span><br>
             <small><%= lifecycle_stage_description(business.lifecycle_stage) %></small>

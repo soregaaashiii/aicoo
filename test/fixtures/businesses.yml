@@ -2,8 +2,10 @@ suelog:
   name: 吸えログ
   description: SEO media for smoking-area discovery.
   status: launched
+  business_type: seo_media
 
 cards:
   name: 名刺共有アプリ
   description: Business card sharing SaaS candidate.
   status: building
+  business_type: saas

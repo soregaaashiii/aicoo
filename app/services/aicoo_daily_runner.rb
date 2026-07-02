@@ -263,20 +263,62 @@ class AicooDailyRunner
 
   def run_serp_optional_steps!(run)
     optional_mode = Aicoo::Serp::OptionalMode.call
-    return unless optional_mode.missing_key?
+    if optional_mode.missing_key?
+      optional_mode.dependent_steps.each do |step_name|
+        step = start_step!(run, step_name)
+        skip_step!(
+          step,
+          metadata: {
+            reason: optional_mode.reason,
+            message: optional_mode.message,
+            continued_steps: optional_mode.independent_steps
+          }
+        )
+      end
+      log!("SERP optional mode: #{optional_mode.message}")
+      return
+    end
 
-    optional_mode.dependent_steps.each do |step_name|
-      step = start_step!(run, step_name)
+    return unless optional_mode.enabled && optional_mode.api_key_configured
+
+    step = start_step!(run, "serp_fetch")
+    result = Aicoo::Serp::ScanRunner.new.call
+    metadata = {
+      provider: result.provider,
+      target_business_count: result.target_business_count,
+      query_count: result.query_count,
+      success_count: result.success_count,
+      failed_count: result.failed_count,
+      result_count: result.result_count,
+      estimated_cost_yen: result.estimated_cost_yen,
+      limit: result.limit,
+      scan_batch_id: result.scan_batch_id
+    }
+    if result.failed_count.positive?
       skip_step!(
         step,
-        metadata: {
-          reason: optional_mode.reason,
-          message: optional_mode.message,
-          continued_steps: optional_mode.independent_steps
-        }
+        metadata: metadata.merge(
+          warning: true,
+          reason: "serp_fetch_partial_failed",
+          message: "SERP取得で失敗したクエリがあります。Daily Run全体は継続しました。"
+        )
       )
+    else
+      finish_step!(step, metadata:)
     end
-    log!("SERP optional mode: #{optional_mode.message}")
+    log!("SERP fetched success=#{result.success_count} failed=#{result.failed_count} results=#{result.result_count}")
+  rescue StandardError => e
+    skip_step!(
+      step,
+      metadata: {
+        warning: true,
+        reason: "serp_fetch_failed",
+        message: "SERP取得に失敗しましたが、Daily Run全体は継続しました。",
+        error_class: e.class.name,
+        error_message: e.message
+      }
+    ) if step
+    log!("SERP fetch failed #{e.class}: #{e.message}")
   end
 
   def run_calibration!(run)

@@ -17,6 +17,40 @@ module Admin
       assert_includes response.body, "SERP Adapterでテスト検索"
     end
 
+    test "shows saved serp analyses and latest error" do
+      business = businesses(:suelog)
+      success = business.serp_analyses.create!(
+        keyword: "梅田 喫煙 カフェ",
+        analyzed_at: Time.zone.local(2026, 6, 21, 8, 0),
+        search_engine: "google",
+        device: "desktop",
+        provider: "serper",
+        status: "success",
+        result_count: 1,
+        competition_score: 72
+      )
+      success.serp_results.create!(position: 1, title: "喫煙カフェ", url: "https://example.com", snippet: "梅田")
+      business.serp_analyses.create!(
+        keyword: "難波 喫煙 カフェ",
+        analyzed_at: Time.zone.local(2026, 6, 21, 9, 0),
+        search_engine: "google",
+        device: "desktop",
+        provider: "serper",
+        status: "failed",
+        error_message: "Rate limit"
+      )
+
+      get admin_serp_settings_url
+
+      assert_response :success
+      assert_includes response.body, "取得結果"
+      assert_includes response.body, "保存済み分析"
+      assert_includes response.body, "保存済み結果"
+      assert_includes response.body, "梅田 喫煙 カフェ"
+      assert_includes response.body, "難波 喫煙 カフェ"
+      assert_includes response.body, "Rate limit"
+    end
+
     test "test search uses adapter and displays normalized result" do
       result = Aicoo::Serp::SearchResult.new(
         provider: "serper",

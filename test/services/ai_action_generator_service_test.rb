@@ -18,6 +18,18 @@ class AiActionGeneratorServiceTest < ActiveSupport::TestCase
     end
   end
 
+  test "skips forbidden actions returned by ai for business type" do
+    business = businesses(:suelog)
+    service = AiActionGeneratorService.new(business, client: FakeClient.new(actions: 3, action_type: "build_lp"))
+
+    assert_no_difference -> { ActionCandidate.count } do
+      result = service.call
+
+      assert_empty result.action_candidates
+      assert_equal 0, result.run.created_action_count
+    end
+  end
+
   private
 
   def stored_model_name(run)
@@ -27,8 +39,9 @@ class AiActionGeneratorServiceTest < ActiveSupport::TestCase
   class FakeClient
     attr_reader :model
 
-    def initialize(actions:)
+    def initialize(actions:, action_type: "market_research")
       @actions = actions
+      @action_type = action_type
       @model = "test-model"
     end
 
@@ -48,7 +61,7 @@ class AiActionGeneratorServiceTest < ActiveSupport::TestCase
       {
         "title" => "AI action #{index}",
         "description" => "Generated action",
-        "action_type" => "market_research",
+        "action_type" => @action_type,
         "immediate_value_yen" => 10_000,
         "success_probability" => 0.5,
         "strategic_value_score" => 60,

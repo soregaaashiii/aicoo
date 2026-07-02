@@ -2,45 +2,42 @@ require "test_helper"
 
 module Owner
   class ApprovedQueueControllerTest < ActionDispatch::IntegrationTest
-    test "shows approved queue candidates" do
-      candidate = create_approved_candidate(title: "承認済みSEO改善")
+    test "redirects approved queue index to auto revision tasks" do
+      create_approved_candidate(title: "承認済みSEO改善")
 
       get owner_approved_queue_url
 
-      assert_response :success
-      assert_includes response.body, "承認済み"
-      assert_includes response.body, candidate.title
-      assert_includes response.body, "実行指示へ送る"
+      assert_redirected_to auto_revision_tasks_url(status: "waiting_approval")
+      assert_includes flash[:notice], "承認済みキューはAutoRevisionTaskへ統合しました"
     end
 
-    test "queues selected candidates into executor" do
+    test "selected candidates are converted to auto revision tasks" do
       candidate = create_approved_candidate
 
-      assert_difference("AicooExecutorTask.count", 1) do
+      assert_difference("AutoRevisionTask.count", 1) do
         post queue_selected_owner_approved_queue_url, params: {
           action_candidate_ids: [ candidate.id ]
         }
       end
 
-      assert_redirected_to owner_approved_queue_url
-      assert_equal "executor_queued", candidate.reload.status
-      assert_equal "approval_pending", AicooExecutorTask.last.status
-      assert_includes flash[:notice], "送信対象 1件"
-      assert_includes flash[:notice], "作成 1件"
+      assert_redirected_to auto_revision_tasks_url(status: "waiting_approval")
+      assert_equal "approved", candidate.reload.status
+      assert_equal "waiting_approval", AutoRevisionTask.last.status
+      assert_equal candidate, AutoRevisionTask.last.action_candidate
+      assert_includes flash[:notice], "承認済みキューはAutoRevisionTaskへ統合しました"
     end
 
-    test "bulk queue skips candidates with unfinished executor tasks" do
+    test "bulk queue skips candidates with active auto revision tasks" do
       candidate = create_approved_candidate
-      AicooExecutor::TaskBuilder.from_action_candidate(candidate)
+      AutoRevisionTask.from_action_candidate(candidate)
 
-      assert_no_difference("AicooExecutorTask.count") do
+      assert_no_difference("AutoRevisionTask.count") do
         post queue_all_owner_approved_queue_url
       end
 
-      assert_redirected_to owner_approved_queue_url
-      assert_equal "executor_queued", candidate.reload.status
-      assert_includes flash[:notice], "スキップ 1件"
-      assert_includes flash[:notice], "既に実行指示へ送信済み"
+      assert_redirected_to auto_revision_tasks_url(status: "waiting_approval")
+      assert_equal "approved", candidate.reload.status
+      assert_includes flash[:notice], "承認済みキューはAutoRevisionTaskへ統合しました"
     end
 
     private

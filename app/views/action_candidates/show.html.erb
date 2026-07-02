@@ -34,7 +34,7 @@
     <%= link_to "実行差分を記録", new_action_execution_log_path(action_candidate_id: @action_candidate.id), class: "button secondary" %>
     <%= link_to "売上/費用を登録", new_revenue_event_path(revenue_event: { action_candidate_id: @action_candidate.id }), class: "button secondary" %>
     <% if @action_candidate.status == "approved" %>
-      <%= link_to "承認済みキュー", owner_approved_queue_path, class: "button secondary" %>
+      <%= link_to "改訂待ち一覧", auto_revision_tasks_path(status: "waiting_approval"), class: "button secondary" %>
     <% end %>
     <% if @action_execution %>
       <%= link_to "実行管理へ", @action_execution, class: "button" %>

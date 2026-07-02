@@ -288,6 +288,7 @@ class BusinessesController < ApplicationController
         :name,
         :description,
         :status,
+        :business_type,
         :gsc_site_url,
         :project_key,
         :local_project_path,

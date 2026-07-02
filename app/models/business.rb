@@ -5,6 +5,19 @@ class Business < ApplicationRecord
   AUTO_REVISION_MODES = %w[manual approval automatic].freeze
   AUTO_DEPLOY_MODES = %w[manual approval automatic].freeze
   AUTO_BUILD_RISK_LEVELS = %w[low medium high].freeze
+  BUSINESS_TYPES = %w[
+    seo_media
+    directory
+    saas
+    landing_page
+    mvp
+    internal_tool
+    marketplace
+    content_media
+    ecommerce
+    community
+    other
+  ].freeze
   NEW_LP_AUTO_DEPLOY_LIFECYCLE_STAGES = %w[idea lp_validation mvp].freeze
   NEW_LP_AUTO_DEPLOY_EXCLUDED_NAMES = [
     "吸えログ",
@@ -51,6 +64,7 @@ class Business < ApplicationRecord
   validates :auto_revision_mode, inclusion: { in: AUTO_REVISION_MODES }
   validates :auto_deploy_mode, inclusion: { in: AUTO_DEPLOY_MODES }
   validates :auto_build_risk_level, inclusion: { in: AUTO_BUILD_RISK_LEVELS }
+  validates :business_type, inclusion: { in: BUSINESS_TYPES }
 
   scope :real_businesses, -> { where.not(name: SYSTEM_BUSINESS_NAMES) }
   scope :system_businesses, -> { where(name: SYSTEM_BUSINESS_NAMES) }
@@ -65,6 +79,10 @@ class Business < ApplicationRecord
 
   def system_business?
     name.in?(SYSTEM_BUSINESS_NAMES)
+  end
+
+  def business_type_playbook
+    Aicoo::BusinessTypePlaybook.new(self)
   end
 
   def change_resource_status!(status, reason:, operator: "owner")

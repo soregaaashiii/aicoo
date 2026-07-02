@@ -98,6 +98,20 @@ module Aicoo
       assert_equal "critical", status.status_level
     end
 
+    test "openai global status uses OPENAI_API_KEY env" do
+      original = ENV["OPENAI_API_KEY"]
+      ENV["OPENAI_API_KEY"] = "env-openai-key"
+      DataSourceCostProfile.find_by!(source_key: "openai").update!(api_key: nil)
+
+      status = DataSourceSettingsPresenter.new.global_statuses.find { |item| item.source_key == "openai" }
+
+      assert_equal "connected", status.status_key
+      assert_equal "✅ Connected", status.status_label
+      assert status.global_default_available
+    ensure
+      ENV["OPENAI_API_KEY"] = original
+    end
+
     test "codex status is individual when business project fields are configured" do
       @business.update!(
         project_key: "suelog",

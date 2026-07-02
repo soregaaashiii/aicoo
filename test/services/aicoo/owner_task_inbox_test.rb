@@ -277,7 +277,7 @@ module Aicoo
       assert_equal [ "Google連携", "SERP走査", "LP作成", "Businessを見る" ], task.quick_actions.map(&:label)
     end
 
-    test "returns codex prompt draft needed tasks" do
+    test "does not return codex prompt draft needed tasks for approved action candidates" do
       candidate = action_candidates(:nagazakicho_article)
       candidate.update!(status: "approved")
       candidate.action_execution&.destroy!
@@ -285,10 +285,7 @@ module Aicoo
 
       task = OwnerTaskInbox.new.call.tasks.find { |item| item.task_type == "codex_prompt_draft_needed" && item.title.include?(candidate.title) }
 
-      assert task
-      assert_equal "medium", task.priority
-      assert_equal Rails.application.routes.url_helpers.action_candidate_path(candidate), task.target_path
-      assert_equal [ "Codex Promptを生成", "ActionCandidateを見る" ], task.quick_actions.map(&:label)
+      assert_nil task
     end
 
     test "returns discovery source warnings" do

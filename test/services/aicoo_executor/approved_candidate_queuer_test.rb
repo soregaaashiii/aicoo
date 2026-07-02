@@ -2,10 +2,10 @@ require "test_helper"
 
 module AicooExecutor
   class ApprovedCandidateQueuerTest < ActiveSupport::TestCase
-    test "queues approved candidates into executor and marks them queued" do
+    test "creates auto revision tasks for approved candidates" do
       action_candidate = create_approved_action_candidate(action_type: "seo_article")
 
-      assert_difference("AicooExecutorTask.count", 1) do
+      assert_difference("AutoRevisionTask.count", 1) do
         result = ApprovedCandidateQueuer.queue_all!
 
         assert_equal 1, result.target_count
@@ -13,28 +13,28 @@ module AicooExecutor
         assert_equal 0, result.skipped_count
       end
 
-      task = AicooExecutorTask.last
-      assert_equal "approval_pending", task.status
-      assert_equal "seo_content", task.execution_type
-      assert_equal action_candidate.id, task.source_id
-      assert_equal "executor_queued", action_candidate.reload.status
-      assert action_candidate.executor_queued_at.present?
+      task = AutoRevisionTask.last
+      assert_equal "waiting_approval", task.status
+      assert_equal action_candidate, task.action_candidate
+      assert_equal "approved_candidate_queuer", task.generated_by
+      assert_equal "approved", action_candidate.reload.status
+      assert_nil action_candidate.executor_queued_at
     end
 
-    test "does not duplicate unfinished executor tasks" do
+    test "does not duplicate active auto revision tasks" do
       action_candidate = create_approved_action_candidate
-      AicooExecutor::TaskBuilder.from_action_candidate(action_candidate)
+      AutoRevisionTask.from_action_candidate(action_candidate)
 
-      assert_no_difference("AicooExecutorTask.count") do
+      assert_no_difference("AutoRevisionTask.count") do
         result = ApprovedCandidateQueuer.queue_all!
 
         assert_equal 1, result.target_count
         assert_equal 0, result.created_count
         assert_equal 1, result.skipped_count
-        assert_equal 1, result.skipped_reasons.fetch("既に実行指示へ送信済み")
+        assert_equal 1, result.skipped_reasons.fetch("既にAutoRevisionTaskへ統合済み")
       end
 
-      assert_equal "executor_queued", action_candidate.reload.status
+      assert_equal "approved", action_candidate.reload.status
     end
 
     private

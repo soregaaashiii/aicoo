@@ -79,7 +79,11 @@ module Aicoo
       attr_reader :provider, :location, :language, :limit, :max_queries_per_business, :scan_batch_id
 
       def target_businesses
-        @target_businesses ||= Business.real_businesses.where(status: "launched").includes(:business_data_source_settings).order(:name).to_a
+        @target_businesses ||= Business.real_businesses
+                                      .where(status: "launched", serp_enabled: true)
+                                      .includes(:business_data_source_settings)
+                                      .order(:name)
+                                      .to_a
       end
 
       def queries_for(business)

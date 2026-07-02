@@ -79,7 +79,10 @@ module AicooInsight
       return Result.new(created:, skipped: [ no_insight_reason ]) if specs.empty?
 
       specs.each do |spec|
-        if duplicate?(spec)
+        decision = spec.business.business_type_playbook.call(spec_attributes(spec))
+        if !decision.allowed
+          skipped << "#{business.name}: #{decision.reason}"
+        elsif duplicate?(spec)
           skipped << "#{business.name}: duplicate #{spec.title}"
         else
           created << create_action_candidate!(spec)
@@ -254,8 +257,22 @@ module AicooInsight
         data_confidence_score: 70,
         evaluation_reason: spec.reason,
         execution_prompt: spec.execution_prompt,
-        metadata: { "insight_rule" => insight_rule(spec), "insight_reason" => spec.reason }
+        metadata: {
+          "insight_rule" => insight_rule(spec),
+          "insight_reason" => spec.reason,
+          "business_type_playbook" => spec.business.business_type_playbook.call(spec_attributes(spec)).metadata
+        }
       )
+    end
+
+    def spec_attributes(spec)
+      {
+        title: spec.title,
+        description: spec.description,
+        action_type: spec.action_type,
+        evaluation_reason: spec.reason,
+        execution_prompt: spec.execution_prompt
+      }
     end
 
     def confidence_for(spec)

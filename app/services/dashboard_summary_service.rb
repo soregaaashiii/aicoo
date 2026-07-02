@@ -248,13 +248,14 @@ class DashboardSummaryService
 
   def approval_queue_summary
     data_preparation_count = ActionCandidate.active_for_ranking.where(action_type: "data_preparation").count
+    codex_queue_statuses = AutoRevisionTask::CODEX_QUEUE_STATUSES
     ApprovalQueue.new(
       action_candidate_count: ActionCandidate.active_for_ranking.where(status: %w[idea pending]).count,
-      executor_task_count: AicooExecutorTask.approval_pending.count,
+      executor_task_count: AutoRevisionTask.where(status: "waiting_approval").count,
       data_preparation_count:,
-      approved_remaining_count: ActionCandidate.where(status: "approved").count,
+      approved_remaining_count: AutoRevisionTask.where(status: "waiting_approval").count,
       today_approved_count: ActionCandidate.where(approved_at: Time.current.all_day).count,
-      today_executor_queued_count: ActionCandidate.where(executor_queued_at: Time.current.all_day).count
+      today_executor_queued_count: AutoRevisionTask.where(status: codex_queue_statuses, updated_at: Time.current.all_day).count
     )
   end
 

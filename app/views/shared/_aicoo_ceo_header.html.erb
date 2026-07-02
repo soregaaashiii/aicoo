@@ -18,7 +18,7 @@
 
   <nav class="aicoo-sub-tabs ceo-focus-tabs" aria-label="CEO mode navigation">
     <%= link_to "今日やること", owner_dashboard_path, class: "aicoo-sub-tab#{' active' if request.path == owner_dashboard_path || request.path == '/owner/dashboard'}" %>
-    <%= link_to "承認済み", owner_approved_queue_path, class: "aicoo-sub-tab#{' active' if request.path.start_with?('/owner/approved_queue')}" %>
+    <%= link_to "改訂待ち", auto_revision_tasks_path(status: "waiting_approval"), class: "aicoo-sub-tab#{' active' if request.path.start_with?('/auto_revision_tasks')}" %>
     <%= link_to "判断材料の推移", owner_evaluator_trends_path, class: "aicoo-sub-tab#{' active' if request.path.start_with?('/owner/evaluator_trends')}" %>
   </nav>
 </header>

@@ -41,6 +41,11 @@
       <small><%= lifecycle_stage_description(@business.lifecycle_stage) %></small>
     </div>
     <div class="metric-card">
+      <span>Business Type</span>
+      <strong><%= business_type_label(@business.business_type) %></strong>
+      <small>ActionCandidate生成Playbookに反映</small>
+    </div>
+    <div class="metric-card">
       <span>今日の状況</span>
       <strong><%= @pipeline_run.stuck? ? "要対応" : @pipeline_run.status %></strong>
       <small><%= @pipeline_run.stuck? ? @pipeline_run.stuck_reason : "Stage: #{stage_label(@pipeline_run.current_stage)}" %></small>

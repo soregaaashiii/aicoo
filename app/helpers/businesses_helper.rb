@@ -57,6 +57,8 @@ module BusinessesHelper
     "archived" => "履歴保存のみで、日次運用から外します。"
   }.freeze
 
+  BUSINESS_TYPE_LABELS = Aicoo::BusinessTypePlaybook::TYPE_LABELS.freeze
+
   def auto_revision_mode_label(mode)
     AUTO_REVISION_MODE_LABELS.fetch(mode.to_s, mode.to_s)
   end
@@ -87,6 +89,10 @@ module BusinessesHelper
 
   def resource_status_description(status)
     RESOURCE_STATUS_DESCRIPTIONS.fetch(status.to_s, "-")
+  end
+
+  def business_type_label(business_type)
+    BUSINESS_TYPE_LABELS.fetch(business_type.to_s, business_type.to_s)
   end
 
   def business_service_status_label(status)

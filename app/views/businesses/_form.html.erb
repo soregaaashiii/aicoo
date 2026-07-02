@@ -28,6 +28,30 @@
     <%= form.select :status, Business::STATUSES.map { |status| [status.humanize, status] } %>
   </div>
 
+  <fieldset class="aicoo-card aicoo-card-compact">
+    <legend>Business Type</legend>
+    <p class="aicoo-lab-help">この事業のビジネスモデルです。ActionCandidate生成時に、対象外の改善を抑制し、相性の良い改善を優先します。</p>
+    <div class="field">
+      <%= form.label :business_type, "Business Type" %>
+      <%= form.select :business_type, Business::BUSINESS_TYPES.map { |type| [business_type_label(type), type] } %>
+    </div>
+    <% playbook = business.business_type_playbook %>
+    <div class="aicoo-grid aicoo-grid-3">
+      <div>
+        <h4>Allowed</h4>
+        <p class="aicoo-lab-help"><%= playbook.allowed_labels.join(" / ") %></p>
+      </div>
+      <div>
+        <h4>Preferred</h4>
+        <p class="aicoo-lab-help"><%= playbook.preferred_labels.join(" / ") %></p>
+      </div>
+      <div>
+        <h4>Forbidden</h4>
+        <p class="aicoo-lab-help"><%= playbook.forbidden_labels.presence&.join(" / ") || "なし" %></p>
+      </div>
+    </div>
+  </fieldset>
+
   <div class="field">
     <%= form.label :lifecycle_stage, "Business Lifecycle" %>
     <%= form.select :lifecycle_stage, Business::LIFECYCLE_STAGES.map { |stage| [lifecycle_stage_label(stage), stage] } %>

@@ -125,6 +125,43 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
     end
   end
 
+  test "runs serp fetch when api key is configured" do
+    DataSourceCostProfile.find_by!(source_key: "serp").update!(api_key: "configured")
+    order = []
+    target_date = Date.new(2026, 6, 21)
+    adjuster = fake_adjuster(order)
+    generator_result = MetricActionCandidateGenerator::Result.new(created: [], skipped: [])
+    serp_result = Aicoo::Serp::ScanRunner::Result.new(
+      started_at: Time.current,
+      finished_at: Time.current,
+      provider: "serper",
+      target_business_count: 1,
+      query_count: 1,
+      success_count: 1,
+      failed_count: 0,
+      result_count: 10,
+      duration_seconds: 1.2,
+      estimated_cost_yen: 3,
+      limit: 10,
+      scan_batch_id: "test-batch",
+      analyses: []
+    )
+
+    stub_daily_steps(order:, adjuster:, generator_results: [ generator_result ], evaluated_results: []) do
+      with_singleton_stub(Aicoo::Serp::ScanRunner, :new, -> { fake_serp_scan_runner(order, serp_result) }) do
+        run = AicooDailyRunner.run!(target_date:, source: "cron")
+
+        serp_step = run.aicoo_daily_run_steps.find_by!(step_name: "serp_fetch")
+        assert_equal "success", serp_step.status
+        assert_equal 1, serp_step.metadata.fetch("success_count")
+        assert_equal 10, serp_step.metadata.fetch("result_count")
+        assert_nil run.aicoo_daily_run_steps.find_by(step_name: "keyword_discovery")
+        assert_match "SERP fetched success=1 failed=0 results=10", run.run_log
+        assert_includes order, :serp
+      end
+    end
+  end
+
   test "analytics auth failures are treated as non blocking warnings" do
     order = []
     target_date = Date.new(2026, 6, 21)
@@ -466,6 +503,15 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
       detector.define_singleton_method(:call) do
         order << :source_diff
         Aicoo::SourceAppDiffDetector::Result.new(created_count: 1, skipped_count: 0, error_count: 0)
+      end
+    end
+  end
+
+  def fake_serp_scan_runner(order, result)
+    Object.new.tap do |runner|
+      runner.define_singleton_method(:call) do
+        order << :serp
+        result
       end
     end
   end

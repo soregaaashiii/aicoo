@@ -59,7 +59,7 @@ class MetricActionCandidateGenerator
   def call
     return skipped_result("system/internal BusinessのためActionCandidate生成対象外です") if business.system_business?
 
-    specs = candidate_specs
+    specs = filter_specs_by_business_type(candidate_specs)
     return skipped_result(no_candidate_reason) if specs.empty?
 
     created = specs.filter_map { |spec| create_candidate(spec) }
@@ -84,9 +84,18 @@ class MetricActionCandidateGenerator
       low_navigation_spec,
       high_exit_path_spec,
       low_scroll_spec,
+      serp_specs,
       revenue_spec,
       zero_revenue_spec
     ].flatten.compact
+  end
+
+  def serp_specs
+    [
+      serp_rank_decline_risk_spec,
+      serp_competition_rising_spec,
+      serp_uncovered_keyword_spec
+    ].compact
   end
 
   def setup_baseline_specs
@@ -464,6 +473,64 @@ class MetricActionCandidateGenerator
     )
   end
 
+  def serp_rank_decline_risk_spec
+    return unless latest_serp_analysis&.successful?
+    return unless previous_serp_analysis
+    return unless serp_competition_delta >= 20
+
+    CandidateSpec.new(
+      key: "serp_rank_decline_risk",
+      title: "#{business.name}のSERP順位低下リスクを調査する",
+      description: "#{latest_serp_analysis.keyword} の競合強度が上がっており、検索順位低下リスクがあります。",
+      action_type: "serp_research",
+      immediate_value_yen: estimate_value(18_000),
+      success_probability: 0.34,
+      strategic_value_score: 45,
+      risk_reduction_score: 55,
+      expected_hours: 1,
+      evaluation_reason: "SERP競合強度が前回比で#{serp_competition_delta}上昇しています。",
+      execution_prompt: "#{business.name}で #{latest_serp_analysis.keyword} のSERP上位ページを確認し、タイトル・見出し・網羅性・内部リンクの不足を洗い出してください。"
+    )
+  end
+
+  def serp_competition_rising_spec
+    return unless latest_serp_analysis&.successful?
+    return unless latest_serp_analysis.competition_score.to_i >= 70
+
+    CandidateSpec.new(
+      key: "serp_competition_rising",
+      title: "#{business.name}の競合が強いキーワードを改善する",
+      description: "#{latest_serp_analysis.keyword} はSERP競合が強く、既存ページの差分改善が必要です。",
+      action_type: "seo_improvement",
+      immediate_value_yen: estimate_value(22_000),
+      success_probability: 0.33,
+      strategic_value_score: 52,
+      risk_reduction_score: 45,
+      expected_hours: 1.5,
+      evaluation_reason: "SERP competition_score=#{latest_serp_analysis.competition_score}です。",
+      execution_prompt: "#{business.name}で #{latest_serp_analysis.keyword} に対応するページを確認し、上位競合に不足していない独自情報・内部リンク・CTAを追加してください。"
+    )
+  end
+
+  def serp_uncovered_keyword_spec
+    return unless latest_serp_analysis&.successful?
+    return if keyword_covered_by_recent_action?(latest_serp_analysis.keyword)
+
+    CandidateSpec.new(
+      key: "serp_uncovered_keyword",
+      title: "#{business.name}で未対策キーワードを記事化する",
+      description: "#{latest_serp_analysis.keyword} のSERP取得はありますが、対応する改善候補がまだありません。",
+      action_type: media_like_business? ? "seo_article" : "seo_improvement",
+      immediate_value_yen: estimate_value(16_000),
+      success_probability: 0.32,
+      strategic_value_score: 48,
+      risk_reduction_score: 28,
+      expected_hours: 2,
+      evaluation_reason: "SERP取得済みの未対策キーワードです: #{latest_serp_analysis.keyword}",
+      execution_prompt: "#{business.name}で #{latest_serp_analysis.keyword} の検索意図に合う記事・LP・既存ページ改善を1つ作成し、上位競合との差分を埋めてください。"
+    )
+  end
+
   def revenue_spec
     return unless recent30_revenue.positive?
 
@@ -535,11 +602,37 @@ class MetricActionCandidateGenerator
       expected_hours: spec.expected_hours,
       cost_yen: 0,
       status: "idea",
-      generation_source: "ai_business",
+      generation_source: serp_spec?(spec) ? "serp" : "ai_business",
       metadata: candidate_metadata(spec),
       evaluation_reason: "metric_rule:#{spec.key}\n#{spec.evaluation_reason}",
       execution_prompt: spec.execution_prompt
     )
+  end
+
+  def filter_specs_by_business_type(specs)
+    specs.filter_map do |spec|
+      decision = business_type_playbook.call(spec_attributes(spec))
+      if decision.allowed
+        spec
+      else
+        skipped_reasons << "#{spec.key}: #{decision.reason}"
+        nil
+      end
+    end
+  end
+
+  def spec_attributes(spec)
+    {
+      title: spec.title,
+      description: spec.description,
+      action_type: spec.action_type,
+      evaluation_reason: spec.evaluation_reason,
+      execution_prompt: spec.execution_prompt
+    }
+  end
+
+  def business_type_playbook
+    @business_type_playbook ||= business.business_type_playbook
   end
 
   def candidate_metadata(spec)
@@ -548,8 +641,10 @@ class MetricActionCandidateGenerator
       "comparison_strategy" => comparison_strategy,
       "metric_days_count" => metric_days_count,
       "low_confidence" => metric_days_count < 7,
-      "confidence_note" => confidence_note
+      "confidence_note" => confidence_note,
+      "business_type_playbook" => business_type_playbook.call(spec_attributes(spec)).metadata
     }
+    metadata = metadata.merge(serp_metadata) if serp_spec?(spec)
     return metadata unless Aicoo::Serp::OptionalMode.call.missing_key?
 
     metadata.merge(
@@ -557,6 +652,25 @@ class MetricActionCandidateGenerator
       "missing_sources" => [ "serp" ],
       "confidence_penalty" => true
     )
+  end
+
+  def serp_spec?(spec)
+    spec.key.to_s.start_with?("serp_")
+  end
+
+  def serp_metadata
+    return {} unless latest_serp_analysis
+
+    {
+      "source" => "serp",
+      "data_sources" => [ "serp" ],
+      "serp_analysis_id" => latest_serp_analysis.id,
+      "serp_keyword" => latest_serp_analysis.keyword,
+      "serp_provider" => latest_serp_analysis.provider,
+      "serp_competition_score" => latest_serp_analysis.competition_score,
+      "serp_result_count" => latest_serp_analysis.result_count,
+      "serp_analyzed_at" => latest_serp_analysis.analyzed_at&.iso8601
+    }
   end
 
   def recent_duplicate?(spec)
@@ -629,6 +743,39 @@ class MetricActionCandidateGenerator
 
   def recent30_revenue
     business.revenue_events.revenue.where(occurred_on: recent30_range).sum(:amount)
+  end
+
+  def latest_serp_analysis
+    @latest_serp_analysis ||= business.serp_analyses.successful.order(analyzed_at: :desc, created_at: :desc).first
+  end
+
+  def previous_serp_analysis
+    return unless latest_serp_analysis
+
+    @previous_serp_analysis ||= business.serp_analyses
+                                      .successful
+                                      .where(keyword: latest_serp_analysis.keyword)
+                                      .where.not(id: latest_serp_analysis.id)
+                                      .order(analyzed_at: :desc, created_at: :desc)
+                                      .first
+  end
+
+  def serp_competition_delta
+    return 0 unless latest_serp_analysis && previous_serp_analysis
+
+    latest_serp_analysis.competition_score.to_i - previous_serp_analysis.competition_score.to_i
+  end
+
+  def keyword_covered_by_recent_action?(keyword)
+    return true if keyword.blank?
+
+    business.action_candidates
+            .where(created_at: 30.days.ago..)
+            .where(
+              "title ILIKE :keyword OR evaluation_reason ILIKE :keyword OR execution_prompt ILIKE :keyword",
+              keyword: "%#{ActiveRecord::Base.sanitize_sql_like(keyword)}%"
+            )
+            .exists?
   end
 
   def cumulative_revenue

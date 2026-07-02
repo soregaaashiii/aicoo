@@ -1,62 +1,20 @@
-<% content_for :title, "承認済み" %>
-
-<% header_actions = capture do %>
-  <%= link_to "オーナーモード", owner_dashboard_path, class: "button secondary" %>
-  <%= button_to "全承認済み候補を実行指示へ送る", queue_all_owner_approved_queue_path, method: :post, class: "button" %>
-<% end %>
+<% content_for :title, "改訂待ちへ統合済み" %>
 
 <div class="aicoo-page">
   <%= render "shared/aicoo_header",
-             title: "承認済み",
-             description: "承認した行動候補を、実行指示へ送る前に集約します。",
-             active_main: :revenue,
-             actions: header_actions %>
+             title: "改訂待ちへ統合済み",
+             description: "承認済みキューはAutoRevisionTaskへ統合しました。",
+             active_main: :today %>
 
   <section class="dashboard-section">
-    <div class="section-heading">
-      <h2>承認済み候補</h2>
-      <p>承認後すぐ実行せず、一度ここに集約してから実行指示へ送ります。</p>
-    </div>
-
-    <div class="actions compact-actions">
-      <%= link_to "承認日時順", owner_approved_queue_path(sort: "approved_at"), class: "button secondary" %>
-      <%= link_to "総期待値順", owner_approved_queue_path(sort: "expected_total_value"), class: "button secondary" %>
-    </div>
-
-    <%= form_with url: queue_selected_owner_approved_queue_path, method: :post do %>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>選択</th>
-              <th>タイトル</th>
-              <th>事業</th>
-              <th>総期待値</th>
-              <th>承認日時</th>
-              <th>信頼度</th>
-            </tr>
-          </thead>
-          <tbody>
-            <% @approved_candidates.each do |action_candidate| %>
-              <tr>
-                <td><%= check_box_tag "action_candidate_ids[]", action_candidate.id, false, id: "action_candidate_#{action_candidate.id}" %></td>
-                <td><%= link_to action_candidate.title, action_candidate_path(action_candidate) %></td>
-                <td><%= action_candidate.business.name %></td>
-                <td><%= number_to_currency(action_candidate.expected_total_value_yen, unit: "¥", precision: 0) %></td>
-                <td><%= action_candidate.approved_at ? l(action_candidate.approved_at, format: :short) : "-" %></td>
-                <td><%= action_candidate.confidence_score.to_i %></td>
-              </tr>
-            <% end %>
-            <% if @approved_candidates.empty? %>
-              <tr><td colspan="6">承認済み候補はありません。</td></tr>
-            <% end %>
-          </tbody>
-        </table>
-      </div>
-
+    <div class="aicoo-card">
+      <h2>承認後の管理場所が変わりました</h2>
+      <p>ActionCandidateを承認すると、承認済みキューを経由せずAutoRevisionTaskが直接作成されます。</p>
+      <p>Codex Prompt確認、承認待ち、queued、running、completed、failedはAutoRevisionTaskで管理します。</p>
       <div class="actions compact-actions">
-        <%= submit_tag "選択した候補を実行指示へ送る", class: "button" %>
+        <%= link_to "改訂待ちを見る", auto_revision_tasks_path(status: "waiting_approval"), class: "button" %>
+        <%= link_to "Owner Homeへ戻る", owner_dashboard_path, class: "button secondary" %>
       </div>
-    <% end %>
+    </div>
   </section>
 </div>

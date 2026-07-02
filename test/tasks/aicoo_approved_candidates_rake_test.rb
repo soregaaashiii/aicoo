@@ -11,15 +11,15 @@ class AicooApprovedCandidatesRakeTest < ActiveSupport::TestCase
     assert Rake::Task.task_defined?("aicoo:queue_approved_candidates")
   end
 
-  test "queue_approved_candidates queues approved candidates" do
+  test "queue_approved_candidates creates auto revision tasks" do
     create_approved_candidate
 
-    assert_difference("AicooExecutorTask.count", 1) do
+    assert_difference("AutoRevisionTask.count", 1) do
       output, = capture_io do
         Rake::Task["aicoo:queue_approved_candidates"].invoke
       end
 
-      assert_includes output, "AICOO queue approved candidates"
+      assert_includes output, "AICOO create auto revision tasks from approved candidates"
       assert_includes output, "target_count=1"
       assert_includes output, "created_count=1"
     end

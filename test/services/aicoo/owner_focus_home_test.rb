@@ -81,7 +81,7 @@ module Aicoo
       assert_includes result.top_task.title, "High value pending opportunity"
     end
 
-    test "codex prompt draft needed is included below opportunity review" do
+    test "approved action candidates are not shown as codex prompt draft tasks" do
       ActionCandidate.create!(
         business: businesses(:suelog),
         title: "Approved candidate needs prompt",
@@ -94,7 +94,7 @@ module Aicoo
 
       result = OwnerFocusHome.new.call
 
-      assert result.focus_tasks.any? { |task| task.task_type == "codex_prompt_draft_needed" }
+      assert_not result.focus_tasks.any? { |task| task.task_type == "codex_prompt_draft_needed" }
     end
 
     test "includes explore daily routine task" do

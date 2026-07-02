@@ -80,7 +80,7 @@ class DataSourceCostProfile < ApplicationRecord
   end
 
   def api_key_configured?
-    api_key.present?
+    credential_configured?("api_key")
   end
 
   def credential_fields
@@ -92,7 +92,9 @@ class DataSourceCostProfile < ApplicationRecord
   end
 
   def credential_value(key)
-    key.to_s == "api_key" ? api_key : credentials[key.to_s]
+    return api_key.presence || env_api_key if key.to_s == "api_key"
+
+    credentials[key.to_s]
   end
 
   def credential_configured?(key)
@@ -100,6 +102,12 @@ class DataSourceCostProfile < ApplicationRecord
   end
 
   private
+
+  def env_api_key
+    return ENV["OPENAI_API_KEY"] if source_key == "openai"
+
+    nil
+  end
 
   def set_defaults
     definition = SOURCE_DEFINITIONS[source_key] || {}

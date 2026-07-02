@@ -45,7 +45,9 @@ module Aicoo
           "weak_tasks" => weak_types(task_summary),
           "analysis_summary" => analysis_summary,
           "recommended_analysis_sources" => recommended_types(analysis_summary),
-          "weak_analysis_sources" => weak_types(analysis_summary)
+          "weak_analysis_sources" => weak_types(analysis_summary),
+          "business_type" => business.business_type,
+          "business_type_action_summary" => business_type_action_summary
         },
         last_calculated_at: Time.current
       )
@@ -59,6 +61,27 @@ module Aicoo
     def action_type_summary
       action_types = (business.action_candidates.distinct.pluck(:action_type) + OwnerDecisionLog.where(business:).distinct.pluck(:action_type)).compact_blank.uniq
       action_types.index_with { |action_type| action_type_row(action_type) }
+    end
+
+    def business_type_action_summary
+      businesses = Business.real_businesses.where(business_type: business.business_type)
+      action_types = ActionCandidate.where(business: businesses).distinct.pluck(:action_type).compact_blank
+      action_types.index_with do |action_type|
+        candidates = ActionCandidate.where(business: businesses, action_type:)
+        results = ActionResult.joins(:action_candidate).where(
+          business: businesses,
+          action_candidates: { action_type: }
+        )
+        {
+          "type" => action_type,
+          "business_type" => business.business_type,
+          "candidate_count" => candidates.count,
+          "result_count" => results.count,
+          "success_rate" => rate(results.where("actual_profit_yen > 0").count, results.count),
+          "average_expected_profit_yen" => average(candidates.pluck(:expected_profit_yen)),
+          "average_actual_profit_yen" => average(results.pluck(:actual_profit_yen))
+        }.transform_values { |value| value.respond_to?(:round) ? value.to_d.round(4).to_s : value }
+      end
     end
 
     def action_type_row(action_type)

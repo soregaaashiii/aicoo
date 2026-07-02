@@ -90,11 +90,11 @@ module Owner
       assert_response :success
       assert_includes response.body, "危険アラート"
       assert_includes response.body, "承認待ち"
-      assert_includes response.body, "承認済み"
+      assert_includes response.body, "改訂待ち"
       assert_includes response.body, "確認タスクを見る"
       assert_includes response.body, "今日承認"
-      assert_includes response.body, "今日実行指示へ送信"
-      assert_includes response.body, "実行承認待ち"
+      assert_includes response.body, "今日Codex送信待ちへ"
+      assert_includes response.body, "AutoRevision承認待ち"
       assert_includes response.body, "事業ランキング"
       assert_includes response.body, "学習状況"
       assert_includes response.body, "AICOO成熟度"
@@ -122,10 +122,11 @@ module Owner
 
       patch approve_action_candidate_url(action)
 
-      assert_redirected_to owner_dashboard_url
+      assert_redirected_to auto_revision_task_url(AutoRevisionTask.last)
       assert_equal "approved", action.reload.status
       assert action.approved_at.present?
       assert_equal "owner", action.approved_by
+      assert_equal action, AutoRevisionTask.last.action_candidate
     end
 
     private

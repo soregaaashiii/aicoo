@@ -21,8 +21,19 @@ class AiActionGeneratorService
 
     ApplicationRecord.transaction do
       run = create_run(response:, created_action_count: 0)
-      action_candidates = response[:parsed].fetch("actions").first(action_count).map do |attributes|
-        business.action_candidates.create!(AiActionPayload.normalize(attributes).merge(status: "idea", generation_source: "ai_business", priority_score: 0))
+      action_candidates = response[:parsed].fetch("actions").first(action_count).filter_map do |attributes|
+        normalized = AiActionPayload.normalize(attributes)
+        decision = business.business_type_playbook.call(normalized)
+        next unless decision.allowed
+
+        business.action_candidates.create!(
+          normalized.merge(
+            status: "idea",
+            generation_source: "ai_business",
+            priority_score: 0,
+            metadata: { "business_type_playbook" => decision.metadata }
+          )
+        )
       end
       run.update!(created_action_count: action_candidates.size)
     end
@@ -39,7 +50,11 @@ class AiActionGeneratorService
       business: {
         name: business.name,
         description: business.description,
-        status: business.status
+        status: business.status,
+        business_type: business.business_type,
+        allowed_actions: business.business_type_playbook.allowed_actions,
+        preferred_actions: business.business_type_playbook.preferred_actions,
+        forbidden_actions: business.business_type_playbook.forbidden_actions
       },
       latest_data_imports: latest_data_imports.map { |data_import| data_import_payload(data_import) }
     }
@@ -69,6 +84,8 @@ class AiActionGeneratorService
       - execution_prompt
 
       評価は単なるアイデア出しではなく、意思決定支援として行ってください。
+      business_typeのallowed_actionsに含まれるaction_typeだけを生成してください。
+      preferred_actionsに含まれる改善は優先し、forbidden_actionsに含まれる改善は絶対に生成しないでください。
       GSC、GA4、SERP、市場規模、困り度、競合強度、収益性、マーケティングコスト、
       運営コスト、AI自動化率、初速、資本効率、オーナー適性を考慮してください。
       SERPデータにcompetition_scoreが含まれる場合は、success_probabilityの重要な材料として使ってください。

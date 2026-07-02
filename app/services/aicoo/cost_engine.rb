@@ -71,6 +71,7 @@ module Aicoo
       profile = DataSourceCostProfile.for_source(source_key)
       business_setting = business ? BusinessDataSourceSetting.for_business_and_source(business, source_key) : nil
       business_enabled = business_setting.nil? ? true : business_setting.enabled?
+      global_connection = global_connection_for(profile)
       cost = estimated_cost_yen || profile.average_cost_yen
       expected_profit = expected_profit_yen || profile.average_expected_profit_yen
       Estimate.new(
@@ -89,11 +90,11 @@ module Aicoo
         last_run_at: profile.last_run_at,
         last_error: profile.last_error,
         business_enabled:,
-        connection_status: business_setting&.connection_status,
-        connection_label: business_setting&.connection_status_label,
-        connection_status_level: business_setting&.connection_status_level || "attention",
-        connection_summary: business_setting&.connection_summary,
-        linked: business_setting&.linked? || false,
+        connection_status: global_connection[:status] || business_setting&.connection_status,
+        connection_label: global_connection[:label] || business_setting&.connection_status_label,
+        connection_status_level: global_connection[:level] || business_setting&.connection_status_level || "attention",
+        connection_summary: global_connection[:summary] || business_setting&.connection_summary,
+        linked: global_connection[:linked] || business_setting&.linked? || false,
         manual: profile.execution_mode == "manual",
         smart: profile.execution_mode == "smart",
         auto: profile.execution_mode == "auto",
@@ -124,6 +125,28 @@ module Aicoo
       return "#{profile.name}は高コストです" if profile.cost_level == "high"
 
       nil
+    end
+
+    def global_connection_for(profile)
+      return {} unless profile.source_key == "openai"
+
+      if profile.credential_configured?("api_key")
+        {
+          status: "global",
+          label: "全体設定使用",
+          level: "healthy",
+          summary: profile.api_key.present? ? "AICOO設定API Key" : "OPENAI_API_KEY",
+          linked: true
+        }
+      else
+        {
+          status: "missing",
+          label: "未設定",
+          level: "critical",
+          summary: "OPENAI_API_KEY未設定",
+          linked: false
+        }
+      end
     end
 
     def ratio(numerator, denominator)

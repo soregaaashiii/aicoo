@@ -23,7 +23,7 @@ class ActionCandidate < ApplicationRecord
 
   STATUSES = %w[idea pending approved executor_queued in_progress done rejected archived].freeze
   INACTIVE_STATUSES = %w[archived rejected done].freeze
-  GENERATION_SOURCES = %w[manual seed ai_business ai_cross_business ai_reevaluation ai_insight learning_report opportunity_discovery].freeze
+  GENERATION_SOURCES = %w[manual seed ai_business ai_cross_business ai_reevaluation ai_insight learning_report opportunity_discovery serp].freeze
   DEPARTMENTS = %w[general revenue lab new_business].freeze
 
   belongs_to :business
@@ -85,8 +85,11 @@ class ActionCandidate < ApplicationRecord
   end
 
   def approve!(approved_by: nil)
-    update!(status: "approved", approved_at: Time.current, approved_by:)
-    ensure_action_execution!
+    transaction do
+      update!(status: "approved", approved_at: Time.current, approved_by:)
+      ensure_action_execution!
+      AutoRevisionTask.from_action_candidate(self, generated_by: "action_candidate_approval")
+    end
   end
 
   def mark_executor_queued!
@@ -162,6 +165,7 @@ class ActionCandidate < ApplicationRecord
     apply_strategic_learning
     apply_practicality_filter
     apply_business_playbook
+    apply_business_type_playbook
   end
 
   def calculate_expected_hourly_value
@@ -272,6 +276,31 @@ class ActionCandidate < ApplicationRecord
         "score_after_playbook" => final_score.to_s
       )
     )
+  end
+
+  def apply_business_type_playbook
+    return unless business
+
+    decision = business.business_type_playbook.call(
+      title:,
+      description:,
+      action_type:,
+      evaluation_reason:,
+      execution_prompt:
+    )
+    coefficient = decision.preferred ? 1.08.to_d : 1.to_d
+    self.final_score = (final_score.to_d * coefficient).round(2)
+    self.metadata = metadata.to_h.merge(
+      "business_type_playbook" => decision.metadata.merge(
+        "score_before_business_type" => (metadata.to_h.dig("business_playbook", "score_after_playbook") || final_score).to_s,
+        "score_after_business_type" => final_score.to_s,
+        "coefficient" => coefficient.to_s
+      )
+    )
+    return unless new_record?
+    return if decision.reason.blank? || evaluation_reason.to_s.include?(decision.reason)
+
+    self.evaluation_reason = [ evaluation_reason, decision.reason ].compact_blank.join("\n")
   end
 
   def practicality_multiplier(score)

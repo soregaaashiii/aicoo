@@ -254,18 +254,18 @@
 
   <section class="dashboard-section">
     <div class="section-heading">
-      <h2>承認済み</h2>
-      <p>経営者が止めずに流すべき判断待ちです。</p>
+      <h2>改訂待ち</h2>
+      <p>承認後のCodex Prompt確認・実行待ちはAutoRevisionTaskで管理します。</p>
     </div>
     <% approval = @dashboard_summary.approval_queue %>
     <div class="metric-grid aicoo-owner-secondary">
       <div class="metric-card"><span>行動候補</span><strong><%= approval.action_candidate_count %>件</strong></div>
-      <%= link_to owner_approved_queue_path, class: "metric-card" do %>
-        <span>承認済み</span><strong><%= approval.approved_remaining_count %>件</strong>
+      <%= link_to auto_revision_tasks_path(status: "waiting_approval"), class: "metric-card" do %>
+        <span>改訂承認待ち</span><strong><%= approval.approved_remaining_count %>件</strong>
       <% end %>
       <div class="metric-card"><span>今日承認</span><strong><%= approval.today_approved_count %>件</strong></div>
-      <div class="metric-card"><span>今日実行指示へ送信</span><strong><%= approval.today_executor_queued_count %>件</strong></div>
-      <div class="metric-card"><span>実行承認待ち</span><strong><%= approval.executor_task_count %>件</strong></div>
+      <div class="metric-card"><span>今日Codex送信待ちへ</span><strong><%= approval.today_executor_queued_count %>件</strong></div>
+      <div class="metric-card"><span>AutoRevision承認待ち</span><strong><%= approval.executor_task_count %>件</strong></div>
       <div class="metric-card"><span>学習準備</span><strong><%= approval.data_preparation_count %>件</strong></div>
     </div>
     <div class="actions compact-actions">

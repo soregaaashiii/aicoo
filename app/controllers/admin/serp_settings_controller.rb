@@ -53,8 +53,12 @@ module Admin
       @provider_keys = Aicoo::Serp::ProviderRegistry.provider_keys
       @current_provider = (ENV["AICOO_SERP_PROVIDER"].presence || "serper").to_s
       @serp_profile = DataSourceCostProfile.for_source("serp")
-      @api_key_configured = ENV["SERPER_API_KEY"].present? || @serp_profile.api_key.present?
       @serp_optional_mode = Aicoo::Serp::OptionalMode.call
+      @api_key_configured = @serp_optional_mode.api_key_configured
+      @recent_serp_analyses = SerpAnalysis.includes(:business).order(analyzed_at: :desc, created_at: :desc).limit(10)
+      @last_serp_error = SerpAnalysis.failed.order(updated_at: :desc).first
+      @serp_analysis_count = SerpAnalysis.count
+      @serp_result_count = SerpResult.count
       @test_params ||= {
         provider: @current_provider,
         type: "google_search",

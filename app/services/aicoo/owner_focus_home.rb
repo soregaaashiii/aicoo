@@ -5,7 +5,6 @@ module Aicoo
       action_execution_ready
       action_execution_running
       calibration_approval
-      codex_prompt_draft_needed
       opportunity_review
       new_business_setup
       explore_daily_routine
@@ -63,10 +62,9 @@ module Aicoo
       return 5 if task.task_type == "opportunity_review" && task.priority == "high"
       return 6 if task.task_type == "opportunity_review"
       return 7 if task.task_type == "new_business_setup"
-      return 8 if task.task_type == "codex_prompt_draft_needed"
-      return 9 if task.task_type == "explore_daily_routine"
-      return 10 if task.task_type == "learning_recommendation"
-      return 11 if task.task_type == "daily_run_step_recovery"
+      return 8 if task.task_type == "explore_daily_routine"
+      return 9 if task.task_type == "learning_recommendation"
+      return 10 if task.task_type == "daily_run_step_recovery"
 
       12 + OwnerTaskInbox::PRIORITY_ORDER.fetch(task.priority, 99)
     end

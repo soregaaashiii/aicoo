@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_02_010100) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_02_023000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1235,6 +1235,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_02_010100) do
     t.datetime "auto_deploy_suspended_at"
     t.string "auto_deploy_suspended_reason"
     t.string "auto_revision_mode", default: "manual", null: false
+    t.string "business_type", default: "other", null: false
     t.string "category"
     t.datetime "created_at", null: false
     t.boolean "created_by_aicoo", default: false, null: false
@@ -1263,6 +1264,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_02_010100) do
     t.index ["auto_deploy_mode"], name: "index_businesses_on_auto_deploy_mode"
     t.index ["auto_deploy_suspended"], name: "index_businesses_on_auto_deploy_suspended"
     t.index ["auto_revision_mode"], name: "index_businesses_on_auto_revision_mode"
+    t.index ["business_type"], name: "index_businesses_on_business_type"
     t.index ["created_by_aicoo"], name: "index_businesses_on_created_by_aicoo"
     t.index ["idea_id"], name: "index_businesses_on_idea_id"
     t.index ["launched"], name: "index_businesses_on_launched"

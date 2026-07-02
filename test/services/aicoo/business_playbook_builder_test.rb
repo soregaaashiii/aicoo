@@ -50,6 +50,10 @@ module Aicoo
       assert_equal "24.0", row.fetch("average_engagement_delta")
       assert_equal "0.35", row.fetch("average_navigation_delta")
       assert_equal "0.02", row.fetch("average_conversion_delta")
+      type_summary = playbook.metadata.fetch("business_type_action_summary")
+      assert_equal "seo_media", playbook.metadata.fetch("business_type")
+      assert type_summary.key?("seo_improvement")
+      assert_equal "seo_media", type_summary.fetch("seo_improvement").fetch("business_type")
     end
 
     test "learns action expansion task performance" do

@@ -49,6 +49,38 @@ module Aicoo
       assert_equal "properties/123", estimate.connection_summary
     end
 
+    test "openai uses global env api key without business binding" do
+      original = ENV["OPENAI_API_KEY"]
+      ENV["OPENAI_API_KEY"] = "env-openai-key"
+      DataSourceCostProfile.ensure_defaults!
+      DataSourceCostProfile.find_by!(source_key: "openai").update!(api_key: nil)
+
+      estimate = CostEngine.new(business: @business).estimate("openai")
+
+      assert estimate.linked?
+      assert_equal "全体設定使用", estimate.connection_label
+      assert_equal "healthy", estimate.connection_status_level
+      assert_equal "OPENAI_API_KEY", estimate.connection_summary
+    ensure
+      ENV["OPENAI_API_KEY"] = original
+    end
+
+    test "openai reports missing when env and stored api key are absent" do
+      original = ENV["OPENAI_API_KEY"]
+      ENV.delete("OPENAI_API_KEY")
+      DataSourceCostProfile.ensure_defaults!
+      DataSourceCostProfile.find_by!(source_key: "openai").update!(api_key: nil)
+
+      estimate = CostEngine.new(business: @business).estimate("openai")
+
+      assert_not estimate.linked?
+      assert_equal "未設定", estimate.connection_label
+      assert_equal "critical", estimate.connection_status_level
+      assert_equal "OPENAI_API_KEY未設定", estimate.connection_summary
+    ensure
+      ENV["OPENAI_API_KEY"] = original
+    end
+
     test "checks smart run only when signals and roi are enough" do
       DataSourceCostProfile.ensure_defaults!
       engine = CostEngine.new(business: @business)

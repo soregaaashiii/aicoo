@@ -77,17 +77,22 @@ class ActionCandidatesController < ApplicationController
 
   def approve
     previous_status = @action_candidate.status
-    @action_candidate.approve!(approved_by: "owner")
+    auto_revision_task = @action_candidate.approve!(approved_by: "owner")
     record_owner_decision!("approve", previous_status:)
-    message = "ActionCandidate『#{@action_candidate.title}』を承認しました。承認待ちタスクから削除されました。"
+    message = "ActionCandidate『#{@action_candidate.title}』を承認し、AutoRevisionTask ##{auto_revision_task.id} を作成しました。"
     OwnerTaskCompletionLog.record_success!(
       task_type: "action_candidate_approval",
       target: @action_candidate,
       action_label: "承認",
       message:,
-      metadata: { status: @action_candidate.status, approved_at: @action_candidate.approved_at }
+      metadata: {
+        status: @action_candidate.status,
+        approved_at: @action_candidate.approved_at,
+        auto_revision_task_id: auto_revision_task.id,
+        auto_revision_task_status: auto_revision_task.status
+      }
     )
-    redirect_back fallback_location: owner_dashboard_path, notice: message
+    redirect_to auto_revision_task, notice: message
   end
 
   def reject

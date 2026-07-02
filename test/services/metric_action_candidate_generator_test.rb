@@ -152,6 +152,64 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     assert result.created.all? { |candidate| candidate.metadata.key?("comparison_strategy") }
   end
 
+  test "does not generate forbidden LP creation for seo media business" do
+    create_metric_series(default_clicks: 0, recent_clicks: 20)
+
+    result = MetricActionCandidateGenerator.new(business: @business, today: @today).call
+
+    assert result.created.none? { |candidate| candidate.action_type == "build_lp" }
+    assert result.skipped.any? { |reason| reason.include?("Business TypeがSEOメディア") && reason.include?("対象外") }
+  end
+
+  test "stores business type playbook metadata on generated candidates" do
+    create_metric_series(default_impressions: 10, recent_impressions: 100, default_clicks: 5, recent_clicks: 5)
+
+    result = MetricActionCandidateGenerator.new(business: @business, today: @today).call
+    candidate = result.created.find { |record| record.metadata.fetch("metric_rule") == "ctr_improvement" }
+
+    assert_equal "seo_media", candidate.metadata.dig("business_type_playbook", "business_type")
+    assert_equal true, candidate.metadata.dig("business_type_playbook", "preferred")
+    assert_match(/SEOメディア/, candidate.evaluation_reason)
+  end
+
+  test "creates serp sourced candidates from saved serp analyses" do
+    DataSourceCostProfile.find_by!(source_key: "serp").update!(api_key: "configured")
+    @business.action_candidates.delete_all
+    keyword = "梅田 喫煙 カフェ"
+    @business.serp_analyses.create!(
+      keyword:,
+      analyzed_at: @today - 2,
+      search_engine: "google",
+      device: "desktop",
+      provider: "serper",
+      status: "success",
+      result_count: 5,
+      competition_score: 50
+    )
+    latest = @business.serp_analyses.create!(
+      keyword:,
+      analyzed_at: @today - 1,
+      search_engine: "google",
+      device: "desktop",
+      provider: "serper",
+      status: "success",
+      result_count: 10,
+      competition_score: 82
+    )
+    latest.serp_results.create!(position: 1, title: "強い競合", url: "https://example.com", snippet: "競合ページ")
+
+    result = MetricActionCandidateGenerator.new(business: @business, today: @today).call
+    serp_candidates = result.created.select { |candidate| candidate.generation_source == "serp" }
+
+    assert_not_empty serp_candidates
+    assert serp_candidates.any? { |candidate| candidate.metadata.fetch("metric_rule") == "serp_rank_decline_risk" }
+    assert serp_candidates.any? { |candidate| candidate.metadata.fetch("metric_rule") == "serp_competition_rising" }
+    assert serp_candidates.any? { |candidate| candidate.metadata.fetch("metric_rule") == "serp_uncovered_keyword" }
+    assert serp_candidates.all? { |candidate| candidate.metadata.fetch("source") == "serp" }
+    assert serp_candidates.all? { |candidate| candidate.metadata.fetch("serp_analysis_id") == latest.id }
+    assert serp_candidates.all? { |candidate| candidate.metadata.fetch("serp_keyword") == keyword }
+  end
+
   private
 
   def create_metric_series(default_clicks: 0, recent_clicks: nil, default_impressions: 0, recent_impressions: nil,

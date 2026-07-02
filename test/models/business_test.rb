@@ -16,4 +16,16 @@ class BusinessTest < ActiveSupport::TestCase
     assert_predicate system, :system_business?
     assert_not real.system_business?
   end
+
+  test "validates business type" do
+    business = Business.new(name: "Test", status: "idea", business_type: "unknown")
+
+    assert_not business.valid?
+    assert_includes business.errors[:business_type], "is not included in the list"
+  end
+
+  test "fixtures classify known businesses" do
+    assert_equal "seo_media", businesses(:suelog).business_type
+    assert_equal "saas", businesses(:cards).business_type
+  end
 end

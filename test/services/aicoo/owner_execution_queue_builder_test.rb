@@ -12,7 +12,7 @@ module Aicoo
       )
     end
 
-    test "creates queue items from pending opportunity approved candidate draft result and calibration" do
+    test "creates queue items from pending opportunity result and calibration" do
       create_pending_opportunity
       create_approved_candidate(title: "Approved queue candidate")
       create_codex_prompt_draft
@@ -21,12 +21,12 @@ module Aicoo
 
       result = OwnerExecutionQueueBuilder.new(due_on: Date.current, generated_from: "test").call
 
-      assert_operator result.created.size, :>=, 5
+      assert_operator result.created.size, :>=, 3
       assert OwnerExecutionQueueItem.exists?(item_type: "opportunity")
-      assert OwnerExecutionQueueItem.exists?(item_type: "action_candidate")
-      assert OwnerExecutionQueueItem.exists?(item_type: "codex_prompt_draft")
       assert OwnerExecutionQueueItem.exists?(item_type: "result_registration")
       assert OwnerExecutionQueueItem.exists?(item_type: "calibration")
+      assert_not OwnerExecutionQueueItem.exists?(item_type: "action_candidate")
+      assert_not OwnerExecutionQueueItem.exists?(item_type: "codex_prompt_draft")
     end
 
     test "does not create duplicates for same day" do
@@ -50,7 +50,7 @@ module Aicoo
       assert_equal 2, result.created.size
     end
 
-    test "skips high risk when setting is off" do
+    test "does not queue approved action candidates because approval flow is handled by auto revision tasks" do
       create_approved_candidate(
         title: "認証 migration high risk",
         execution_prompt: "認証とmigrationを変更する"
@@ -59,8 +59,9 @@ module Aicoo
       result = OwnerExecutionQueueBuilder.new.call
 
       assert_empty result.created
-      assert_equal 1, result.high_risk.size
+      assert_empty result.high_risk
       assert_not OwnerExecutionQueueItem.exists?(risk_level: "high")
+      assert_not OwnerExecutionQueueItem.exists?(item_type: "action_candidate")
     end
 
     test "priority score uses expected value and confidence for opportunity" do

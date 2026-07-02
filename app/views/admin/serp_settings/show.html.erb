@@ -150,6 +150,61 @@
     <% end %>
   </section>
 
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>取得結果</h2>
+      <p>Daily RunまたはCEO MODEのSERP走査で保存された直近結果です。</p>
+    </div>
+
+    <div class="metric-grid">
+      <div class="metric-card"><span>保存済み分析</span><strong><%= @serp_analysis_count %>件</strong></div>
+      <div class="metric-card"><span>保存済み結果</span><strong><%= @serp_result_count %>件</strong></div>
+      <div class="metric-card"><span>最終取得</span><strong><%= @recent_serp_analyses.first ? l(@recent_serp_analyses.first.analyzed_at, format: :short) : "未取得" %></strong></div>
+      <div class="metric-card"><span>最終エラー</span><strong><%= @last_serp_error ? l(@last_serp_error.updated_at, format: :short) : "なし" %></strong></div>
+    </div>
+
+    <% if @last_serp_error %>
+      <div class="error-toast">
+        <strong><%= @last_serp_error.business.name %> / <%= @last_serp_error.keyword %></strong>
+        <p><%= @last_serp_error.error_message %></p>
+      </div>
+    <% end %>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>取得日時</th>
+            <th>Business</th>
+            <th>Keyword</th>
+            <th>Status</th>
+            <th>Provider</th>
+            <th>結果</th>
+            <th>競合</th>
+            <th>Error</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @recent_serp_analyses.each do |analysis| %>
+            <tr>
+              <td><%= l(analysis.analyzed_at, format: :short) %></td>
+              <td><%= link_to analysis.business.name, business_path(analysis.business, anchor: "business-serp") %></td>
+              <td><%= analysis.keyword %></td>
+              <td><span class="pill"><%= analysis.status %></span></td>
+              <td><%= analysis.provider %></td>
+              <td><%= analysis.result_count.to_i %>件</td>
+              <td><%= analysis.competition_score || "-" %></td>
+              <td><%= truncate(analysis.error_message, length: 80) if analysis.error_message.present? %></td>
+            </tr>
+          <% end %>
+          <% if @recent_serp_analyses.empty? %>
+            <tr><td colspan="8">SERP取得結果はまだありません。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
   <% if @error_message.present? %>
     <section class="dashboard-section">
       <div class="error-toast">SERPテスト検索に失敗しました。原因全文は実行履歴で確認してください。</div>

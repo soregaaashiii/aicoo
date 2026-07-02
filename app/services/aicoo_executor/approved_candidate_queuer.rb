@@ -20,14 +20,12 @@ module AicooExecutor
       target_count = scope.count
 
       scope.find_each do |action_candidate|
-        if AicooExecutorTask.unfinished_for_action_candidate(action_candidate)
-          skipped_reasons["既に実行指示へ送信済み"] += 1
-          action_candidate.mark_executor_queued! if action_candidate.executor_queued_at.blank?
+        if AutoRevisionTask.active.exists?(action_candidate:)
+          skipped_reasons["既にAutoRevisionTaskへ統合済み"] += 1
           next
         end
 
-        tasks << TaskBuilder.from_action_candidate(action_candidate)
-        action_candidate.mark_executor_queued!
+        tasks << AutoRevisionTask.from_action_candidate(action_candidate, generated_by: "approved_candidate_queuer")
       end
 
       Result.new(
