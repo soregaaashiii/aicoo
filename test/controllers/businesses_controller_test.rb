@@ -119,6 +119,35 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, "AICOO Analytics Import"
   end
 
+  test "index repairs approved new business candidates into visible businesses" do
+    ActionCandidate.create!(
+      business: @business,
+      title: "一覧表示時にBusiness化される新規事業",
+      description: "SERP由来の承認済み候補",
+      action_type: "build_lp",
+      generation_source: "integrated_decision",
+      department: "new_business",
+      status: "approved",
+      approved_at: 1.day.ago,
+      approved_by: "owner",
+      metadata: {
+        "candidate_kind" => "new_business",
+        "business_name" => "一覧自動復旧Business"
+      },
+      immediate_value_yen: 50_000,
+      success_probability: 0.4,
+      expected_hours: 2
+    )
+
+    assert_difference("Business.real_businesses.count", 1) do
+      get businesses_url
+    end
+
+    assert_response :success
+    assert_includes response.body, "一覧自動復旧Business"
+    assert_includes response.body, "承認済み新規事業候補を1件Business化しました。"
+  end
+
   test "should get new" do
     get new_business_url
     assert_response :success
