@@ -3,6 +3,8 @@ module Admin
     def show
       load_context
       @serp_e2e_check = Aicoo::Serp::E2eCheck.new(@business).call if @business
+      @serp_system_status = Aicoo::SystemStatusResolver.call("serp", business: @business) if @business
+      @traffic_serp_system_status = Aicoo::SystemStatusResolver.call("traffic_serp")
     end
 
     def repair

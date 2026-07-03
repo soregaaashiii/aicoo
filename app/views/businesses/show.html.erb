@@ -29,6 +29,20 @@
   </div>
   <% period_30d_for_home = @business_analytics_summary.periods.fetch(30) %>
   <div class="metric-grid">
+    <% if @system_statuses.present? %>
+      <% %w[ga4 gsc serp daily_run traffic codex].each do |key| %>
+        <% system_status = @system_statuses[key] %>
+        <% next unless system_status %>
+        <div class="metric-card status-<%= system_status.status_level %>">
+          <span><%= system_status.label %></span>
+          <strong><%= system_status.status_label %></strong>
+          <small><%= system_status.reason %></small>
+          <% if system_status.next_action.present? && system_status.detail_url.present? %>
+            <%= link_to system_status.next_action, system_status.detail_url, class: "button secondary" %>
+          <% end %>
+        </div>
+      <% end %>
+    <% end %>
     <div class="metric-card">
       <span>現在フェーズ</span>
       <strong><%= lifecycle_stage_label(@business.lifecycle_stage) %></strong>

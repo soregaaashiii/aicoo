@@ -52,16 +52,16 @@ module Owner
 
     def approve
       previous_status = @opportunity.status
-      @opportunity.update!(status: "approved")
+      result = Aicoo::ApprovalService.approve(@opportunity, operator: "owner", source: "opportunity_detail")
       record_decision!("approve", "opportunity_detail", previous_status:)
-      redirect_to owner_opportunity_path(@opportunity), notice: "Opportunityをapprovedにしました。"
+      redirect_to owner_opportunity_path(@opportunity), notice: result.message
     end
 
     def reject
       previous_status = @opportunity.status
-      @opportunity.update!(status: "rejected")
+      result = Aicoo::ApprovalService.reject(@opportunity, operator: "owner", source: "opportunity_detail")
       record_decision!("reject", "opportunity_detail", previous_status:)
-      redirect_to owner_opportunities_path, notice: "Opportunityを却下しました。"
+      redirect_to owner_opportunities_path, notice: result.message
     end
 
     def create_business
@@ -99,16 +99,16 @@ module Owner
 
     def focus_approve
       previous_status = @opportunity.status
-      @opportunity.update!(status: "approved")
+      result = Aicoo::ApprovalService.approve(@opportunity, operator: "owner", source: "owner_focus")
       record_decision!("approve", "owner_focus", previous_status:)
-      redirect_to owner_focus_path, notice: "Opportunityをapprovedにしました。"
+      redirect_to owner_focus_path, notice: result.message
     end
 
     def focus_reject
       previous_status = @opportunity.status
-      @opportunity.update!(status: "rejected")
+      result = Aicoo::ApprovalService.reject(@opportunity, operator: "owner", source: "owner_focus")
       record_decision!("reject", "owner_focus", previous_status:)
-      redirect_to owner_focus_path, notice: "Opportunityを却下しました。"
+      redirect_to owner_focus_path, notice: result.message
     end
 
     def focus_create_business

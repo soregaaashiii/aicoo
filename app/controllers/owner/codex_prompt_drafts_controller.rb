@@ -15,16 +15,16 @@ module Owner
 
     def approve
       previous_status = @codex_prompt_draft.status
-      @codex_prompt_draft.approve!
+      result = Aicoo::ApprovalService.approve(@codex_prompt_draft, operator: "owner", source: "codex_prompt_detail")
       record_decision!("approve", previous_status:)
-      redirect_to owner_codex_prompt_draft_path(@codex_prompt_draft), notice: "Codex Prompt Draftをapprovedにしました。"
+      redirect_to owner_codex_prompt_draft_path(@codex_prompt_draft), notice: result.message
     end
 
     def reject
       previous_status = @codex_prompt_draft.status
-      @codex_prompt_draft.reject!
+      result = Aicoo::ApprovalService.reject(@codex_prompt_draft, operator: "owner", source: "codex_prompt_detail")
       record_decision!("reject", previous_status:)
-      redirect_to owner_codex_prompt_drafts_path(status: "rejected"), notice: "Codex Prompt Draftをrejectedにしました。"
+      redirect_to owner_codex_prompt_drafts_path(status: "rejected"), notice: result.message
     end
 
     def mark_copied

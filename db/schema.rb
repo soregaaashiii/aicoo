@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_02_070000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_03_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -929,6 +929,30 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_02_070000) do
     t.index ["authentication_mode"], name: "index_analytics_source_settings_on_authentication_mode"
     t.index ["google_credential_id"], name: "index_analytics_source_settings_on_google_credential_id"
     t.index ["source_type"], name: "index_analytics_source_settings_on_source_type"
+  end
+
+  create_table "approval_logs", force: :cascade do |t|
+    t.string "action", null: false
+    t.bigint "approvable_id", null: false
+    t.string "approvable_type", null: false
+    t.datetime "approved_at", null: false
+    t.bigint "business_id"
+    t.string "common_new_status"
+    t.string "common_previous_status"
+    t.datetime "created_at", null: false
+    t.boolean "idempotent", default: false, null: false
+    t.text "message"
+    t.jsonb "metadata", default: {}, null: false
+    t.string "new_status"
+    t.string "operator"
+    t.string "previous_status"
+    t.string "source", default: "unknown", null: false
+    t.datetime "updated_at", null: false
+    t.index ["action"], name: "index_approval_logs_on_action"
+    t.index ["approvable_type", "approvable_id"], name: "index_approval_logs_on_approvable_type_and_approvable_id"
+    t.index ["approved_at"], name: "index_approval_logs_on_approved_at"
+    t.index ["business_id"], name: "index_approval_logs_on_business_id"
+    t.index ["source"], name: "index_approval_logs_on_source"
   end
 
   create_table "auto_build_tasks", force: :cascade do |t|
@@ -2010,6 +2034,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_02_070000) do
   add_foreign_key "analytics_fetch_runs", "analytics_source_settings"
   add_foreign_key "analytics_source_settings", "aicoo_analytics_sites"
   add_foreign_key "analytics_source_settings", "aicoo_google_credentials", column: "google_credential_id"
+  add_foreign_key "approval_logs", "businesses"
   add_foreign_key "auto_build_tasks", "aicoo_daily_runs"
   add_foreign_key "auto_build_tasks", "auto_revision_tasks"
   add_foreign_key "auto_build_tasks", "businesses"

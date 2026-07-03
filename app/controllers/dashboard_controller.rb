@@ -15,7 +15,8 @@ class DashboardController < ApplicationController
     @investment_waiting_businesses = @scaling_candidates.map(&:business)
     @resource_control_summary = Aicoo::ResourceControlSummary.new.call
     @auto_build_summary = Aicoo::ResourceAwareAutoBuildSummary.new.call
-    @running_daily_run = AicooDailyRun.running.includes(:aicoo_daily_run_steps).recent.first
+    @daily_run_execution_status = Aicoo::DailyRunExecutionStatus.call
+    @daily_run_system_status = Aicoo::SystemStatusResolver.call("daily_run")
     @daily_run_cron_status = Aicoo::DailyRunCronStatus.new.call
     @last_night_daily_run_history = last_night_daily_run_history
     @ceo_improvement_board = Aicoo::CeoModeBusinessImprovementBoard.new.call

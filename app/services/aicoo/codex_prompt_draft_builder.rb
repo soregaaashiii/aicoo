@@ -140,6 +140,9 @@ module Aicoo
         実装してほしいこと:
         #{action_candidate.execution_prompt.presence || action_candidate.description.presence || action_candidate.title}
 
+        ActionCandidate実行指示書:
+        #{execution_brief.prompt_markdown}
+
         Execution Guide:
         #{execution_guide_text}
 
@@ -183,6 +186,13 @@ module Aicoo
         "final_score" => action_candidate.final_score&.to_s,
         "expected_value_yen" => expected_value_yen,
         "action_expansion" => action_expansion,
+        "execution_brief" => {
+          "target" => execution_brief.target,
+          "before_after_items" => execution_brief.before_after_items,
+          "file_changes" => execution_brief.file_changes,
+          "completion_criteria" => execution_brief.completion_criteria,
+          "openai_context" => execution_brief.openai_context
+        },
         "project_configured" => project_key.present? && local_project_path.present?,
         "codex_execution_target" => execution_target_config.stringify_keys
       }
@@ -224,6 +234,10 @@ module Aicoo
 
     def action_expansion
       action_candidate.metadata.to_h["action_expansion"].to_h
+    end
+
+    def execution_brief
+      @execution_brief ||= Aicoo::ActionCandidateExecutionBrief.new(action_candidate)
     end
   end
 end

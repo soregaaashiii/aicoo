@@ -109,16 +109,17 @@ module Aicoo
       latest_run = setting ? latest_runs_by_setting[setting] : nil
       latest_success = latest_fetch_run(settings, "success")
       latest_failed = latest_fetch_run(settings, "failed")
-      configured = configured_analytics?(business, source_type, setting)
-      connected = configured && analytics_connection_available?(business, source_type, setting)
+      system_status = Aicoo::SystemStatusResolver.call(source_type, business:)
+      configured = system_status.connected? || system_status.warning?
+      connected = system_status.connected?
       last_fetched_at = latest_run&.finished_at || latest_run&.started_at || setting&.last_fetched_at
-      warning = analytics_warning(source_type, configured:, connected:, latest_success:, latest_run:, last_fetched_at:)
+      warning = system_status.connected? ? analytics_warning(source_type, configured:, connected:, latest_success:, latest_run:, last_fetched_at:) : system_status.reason
 
       SourceHealth.new(
         source: source_type,
         connected:,
         configured:,
-        status: latest_run&.status || (configured ? "configured" : "missing"),
+        status: system_status.status,
         last_fetched_at:,
         last_success_at: latest_success&.finished_at || latest_success&.started_at,
         last_failed_at: latest_failed&.finished_at || latest_failed&.started_at,
@@ -248,18 +249,21 @@ module Aicoo
     end
 
     def serp_health(business)
+      system_status = Aicoo::SystemStatusResolver.call("serp", business:)
       latest = business.serp_analyses.order(analyzed_at: :desc).first
       count = business.serp_analyses.count
-      warning = if latest.blank?
+      warning = if !system_status.connected?
+        system_status.reason
+      elsif latest.blank?
         "SERP分析が未実行です"
       elsif stale?(latest.analyzed_at)
         "SERPが#{WARNING_STALE_DAYS}日以上更新されていません"
       end
       SourceHealth.new(
         source: "serp",
-        connected: latest.present?,
-        configured: true,
-        status: latest ? "success" : "missing",
+        connected: system_status.connected?,
+        configured: system_status.connected? || system_status.warning?,
+        status: system_status.status,
         last_fetched_at: latest&.analyzed_at,
         last_success_at: latest&.analyzed_at,
         last_failed_at: nil,
@@ -292,8 +296,11 @@ module Aicoo
     end
 
     def daily_run_health
+      system_status = Aicoo::SystemStatusResolver.call("daily_run")
       latest = AicooDailyRun.recent.first
-      warning = if latest.blank?
+      warning = if !system_status.connected?
+        system_status.reason
+      elsif latest.blank?
         "Daily Run未実行"
       elsif latest.status.in?(%w[failed stuck])
         "Daily Runが#{latest.status}です"
@@ -304,9 +311,9 @@ module Aicoo
       end
       SourceHealth.new(
         source: "daily_run",
-        connected: latest&.succeeded? || false,
+        connected: system_status.connected?,
         configured: true,
-        status: latest&.status || "missing",
+        status: system_status.status,
         last_fetched_at: latest&.finished_at || latest&.started_at,
         last_success_at: AicooDailyRun.successful.recent.first&.finished_at,
         last_failed_at: AicooDailyRun.where(status: %w[failed stuck partial_failed]).recent.first&.finished_at,

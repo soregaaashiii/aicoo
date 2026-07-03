@@ -27,6 +27,11 @@
       </div>
 
       <div class="metric-grid aicoo-owner-secondary">
+        <div class="metric-card status-<%= @pipeline_system_status.status_level %>">
+          <span>共通Pipeline判定</span>
+          <strong><%= @pipeline_system_status.status %></strong>
+          <small><%= @pipeline_system_status.reason %></small>
+        </div>
         <div class="metric-card"><span>PipelineRun</span><strong>#<%= @result.pipeline_run.id %></strong></div>
         <div class="metric-card"><span>Idea</span><strong><%= @result.idea_item&.id || "-" %></strong></div>
         <div class="metric-card"><span>Business</span><strong><%= @result.business&.name || "未作成" %></strong></div>

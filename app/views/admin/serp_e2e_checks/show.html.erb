@@ -30,6 +30,20 @@
         <span class="pill"><%= health_icon %> <%= @serp_e2e_check.health_label %></span>
       </div>
       <div class="metric-grid">
+        <% if @serp_system_status %>
+          <div class="metric-card status-<%= @serp_system_status.status_level %>">
+            <span>Business SERP状態</span>
+            <strong><%= @serp_system_status.status %></strong>
+            <small><%= @serp_system_status.reason %></small>
+          </div>
+        <% end %>
+        <% if @traffic_serp_system_status %>
+          <div class="metric-card status-<%= @traffic_serp_system_status.status_level %>">
+            <span>SERP Run状態</span>
+            <strong><%= @traffic_serp_system_status.status %></strong>
+            <small><%= @traffic_serp_system_status.reason %></small>
+          </div>
+        <% end %>
         <div class="metric-card"><span>Business</span><strong><%= @business.name %></strong></div>
         <div class="metric-card"><span>総合判定</span><strong><%= @serp_e2e_check.health_label %></strong></div>
         <div class="metric-card"><span>Scan予定クエリ</span><strong><%= @serp_e2e_check.scan_plan_keywords.size %>件</strong></div>

@@ -45,10 +45,11 @@ module Admin
       end
 
       def approve
-        business = @candidate.approve!
+        result = Aicoo::ApprovalService.approve(@candidate, operator: "owner", source: "lab_candidate_detail")
+        business = result.redirect_record
         redirect_to business_path(business),
                     notice: helpers.safe_join([
-                      "事業を作成しました。 ",
+                      "#{result.message} ",
                       helpers.link_to("作成されたBusiness詳細へ", business_path(business))
                     ])
       rescue ActiveRecord::RecordInvalid => e
@@ -57,8 +58,8 @@ module Admin
       end
 
       def reject
-        @candidate.reject!
-        redirect_to admin_aicoo_lab_candidate_path(@candidate), notice: "Experiment candidate was rejected."
+        result = Aicoo::ApprovalService.reject(@candidate, operator: "owner", source: "lab_candidate_detail")
+        redirect_to admin_aicoo_lab_candidate_path(@candidate), notice: result.message
       end
 
       def convert_to_experiment

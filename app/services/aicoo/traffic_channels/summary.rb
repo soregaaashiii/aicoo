@@ -25,7 +25,7 @@ module Aicoo
         Result.new(
           health:,
           enabled_channel_count: enabled_profiles.count,
-          today_active_channel_count: today_runs.select(:channel_key).distinct.count,
+          today_active_channel_count: today_active_channel_count,
           today_total_inflow_count: today_runs.to_a.sum(&:inflow_count),
           today_conversion_count: today_runs.sum(:conversions),
           today_revenue_yen: today_runs.sum(:revenue_yen),
@@ -43,6 +43,10 @@ module Aicoo
 
       def today_runs
         @today_runs ||= TrafficChannelRun.today
+      end
+
+      def today_serp_runs
+        @today_serp_runs ||= SerpRun.today
       end
 
       def enabled_profiles
@@ -65,8 +69,15 @@ module Aicoo
 
       def stopped_channel_keys
         failed = today_runs.failed.distinct.pluck(:channel_key)
+        failed << "serp" if today_serp_runs.where(status: %w[failed partial_failed]).exists?
         disabled = DataSourceCostProfile.where(source_key: Registry.keys, enabled: false).pluck(:source_key)
         (failed + disabled).uniq
+      end
+
+      def today_active_channel_count
+        keys = today_runs.distinct.pluck(:channel_key)
+        keys << "serp" if today_serp_runs.exists?
+        keys.uniq.count
       end
 
       def performance_rows
@@ -74,6 +85,8 @@ module Aicoo
       end
 
       def health
+        return "Broken" if today_serp_runs.where(status: "failed").exists?
+        return "Warning" if today_serp_runs.where(status: "partial_failed").exists?
         return "Broken" if today_runs.failed.exists?
         return "Warning" if stopped_channel_keys.any?
 

@@ -1,0 +1,55 @@
+<% content_for :title, "承認ログ" %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_system_header",
+             title: "承認ログ",
+             subtitle: "AICOO全体のApprove / Reject / Pause / Archive",
+             description: "画面ごとに散らばっていた承認処理を、ApprovalService経由の履歴として確認します。" %>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <div>
+        <h2>Approval Log</h2>
+        <p>誰が、何を、いつ、承認・却下したかを確認します。</p>
+      </div>
+      <div class="actions compact-actions">
+        <%= link_to "すべて", admin_approval_logs_path, class: "button secondary" %>
+        <% ApprovalLog::ACTIONS.each do |action| %>
+          <%= link_to action, admin_approval_logs_path(action_filter: action), class: "button secondary" %>
+        <% end %>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>日時</th>
+            <th>操作</th>
+            <th>対象</th>
+            <th>Business</th>
+            <th>状態</th>
+            <th>Source</th>
+            <th>Message</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @approval_logs.each do |log| %>
+            <tr>
+              <td><%= l(log.approved_at, format: :short) %></td>
+              <td><span class="pill"><%= log.action %></span></td>
+              <td><%= log.approvable_type %> #<%= log.approvable_id %></td>
+              <td><%= log.business&.name || "-" %></td>
+              <td><%= log.common_previous_status.presence || "-" %> → <%= log.common_new_status.presence || "-" %></td>
+              <td><%= log.source %></td>
+              <td><%= truncate(log.message.to_s, length: 100) %></td>
+            </tr>
+          <% end %>
+          <% if @approval_logs.empty? %>
+            <tr><td colspan="7">承認ログはまだありません。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>

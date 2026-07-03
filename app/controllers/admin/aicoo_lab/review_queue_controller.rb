@@ -58,9 +58,9 @@ module Admin
         when "approval_pending"
           experiment.update!(status: "approval_pending", approval_status: "pending")
         when "approve"
-          experiment.update!(approval_status: "approved")
+          Aicoo::ApprovalService.approve(experiment, operator: "owner", source: "lab_review_queue")
         when "reject"
-          experiment.update!(approval_status: "rejected")
+          Aicoo::ApprovalService.reject(experiment, operator: "owner", source: "lab_review_queue")
         when "paused"
           experiment.mark_status!("paused")
         end

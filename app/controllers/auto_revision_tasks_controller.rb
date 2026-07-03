@@ -35,8 +35,8 @@ class AutoRevisionTasksController < ApplicationController
   end
 
   def approve
-    @auto_revision_task.approve!
-    redirect_to @auto_revision_task, notice: "Auto Revision Taskを承認しました。"
+    result = Aicoo::ApprovalService.approve(@auto_revision_task, operator: "owner", source: "auto_revision_task_detail")
+    redirect_to @auto_revision_task, notice: result.message
   end
 
   def enqueue
@@ -56,8 +56,8 @@ class AutoRevisionTasksController < ApplicationController
   end
 
   def cancel
-    @auto_revision_task.update!(status: "canceled", finished_at: Time.current)
-    redirect_back fallback_location: auto_revision_tasks_path, notice: "Auto Revision Taskをキャンセルしました。"
+    result = Aicoo::ApprovalService.reject(@auto_revision_task, operator: "owner", source: "auto_revision_task_detail")
+    redirect_back fallback_location: auto_revision_tasks_path, notice: result.message
   end
 
   def mark_sent_to_codex

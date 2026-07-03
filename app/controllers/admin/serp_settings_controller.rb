@@ -166,23 +166,26 @@ module Admin
         else
           keywords
         end
-      summary = Aicoo::Serp::CandidatePromoter.promote!(keywords)
+      results = Aicoo::ApprovalService.approve_all(keywords, operator: "owner", source: "serp_settings")
+      promoted = results.count { |result| result.metadata["promoter_status"].in?(%w[created updated]) }
+      created = results.count { |result| result.metadata["promoter_status"] == "created" }
+      updated = results.count { |result| result.metadata["promoter_status"] == "updated" }
+      skipped = results.count { |result| result.metadata["promoter_status"] == "skipped" }
       redirect_to admin_serp_settings_path(business_id: business.id, anchor: "serp-queries-executable"),
-                  notice: "AI候補を#{summary.promoted_count}件承認し、実行対象の検索クエリに追加しました。作成 #{summary.created_count}件 / 既存更新 #{summary.updated_count}件 / skip #{summary.skipped_count}件。承認だけではSERP取得は実行されません。次に「選択中BusinessのSERPを実行」を押せます。"
+                  notice: "AI候補を#{promoted}件承認し、実行対象の検索クエリに追加しました。作成 #{created}件 / 既存更新 #{updated}件 / skip #{skipped}件。承認だけではSERP取得は実行されません。次に「選択中BusinessのSERPを実行」を押せます。"
     end
 
     def approve_keyword
       keyword = find_keyword
-      summary = Aicoo::Serp::CandidatePromoter.promote!([ keyword ])
-      result = summary.results.first
+      result = Aicoo::ApprovalService.approve(keyword, operator: "owner", source: "serp_settings")
       redirect_to admin_serp_settings_path(business_id: keyword.business_id, anchor: "serp-queries-executable"),
-                  notice: "AI候補「#{keyword.keyword}」を承認し、実行対象の検索クエリに#{result.status == 'created' ? '追加' : '反映'}しました。承認だけではSERP取得は実行されません。"
+                  notice: result.message
     end
 
     def exclude_keyword
       keyword = find_keyword
-      keyword.exclude!(reason: params.dig(:serp_keyword, :reason))
-      redirect_to admin_serp_settings_path(anchor: business_anchor(keyword.business)), notice: "#{keyword.keyword} を除外しました。"
+      result = Aicoo::ApprovalService.reject(keyword, operator: "owner", source: "serp_settings", metadata: { reason: params.dig(:serp_keyword, :reason) })
+      redirect_to admin_serp_settings_path(anchor: business_anchor(keyword.business)), notice: result.message
     end
 
     def pause_keyword
@@ -224,6 +227,7 @@ module Admin
       @serp_profile = DataSourceCostProfile.for_source("serp")
       @serp_optional_mode = Aicoo::Serp::OptionalMode.call
       @serp_summary = Aicoo::Serp::Summary.call
+      @serp_system_status = Aicoo::SystemStatusResolver.call("traffic_serp")
       @new_business_candidate_board = Aicoo::NewBusinessCandidateBoard.call(limit: 5)
       @serp_scheduler_settings = Aicoo::Serp::Scheduler.settings
       @latest_serp_run = SerpRun.recent.first

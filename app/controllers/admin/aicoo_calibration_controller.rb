@@ -15,16 +15,26 @@ module Admin
 
     def approve
       calibration = ActionPredictionCalibration.find(params[:id])
-      calibration.approve!(note: params[:approval_note])
+      result = Aicoo::ApprovalService.approve(
+        calibration,
+        operator: "owner",
+        source: "admin_calibration",
+        metadata: { approval_note: params[:approval_note] }
+      )
       redirect_to admin_aicoo_calibration_path(filter: params[:filter]),
-                  notice: "#{calibration.action_type} の補正を承認しました。"
+                  notice: result.message
     end
 
     def reject
       calibration = ActionPredictionCalibration.find(params[:id])
-      calibration.reject!(note: params[:approval_note])
+      result = Aicoo::ApprovalService.reject(
+        calibration,
+        operator: "owner",
+        source: "admin_calibration",
+        metadata: { approval_note: params[:approval_note] }
+      )
       redirect_to admin_aicoo_calibration_path(filter: params[:filter]),
-                  notice: "#{calibration.action_type} の補正を却下しました。"
+                  notice: result.message
     end
 
     private

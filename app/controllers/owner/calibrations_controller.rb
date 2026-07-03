@@ -2,7 +2,12 @@ module Owner
   class CalibrationsController < ApplicationController
     def approve
       calibration = ActionPredictionCalibration.find(params[:id])
-      calibration.approve!(note: params[:approval_note].presence || "Owner Task Quick Action")
+      result = Aicoo::ApprovalService.approve(
+        calibration,
+        operator: "owner",
+        source: "owner_tasks",
+        metadata: { approval_note: params[:approval_note].presence || "Owner Task Quick Action" }
+      )
       message = "Calibration『#{calibration.action_type}』を承認しました。pending係数が有効係数に反映されました。"
       OwnerTaskCompletionLog.record_success!(
         task_type: "calibration_approval",
@@ -22,7 +27,12 @@ module Owner
 
     def reject
       calibration = ActionPredictionCalibration.find(params[:id])
-      calibration.reject!(note: params[:approval_note].presence || "Owner Task Quick Action")
+      result = Aicoo::ApprovalService.reject(
+        calibration,
+        operator: "owner",
+        source: "owner_tasks",
+        metadata: { approval_note: params[:approval_note].presence || "Owner Task Quick Action" }
+      )
       message = "Calibration『#{calibration.action_type}』を却下しました。有効係数は変更されませんでした。"
       OwnerTaskCompletionLog.record_success!(
         task_type: "calibration_approval",

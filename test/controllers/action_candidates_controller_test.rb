@@ -135,6 +135,14 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "部門"
     assert_includes response.body, "自動改修タスク化"
     assert_includes response.body, "Codex Promptを生成"
+    assert_includes response.body, "実行指示書"
+    assert_includes response.body, "現在"
+    assert_includes response.body, "変更後"
+    assert_includes response.body, "対象ページ"
+    assert_includes response.body, "SERPとの差分"
+    assert_includes response.body, "競合上位5件"
+    assert_includes response.body, "変更ファイルと完了条件"
+    assert_includes response.body, "修正完了 / ActionResult登録"
   end
 
   test "show links to existing codex prompt draft" do
@@ -231,8 +239,10 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
     assert_difference("AutoRevisionTask.count", 1) do
       assert_difference("OwnerTaskCompletionLog.count", 1) do
         assert_difference("OwnerDecisionLog.count", 1) do
-          assert_difference("ActionExecution.count", 1) do
-            patch approve_action_candidate_url(@action_candidate), headers: { "HTTP_REFERER" => owner_tasks_url }
+          assert_difference("ApprovalLog.count", 1) do
+            assert_difference("ActionExecution.count", 1) do
+              patch approve_action_candidate_url(@action_candidate), headers: { "HTTP_REFERER" => owner_tasks_url }
+            end
           end
         end
       end
@@ -247,11 +257,14 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
     assert_equal @action_candidate, auto_revision_task.action_candidate
     assert_equal "waiting_approval", auto_revision_task.status
     assert_not_nil @action_candidate.approved_at
-    assert_equal "ActionCandidate『#{@action_candidate.title}』を承認し、AutoRevisionTask ##{auto_revision_task.id} を作成しました。", flash[:notice]
+    assert_includes flash[:notice], "ActionCandidate『#{@action_candidate.title}』を承認"
     assert_equal "承認", OwnerTaskCompletionLog.last.action_label
     assert_equal "approve", OwnerDecisionLog.last.decision_type
     assert_equal "action_candidate_detail", OwnerDecisionLog.last.decision_source
     assert_equal auto_revision_task.id, OwnerTaskCompletionLog.last.metadata["auto_revision_task_id"]
+    assert_equal @action_candidate, ApprovalLog.last.approvable
+    assert_equal "approve", ApprovalLog.last.action
+    assert_equal "approved", ApprovalLog.last.common_new_status
   end
 
   test "approving new business candidate creates visible business and reassigns candidate" do
@@ -278,7 +291,9 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
 
     assert_difference("Business.real_businesses.count", 1) do
       assert_difference("AutoRevisionTask.count", 1) do
-        patch approve_action_candidate_url(candidate)
+        assert_difference("ApprovalLog.count", 1) do
+          patch approve_action_candidate_url(candidate)
+        end
       end
     end
 
@@ -337,15 +352,18 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
 
     assert_difference("OwnerTaskCompletionLog.count", 1) do
       assert_difference("OwnerDecisionLog.count", 1) do
-        patch reject_action_candidate_url(@action_candidate), headers: { "HTTP_REFERER" => owner_tasks_url }
+        assert_difference("ApprovalLog.count", 1) do
+          patch reject_action_candidate_url(@action_candidate), headers: { "HTTP_REFERER" => owner_tasks_url }
+        end
       end
     end
 
     assert_redirected_to owner_tasks_url
     assert_equal "rejected", @action_candidate.reload.status
-    assert_equal "ActionCandidate『#{@action_candidate.title}』を却下しました。承認待ちタスクから削除されました。", flash[:notice]
+    assert_includes flash[:notice], "ActionCandidate『#{@action_candidate.title}』を却下しました。"
     assert_equal "却下", OwnerTaskCompletionLog.last.action_label
     assert_equal "reject", OwnerDecisionLog.last.decision_type
+    assert_equal "reject", ApprovalLog.last.action
   end
 
   private

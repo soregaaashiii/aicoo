@@ -61,13 +61,13 @@ module Admin
       end
 
       def approve
-        @experiment.update!(approval_status: "approved")
-        redirect_to admin_aicoo_lab_experiment_path(@experiment), notice: "Experiment was approved."
+        result = Aicoo::ApprovalService.approve(@experiment, operator: "owner", source: "lab_experiment_detail")
+        redirect_to admin_aicoo_lab_experiment_path(@experiment), notice: result.message
       end
 
       def reject
-        @experiment.update!(approval_status: "rejected")
-        redirect_to admin_aicoo_lab_experiment_path(@experiment), notice: "Experiment was rejected."
+        result = Aicoo::ApprovalService.reject(@experiment, operator: "owner", source: "lab_experiment_detail")
+        redirect_to admin_aicoo_lab_experiment_path(@experiment), notice: result.message
       end
 
       def running

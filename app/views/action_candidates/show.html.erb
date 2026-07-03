@@ -57,6 +57,132 @@
 
 <%= render @action_candidate %>
 
+<section class="dashboard-section" id="execution-brief">
+  <div class="section-heading">
+    <div>
+      <h2>実行指示書</h2>
+      <p>分析ではなく、どこをどう直すかをそのまま作業できる粒度で表示します。</p>
+    </div>
+    <div class="actions compact-actions">
+      <% @execution_brief.open_links.each do |link| %>
+        <%= link_to link[:label], link[:url], class: "button secondary", target: "_blank", rel: "noopener" %>
+      <% end %>
+      <% if @codex_prompt_draft %>
+        <%= link_to "Codex用プロンプト確認", owner_codex_prompt_draft_path(@codex_prompt_draft), class: "button" %>
+      <% else %>
+        <%= button_to "Codex用プロンプト生成", generate_codex_prompt_draft_action_candidate_path(@action_candidate), method: :post, class: "button" %>
+      <% end %>
+      <%= link_to "修正完了 / ActionResult登録", new_action_result_path(action_result: { action_candidate_id: @action_candidate.id }), class: "button secondary" %>
+    </div>
+  </div>
+
+  <% target = @execution_brief.target %>
+  <div class="metric-grid">
+    <div class="metric-card"><span>Business</span><strong><%= target[:business] %></strong></div>
+    <div class="metric-card"><span>対象</span><strong><%= target[:resource_type] %></strong><small><%= target[:resource_name] %></small></div>
+    <div class="metric-card"><span>対象ページURL</span><strong><%= target[:url] %></strong></div>
+    <div class="metric-card"><span>管理画面URL</span><strong><%= target[:admin_url] %></strong></div>
+    <div class="metric-card"><span>予想作業時間</span><strong><%= @execution_brief.expected_minutes %>分</strong></div>
+    <div class="metric-card"><span>期待CTR</span><strong><%= @execution_brief.expected_effects[:ctr] %></strong></div>
+    <div class="metric-card"><span>期待順位</span><strong><%= @execution_brief.expected_effects[:rank] %></strong></div>
+    <div class="metric-card"><span>期待利益</span><strong><%= @execution_brief.expected_effects[:profit] %></strong><small>期待時給 <%= @execution_brief.expected_effects[:hourly] %></small></div>
+  </div>
+
+  <div class="table-wrap">
+    <h3>競合上位5件</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>項目</th>
+          <th>現在</th>
+          <th>変更後</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @execution_brief.before_after_items.each do |row| %>
+          <tr>
+            <td><strong><%= row[:label] %></strong></td>
+            <td class="wide-text"><%= simple_format(row[:current]) %></td>
+            <td class="wide-text"><%= simple_format(row[:after]) %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="dashboard-section" id="serp-gap">
+  <% serp = @execution_brief.serp_comparison %>
+  <div class="section-heading">
+    <div>
+      <h2>SERPとの差分</h2>
+      <p>競合上位ページに共通する要素と、現在不足している要素です。</p>
+    </div>
+    <span class="pill">検索クエリ: <%= serp[:query] %></span>
+  </div>
+
+  <div class="metric-grid">
+    <div class="metric-card"><span>共通ワード</span><strong><%= serp[:common_words].join(" / ") %></strong></div>
+    <div class="metric-card"><span>共通構成</span><strong><%= serp[:common_structure].join(" / ") %></strong></div>
+    <div class="metric-card"><span>不足要素</span><strong><%= serp[:missing_elements].join(" / ") %></strong></div>
+  </div>
+  <div class="aicoo-inline-panel">
+    <strong>修正理由</strong>
+    <p><%= serp[:reason] %></p>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>順位</th>
+          <th>競合タイトル</th>
+          <th>URL</th>
+          <th>snippet</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% serp[:top_results].each do |result| %>
+          <tr>
+            <td class="number"><%= result["position"] || result[:position] %></td>
+            <td class="wide-text"><%= result["title"] || result[:title] %></td>
+            <td class="wide-text"><%= result["url"] || result[:url] %></td>
+            <td class="wide-text"><%= truncate((result["snippet"] || result[:snippet]).to_s, length: 120) %></td>
+          </tr>
+        <% end %>
+        <% if serp[:top_results].empty? %>
+          <tr><td colspan="4">SERP上位5件はまだ保存されていません。共通要素は既定テンプレートから補完しています。</td></tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="dashboard-section" id="implementation-files">
+  <div class="section-heading">
+    <h2>変更ファイルと完了条件</h2>
+    <p>Codexまたは人間が触るべきファイルと、作業完了の判定条件です。</p>
+  </div>
+  <div class="aicoo-grid aicoo-grid-2">
+    <div>
+      <h3>変更ファイル</h3>
+      <ul class="compact-list">
+        <% @execution_brief.file_changes.each do |path| %>
+          <li><code><%= path %></code></li>
+        <% end %>
+      </ul>
+    </div>
+    <div>
+      <h3>完了条件</h3>
+      <ul class="compact-list">
+        <% @execution_brief.completion_criteria.each do |criterion| %>
+          <li><%= criterion %></li>
+        <% end %>
+      </ul>
+    </div>
+  </div>
+</section>
+
 <section class="dashboard-section">
   <div class="section-heading">
     <h2>提案理由</h2>

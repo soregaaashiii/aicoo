@@ -14,6 +14,20 @@
   <%= render "shared/aicoo_execution_tabs", active: :dashboard %>
 
   <section class="dashboard-section">
+    <% if @daily_run_system_status %>
+      <div class="aicoo-card status-<%= @daily_run_system_status.status_level %>">
+        <div class="section-heading">
+          <div>
+            <h2>Daily Run状態</h2>
+            <p><%= @daily_run_system_status.reason %></p>
+          </div>
+          <span class="pill status-<%= @daily_run_system_status.status_level %>"><%= @daily_run_system_status.status %></span>
+        </div>
+        <% if @daily_run_system_status.next_action.present? && @daily_run_system_status.detail_url.present? %>
+          <%= link_to @daily_run_system_status.next_action, @daily_run_system_status.detail_url, class: "button secondary" %>
+        <% end %>
+      </div>
+    <% end %>
     <%= render "shared/daily_run_execution_status", status: @daily_run_execution_status, mode: :full %>
   </section>
 

@@ -140,6 +140,7 @@ module AicooNavigationHelper
     return :system_resource_budget if path.start_with?("/admin/aicoo_resource_budget")
     return :system_source_app if path.start_with?("/admin/source_app_connections", "/admin/source_app_diff_rules")
     return :system_codex_connection if path.start_with?("/admin/codex_connection")
+    return :system_approval_logs if path.start_with?("/admin/approval_logs")
     return :system_execution_profiles if path.start_with?("/admin/business_execution_profiles")
     return :system_codex_rules if path.start_with?("/admin/codex_prompt_rules")
     return :system_settings if path.start_with?("/aicoo_setting", "/admin/aicoo_daily_run_settings", "/admin/aicoo_auto_revision_settings")
@@ -288,6 +289,7 @@ module AicooNavigationHelper
           { key: :system_resource_budget, label: "Resource Budget", description: "AI予算とBuild制御", path: admin_aicoo_resource_budget_path, matchers: [ %r{\A/admin/aicoo_resource_budget} ] },
           { key: :system_source_app, label: "Source App", description: "外部DB差分検知", path: admin_source_app_connections_path, matchers: [ %r{\A/admin/source_app_(connections|diff_rules)} ] },
           { key: :system_codex_connection, label: "Codex Connection", description: "Codex/GitHub/PR連携", path: admin_codex_connection_path, matchers: [ %r{\A/admin/codex_connection} ] },
+          { key: :system_approval_logs, label: "Approval Logs", description: "承認履歴", path: admin_approval_logs_path, matchers: [ %r{\A/admin/approval_logs} ] },
           { key: :system_settings, label: "Settings", description: "全体設定", path: aicoo_setting_path, matchers: [ %r{\A/aicoo_setting}, %r{\A/admin/(aicoo_daily_run_settings|aicoo_auto_revision_settings)} ] },
           { key: :system_execution_profiles, label: "Execution Profiles", description: "実行先設定", path: admin_business_execution_profiles_path, matchers: [ %r{\A/admin/business_execution_profiles} ] },
           { key: :system_codex_rules, label: "Codex Rules", description: "Prompt共通ルール", path: admin_codex_prompt_rules_path, matchers: [ %r{\A/admin/codex_prompt_rules} ] }

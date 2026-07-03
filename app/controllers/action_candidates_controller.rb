@@ -26,6 +26,7 @@ class ActionCandidatesController < ApplicationController
     @action_execution_logs = @action_candidate.action_execution_logs.recent.limit(10)
     @action_execution = @action_candidate.action_execution
     @codex_prompt_draft = @action_candidate.codex_prompt_drafts.recent.first
+    @execution_brief = Aicoo::ActionCandidateExecutionBrief.new(@action_candidate)
   end
 
   # GET /action_candidates/new
@@ -77,13 +78,10 @@ class ActionCandidatesController < ApplicationController
 
   def approve
     previous_status = @action_candidate.status
-    auto_revision_task = @action_candidate.approve!(approved_by: "owner")
+    result = Aicoo::ApprovalService.approve(@action_candidate, operator: "owner", source: "action_candidate_detail")
+    auto_revision_task = result.redirect_record
     record_owner_decision!("approve", previous_status:)
-    promotion_message = @action_candidate.business_promotion_result&.message
-    message = [
-      promotion_message,
-      "ActionCandidate『#{@action_candidate.title}』を承認し、AutoRevisionTask ##{auto_revision_task.id} を作成しました。"
-    ].compact.join(" ")
+    message = result.message
     OwnerTaskCompletionLog.record_success!(
       task_type: "action_candidate_approval",
       target: @action_candidate,
@@ -103,9 +101,9 @@ class ActionCandidatesController < ApplicationController
 
   def reject
     previous_status = @action_candidate.status
-    @action_candidate.update!(status: "rejected")
+    result = Aicoo::ApprovalService.reject(@action_candidate, operator: "owner", source: "action_candidate_detail")
     record_owner_decision!("reject", previous_status:)
-    message = "ActionCandidate『#{@action_candidate.title}』を却下しました。承認待ちタスクから削除されました。"
+    message = result.message
     OwnerTaskCompletionLog.record_success!(
       task_type: "action_candidate_approval",
       target: @action_candidate,

@@ -10,13 +10,23 @@ class CodexQualityChecksController < ApplicationController
   end
 
   def approve
-    @codex_quality_check.approve!(approved_by: "owner", approval_note: params[:approval_note])
-    redirect_to @codex_quality_check, notice: "Quality Gateを承認しました。Learning Loopへ反映できます。"
+    result = Aicoo::ApprovalService.approve(
+      @codex_quality_check,
+      operator: "owner",
+      source: "codex_quality_check",
+      metadata: { approval_note: params[:approval_note] }
+    )
+    redirect_to @codex_quality_check, notice: "#{result.message} Learning Loopへ反映できます。"
   end
 
   def reject
-    @codex_quality_check.reject!(approved_by: "owner", approval_note: params[:approval_note])
-    redirect_to @codex_quality_check, notice: "Quality Gateを却下しました。Learning Loop verified=falseとして扱います。"
+    result = Aicoo::ApprovalService.reject(
+      @codex_quality_check,
+      operator: "owner",
+      source: "codex_quality_check",
+      metadata: { approval_note: params[:approval_note] }
+    )
+    redirect_to @codex_quality_check, notice: "#{result.message} Learning Loop verified=falseとして扱います。"
   end
 
   private

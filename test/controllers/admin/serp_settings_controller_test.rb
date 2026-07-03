@@ -114,7 +114,9 @@ module Admin
       )
 
       assert_difference -> { business.serp_queries.count }, 1 do
-        patch approve_keyword_admin_serp_settings_url(keyword)
+        assert_difference("ApprovalLog.count", 1) do
+          patch approve_keyword_admin_serp_settings_url(keyword)
+        end
       end
       assert_redirected_to admin_serp_settings_url(business_id: keyword.business_id, anchor: "serp-queries-executable")
       assert_equal "active", keyword.reload.status
@@ -124,11 +126,16 @@ module Admin
       assert_equal 72, serp_query.priority
       assert_equal "ai_suggested", serp_query.metadata["source"]
       assert_equal serp_query.id, keyword.metadata_json["serp_query_id"]
+      assert_equal keyword, ApprovalLog.last.approvable
+      assert_equal "approve", ApprovalLog.last.action
 
-      patch exclude_keyword_admin_serp_settings_url(keyword), params: { serp_keyword: { reason: "対象外" } }
+      assert_difference("ApprovalLog.count", 1) do
+        patch exclude_keyword_admin_serp_settings_url(keyword), params: { serp_keyword: { reason: "対象外" } }
+      end
       assert_redirected_to admin_serp_settings_url(anchor: "serp-business-#{keyword.business_id}")
       assert_equal "excluded", keyword.reload.status
       assert_equal "対象外", keyword.reason
+      assert_equal "reject", ApprovalLog.last.action
     end
 
     test "bulk approves pending keywords for selected business" do
@@ -137,7 +144,9 @@ module Admin
       business.business_serp_keywords.create!(keyword: "難波 喫煙", source: "ai_suggested", status: "pending")
 
       assert_difference -> { business.serp_queries.count }, 2 do
-        post business_approve_pending_admin_serp_settings_url(business)
+        assert_difference("ApprovalLog.count", 2) do
+          post business_approve_pending_admin_serp_settings_url(business)
+        end
       end
 
       assert_redirected_to admin_serp_settings_url(business_id: business.id, anchor: "serp-queries-executable")

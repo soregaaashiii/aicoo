@@ -31,12 +31,13 @@ module Aicoo
     end
 
     def call
+      system_status = Aicoo::SystemStatusResolver.call(source_key, business:)
       connection_status = Aicoo::BusinessConnectionStatus.new(business, source_key:, health:).call
       Summary.new(
         source_key:,
         label: SOURCE_LABELS.fetch(source_key),
-        connected: connection_status.configured?,
-        configured: connection_status.configured?,
+        connected: system_status.connected?,
+        configured: system_status.connected? || system_status.warning?,
         enabled: connection_status.enabled?,
         identifier: connection_status.identifier,
         credential: connection_status.credential,
@@ -48,7 +49,7 @@ module Aicoo
         last_error: connection_status.last_error,
         setting_source: connection_status.setting_label,
         reauthentication_required: connection_status.reauthentication_required,
-        status_label: connection_status.display_label
+        status_label: system_status.display_label
       )
     end
 

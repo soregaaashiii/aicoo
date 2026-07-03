@@ -39,6 +39,10 @@ module Admin
       @channel_keys = Aicoo::TrafficChannels::Registry.keys
       @summary = Aicoo::TrafficChannels::Summary.call
       @serp_summary = Aicoo::Serp::Summary.call
+      @system_statuses = {
+        "traffic" => Aicoo::SystemStatusResolver.call("traffic"),
+        "serp" => Aicoo::SystemStatusResolver.call("traffic_serp")
+      }
       @profiles_by_key = DataSourceCostProfile.where(source_key: @channel_keys).index_by(&:source_key)
       @businesses = Business.real_businesses.includes(:business_data_source_settings).order(:name)
       @business_settings = BusinessDataSourceSetting.where(source_key: @channel_keys, business: @businesses).index_by { |setting| [ setting.business_id, setting.source_key ] }

@@ -26,6 +26,17 @@
     </div>
 
     <div class="metric-grid">
+      <% if @system_statuses.present? %>
+        <% %w[ga4 gsc serp].each do |key| %>
+          <% system_status = @system_statuses[key] %>
+          <% next unless system_status %>
+          <div class="metric-card status-<%= system_status.status_level %>">
+            <span><%= system_status.label %></span>
+            <strong><%= system_status.status_label %></strong>
+            <small><%= system_status.reason %></small>
+          </div>
+        <% end %>
+      <% end %>
       <% [@ga4_connection_summary, @gsc_connection_summary].each do |summary| %>
         <div class="metric-card">
           <span><%= summary.label %>接続</span>

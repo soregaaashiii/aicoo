@@ -198,13 +198,14 @@
       <%= link_to "SYSTEM MODE", dashboard_path, class: "button secondary" %>
     </div>
 
-    <div class="aicoo-card <%= 'danger' if @traffic_channel_summary.health == 'Broken' %>">
+    <% traffic_status = @system_statuses&.fetch("traffic", nil) %>
+    <div class="aicoo-card <%= 'danger' if traffic_status&.broken? %>">
       <div class="section-heading">
         <div>
           <h3>Traffic Channel</h3>
-          <p>集客チャネル全体の要約です。詳細な設定・比較はTraffic Channel Centerで確認します。</p>
+          <p><%= traffic_status&.reason || "集客チャネル全体の要約です。詳細な設定・比較はTraffic Channel Centerで確認します。" %></p>
         </div>
-        <span class="pill"><%= @traffic_channel_summary.health %></span>
+        <span class="pill status-<%= traffic_status&.status_level || "warning" %>"><%= traffic_status&.status || @traffic_channel_summary.health %></span>
       </div>
       <div class="metric-grid aicoo-owner-secondary">
         <div class="metric-card"><span>止まっているチャネル</span><strong><%= @traffic_channel_summary.stopped_channel_count %>件</strong></div>
@@ -217,17 +218,18 @@
       </div>
     </div>
 
-    <div class="aicoo-card <%= 'danger' if @serp_summary.health == 'Broken' %>">
+    <% serp_status = @system_statuses&.fetch("traffic_serp", nil) %>
+    <div class="aicoo-card <%= 'danger' if serp_status&.broken? %>">
       <div class="section-heading">
         <div>
           <h3>SERP</h3>
-          <% if @serp_summary.health == "Healthy" %>
+          <% if serp_status&.connected? %>
             <p>SERPは正常です。</p>
           <% else %>
-            <p>今日確認すべきSERP項目があります。詳細はSERP運用センターで確認してください。</p>
+            <p><%= serp_status&.reason || "今日確認すべきSERP項目があります。詳細はSERP運用センターで確認してください。" %></p>
           <% end %>
         </div>
-        <span class="pill"><%= @serp_summary.health %></span>
+        <span class="pill status-<%= serp_status&.status_level || "warning" %>"><%= serp_status&.status || @serp_summary.health %></span>
       </div>
 
       <% if @serp_summary.pending_keyword_count.positive? || @serp_summary.failed_business_count.positive? || @serp_summary.stopped_business_count.positive? %>

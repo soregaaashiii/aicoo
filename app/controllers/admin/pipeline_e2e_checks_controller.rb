@@ -3,6 +3,7 @@ module Admin
     def show
       @pipeline_run = selected_pipeline_run
       @result = Aicoo::PipelineE2eCheck.new(@pipeline_run).call
+      @pipeline_system_status = Aicoo::SystemStatusResolver.call("pipeline", business: @pipeline_run&.business)
       @recent_failures = Aicoo::PipelineE2eCheck.failing_results(limit: 10)
     end
 

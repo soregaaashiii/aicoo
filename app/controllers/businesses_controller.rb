@@ -60,6 +60,7 @@ class BusinessesController < ApplicationController
     @integration_health = Aicoo::BusinessIntegrationHealth.new.call.business_healths.find { |row| row.business == @business }
     @ga4_connection_summary = Aicoo::BusinessGoogleConnectionSummary.new(@business, source_key: "ga4", health: @integration_health).call
     @gsc_connection_summary = Aicoo::BusinessGoogleConnectionSummary.new(@business, source_key: "gsc", health: @integration_health).call
+    @system_statuses = business_system_statuses(@business, %w[ga4 gsc serp openai codex daily_run traffic pipeline learning business_health])
     @google_credential = @ga4_connection_summary.setting&.google_credential || @gsc_connection_summary.credential || AicooGoogleCredential.default
     @business_analytics_summary = Aicoo::BusinessAnalyticsSummary.new(@business, health: @integration_health).call
     @data_source_settings_presenter = Aicoo::DataSourceSettingsPresenter.new
@@ -328,6 +329,7 @@ class BusinessesController < ApplicationController
       @integration_health = Aicoo::BusinessIntegrationHealth.new.call.business_healths.find { |row| row.business == @business }
       @ga4_connection_summary = Aicoo::BusinessGoogleConnectionSummary.new(@business, source_key: "ga4", health: @integration_health).call
       @gsc_connection_summary = Aicoo::BusinessGoogleConnectionSummary.new(@business, source_key: "gsc", health: @integration_health).call
+      @system_statuses = business_system_statuses(@business, %w[ga4 gsc serp openai codex])
       @google_credential = selected_business_google_credential ||
                            @ga4_connection_summary.credential ||
                            @gsc_connection_summary.credential ||
@@ -530,6 +532,10 @@ class BusinessesController < ApplicationController
         label: missing ? missing.first.upcase : source_types.map(&:upcase).join("/"),
         setting_sources: summaries.transform_values(&:setting_source)
       }
+    end
+
+    def business_system_statuses(business, keys)
+      keys.index_with { |key| Aicoo::SystemStatusResolver.call(key, business:) }
     end
 
     def log_google_api_import_credential!(event, run:, credential:, source_types:, setting_sources: {})

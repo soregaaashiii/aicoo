@@ -26,7 +26,8 @@
         <h2>Overview</h2>
         <p>今日どの集客チャネルが動き、成果が出ているかだけを見ます。</p>
       </div>
-      <span class="pill"><%= @summary.health %></span>
+      <% traffic_status = @system_statuses&.fetch("traffic", nil) %>
+      <span class="pill status-<%= traffic_status&.status_level || "warning" %>"><%= traffic_status&.status || @summary.health %></span>
     </div>
 
     <div class="metric-grid">
@@ -54,8 +55,9 @@
       <div class="aicoo-card aicoo-card-compact">
         <h3>SERP連携</h3>
         <p>SERPのKeyword管理・取得結果・E2E診断はSERP設定で扱います。</p>
+        <% serp_status = @system_statuses&.fetch("serp", nil) %>
         <div class="metric-grid">
-          <div class="metric-card"><span>SERP Health</span><strong><%= @serp_summary.health %></strong></div>
+          <div class="metric-card status-<%= serp_status&.status_level || "warning" %>"><span>SERP Health</span><strong><%= serp_status&.status || @serp_summary.health %></strong><small><%= serp_status&.reason %></small></div>
           <div class="metric-card"><span>承認待ちKW</span><strong><%= @serp_summary.pending_keyword_count %></strong></div>
         </div>
         <div class="actions compact-actions">
@@ -93,6 +95,7 @@
             <% last_run = @last_runs_by_channel[channel.key] %>
             <% serp_channel = channel.key == "serp" %>
             <% serp_latest_run = @serp_channel_stats[:latest_run] if serp_channel %>
+            <% channel_status = serp_channel ? @system_statuses&.fetch("serp", nil) : nil %>
             <tr id="traffic-channel-<%= channel.key %>">
               <td>
                 <strong><%= channel.label %></strong><br>
@@ -110,7 +113,9 @@
               </td>
               <td>
                 <% if serp_channel %>
-                  <span class="pill"><%= @serp_channel_stats[:usage_label] %></span>
+                  <span class="pill status-<%= channel_status&.status_level || "warning" %>"><%= channel_status&.status || @serp_channel_stats[:usage_label] %></span><br>
+                  <small><%= @serp_channel_stats[:usage_label] %></small><br>
+                  <small><%= channel_status&.reason || "SERP Run未取得" %></small>
                 <% else %>
                   <span class="pill"><%= profile.execution_mode %></span>
                 <% end %>

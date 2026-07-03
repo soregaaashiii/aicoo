@@ -6,14 +6,15 @@ module Owner
     end
 
     def queue_selected
-      AicooExecutor::ApprovedCandidateQueuer.queue_selected!(params[:action_candidate_ids].to_a)
+      candidates = ActionCandidate.where(id: params[:action_candidate_ids].to_a)
+      Aicoo::ApprovalService.approve_all(candidates, operator: "owner", source: "legacy_approved_queue")
 
       redirect_to auto_revision_tasks_path(status: "waiting_approval"),
                   notice: integration_message
     end
 
     def queue_all
-      AicooExecutor::ApprovedCandidateQueuer.queue_all!
+      Aicoo::ApprovalService.approve_all(ActionCandidate.where(status: "approved"), operator: "owner", source: "legacy_approved_queue")
 
       redirect_to auto_revision_tasks_path(status: "waiting_approval"),
                   notice: integration_message

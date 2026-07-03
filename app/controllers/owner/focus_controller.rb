@@ -4,6 +4,9 @@ module Owner
       @cron_health_summary = Aicoo::CronHealthDashboard.new.call.summary
       @traffic_channel_summary = Aicoo::TrafficChannels::Summary.call
       @serp_summary = Aicoo::Serp::Summary.call
+      @system_statuses = %w[daily_run traffic traffic_serp render openai codex learning].index_with do |key|
+        Aicoo::SystemStatusResolver.call(key)
+      end
       @auto_revision_execution_summary = Aicoo::AutoRevisionExecutionSummary.new.call
       @codex_submission_summary = Aicoo::CodexSubmissionSummary.new.call
       @auto_build_summary = Aicoo::ResourceAwareAutoBuildSummary.new.call

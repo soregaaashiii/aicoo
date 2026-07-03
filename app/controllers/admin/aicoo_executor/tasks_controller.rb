@@ -20,15 +20,15 @@ module Admin
       end
 
       def approve
-        task.approve!
+        result = Aicoo::ApprovalService.approve(task, operator: "owner", source: "aicoo_executor_task")
 
-        redirect_to admin_aicoo_executor_task_path(task), notice: "Executor task approved."
+        redirect_to admin_aicoo_executor_task_path(task), notice: result.message
       end
 
       def reject
-        task.reject!
+        result = Aicoo::ApprovalService.reject(task, operator: "owner", source: "aicoo_executor_task")
 
-        redirect_to admin_aicoo_executor_task_path(task), notice: "Executor task rejected."
+        redirect_to admin_aicoo_executor_task_path(task), notice: result.message
       end
 
       def done

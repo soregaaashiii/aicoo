@@ -111,12 +111,12 @@ module Aicoo
     end
 
     def codex_status(business)
-      status = Aicoo::BusinessConnectionStatus.new(business, source_key: "codex").call
+      status = Aicoo::SystemStatusResolver.call("codex", business:)
       CodexStatus.new(
-        status_key: status.status_key,
+        status_key: status.status.downcase,
         status_label: status.display_label,
         status_level: status.status_level,
-        summary: status.summary
+        summary: status.reason
       )
     end
 
@@ -162,23 +162,24 @@ module Aicoo
       setting = settings_by_business_and_source[[ business.id, profile.source_key ]] ||
         BusinessDataSourceSetting.new(business:, source_key: profile.source_key)
       global_status = build_global_status(profile)
+      system_status = Aicoo::SystemStatusResolver.call(profile.source_key, business:)
       status = Aicoo::BusinessConnectionStatus.new(business, source_key: profile.source_key).call
       BusinessStatus.new(
         source_key: profile.source_key,
         name: profile.name,
         enabled: status.enabled?,
-        status_key: status.status_key,
-        status_label: status.display_label,
-        status_level: status.status_level,
+        status_key: system_status.status.downcase,
+        status_label: system_status.display_label,
+        status_level: system_status.status_level,
         global_status:,
         uses_global: status.uses_global?,
-        setting_label: status.setting_label,
-        connection_summary: status.summary.presence || setting.connection_summary,
+        setting_label: system_status.source.presence || status.setting_label,
+        connection_summary: system_status.reason.presence || status.summary.presence || setting.connection_summary,
         execution_mode: source_binding(setting)["execution_mode"].presence || profile.execution_mode,
         monthly_budget_yen: source_binding(setting)["monthly_budget_yen"].presence || profile.monthly_budget_yen,
         last_sync_at: status.last_fetched_at || setting.last_connected_at || profile.last_run_at,
         manual_paid: manual_paid?(profile),
-        warning: status.warning
+        warning: system_status.connected? ? nil : system_status.reason
       )
     end
 

@@ -2,6 +2,7 @@ class AicooDailyRunsController < ApplicationController
   def index
     @daily_runs = filtered_daily_runs.includes(:aicoo_daily_run_steps).limit(50)
     @daily_run_execution_status = Aicoo::DailyRunExecutionStatus.call
+    @daily_run_system_status = Aicoo::SystemStatusResolver.call("daily_run")
     @latest_serp_run = SerpRun.includes(:serp_analyses).recent.first
     @serp_runs_by_daily_run_id = related_serp_runs_for(@daily_runs)
   end

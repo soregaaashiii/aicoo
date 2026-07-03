@@ -91,13 +91,14 @@
         <h2>SERP Summary</h2>
         <p>全BusinessのSERP運用状態です。詳細な診断はSERP E2E診断で確認します。</p>
       </div>
-      <span class="pill"><%= @serp_summary.health %></span>
+      <span class="pill status-<%= @serp_system_status&.status_level || "warning" %>"><%= @serp_system_status&.status || @serp_summary.health %></span>
     </div>
 
     <div class="metric-grid">
-      <div class="metric-card">
+      <div class="metric-card status-<%= @serp_system_status&.status_level || "warning" %>">
         <span>Health</span>
-        <strong><%= @serp_summary.health %></strong>
+        <strong><%= @serp_system_status&.status || @serp_summary.health %></strong>
+        <small><%= @serp_system_status&.reason %></small>
       </div>
       <div class="metric-card">
         <span>Business</span>
