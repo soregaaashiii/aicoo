@@ -2,7 +2,7 @@ module Aicoo
   class ActionCandidateBusinessPromoter
     Result = Data.define(:business, :created, :promoted, :message)
 
-    NEW_BUSINESS_ACTION_TYPES = %w[new_business lp_experiment market_test build_lp build_mvp].freeze
+    NEW_BUSINESS_ACTION_TYPES = %w[new_business lp_experiment market_test build_lp build_mvp market_research opportunity_validation].freeze
     NEW_BUSINESS_SOURCES = %w[serp integrated_decision ai_business ai_cross_business].freeze
 
     def self.new_business_candidate?(action_candidate)
