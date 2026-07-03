@@ -19,7 +19,7 @@ module Aicoo
 
       status = DataSourceSettingsPresenter.new.business_status(@business, "serp")
 
-      assert_equal "global", status.status_key
+      assert_equal "connected", status.status_key
       assert_equal "設定済み（全体設定を使用）", status.status_label
       assert status.uses_global
     end
@@ -46,7 +46,7 @@ module Aicoo
 
       status = DataSourceSettingsPresenter.new.business_status(@business, "ga4")
 
-      assert_equal "business", status.status_key
+      assert_equal "connected", status.status_key
       assert_equal "設定済み（Business個別設定）", status.status_label
       assert_not status.uses_global
     end
@@ -70,7 +70,7 @@ module Aicoo
 
       status = DataSourceSettingsPresenter.new.business_status(@business, "ga4")
 
-      assert_equal "global", status.status_key
+      assert_equal "connected", status.status_key
       assert_equal "設定済み（全体設定を使用）", status.status_label
       assert_equal "properties/999", status.connection_summary
     end
@@ -93,7 +93,7 @@ module Aicoo
 
       status = DataSourceSettingsPresenter.new.business_status(@business, "ga4")
 
-      assert_equal "global", status.status_key
+      assert_equal "connected", status.status_key
       assert_equal "設定済み（全体設定を使用）", status.status_label
       assert_equal "536889590", status.connection_summary
     end
@@ -101,7 +101,7 @@ module Aicoo
     test "business status is missing when global and individual are absent" do
       status = DataSourceSettingsPresenter.new.business_status(@business, "x")
 
-      assert_equal "missing", status.status_key
+      assert_equal "not_configured", status.status_key
       assert_equal "未設定（未設定）", status.status_label
       assert_equal "critical", status.status_level
     end
@@ -129,7 +129,7 @@ module Aicoo
 
       status = DataSourceSettingsPresenter.new.codex_status(@business)
 
-      assert_equal "business", status.status_key
+      assert_equal "connected", status.status_key
       assert_equal "設定済み（Business個別設定）", status.status_label
     end
 
@@ -138,7 +138,7 @@ module Aicoo
 
       status = DataSourceSettingsPresenter.new.codex_status(@business)
 
-      assert_equal "aicoo_internal", status.status_key
+      assert_equal "connected", status.status_key
       assert_equal "設定済み（Business個別設定）", status.status_label
       assert_equal "healthy", status.status_level
       assert_equal "AICOO内部プロジェクト（接続済み）", status.summary

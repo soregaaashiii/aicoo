@@ -188,6 +188,27 @@ module Aicoo
     end
 
     def approve_action_candidate!
+      if Aicoo::ActionCandidateBusinessPromoter.new_business_candidate?(record)
+        promoted_business = nil
+        promotion_message = nil
+
+        record.transaction do
+          promotion_result = Aicoo::ActionCandidateBusinessPromoter.new(record).call
+          promoted_business = promotion_result.business
+          promotion_message = promotion_result.message
+          record.update!(status: "approved", approved_at: Time.current, approved_by: operator)
+        end
+
+        return operation(
+          promotion_message.presence || "Businessを作成しました: #{promoted_business.name}",
+          metadata: {
+            business_id: promoted_business.id,
+            new_business_candidate: true
+          },
+          redirect_record: promoted_business
+        )
+      end
+
       auto_revision_task = nil
       promotion_message = nil
 

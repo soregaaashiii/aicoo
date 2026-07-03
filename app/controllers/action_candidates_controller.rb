@@ -79,7 +79,7 @@ class ActionCandidatesController < ApplicationController
   def approve
     previous_status = @action_candidate.status
     result = Aicoo::ApprovalService.approve(@action_candidate, operator: "owner", source: "action_candidate_detail")
-    auto_revision_task = result.redirect_record
+    redirect_record = result.redirect_record
     record_owner_decision!("approve", previous_status:)
     message = result.message
     OwnerTaskCompletionLog.record_success!(
@@ -90,11 +90,11 @@ class ActionCandidatesController < ApplicationController
       metadata: {
         status: @action_candidate.status,
         approved_at: @action_candidate.approved_at,
-        auto_revision_task_id: auto_revision_task.id,
-        auto_revision_task_status: auto_revision_task.status
+        redirect_record_type: redirect_record&.class&.name,
+        redirect_record_id: redirect_record&.id
       }
     )
-    redirect_to auto_revision_task, notice: message
+    redirect_to redirect_record || @action_candidate, notice: message
   rescue ActiveRecord::RecordInvalid => e
     redirect_to @action_candidate, alert: "承認できませんでした。Business化に失敗しました: #{e.record.errors.full_messages.to_sentence}"
   end

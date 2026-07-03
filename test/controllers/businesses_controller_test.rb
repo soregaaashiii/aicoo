@@ -148,6 +148,60 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "承認済み新規事業候補を1件Business化しました。"
   end
 
+  test "index shows serp new business candidate tab" do
+    ActionCandidate.create!(
+      business: @business,
+      title: "SERP候補タブの新規事業",
+      description: "SERPで見つけた新規事業候補",
+      action_type: "new_business",
+      generation_source: "serp",
+      department: "new_business",
+      status: "idea",
+      metadata: {
+        "candidate_kind" => "new_business",
+        "source_query" => "新規 SaaS アイデア"
+      },
+      immediate_value_yen: 30_000,
+      success_probability: 0.4
+    )
+
+    get businesses_url(tab: "serp_candidates")
+
+    assert_response :success
+    assert_includes response.body, "SERP新規事業候補"
+    assert_includes response.body, "SERP候補タブの新規事業"
+    assert_includes response.body, "承認して事業化"
+    assert_includes response.body, "却下"
+  end
+
+  test "approving serp new business candidate from business list creates visible business" do
+    candidate = ActionCandidate.create!(
+      business: @business,
+      title: "SERP承認で作るBusiness",
+      description: "SERP承認からBusiness化",
+      action_type: "new_business",
+      generation_source: "serp",
+      department: "new_business",
+      status: "idea",
+      metadata: {
+        "candidate_kind" => "new_business",
+        "business_name" => "SERP承認Business",
+        "source_query" => "SERP 新規事業"
+      },
+      immediate_value_yen: 30_000,
+      success_probability: 0.4
+    )
+
+    assert_difference("Business.real_businesses.count", 1) do
+      patch approve_action_candidate_url(candidate)
+    end
+
+    business = Business.real_businesses.find_by!(name: "SERP承認Business")
+    assert_redirected_to business_url(business)
+    assert_equal business, candidate.reload.business
+    assert_equal "approved", candidate.status
+  end
+
   test "should get new" do
     get new_business_url
     assert_response :success

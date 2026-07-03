@@ -15,6 +15,7 @@ module Aicoo
       ExploreDataSource.delete_all
       OpportunityDiscoveryItem.delete_all
       SerpAnalysis.delete_all
+      DataSourceCostProfile.ensure_defaults!
     end
 
     test "returns low health with warnings when integrations are missing" do
@@ -23,9 +24,9 @@ module Aicoo
 
       assert health
       assert_operator health.health_score, :<, BusinessIntegrationHealth::LOW_HEALTH_THRESHOLD
-      assert_includes health.warnings, "GSC未接続"
-      assert_includes health.warnings, "GA4未接続"
-      assert_includes health.warnings, "Daily Run未実行"
+      assert_includes health.warnings, "sc-domain:suelog.test"
+      assert_includes health.warnings, "Google全体設定がありません"
+      assert_includes health.warnings, "Daily Run履歴がありません。"
       assert_includes result.critical_businesses, health
     end
 
@@ -50,6 +51,8 @@ module Aicoo
         result_count: 10,
         analyzed_at: Time.current
       )
+      DataSourceCostProfile.find_by!(source_key: "serp").update!(api_key: "serp-key")
+      @business.serp_queries.create!(query: "シーシャ 大阪", enabled: true, status: "active")
       opportunity = OpportunityDiscoveryItem.create!(
         business: @business,
         title: "Explore opportunity",
@@ -210,8 +213,8 @@ module Aicoo
       health = BusinessIntegrationHealth.new.call.business_healths.find { |row| row.business == @business }
 
       assert health.ga4.configured
-      assert health.ga4.connected
-      assert_equal "GA4最終取得が失敗しています", health.ga4.warning
+      refute health.ga4.connected
+      assert_equal "Google再認証が必要です", health.ga4.warning
       assert_equal 0, health.ga4.count
     end
 
@@ -238,8 +241,7 @@ module Aicoo
 
       refute health.gsc.connected
       refute health.ga4.connected
-      assert_includes health.warnings, "GSC未接続"
-      assert_includes health.warnings, "GA4未接続"
+      assert_includes health.warnings, "Google再認証が必要です"
     end
 
     private

@@ -1,14 +1,13 @@
 <% analytics ||= nil %>
-<% google_connected = AicooGoogleCredential.default&.connected? %>
-<% ga4_configured = analytics&.settings&.dig(:ga4_property_id).present? %>
-<% gsc_configured = analytics&.settings&.dig(:gsc_site_url).present? || business.gsc_site_url.present? %>
-<% serp_configured = recent_serp_analyses.any? || business.business_data_source_settings.find { |setting| setting.source_key == "serp" }&.property_identifier.present? %>
+<% system_statuses ||= {} %>
+<% ga4_status = system_statuses["ga4"] || Aicoo::SystemStatusResolver.call("ga4", business:) %>
+<% gsc_status = system_statuses["gsc"] || Aicoo::SystemStatusResolver.call("gsc", business:) %>
+<% serp_status = system_statuses["serp"] || Aicoo::SystemStatusResolver.call("serp", business:) %>
 <% lp_ready = landing_page_counts.values.sum.positive? %>
 <% steps = [
-  [ "Google接続", google_connected, aicoo_setting_path(anchor: "google-settings"), "AICOO全体OAuthを接続" ],
-  [ "GA4", ga4_configured, edit_business_path(business, return_to: business_path(business, anchor: "business-google"), anchor: "data-source-link-settings"), "Property IDを紐付け" ],
-  [ "GSC", gsc_configured, edit_business_path(business, return_to: business_path(business, anchor: "business-google"), anchor: "data-source-link-settings"), "Site URLを紐付け" ],
-  [ "SERP", serp_configured, business_path(business, anchor: "business-serp"), "キーワードを登録/取得" ],
+  [ "GA4", ga4_status.connected? || ga4_status.warning?, ga4_status.detail_url || google_settings_business_path(business), ga4_status.reason ],
+  [ "GSC", gsc_status.connected? || gsc_status.warning?, gsc_status.detail_url || google_settings_business_path(business), gsc_status.reason ],
+  [ "SERP", serp_status.connected? || serp_status.warning?, serp_status.detail_url || admin_serp_settings_path(business_id: business.id), serp_status.reason ],
   [ "LP", lp_ready, admin_aicoo_lab_public_landing_pages_path, "公開LPを作成/公開" ]
 ] %>
 

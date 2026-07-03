@@ -9,6 +9,8 @@ class BusinessesController < ApplicationController
   def index
     repair_approved_new_business_candidates!
     @businesses = Business.real_businesses.includes(:business_execution_profile).order(:name)
+    @active_tab = params[:tab].presence_in(%w[businesses serp_candidates]) || "businesses"
+    @serp_new_business_board = Aicoo::NewBusinessCandidateBoard.call(limit: 50)
     @business_integration_health = Aicoo::BusinessIntegrationHealth.new.call
     @data_source_settings_presenter = Aicoo::DataSourceSettingsPresenter.new
     @business_analytics_summaries = Aicoo::BusinessAnalyticsSummary.for_businesses(

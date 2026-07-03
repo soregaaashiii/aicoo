@@ -13,6 +13,87 @@
              active_main: :revenue,
              actions: header_actions %>
 
+<nav class="tabs">
+  <%= link_to "事業一覧", businesses_path(tab: "businesses"), class: @active_tab == "businesses" ? "active" : nil %>
+  <%= link_to "SERP新規事業候補 #{@serp_new_business_board.pending_count}", businesses_path(tab: "serp_candidates"), class: @active_tab == "serp_candidates" ? "active" : nil %>
+</nav>
+
+<% if @active_tab == "serp_candidates" %>
+  <section class="dashboard-section" id="serp-new-business-candidates">
+    <div class="section-heading">
+      <div>
+        <h2>SERP新規事業候補</h2>
+        <p>SERPがGoogle上を走って見つけた候補です。承認するとBusinessを作成して事業一覧に追加します。却下するとこの一覧から消えます。</p>
+      </div>
+      <%= link_to "事業一覧へ", businesses_path(tab: "businesses"), class: "button secondary" %>
+    </div>
+
+    <% if @serp_new_business_board.candidates.any? %>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>候補</th>
+              <th>根拠検索クエリ</th>
+              <th>想定顧客</th>
+              <th>収益モデル</th>
+              <th>期待利益</th>
+              <th>最初の検証</th>
+              <th>状態</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @serp_new_business_board.candidates.each do |row| %>
+              <% candidate = row.action_candidate %>
+              <tr>
+                <td>
+                  <strong><%= link_to row.title, candidate %></strong><br>
+                  <small><%= truncate(row.problem, length: 90) %></small>
+                </td>
+                <td><%= row.source_query %></td>
+                <td><%= truncate(row.target_customer, length: 60) %></td>
+                <td><%= truncate(row.revenue_model, length: 60) %></td>
+                <td>
+                  <%= number_to_currency(row.expected_profit_yen, unit: "¥", precision: 0) %><br>
+                  <small>時給 <%= number_to_currency(row.expected_hourly_value_yen, unit: "¥", precision: 0) %></small>
+                </td>
+                <td><%= truncate(row.validation_step, length: 80) %></td>
+                <td><span class="pill"><%= row.status %></span></td>
+                <td>
+                  <div class="actions compact-actions">
+                    <%= button_to "承認して事業化",
+                                  approve_action_candidate_path(candidate),
+                                  method: :patch,
+                                  params: { return_to: businesses_path(tab: "businesses") },
+                                  class: "button",
+                                  data: { turbo_confirm: "この候補を承認してBusinessを作成します。" } %>
+                    <%= button_to "却下",
+                                  reject_action_candidate_path(candidate),
+                                  method: :patch,
+                                  params: { return_to: businesses_path(tab: "serp_candidates") },
+                                  class: "button secondary",
+                                  data: { turbo_confirm: "この候補を却下します。" } %>
+                  </div>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% else %>
+      <div class="empty-state">
+        <h3>表示できるSERP新規事業候補はありません</h3>
+        <ul>
+          <% @serp_new_business_board.zero_reasons.each do |reason| %>
+            <li><%= reason %></li>
+          <% end %>
+        </ul>
+      </div>
+    <% end %>
+  </section>
+</div>
+<% else %>
 <div class="table-wrap">
   <table>
     <thead>
@@ -147,3 +228,4 @@
   </table>
 </div>
 </div>
+<% end %>

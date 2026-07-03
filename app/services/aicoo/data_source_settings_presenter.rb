@@ -197,8 +197,8 @@ module Aicoo
 
     def global_default_available_for?(profile, credential_fields, configured_labels)
       return false unless profile.enabled?
+      return Aicoo::SystemStatusResolver.call(profile.source_key).connected? if profile.source_key.in?(%w[gsc ga4])
       return true if credential_fields.empty? || configured_labels.any?
-      return true if profile.source_key.in?(%w[gsc ga4]) && AicooGoogleCredential.default&.connected?
 
       false
     end

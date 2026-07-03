@@ -78,6 +78,39 @@ module Aicoo
       assert_equal business.id, candidate.metadata.dig("business_promotion", "business_id")
     end
 
+    test "approves serp new business candidate directly into business without auto revision queue" do
+      candidate = ActionCandidate.create!(
+        business: businesses(:suelog),
+        title: "SERPから見つけた請求チェック事業",
+        description: "フリーランス向け請求前チェック",
+        action_type: "new_business",
+        generation_source: "serp",
+        department: "new_business",
+        status: "idea",
+        metadata: {
+          "candidate_kind" => "new_business",
+          "business_name" => "請求前チェックリスト",
+          "source_query" => "フリーランス 請求 チェック"
+        },
+        immediate_value_yen: 40_000,
+        success_probability: 0.5
+      )
+
+      assert_difference("Business.real_businesses.count", 1) do
+        assert_no_difference("AutoRevisionTask.count") do
+          result = ApprovalService.approve(candidate, operator: "owner", source: "test")
+
+          assert_equal "請求前チェックリスト", result.redirect_record.name
+          assert_match(/Businessを作成しました/, result.message)
+        end
+      end
+
+      business = Business.real_businesses.find_by!(name: "請求前チェックリスト")
+      assert_equal "approved", candidate.reload.status
+      assert_equal business, candidate.business
+      assert_equal "serp", business.source
+    end
+
     test "approves serp ai suggestion into executable serp query" do
       business = businesses(:suelog)
       keyword = business.business_serp_keywords.create!(

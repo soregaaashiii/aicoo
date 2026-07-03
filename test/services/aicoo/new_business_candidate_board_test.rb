@@ -38,5 +38,35 @@ module Aicoo
       assert_empty result.candidates
       assert_not_empty result.zero_reasons
     end
+
+    test "does not list approved or rejected candidates in approval tab" do
+      approved = ActionCandidate.create!(
+        business: businesses(:suelog),
+        title: "承認済み新規事業候補",
+        action_type: "new_business",
+        department: "new_business",
+        generation_source: "serp",
+        status: "approved",
+        metadata: { "candidate_kind" => "new_business" },
+        immediate_value_yen: 20_000,
+        success_probability: 0.3
+      )
+      rejected = ActionCandidate.create!(
+        business: businesses(:suelog),
+        title: "却下済み新規事業候補",
+        action_type: "new_business",
+        department: "new_business",
+        generation_source: "serp",
+        status: "rejected",
+        metadata: { "candidate_kind" => "new_business" },
+        immediate_value_yen: 20_000,
+        success_probability: 0.3
+      )
+
+      result = Aicoo::NewBusinessCandidateBoard.call(limit: 20)
+
+      refute_includes result.candidates.map(&:action_candidate), approved
+      refute_includes result.candidates.map(&:action_candidate), rejected
+    end
   end
 end

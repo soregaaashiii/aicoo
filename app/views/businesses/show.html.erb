@@ -35,10 +35,16 @@
         <% next unless system_status %>
         <div class="metric-card status-<%= system_status.status_level %>">
           <span><%= system_status.label %></span>
-          <strong><%= system_status.status_label %></strong>
+          <strong><%= system_status.display_label %></strong>
           <small><%= system_status.reason %></small>
           <% if system_status.next_action.present? && system_status.detail_url.present? %>
             <%= link_to system_status.next_action, system_status.detail_url, class: "button secondary" %>
+          <% end %>
+          <% if Rails.env.development? %>
+            <details>
+              <summary>StatusResolver debug</summary>
+              <pre><%= JSON.pretty_generate(system_status.to_h) %></pre>
+            </details>
           <% end %>
         </div>
       <% end %>
@@ -257,7 +263,8 @@
            business: @business,
            analytics: @business_analytics_summary,
            recent_serp_analyses: @recent_serp_analyses,
-           landing_page_counts: @landing_page_counts %>
+           landing_page_counts: @landing_page_counts,
+           system_statuses: @system_statuses %>
 
 <%= render @business %>
 

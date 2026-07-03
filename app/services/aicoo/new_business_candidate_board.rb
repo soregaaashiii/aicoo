@@ -57,6 +57,7 @@ module Aicoo
 
     def candidate_scope
       candidate_base
+        .where(status: PENDING_STATUSES)
         .active_for_ranking
         .order(Arel.sql("final_score DESC NULLS LAST, expected_hourly_value_yen DESC NULLS LAST, expected_profit_yen DESC NULLS LAST, created_at DESC"))
     end

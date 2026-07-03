@@ -96,19 +96,20 @@ module Aicoo
       selected_credential = google_credential
       selected_setting = analytics_source_setting
       reauthentication_required = google_reauthentication_required?(selected_credential)
+      auth_available = google_auth_available?(selected_credential)
       latest = latest_run(selected_setting)
       last_error = latest_failed_run(selected_setting)&.error_message
 
       if business_data_source_identifier.present?
         return base_result(
-          configured: selected_credential&.connected? && !reauthentication_required,
-          status_key: selected_credential&.connected? && !reauthentication_required ? "business" : "needs_attention",
-          status_label: selected_credential&.connected? && !reauthentication_required ? "設定済み" : "再認証が必要",
-          status_level: selected_credential&.connected? && !reauthentication_required ? "healthy" : "warning",
+          configured: auth_available && !reauthentication_required,
+          status_key: auth_available && !reauthentication_required ? "business" : "needs_attention",
+          status_label: auth_available && !reauthentication_required ? "設定済み" : "再認証が必要",
+          status_level: auth_available && !reauthentication_required ? "healthy" : "warning",
           setting_scope: "business",
           setting_label: "Business個別設定",
           summary: selected_identifier,
-          warning: selected_credential.present? ? nil : "Google Credentialが未設定です",
+          warning: auth_available ? nil : "Google Credentialが未設定です",
           identifier: selected_identifier,
           credential: selected_credential,
           setting: selected_setting,
@@ -121,7 +122,7 @@ module Aicoo
         )
       end
 
-      if selected_identifier.present? && reauthentication_required
+      if reauthentication_required
         return base_result(
           configured: false,
           status_key: "needs_attention",
@@ -376,13 +377,22 @@ module Aicoo
       explicit_id = business_data_source_setting&.metadata.to_h["google_credential_id"]
       explicit_credential = AicooGoogleCredential.find_by(id: explicit_id) if explicit_id.present?
       return explicit_credential if explicit_credential
-      return nil if business_data_source_identifier.present?
 
       analytics_source_setting&.google_credential || AicooGoogleCredential.default
     end
 
     def global_google_available?
-      AicooGoogleCredential.default&.connected? || env_google_credentials_present?
+      credential_usable?(AicooGoogleCredential.default) || env_google_credentials_present?
+    end
+
+    def google_auth_available?(credential)
+      credential_usable?(credential) || (credential.blank? && env_google_credentials_present?)
+    end
+
+    def credential_usable?(credential)
+      credential&.connected? &&
+        !credential.reauthentication_required? &&
+        !credential.token_expired?
     end
 
     def env_google_credentials_present?

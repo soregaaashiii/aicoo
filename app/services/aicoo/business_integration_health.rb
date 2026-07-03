@@ -110,7 +110,7 @@ module Aicoo
       latest_success = latest_fetch_run(settings, "success")
       latest_failed = latest_fetch_run(settings, "failed")
       system_status = Aicoo::SystemStatusResolver.call(source_type, business:)
-      configured = system_status.connected? || system_status.warning?
+      configured = !system_status.not_configured?
       connected = system_status.connected?
       last_fetched_at = latest_run&.finished_at || latest_run&.started_at || setting&.last_fetched_at
       warning = system_status.connected? ? analytics_warning(source_type, configured:, connected:, latest_success:, latest_run:, last_fetched_at:) : system_status.reason

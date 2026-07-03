@@ -105,6 +105,10 @@ module Aicoo
           setting_label: raw.setting_label,
           summary: raw.summary,
           identifier: raw.identifier,
+          credential_id: raw.credential&.id,
+          credential_name: raw.credential&.name,
+          property_id: source_key == "ga4" ? raw.identifier : nil,
+          site_url: source_key == "gsc" ? raw.identifier : nil,
           last_fetched_at: raw.last_fetched_at,
           last_count: raw.last_count,
           last_error: raw.last_error,
@@ -118,7 +122,7 @@ module Aicoo
       return build_status(key: source_key, label: label_for(source_key), status: "WARNING", reason: "#{profile.name}全体設定がOFFです。", detail_url: global_detail_url(source_key), source: "global") unless profile.enabled?
 
       configured = if source_key.in?(%w[ga4 gsc])
-        AicooGoogleCredential.default&.connected? || env_google_credentials_present?
+        credential_usable?(AicooGoogleCredential.default) || env_google_credentials_present?
       elsif source_key == "serp"
         Aicoo::Serp::OptionalMode.call.api_key_configured
       else
@@ -139,25 +143,25 @@ module Aicoo
 
     def normalize_connection(raw)
       return "WARNING" unless raw.enabled?
-      return "CONNECTED" if raw.configured? && raw.warning.blank?
       return "BROKEN" if raw.reauthentication_required || raw.last_error.present?
+      return "CONNECTED" if raw.configured? && raw.warning.blank?
       return "WARNING" if raw.warning.present? || raw.status_key == "needs_attention"
 
       "NOT_CONFIGURED"
     end
 
     def connection_reason(raw)
-      return raw.summary if raw.configured? && raw.warning.blank?
       return raw.warning if raw.warning.present?
       return raw.last_error if raw.last_error.present?
+      return raw.summary if raw.configured? && raw.warning.blank?
       return "#{raw.label}は無効です。" unless raw.enabled?
 
       raw.summary
     end
 
     def next_action_for(source_key, raw)
-      return nil if raw.configured? && raw.warning.blank?
       return "Google再認証" if source_key.in?(%w[ga4 gsc]) && raw.reauthentication_required
+      return nil if raw.configured? && raw.warning.blank? && raw.last_error.blank?
       return "Business設定を開く" if source_key.in?(%w[ga4 gsc serp])
       return "Codex接続を開く" if source_key == "codex"
 
@@ -365,6 +369,12 @@ module Aicoo
       ENV["GOOGLE_CLIENT_ID"].present? &&
         ENV["GOOGLE_CLIENT_SECRET"].present? &&
         ENV["GOOGLE_REFRESH_TOKEN"].present?
+    end
+
+    def credential_usable?(credential)
+      credential&.connected? &&
+        !credential.reauthentication_required? &&
+        !credential.token_expired?
     end
   end
 end
