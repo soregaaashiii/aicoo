@@ -193,9 +193,13 @@ module Aicoo
 
       record.transaction do
         if record.status == "approved"
+          promotion_result = Aicoo::ActionCandidateBusinessPromoter.new(record).call
           auto_revision_task = AutoRevisionTask.active.find_by(action_candidate: record) ||
                                AutoRevisionTask.from_action_candidate(record, generated_by: "approval_service_recovery")
-          promotion_message = "すでに承認済みです。既存のAutoRevisionTaskへ紐付けました。"
+          promotion_message = [
+            "すでに承認済みです。既存のAutoRevisionTaskへ紐付けました。",
+            promotion_result&.message
+          ].compact.join(" ")
         else
           auto_revision_task = record.approve!(approved_by: operator)
           promotion_message = record.business_promotion_result&.message

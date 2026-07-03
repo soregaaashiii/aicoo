@@ -5,6 +5,10 @@ module Aicoo
     NEW_BUSINESS_ACTION_TYPES = %w[new_business lp_experiment market_test build_lp build_mvp].freeze
     NEW_BUSINESS_SOURCES = %w[serp integrated_decision ai_business ai_cross_business].freeze
 
+    def self.new_business_candidate?(action_candidate)
+      new(action_candidate).new_business_candidate?
+    end
+
     def initialize(action_candidate)
       @action_candidate = action_candidate
     end
@@ -33,10 +37,6 @@ module Aicoo
       )
     end
 
-    private
-
-    attr_reader :action_candidate
-
     def new_business_candidate?
       metadata = action_candidate.metadata.to_h
       return true if metadata["candidate_kind"] == "new_business"
@@ -46,6 +46,10 @@ module Aicoo
       action_candidate.action_type.in?(NEW_BUSINESS_ACTION_TYPES) &&
         action_candidate.generation_source.in?(NEW_BUSINESS_SOURCES)
     end
+
+    private
+
+    attr_reader :action_candidate
 
     def existing_business
       Business.real_businesses.find_by("LOWER(name) = ?", business_name.downcase)
@@ -62,6 +66,7 @@ module Aicoo
           "promoted_at" => Time.current.iso8601
         }
       )
+      action_candidate.save!
     end
 
     def business_attributes
