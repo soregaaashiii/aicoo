@@ -262,7 +262,9 @@ Rails.application.routes.draw do
       patch "businesses/:business_id", action: :update_business, as: :business
       post "businesses/:business_id/keywords", action: :add_keywords, as: :business_keywords
       post "businesses/:business_id/suggestions", action: :regenerate_suggestions, as: :business_suggestions
+      get "businesses/:business_id/suggestions", action: :regenerate_suggestions_hint
       post "businesses/:business_id/approve_pending", action: :approve_pending_keywords, as: :business_approve_pending
+      get "businesses/:business_id/approve_pending", action: :approve_pending_keywords_hint
       post "businesses/:business_id/scan", action: :scan_business, as: :business_scan
       patch "keywords/:id", action: :update_keyword, as: :keyword
       patch "keywords/:id/approve", action: :approve_keyword, as: :approve_keyword

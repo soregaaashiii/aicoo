@@ -175,6 +175,18 @@ module Admin
                   notice: "AI候補#{promoted}件を実行対象の検索クエリに追加しました。作成 #{created}件 / 既存更新 #{updated}件 / skip #{skipped}件。追加だけではSERP取得は実行されません。次に「選択中BusinessのSERPを実行」を押せます。"
     end
 
+    def approve_pending_keywords_hint
+      business = find_business
+      redirect_to admin_serp_settings_path(business_id: business.id, anchor: "serp-keywords"),
+                  alert: "検索クエリ追加は画面内のボタンから実行してください。"
+    end
+
+    def regenerate_suggestions_hint
+      business = find_business
+      redirect_to admin_serp_settings_path(business_id: business.id, anchor: "serp-keywords"),
+                  alert: "候補再生成は画面内のボタンから実行してください。"
+    end
+
     def approve_keyword
       keyword = find_keyword
       result = Aicoo::ApprovalService.approve(keyword, operator: "owner", source: "serp_settings")

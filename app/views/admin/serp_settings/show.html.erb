@@ -521,18 +521,21 @@
       <div class="aicoo-card aicoo-card-compact">
         <h3>AI候補</h3>
         <p class="muted">追加すると実行対象のSERP検索クエリに入ります。追加だけではSerper APIは実行されません。</p>
+        <div class="compact-actions">
+          <%= button_to "すべて検索クエリ追加",
+                        business_approve_pending_admin_serp_settings_path(selected_business),
+                        method: :post,
+                        class: "button secondary",
+                        data: { aicoo_confirm: "候補をすべて実行対象へ追加します。" } %>
+          <%= button_to "候補を再生成",
+                        business_suggestions_admin_serp_settings_path(selected_business),
+                        method: :post,
+                        class: "button secondary" %>
+        </div>
         <%= form_with url: business_approve_pending_admin_serp_settings_path(selected_business), method: :post, class: "form" do %>
           <%= hidden_field_tag :selected_only, "1" %>
           <div class="compact-actions">
             <%= submit_tag "選択した候補を検索クエリ化", class: "button" %>
-            <%= link_to "すべて検索クエリ追加",
-                        business_approve_pending_admin_serp_settings_path(selected_business),
-                        data: { turbo_method: :post, turbo_confirm: "候補をすべて実行対象へ追加します。" },
-                        class: "button secondary" %>
-            <%= link_to "候補を再生成",
-                        business_suggestions_admin_serp_settings_path(selected_business),
-                        data: { turbo_method: :post },
-                        class: "button secondary" %>
           </div>
         <div class="table-wrap">
           <table>

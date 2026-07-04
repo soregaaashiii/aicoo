@@ -173,6 +173,24 @@ module Admin
       assert_not business.serp_queries.exists?(query: "難波 喫煙")
     end
 
+    test "GET bulk approve hint redirects instead of 404" do
+      business = businesses(:suelog)
+
+      get business_approve_pending_admin_serp_settings_url(business)
+
+      assert_redirected_to admin_serp_settings_url(business_id: business.id, anchor: "serp-keywords")
+      assert_match "画面内のボタン", flash[:alert]
+    end
+
+    test "GET regenerate suggestions hint redirects instead of 404" do
+      business = businesses(:suelog)
+
+      get business_suggestions_admin_serp_settings_url(business)
+
+      assert_redirected_to admin_serp_settings_url(business_id: business.id, anchor: "serp-keywords")
+      assert_match "画面内のボタン", flash[:alert]
+    end
+
     test "approving duplicate keyword activates existing serp query without duplication" do
       business = businesses(:suelog)
       existing = business.serp_queries.create!(
