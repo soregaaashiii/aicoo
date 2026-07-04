@@ -29,6 +29,7 @@ module Aicoo
 
     NEW_BUSINESS_ACTION_TYPES = %w[new_business lp_experiment market_test build_lp build_mvp market_research opportunity_validation].freeze
     PENDING_STATUSES = %w[idea pending].freeze
+    VISIBLE_STATUSES = %w[idea pending done].freeze
 
     def self.call(...)
       new(...).call
@@ -57,8 +58,13 @@ module Aicoo
 
     def candidate_scope
       candidate_base
-        .where(status: PENDING_STATUSES)
-        .active_for_ranking
+        .where(status: VISIBLE_STATUSES)
+        .where(
+          "status IN (:pending_statuses) OR metadata -> 'auto_new_business_publication' ->> 'completed' = :completed",
+          pending_statuses: PENDING_STATUSES,
+          completed: "true"
+        )
+        .where.not(status: %w[rejected archived])
         .order(Arel.sql("final_score DESC NULLS LAST, expected_hourly_value_yen DESC NULLS LAST, expected_profit_yen DESC NULLS LAST, created_at DESC"))
     end
 
@@ -92,8 +98,14 @@ module Aicoo
         source_query: metadata["source_query"].presence || metadata["serp_keyword"].presence || "-",
         market_memo: metadata["market_memo"].presence || candidate.evaluation_reason.presence || "-",
         reason: metadata["recommendation_reason"].presence || candidate.evaluation_reason.presence || "SERP市場観測と内部データの総合判断",
-        status: candidate.status
+        status: status_label(candidate)
       )
+    end
+
+    def status_label(candidate)
+      return "事業/LP作成済み" if candidate.metadata.to_h.dig("auto_new_business_publication", "completed")
+
+      candidate.status
     end
 
     def zero_reasons

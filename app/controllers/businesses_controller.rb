@@ -8,6 +8,7 @@ class BusinessesController < ApplicationController
   # GET /businesses or /businesses.json
   def index
     repair_approved_new_business_candidates!
+    publish_serp_new_business_candidates!
     @businesses = Business.real_businesses.includes(:business_execution_profile).order(:name)
     @active_tab = params[:tab].presence_in(%w[businesses serp_candidates]) || "businesses"
     @serp_new_business_board = Aicoo::NewBusinessCandidateBoard.call(limit: 50)
@@ -552,6 +553,22 @@ class BusinessesController < ApplicationController
     rescue StandardError => e
       Rails.logger.warn("[BusinessesController] approved new business repair failed: #{e.class}: #{e.message}")
       flash.now[:alert] = "承認済み新規事業候補のBusiness化確認に失敗しました: #{e.message}"
+    end
+
+    def publish_serp_new_business_candidates!
+      result = Aicoo::Serp::AutoNewBusinessPublisher.call(
+        limit: 50,
+        source: "businesses_index_auto_publish"
+      )
+      return unless result.business_created_count.positive? || result.lp_published_count.positive?
+
+      messages = []
+      messages << "SERP由来新規事業を#{result.business_created_count}件作成" if result.business_created_count.positive?
+      messages << "LPを#{result.lp_published_count}件公開" if result.lp_published_count.positive?
+      flash.now[:notice] = [ flash.now[:notice], "#{messages.join(' / ')}しました。" ].compact.join(" ")
+    rescue StandardError => e
+      Rails.logger.warn("[BusinessesController] serp new business auto publish failed: #{e.class}: #{e.message}")
+      flash.now[:alert] = "SERP新規事業の自動作成確認に失敗しました: #{e.message}"
     end
 
     def log_google_api_import_credential!(event, run:, credential:, source_types:, setting_sources: {})

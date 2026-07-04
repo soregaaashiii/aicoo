@@ -23,7 +23,7 @@
     <div class="section-heading">
       <div>
         <h2>SERP新規事業候補</h2>
-        <p>SERPがGoogle上を走って見つけた候補です。Business作成を押すと事業一覧に追加します。却下するとこの一覧から消えます。</p>
+        <p>SERPがGoogle上を走って見つけた候補です。新規事業候補は自動でBusiness作成とLP公開まで進めます。ここでは候補と作成結果だけ確認します。</p>
       </div>
       <%= link_to "事業一覧へ", businesses_path(tab: "businesses"), class: "button secondary" %>
     </div>
@@ -62,18 +62,25 @@
                 <td><span class="pill"><%= row.status %></span></td>
                 <td>
                   <div class="actions compact-actions">
-                    <%= button_to "Business作成",
-                                  approve_action_candidate_path(candidate),
-                                  method: :patch,
-                                  params: { return_to: businesses_path(tab: "businesses") },
-                                  class: "button",
-                                  data: { turbo_confirm: "この候補からBusinessを作成します。" } %>
-                    <%= button_to "却下",
-                                  reject_action_candidate_path(candidate),
-                                  method: :patch,
-                                  params: { return_to: businesses_path(tab: "serp_candidates") },
-                                  class: "button secondary",
-                                  data: { turbo_confirm: "この候補を却下します。" } %>
+                    <% publication = candidate.metadata.to_h["auto_new_business_publication"].to_h %>
+                    <% published_slug = publication["published_slug"] %>
+                    <% if publication["completed"] %>
+                      <%= link_to "事業を見る", candidate.business, class: "button" if candidate.business %>
+                      <%= link_to "LPを見る", public_lp_path(published_slug), class: "button secondary" if published_slug.present? %>
+                    <% else %>
+                      <%= button_to "今すぐ事業化",
+                                    approve_action_candidate_path(candidate),
+                                    method: :patch,
+                                    params: { return_to: businesses_path(tab: "businesses") },
+                                    class: "button",
+                                    data: { turbo_confirm: "この候補をBusiness化します。" } %>
+                      <%= button_to "却下",
+                                    reject_action_candidate_path(candidate),
+                                    method: :patch,
+                                    params: { return_to: businesses_path(tab: "serp_candidates") },
+                                    class: "button secondary",
+                                    data: { turbo_confirm: "この候補を却下します。" } %>
+                    <% end %>
                   </div>
                 </td>
               </tr>

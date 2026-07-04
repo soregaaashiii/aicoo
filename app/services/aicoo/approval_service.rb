@@ -193,18 +193,37 @@ module Aicoo
       if Aicoo::ActionCandidateBusinessPromoter.new_business_candidate?(record)
         promoted_business = nil
         promotion_message = nil
+        landing_page = nil
 
         record.transaction do
           promotion_result = Aicoo::ActionCandidateBusinessPromoter.new(record).call
           promoted_business = promotion_result.business
           promotion_message = promotion_result.message
+          promoted_business.update!(
+            status: "launched",
+            launched: true,
+            lifecycle_stage: "lp_validation",
+            daily_run_enabled: true,
+            serp_enabled: true,
+            metadata: promoted_business.metadata.to_h.merge(
+              "auto_lp_published" => true,
+              "auto_published_at" => Time.current.iso8601
+            )
+          )
+          landing_page = Aicoo::Owner::NewBusinessLandingPageBuilder.new(record).call
+          landing_page.publish! unless landing_page.publicly_visible?
           record.update!(status: "approved", approved_at: Time.current, approved_by: operator)
         end
 
         return operation(
-          promotion_message.presence || "Businessを作成しました: #{promoted_business.name}",
+          [
+            promotion_message.presence || "Businessを作成しました: #{promoted_business.name}",
+            "LPを公開しました: /lp/#{landing_page.published_slug}"
+          ].compact.join(" "),
           metadata: {
             business_id: promoted_business.id,
+            landing_page_id: landing_page.id,
+            published_slug: landing_page.published_slug,
             new_business_candidate: true
           },
           redirect_record: promoted_business

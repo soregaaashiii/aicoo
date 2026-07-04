@@ -1,6 +1,6 @@
 class AicooAutoRevisionSetting < ApplicationRecord
   DEFAULTS = {
-    enabled: false,
+    enabled: true,
     max_tasks_per_run: 5,
     minimum_final_score: 1_000,
     allow_medium_risk: true,

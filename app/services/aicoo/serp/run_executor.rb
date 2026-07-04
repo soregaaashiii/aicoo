@@ -40,7 +40,13 @@ module Aicoo
         run_priority_learning!
         serp_run.finish_from_result!(result)
         candidates = run_integrated_decision!(serp_run)
-        serp_run.update!(candidate_count: candidates.size) if candidates
+        publication_result = publish_new_business_candidates!(serp_run, candidates)
+        serp_run.update!(
+          candidate_count: candidates.size,
+          metadata: serp_run.metadata.to_h.merge(
+            "auto_new_business_publication" => publication_metadata(publication_result)
+          )
+        ) if candidates
         serp_run
       rescue StandardError => e
         serp_run&.fail!(e)
@@ -88,6 +94,31 @@ module Aicoo
         Aicoo::IntegratedDecisionEngine.new(serp_run:).generate_unified_candidates!
       rescue StandardError => e
         Rails.logger.warn("[SERP] integrated decision skipped serp_run_id=#{serp_run.id} #{e.class}: #{e.message}")
+      end
+
+      def publish_new_business_candidates!(serp_run, candidates)
+        Aicoo::Serp::AutoNewBusinessPublisher.call(serp_run:, candidates:, source: "serp_run")
+      rescue StandardError => e
+        Rails.logger.warn("[SERP] auto new business publication skipped serp_run_id=#{serp_run.id} #{e.class}: #{e.message}")
+        nil
+      end
+
+      def publication_metadata(result)
+        return { "status" => "skipped", "reason" => "publisher_not_run" } unless result
+
+        {
+          "status" => result.failed_count.to_i.positive? ? "partial_failed" : "success",
+          "checked_count" => result.checked_count,
+          "business_created_count" => result.business_created_count,
+          "business_linked_count" => result.business_linked_count,
+          "lp_created_count" => result.lp_created_count,
+          "lp_published_count" => result.lp_published_count,
+          "skipped_count" => result.skipped_count,
+          "failed_count" => result.failed_count,
+          "business_ids" => result.business_ids,
+          "landing_page_ids" => result.landing_page_ids,
+          "errors" => result.errors.first(5)
+        }
       end
     end
   end

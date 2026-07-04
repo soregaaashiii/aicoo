@@ -170,8 +170,9 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.body, "SERP新規事業候補"
     assert_includes response.body, "SERP候補タブの新規事業"
-    assert_includes response.body, "承認して事業化"
-    assert_includes response.body, "却下"
+    assert_includes response.body, "事業/LP作成済み"
+    assert_includes response.body, "事業を見る"
+    assert_includes response.body, "LPを見る"
   end
 
   test "approving serp new business candidate from business list creates visible business" do
