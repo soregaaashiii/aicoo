@@ -147,7 +147,7 @@ module Aicoo
         when "draft", "waiting_approval"
           action("Codex Prompt準備", routes.approve_owner_auto_revision_loop_task_path(task), :patch, "旧形式の待機タスクをCodex用プロンプト確認へ進めます。")
         when "approved", "ready_for_codex", "queued"
-          action("Codex用プロンプトをコピー", nil, nil, "Cloud Codex API連携前のため、このページ内のプロンプトをコピーして送信します。")
+          action("GitHub Issueを作成", routes.create_github_issue_owner_auto_revision_loop_task_path(task), :post, "Codex Cloudで開けるGitHub Issueを作成します。")
         when "sent_to_codex"
           action("実装開始にする", routes.start_owner_auto_revision_loop_task_path(task), :patch, "Codexへ渡した後の作業状態へ進めます。")
         when "running"

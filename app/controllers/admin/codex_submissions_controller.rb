@@ -6,6 +6,7 @@ module Admin
       mark_failed
       mark_completed
       retry
+      create_github_issue
       update_tracking
       mark_merged
       mark_deployed
@@ -43,6 +44,19 @@ module Admin
     def retry
       @codex_submission.retry!
       redirect_back fallback_location: admin_codex_connection_path, notice: "Codex手動送信を再試行待ちに戻しました。"
+    end
+
+    def create_github_issue
+      result = Aicoo::CodexGithubIssueBridge.new(@codex_submission).call
+      if result.issue_url.present?
+        redirect_to admin_codex_submission_path(@codex_submission),
+                    notice: "#{result.message} Codex CloudでこのIssueを開いて作業できます。"
+      else
+        redirect_to admin_codex_submission_path(@codex_submission), alert: result.message
+      end
+    rescue StandardError => e
+      @codex_submission.mark_failed!(e.message)
+      redirect_to admin_codex_submission_path(@codex_submission), alert: "GitHub Issue作成に失敗しました: #{e.message}"
     end
 
     def update_tracking

@@ -47,6 +47,14 @@ class CodexSubmission < ApplicationRecord
     response_payload.to_h["pull_request_url"].presence || response_payload.to_h["pr_url"].presence
   end
 
+  def github_issue_url
+    response_payload.to_h["github_issue_url"].presence
+  end
+
+  def github_issue_number
+    response_payload.to_h["github_issue_number"].presence
+  end
+
   def pull_request_url
     pr_url
   end

@@ -67,7 +67,7 @@
     <div class="section-heading">
       <div>
         <h2>Codex手動送信カード</h2>
-        <p>Cloud Codexへ手動で渡すための作業設定です。実API送信はまだ行わず、プロンプトコピーと送信済み記録を管理します。</p>
+        <p>Codexへ渡す作業単位です。まずCodexSubmissionを作り、GitHub Issue化してCodex Cloudで開ける状態にします。</p>
       </div>
       <%= link_to "Codex手動送信一覧", admin_codex_submissions_path, class: "button secondary" %>
     </div>
@@ -109,7 +109,11 @@
       <%= button_to "Codex手動送信用として準備", build_codex_submission_auto_revision_task_path(@auto_revision_task), method: :post, class: "button secondary" %>
       <% if submission %>
         <%= link_to "送信詳細", admin_codex_submission_path(submission), class: "button secondary" %>
-        <%= button_to "手動送信済みにする", mark_codex_submission_submitted_auto_revision_task_path(@auto_revision_task), method: :patch, class: "button secondary" %>
+        <% if submission.github_issue_url.present? %>
+          <%= link_to "GitHub Issueを開く", submission.github_issue_url, class: "button", target: "_blank", rel: "noopener" %>
+        <% else %>
+          <%= button_to "GitHub Issueを作成", create_github_issue_admin_codex_submission_path(submission), method: :post, class: "button" %>
+        <% end %>
         <%= button_to "送信失敗として記録", mark_codex_submission_failed_auto_revision_task_path(@auto_revision_task), method: :patch, class: "button danger" %>
       <% end %>
       <%= link_to "PR URLを登録", "#codex-tracking", class: "button secondary" %>

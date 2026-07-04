@@ -110,6 +110,27 @@ module Admin
       assert_equal "pending", @submission.tracking_value(:review_status)
     end
 
+    test "creates github issue for codex handoff" do
+      result = Aicoo::CodexGithubIssueBridge::Result.new(
+        created: true,
+        issue_url: "https://github.com/example/suelog/issues/9",
+        issue_number: 9,
+        message: "GitHub Issue #9 を作成しました。",
+        payload: {}
+      )
+      fake_bridge = Object.new
+      fake_bridge.define_singleton_method(:call) { result }
+      original_new = Aicoo::CodexGithubIssueBridge.method(:new)
+      Aicoo::CodexGithubIssueBridge.define_singleton_method(:new) { |_submission| fake_bridge }
+
+      post create_github_issue_admin_codex_submission_url(@submission)
+
+      assert_redirected_to admin_codex_submission_url(@submission)
+      assert_match "GitHub Issue #9", flash[:notice]
+    ensure
+      Aicoo::CodexGithubIssueBridge.define_singleton_method(:new) { |*args| original_new.call(*args) } if original_new
+    end
+
     test "retries failed submission" do
       @submission.mark_failed!("Codex Cloud timeout")
 

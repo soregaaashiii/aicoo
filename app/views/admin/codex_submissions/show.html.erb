@@ -6,14 +6,15 @@
   <%= link_to "一覧へ戻る", admin_codex_submissions_path, class: "button secondary" %>
   <%= link_to "Codex接続", admin_codex_connection_path(business_id: @codex_submission.business_id, anchor: "codex-tasks"), class: "button secondary" %>
   <%= link_to "AutoRevisionTask", task, class: "button secondary" %>
-  <%= button_to "手動送信済みにする", mark_submitted_admin_codex_submission_path(@codex_submission), method: :patch, class: "button" unless @codex_submission.status == "submitted" %>
+  <%= button_to "GitHub Issueを作成", create_github_issue_admin_codex_submission_path(@codex_submission), method: :post, class: "button" unless @codex_submission.github_issue_url.present? %>
+  <%= link_to "GitHub Issueを開く", @codex_submission.github_issue_url, class: "button", target: "_blank", rel: "noopener" if @codex_submission.github_issue_url.present? %>
   <%= button_to "完了にする", mark_completed_admin_codex_submission_path(@codex_submission), method: :patch, class: "button secondary" unless @codex_submission.status == "completed" %>
 <% end %>
 
 <div class="aicoo-page">
   <%= render "shared/aicoo_header",
              title: "Codex手動送信詳細",
-             description: "Cloud Codexへ手動で渡す作業単位、プロンプト、Execution Profileを確認します。",
+             description: "AutoRevisionTaskをGitHub Issue化し、Codex Cloudで作業できる状態にします。",
              active_main: :dashboard,
              actions: header_actions %>
   <%= render "shared/purpose_context_bar",
@@ -31,10 +32,31 @@
       <div class="metric-card"><span>Base Branch</span><strong><%= @codex_submission.base_branch %></strong></div>
       <div class="metric-card"><span>Working Branch</span><strong><%= @codex_submission.working_branch %></strong></div>
       <div class="metric-card"><span>PR URL</span><strong><%= @codex_submission.pr_url.present? ? "登録済み" : "-" %></strong></div>
+      <div class="metric-card"><span>GitHub Issue</span><strong><%= @codex_submission.github_issue_url.present? ? "作成済み ##{@codex_submission.github_issue_number}" : "-" %></strong></div>
       <div class="metric-card"><span>Deploy</span><strong><%= @codex_submission.tracking_value(:deploy_status).presence || "-" %></strong></div>
       <div class="metric-card"><span>送信日時</span><strong><%= @codex_submission.submitted_at ? l(@codex_submission.submitted_at, format: :short) : "-" %></strong></div>
       <div class="metric-card"><span>完了日時</span><strong><%= @codex_submission.completed_at ? l(@codex_submission.completed_at, format: :short) : "-" %></strong></div>
     </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <div>
+        <h2>Codex Handoff</h2>
+        <p>このIssueをCodex Cloudで開けば、AICOOが生成した実装指示をそのまま作業対象にできます。</p>
+      </div>
+      <div class="actions compact-actions">
+        <% if @codex_submission.github_issue_url.present? %>
+          <%= link_to "GitHub Issueを開く", @codex_submission.github_issue_url, class: "button", target: "_blank", rel: "noopener" %>
+          <%= link_to "Cloud Codexで開く", "https://chatgpt.com/codex", class: "button secondary", target: "_blank", rel: "noopener" %>
+        <% else %>
+          <%= button_to "GitHub Issueを作成", create_github_issue_admin_codex_submission_path(@codex_submission), method: :post, class: "button" %>
+        <% end %>
+      </div>
+    </div>
+    <% unless ENV["AICOO_GITHUB_TOKEN"].present? || ENV["GITHUB_TOKEN"].present? %>
+      <div class="warning-toast">GitHub Issue作成には AICOO_GITHUB_TOKEN または GITHUB_TOKEN が必要です。</div>
+    <% end %>
   </section>
 
   <section class="dashboard-section">

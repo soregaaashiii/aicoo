@@ -30,6 +30,7 @@ Rails.application.routes.draw do
   patch "owner/auto_revision_loop/auto_revision_tasks/:id/start", to: "owner/auto_revision_loops#start_task", as: :start_owner_auto_revision_loop_task
   patch "owner/auto_revision_loop/auto_revision_tasks/:id/retry", to: "owner/auto_revision_loops#retry_task", as: :retry_owner_auto_revision_loop_task
   patch "owner/auto_revision_loop/auto_revision_tasks/:id/mark_sent", to: "owner/auto_revision_loops#mark_task_sent", as: :mark_sent_owner_auto_revision_loop_task
+  post "owner/auto_revision_loop/auto_revision_tasks/:id/create_github_issue", to: "owner/auto_revision_loops#create_github_issue", as: :create_github_issue_owner_auto_revision_loop_task
   patch "owner/auto_revision_loop/auto_revision_tasks/:id/record_result", to: "owner/auto_revision_loops#record_task_result", as: :record_result_owner_auto_revision_loop_task
   get "owner/new_business_pipeline", to: "owner/new_business_pipelines#show", as: :owner_new_business_pipeline
   patch "owner/new_business_pipeline/action_candidates/:id/approve", to: "owner/new_business_pipelines#approve_candidate", as: :approve_owner_new_business_pipeline_candidate
@@ -190,6 +191,7 @@ Rails.application.routes.draw do
       patch :mark_failed, on: :member
       patch :mark_completed, on: :member
       patch :retry, on: :member
+      post :create_github_issue, on: :member
       patch :update_tracking, on: :member
       patch :mark_merged, on: :member
       patch :mark_deployed, on: :member

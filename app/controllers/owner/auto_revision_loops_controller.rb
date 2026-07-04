@@ -64,6 +64,24 @@ module Owner
                   alert: "手動送信済みにできません: #{e.record.errors.full_messages.to_sentence}"
     end
 
+    def create_github_issue
+      task = AutoRevisionTask.find(params.expect(:id))
+      submission_result = Aicoo::CodexSubmissionBuilder.new(task, force: true).call
+      unless submission_result.submission && submission_result.reasons.empty?
+        message = submission_result.reasons.presence&.join(" / ") || "CodexSubmissionを作成できません。"
+        redirect_to owner_auto_revision_loop_path(selected: "auto_revision_task:#{task.id}", anchor: "selected-task"),
+                    alert: message
+        return
+      end
+
+      issue_result = Aicoo::CodexGithubIssueBridge.new(submission_result.submission).call
+      redirect_to owner_auto_revision_loop_path(selected: "auto_revision_task:#{task.id}", anchor: "selected-task"),
+                  notice: issue_result.message
+    rescue StandardError => e
+      redirect_to owner_auto_revision_loop_path(selected: "auto_revision_task:#{params[:id]}", anchor: "selected-task"),
+                  alert: "GitHub Issue作成に失敗しました: #{e.message}"
+    end
+
     def record_task_result
       task = AutoRevisionTask.find(params.expect(:id))
       task.record_result!(task_result_params)
