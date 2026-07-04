@@ -103,11 +103,21 @@ module Aicoo
 
       assert_equal [ "大阪 喫煙可能 カフェ" ], brief.top_serp_results.map { |row| row["title"] }
       assert_equal "指名検索ページ不足", brief.serp_comparison.dig(:relevance, :status)
+      assert_equal "suelog-comparison", brief.new_article_spec[:slug]
+      assert_equal "/articles/suelog-comparison", brief.target[:url]
+      assert_equal "/admin/articles/new?slug=suelog-comparison", brief.target[:admin_url]
+      assert_equal "新規作成", brief.article_id
+      assert_equal "新規記事", brief.page_change_type
       assert_includes brief.own_site_gap, "食べログ/Googleマップ/Rettyとの違い"
       assert_includes brief.before_after_items.first[:after], "吸えログとは？"
       assert_includes brief.prompt_markdown, "SERP関連度"
+      assert_includes brief.prompt_markdown, "推奨slug: suelog-comparison"
+      assert_includes brief.prompt_markdown, "URL: /articles/suelog-comparison"
+      assert_includes brief.prompt_markdown, "H2 食べログ・Googleマップ・Rettyとの違い"
+      assert_includes brief.prompt_markdown, "サービス / 喫煙情報 / 紙タバコ/加熱式"
       assert_includes brief.prompt_markdown, "指名検索対策ページ"
       assert_includes brief.prompt_markdown, "大阪で喫煙できる店探し"
+      assert_includes brief.completion_criteria, "/articles/suelog-comparison が存在すること"
       assert_no_match(/- 1位 ログ管理システム比較/, brief.prompt_markdown)
     end
   end

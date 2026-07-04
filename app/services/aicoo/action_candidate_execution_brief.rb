@@ -9,11 +9,11 @@ module Aicoo
     def target
       {
         business: business&.name || "-",
-        url: target_url.presence || "未特定",
-        admin_url: admin_url.presence || "未特定",
+        url: target_url.presence || (new_article_creation? ? new_article_spec[:url] : "未特定"),
+        admin_url: admin_url.presence || (new_article_creation? ? new_article_spec[:admin_url] : "未特定"),
         resource_type: resource_type,
         resource_name: resource_name,
-        edit_url: edit_url.presence || "未特定",
+        edit_url: edit_url.presence || (new_article_creation? ? new_article_spec[:edit_url] : "未特定"),
         candidate_pages: candidate_pages
       }
     end
@@ -59,6 +59,8 @@ module Aicoo
     end
 
     def completion_criteria
+      return new_article_completion_criteria if new_article_creation? && explicit_completion_criteria.blank?
+
       explicit_completion_criteria.presence || [
         "#{proposed_title} にSEOタイトルが変更されていること",
         "meta descriptionが変更案どおりに更新されていること",
@@ -103,8 +105,8 @@ module Aicoo
     end
 
     def page_change_type
-      return "新規記事" if branded_search_page_needed?
-      return "新規記事" if action_candidate.action_type.in?(%w[seo_article build_lp lp_experiment]) || expansion["expansion_type"] == "content_area_expansion"
+      return "新規記事" if new_article_creation?
+      return "新規LP" if action_candidate.action_type.in?(%w[build_lp lp_experiment])
       return "既存記事" if resource_type == "Article"
       return "既存ページ" if target_url.present?
 
@@ -112,6 +114,8 @@ module Aicoo
     end
 
     def article_id
+      return "新規作成" if new_article_creation?
+
       metadata["article_id"].presence ||
         metadata["resource_id"].presence ||
         metadata.dig("article", "id").presence ||
@@ -128,8 +132,29 @@ module Aicoo
       end
     end
 
+    def new_article_spec
+      @new_article_spec ||= {
+        slug: recommended_slug,
+        title: recommended_article_title,
+        seo_title: proposed_title,
+        meta_description: proposed_meta_description,
+        h1: proposed_h1,
+        url: recommended_article_url,
+        route: "GET /articles/:slug",
+        admin_url: recommended_article_admin_url,
+        edit_url: recommended_article_edit_url,
+        model: "Article",
+        structure: article_structure,
+        comparison_table: article_comparison_table,
+        cta: proposed_cta,
+        faq: proposed_faq,
+        internal_links: article_internal_link_targets,
+        implementation_note: article_creation_implementation_note
+      }
+    end
+
     def codex_patch_text
-      before_after_items.map do |row|
+      base = before_after_items.map do |row|
         <<~TEXT.strip
           #{row[:label]}:
           現在:
@@ -139,6 +164,27 @@ module Aicoo
           #{row[:after]}
         TEXT
       end.join("\n\n")
+
+      return base unless new_article_creation?
+
+      <<~TEXT.strip
+        #{base}
+
+        新規Article作成:
+        slug: #{new_article_spec[:slug]}
+        title: #{new_article_spec[:title]}
+        seo_title: #{new_article_spec[:seo_title]}
+        meta_description: #{new_article_spec[:meta_description]}
+        url: #{new_article_spec[:url]}
+        route: #{new_article_spec[:route]}
+
+        記事構成:
+        #{new_article_spec[:structure].map { |row| "- #{row[:level]} #{row[:text]}" }.join("\n")}
+
+        比較表:
+        列: #{new_article_spec[:comparison_table][:columns].join(" / ")}
+        #{new_article_spec[:comparison_table][:rows].map { |row| "- #{row.join(" / ") }" }.join("\n")}
+      TEXT
     end
 
     def prompt_markdown
@@ -156,6 +202,8 @@ module Aicoo
         - 記事ID: #{article_id.presence || "未特定"}
         - 新規/既存: #{page_change_type}
         - 候補ページ: #{target[:candidate_pages].presence&.join(", ") || "未特定"}
+
+        #{new_article_creation? ? new_article_prompt_section : nil}
 
         ## ① 検索クエリ
         #{search_query}
@@ -283,11 +331,156 @@ module Aicoo
     end
 
     def resource_type
+      return "Article" if new_article_creation?
+
       metadata["resource_type"].presence || inferred_resource_type
     end
 
     def resource_name
+      return new_article_spec[:title] if new_article_creation?
+
       metadata["resource_name"].presence || target_url.presence || source_query.presence || action_candidate.title
+    end
+
+    def new_article_creation?
+      branded_search_page_needed? ||
+        action_candidate.action_type == "seo_article" ||
+        expansion["expansion_type"] == "content_area_expansion"
+    end
+
+    def recommended_slug
+      metadata["recommended_slug"].presence ||
+        expansion["recommended_slug"].presence ||
+        (branded_search_page_needed? && suelog_business? ? "suelog-comparison" : fallback_article_slug)
+    end
+
+    def recommended_article_title
+      metadata["recommended_title"].presence ||
+        expansion["recommended_title"].presence ||
+        (branded_search_page_needed? && suelog_business? ? "吸えログとは？食べログ・Googleマップ・Rettyとの違い" : proposed_h1)
+    end
+
+    def recommended_article_url
+      "/articles/#{recommended_slug}"
+    end
+
+    def recommended_article_admin_url
+      "/admin/articles/new?slug=#{recommended_slug}"
+    end
+
+    def recommended_article_edit_url
+      "/admin/articles/#{recommended_slug}/edit"
+    end
+
+    def article_structure
+      if branded_search_page_needed? && suelog_business?
+        [
+          { level: "H1", text: "吸えログとは？食べログ・Googleマップ・Rettyとの違い" },
+          { level: "H2", text: "吸えログでできること" },
+          { level: "H2", text: "食べログ・Googleマップ・Rettyとの違い" },
+          { level: "H2", text: "比較表" },
+          { level: "H2", text: "吸えログが向いている人" },
+          { level: "H2", text: "大阪で喫煙できる店を探す" },
+          { level: "H3", text: "梅田で喫煙できる店" },
+          { level: "H3", text: "難波で喫煙できる店" },
+          { level: "H3", text: "喫煙できるカフェ・居酒屋" },
+          { level: "H2", text: "FAQ" }
+        ]
+      else
+        [
+          { level: "H1", text: proposed_h1 },
+          { level: "H2", text: "#{search_query}の結論" },
+          { level: "H2", text: "比較表" },
+          { level: "H2", text: "選び方" },
+          { level: "H2", text: "よくある質問" }
+        ]
+      end
+    end
+
+    def article_comparison_table
+      if branded_search_page_needed? && suelog_business?
+        {
+          columns: [ "サービス", "喫煙情報", "紙タバコ/加熱式", "地図検索", "掲載店舗", "向いている人" ],
+          rows: [
+            [ "吸えログ", "喫煙可否に特化", "条件として明示", "エリア別に探せる", "大阪の喫煙可能店", "喫煙できる飲食店を早く探したい人" ],
+            [ "食べログ", "店舗情報の一部", "店舗により確認が必要", "あり", "幅広い飲食店", "口コミや点数も見たい人" ],
+            [ "Googleマップ", "口コミや店舗情報に分散", "明示されない場合がある", "強い", "幅広い店舗", "現在地から探したい人" ],
+            [ "Retty", "口コミ中心", "明示されない場合がある", "あり", "飲食店", "実名口コミを参考にしたい人" ]
+          ]
+        }
+      else
+        {
+          columns: [ "項目", "自サイト", "上位競合", "追加する内容" ],
+          rows: missing_elements.map { |element| [ element, "不足", "掲載あり", "#{element}を本文へ追加" ] }
+        }
+      end
+    end
+
+    def article_internal_link_targets
+      if branded_search_page_needed? && suelog_business?
+        [
+          "/osaka",
+          "/umeda",
+          "/namba",
+          "/categories/cafe",
+          "/categories/izakaya"
+        ]
+      else
+        candidate_pages
+      end
+    end
+
+    def article_creation_implementation_note
+      "Articleを新規作成できるseed/task/admin導線がある場合はそれを使う。なければ既存Article作成フローに合わせ、slug/title/seo_title/meta_description/body/statusを登録する。記事テンプレートだけで終わらせず、実データ登録方法まで確認する。"
+    end
+
+    def new_article_completion_criteria
+      [
+        "#{new_article_spec[:url]} が存在すること",
+        "slug=#{new_article_spec[:slug]} でArticle実データが登録されていること",
+        "title/meta/H1が新規記事作成仕様どおりに設定されていること",
+        "記事本文に指定したH2/H3構成が入っていること",
+        "比較表があること",
+        "大阪/梅田/難波/カフェ/居酒屋への内部リンクがあること",
+        "CTAがあること",
+        "FAQがあること",
+        "ActionResultへ登録できる変更メモがあること"
+      ]
+    end
+
+    def new_article_prompt_section
+      <<~MARKDOWN.strip
+        ## 新規記事作成仕様
+        - 推奨slug: #{new_article_spec[:slug]}
+        - 推奨title: #{new_article_spec[:title]}
+        - 推奨SEO title: #{new_article_spec[:seo_title]}
+        - meta description: #{new_article_spec[:meta_description]}
+        - H1: #{new_article_spec[:h1]}
+        - URL: #{new_article_spec[:url]}
+        - 作成対象モデル: #{new_article_spec[:model]}
+        - 作成対象route: #{new_article_spec[:route]}
+        - 管理画面URL候補: #{new_article_spec[:admin_url]}
+        - 編集URL候補: #{new_article_spec[:edit_url]}
+
+        ### 記事構成
+        #{new_article_spec[:structure].map { |row| "- #{row[:level]} #{row[:text]}" }.join("\n")}
+
+        ### 比較表
+        - 列: #{new_article_spec[:comparison_table][:columns].join(" / ")}
+        #{new_article_spec[:comparison_table][:rows].map { |row| "- #{row.join(" / ")}" }.join("\n")}
+
+        ### CTA
+        #{new_article_spec[:cta]}
+
+        ### FAQ
+        #{new_article_spec[:faq]}
+
+        ### 内部リンク先候補
+        #{new_article_spec[:internal_links].map { |path| "- #{path}" }.join("\n")}
+
+        ### Codex指示
+        #{new_article_spec[:implementation_note]}
+      MARKDOWN
     end
 
     def candidate_pages
@@ -335,6 +528,7 @@ module Aicoo
     end
 
     def current_title
+      return "未作成" if new_article_creation? && metadata["current_title"].blank? && expansion["current_title"].blank?
       return "#{business&.name}｜サービス説明ページ未作成" if branded_search_page_needed?
 
       metadata["current_title"].presence || expansion["current_title"].presence || "#{business&.name}｜#{source_query.presence || action_candidate.title}"
@@ -351,6 +545,8 @@ module Aicoo
     end
 
     def current_meta_description
+      return "未作成" if new_article_creation? && metadata["current_meta_description"].blank?
+
       metadata["current_meta_description"].presence || action_candidate.description.presence || "未設定"
     end
 
@@ -372,6 +568,8 @@ module Aicoo
     end
 
     def current_intro
+      return "未作成" if new_article_creation? && metadata["current_intro"].blank?
+
       metadata["current_intro"].presence || "検索意図に対する冒頭説明が不足しています。"
     end
 
@@ -385,6 +583,8 @@ module Aicoo
     end
 
     def current_cta
+      return "未作成" if new_article_creation? && metadata["current_cta"].blank?
+
       metadata["current_cta"].presence || "詳細を見る"
     end
 
@@ -395,6 +595,8 @@ module Aicoo
     end
 
     def current_faq
+      return "未作成" if new_article_creation? && metadata["current_faq"].blank?
+
       metadata["current_faq"].presence || "FAQ未設置、または検索意図に対する回答が不足しています。"
     end
 
@@ -408,6 +610,8 @@ module Aicoo
     end
 
     def current_internal_links
+      return "未作成" if new_article_creation? && metadata["current_internal_links"].blank?
+
       metadata["current_internal_links"].presence || "関連ページへの内部リンクが不足しています。"
     end
 
@@ -564,16 +768,32 @@ module Aicoo
       nil
     end
 
+    def suelog_business?
+      business&.name.to_s.include?("吸えログ")
+    end
+
+    def fallback_article_slug
+      base = [
+        business&.name,
+        source_query.presence || action_candidate.title
+      ].compact.join(" ")
+      slug = base.parameterize
+      slug.presence || "action-candidate-#{action_candidate.id}-article"
+    end
+
     def explicit_file_changes
       Array(metadata["target_files"] || metadata["changed_files"]).compact_blank
     end
 
     def inferred_file_changes
-      if branded_search_page_needed?
+      if new_article_creation?
         return %w[
-          app/views/articles/show.html.erb
+          app/models/article.rb
           app/controllers/articles_controller.rb
+          app/views/articles/show.html.erb
           app/services/article_seo_presenter.rb
+          config/routes.rb
+          db/seeds.rb
         ]
       end
 
