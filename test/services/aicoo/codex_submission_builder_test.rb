@@ -53,6 +53,23 @@ module Aicoo
       assert_equal "ready", result.submission.status
     end
 
+    test "upgrades aicoo internal codex risk limit to medium for issue handoff" do
+      @business.update!(created_by_aicoo: true, lifecycle_stage: "lp_validation", launched: false)
+      create_profile!(
+        execution_type: "aicoo_internal",
+        codex_enabled: true,
+        codex_auto_submit_enabled: true,
+        codex_risk_limit: "low"
+      )
+      @task.update!(risk_level: "medium")
+
+      result = CodexSubmissionBuilder.new(@task).call
+
+      assert result.ready
+      assert_equal "medium", @business.business_execution_profile.reload.codex_risk_limit
+      assert_equal "ready", result.submission.status
+    end
+
     test "keeps missing profile error for external business" do
       @business.business_execution_profile&.destroy!
       @business.update!(created_by_aicoo: false)

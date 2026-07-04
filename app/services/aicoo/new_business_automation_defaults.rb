@@ -86,7 +86,7 @@ module Aicoo
         codex_auto_pr_enabled: true,
         codex_auto_merge_enabled: false,
         codex_auto_deploy_enabled: false,
-        codex_risk_limit: "low"
+        codex_risk_limit: "medium"
       }
     end
   end

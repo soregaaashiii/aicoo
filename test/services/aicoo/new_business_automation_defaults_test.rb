@@ -33,6 +33,7 @@ module Aicoo
       assert profile.codex_auto_pr_enabled?
       assert_not profile.codex_auto_merge_enabled?
       assert_not profile.codex_auto_deploy_enabled?
+      assert_equal "medium", profile.codex_risk_limit
       assert_equal "https://github.com/soregaaashiii/aicoo", profile.codex_repository_url
       assert_equal "bin/rails test", profile.test_command
       assert_equal "bin/rails zeitwerk:check", profile.lint_command

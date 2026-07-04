@@ -60,9 +60,19 @@ module Aicoo
     def ensure_internal_execution_profile!
       business = auto_revision_task.business
       return unless business&.aicoo_internal_codex?
-      return if business.business_execution_profile&.active?
 
-      Aicoo::NewBusinessAutomationDefaults.apply!(business)
+      if business.business_execution_profile&.active?
+        ensure_internal_profile_allows_medium_risk!(business.business_execution_profile)
+      else
+        Aicoo::NewBusinessAutomationDefaults.apply!(business)
+      end
+    end
+
+    def ensure_internal_profile_allows_medium_risk!(profile)
+      return unless profile.execution_type == "aicoo_internal"
+      return unless BusinessExecutionProfile::RISK_RANK.fetch(profile.codex_risk_limit, 1) < BusinessExecutionProfile::RISK_RANK.fetch("medium")
+
+      profile.update!(codex_risk_limit: "medium")
     end
 
     def prompt_body
