@@ -45,5 +45,22 @@ module Owner
       assert_redirected_to owner_auto_revision_loop_url(selected: "auto_revision_task:#{task.id}", anchor: "selected-task")
       assert_equal candidate, task.action_candidate
     end
+
+    test "github issue direct get redirects back instead of 404" do
+      candidate = action_candidates(:nagazakicho_article)
+      task = AutoRevisionTask.from_action_candidate(candidate)
+
+      get create_github_issue_owner_auto_revision_loop_task_url(task)
+
+      assert_redirected_to owner_auto_revision_loop_url(selected: "auto_revision_task:#{task.id}", anchor: "selected-task")
+      assert_match "画面内のボタン", flash[:alert]
+    end
+
+    test "missing github issue task redirects to loop instead of 404" do
+      post "/owner/auto_revision_loop/auto_revision_tasks/999999/create_github_issue"
+
+      assert_redirected_to owner_auto_revision_loop_url(anchor: "revision-queue")
+      assert_match "見つかりません", flash[:alert]
+    end
   end
 end

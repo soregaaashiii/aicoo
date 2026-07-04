@@ -131,6 +131,20 @@ module Admin
       Aicoo::CodexGithubIssueBridge.define_singleton_method(:new) { |*args| original_new.call(*args) } if original_new
     end
 
+    test "github issue direct get redirects back instead of 404" do
+      get create_github_issue_admin_codex_submission_url(@submission)
+
+      assert_redirected_to admin_codex_submission_url(@submission)
+      assert_match "画面内のボタン", flash[:alert]
+    end
+
+    test "missing github issue submission redirects to codex connection instead of 404" do
+      post "/admin/codex_submissions/999999/create_github_issue"
+
+      assert_redirected_to admin_codex_connection_url(anchor: "codex-tasks")
+      assert_match "見つかりません", flash[:alert]
+    end
+
     test "retries failed submission" do
       @submission.mark_failed!("Codex Cloud timeout")
 

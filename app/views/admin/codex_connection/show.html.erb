@@ -158,7 +158,11 @@
               <td class="actions compact-actions">
                 <% if row.submission %>
                   <%= link_to "Prompt確認", admin_codex_submission_path(row.submission), class: "button secondary" %>
-                  <%= button_to "手動送信済みにする", mark_submitted_admin_codex_submission_path(row.submission), method: :patch, class: "button secondary" unless row.submission.status == "submitted" %>
+                  <% if row.submission.github_issue_url.present? %>
+                    <%= link_to "GitHub Issueを開く", row.submission.github_issue_url, class: "button", target: "_blank", rel: "noopener" %>
+                  <% else %>
+                    <%= button_to "GitHub Issueを作成", create_github_issue_admin_codex_submission_path(row.submission), method: :post, class: "button" %>
+                  <% end %>
                   <%= button_to "再試行", retry_admin_codex_submission_path(row.submission), method: :patch, class: "button secondary" if row.submission.status == "failed" %>
                 <% else %>
                   <%= button_to "Codex手動送信準備", build_codex_submission_auto_revision_task_path(row.task), method: :post, class: "button" %>

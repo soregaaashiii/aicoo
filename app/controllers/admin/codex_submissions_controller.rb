@@ -1,5 +1,7 @@
 module Admin
   class CodexSubmissionsController < ApplicationController
+    rescue_from ActiveRecord::RecordNotFound, with: :handle_missing_codex_submission
+
     before_action :set_codex_submission, only: %i[
       show
       mark_submitted
@@ -59,6 +61,15 @@ module Admin
       redirect_to admin_codex_submission_path(@codex_submission), alert: "GitHub Issue作成に失敗しました: #{e.message}"
     end
 
+    def create_github_issue_hint
+      codex_submission = CodexSubmission.find(params[:id])
+      redirect_to admin_codex_submission_path(codex_submission),
+                  alert: "GitHub Issue作成は画面内のボタンから実行してください。"
+    rescue ActiveRecord::RecordNotFound
+      redirect_to admin_codex_connection_path(anchor: "codex-tasks"),
+                  alert: "CodexSubmissionが見つかりません。最新のCodexタスク一覧からもう一度操作してください。"
+    end
+
     def update_tracking
       @codex_submission.update_tracking!(tracking_params.merge(tracking_updated_by: "owner"))
       redirect_back fallback_location: admin_codex_connection_path, notice: "PR追跡情報を更新しました。"
@@ -77,7 +88,12 @@ module Admin
     private
 
     def set_codex_submission
-      @codex_submission = CodexSubmission.find(params.expect(:id))
+      @codex_submission = CodexSubmission.find(params[:id])
+    end
+
+    def handle_missing_codex_submission
+      redirect_to admin_codex_connection_path(anchor: "codex-tasks"),
+                  alert: "CodexSubmissionが見つかりません。最新のCodexタスク一覧からもう一度操作してください。"
     end
 
     def filtered_scope

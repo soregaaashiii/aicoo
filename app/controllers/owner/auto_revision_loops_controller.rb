@@ -1,5 +1,7 @@
 module Owner
   class AutoRevisionLoopsController < ApplicationController
+    rescue_from ActiveRecord::RecordNotFound, with: :handle_missing_auto_revision_record
+
     def show
       @board = Aicoo::Owner::AutoRevisionLoopBoard.new(selected_key: params[:selected]).call
     end
@@ -65,7 +67,7 @@ module Owner
     end
 
     def create_github_issue
-      task = AutoRevisionTask.find(params.expect(:id))
+      task = AutoRevisionTask.find(params[:id])
       submission_result = Aicoo::CodexSubmissionBuilder.new(task, force: true).call
       unless submission_result.submission && submission_result.reasons.empty?
         message = submission_result.reasons.presence&.join(" / ") || "CodexSubmissionを作成できません。"
@@ -77,9 +79,20 @@ module Owner
       issue_result = Aicoo::CodexGithubIssueBridge.new(submission_result.submission).call
       redirect_to owner_auto_revision_loop_path(selected: "auto_revision_task:#{task.id}", anchor: "selected-task"),
                   notice: issue_result.message
+    rescue ActiveRecord::RecordNotFound
+      handle_missing_auto_revision_record
     rescue StandardError => e
       redirect_to owner_auto_revision_loop_path(selected: "auto_revision_task:#{params[:id]}", anchor: "selected-task"),
                   alert: "GitHub Issue作成に失敗しました: #{e.message}"
+    end
+
+    def create_github_issue_hint
+      task = AutoRevisionTask.find(params[:id])
+      redirect_to owner_auto_revision_loop_path(selected: "auto_revision_task:#{task.id}", anchor: "selected-task"),
+                  alert: "GitHub Issue作成は画面内のボタンから実行してください。"
+    rescue ActiveRecord::RecordNotFound
+      redirect_to owner_auto_revision_loop_path(anchor: "revision-queue"),
+                  alert: "自動改修タスクが見つかりません。最新の改修キューからもう一度操作してください。"
     end
 
     def record_task_result
@@ -137,6 +150,11 @@ module Owner
           :deploy_status
         ]
       )
+    end
+
+    def handle_missing_auto_revision_record
+      redirect_to owner_auto_revision_loop_path(anchor: "revision-queue"),
+                  alert: "対象が見つかりません。最新の改修キューからもう一度操作してください。"
     end
   end
 end
