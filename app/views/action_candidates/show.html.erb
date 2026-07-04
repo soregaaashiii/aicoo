@@ -81,6 +81,7 @@
     <div class="metric-card"><span>Business</span><strong><%= target[:business] %></strong></div>
     <div class="metric-card"><span>対象</span><strong><%= target[:resource_type] %></strong><small><%= target[:resource_name] %></small></div>
     <div class="metric-card"><span>対象ページURL</span><strong><%= target[:url] %></strong></div>
+    <div class="metric-card"><span>候補ページ</span><strong><%= Array(target[:candidate_pages]).presence&.join(" / ") || "未特定" %></strong></div>
     <div class="metric-card"><span>管理画面URL</span><strong><%= target[:admin_url] %></strong></div>
     <div class="metric-card"><span>予想作業時間</span><strong><%= @execution_brief.expected_minutes %>分</strong></div>
     <div class="metric-card"><span>期待CTR</span><strong><%= @execution_brief.expected_effects[:ctr] %></strong></div>

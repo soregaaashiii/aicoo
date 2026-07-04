@@ -13,7 +13,8 @@ module Aicoo
         admin_url: admin_url.presence || "未特定",
         resource_type: resource_type,
         resource_name: resource_name,
-        edit_url: edit_url.presence || "未特定"
+        edit_url: edit_url.presence || "未特定",
+        candidate_pages: candidate_pages
       }
     end
 
@@ -92,6 +93,7 @@ module Aicoo
         - URL: #{target[:url]}
         - 管理画面URL: #{target[:admin_url]}
         - 対象: #{target[:resource_type]} #{target[:resource_name]}
+        - 候補ページ: #{target[:candidate_pages].presence&.join(", ") || "未特定"}
 
         ## 現在 → 変更後
         #{before_after_items.map { |row| "- #{row[:label]}\n  - 現在: #{row[:current]}\n  - 変更後: #{row[:after]}" }.join("\n")}
@@ -159,9 +161,10 @@ module Aicoo
     end
 
     def target_url
-      metadata["target_url"].presence ||
+      raw = metadata["target_url"].presence ||
         expansion["target_url"].presence ||
         evidence_items.filter_map { |row| row["page"].presence || row["url"].presence }.first
+      Aicoo::ActionTargetUrlResolver.call(raw, require_known_route: true)
     end
 
     def admin_url
@@ -180,6 +183,27 @@ module Aicoo
 
     def resource_name
       metadata["resource_name"].presence || target_url.presence || source_query.presence || action_candidate.title
+    end
+
+    def candidate_pages
+      explicit = Array(metadata["candidate_pages"] || expansion["candidate_pages"]).compact_blank
+      return explicit if explicit.any?
+
+      if metric_target_reference?
+        [ "店舗詳細ページ", "地図ページ", "記事内店舗カード" ]
+      else
+        [ "関連ページを特定してください" ]
+      end
+    end
+
+    def metric_target_reference?
+      [
+        metadata["target_url"],
+        expansion["target_url"],
+        metadata["source_metric"],
+        metadata["metric_name"],
+        evidence_items.filter_map { |row| row["metric_name"].presence }
+      ].flatten.compact.any? { |value| Aicoo::ActionTargetUrlResolver.metric_reference?(value) }
     end
 
     def inferred_resource_type

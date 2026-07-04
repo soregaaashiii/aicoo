@@ -219,9 +219,10 @@ module Aicoo
       return "Action Expansion未生成、またはEvidence不足のため具体手順はありません。" if expansion.blank? || expansion["warning"]
 
       <<~TEXT.strip
-        対象: #{expansion["target"].presence || "未特定"}
-        対象URL: #{expansion["target_url"].presence || "未特定"}
+        対象: #{execution_guide_target_label(expansion)}
+        対象URL: #{execution_guide_target_url(expansion).presence || "未特定"}
         対象KW: #{expansion["target_keyword"].presence || "未特定"}
+        候補ページ: #{execution_guide_candidate_pages(expansion).presence&.join(", ") || "未特定"}
         所要時間: #{expansion["expected_minutes"].presence || "未算出"}分
 
         実行手順:
@@ -234,6 +235,26 @@ module Aicoo
 
     def action_expansion
       action_candidate.metadata.to_h["action_expansion"].to_h
+    end
+
+    def execution_guide_target_url(expansion)
+      Aicoo::ActionTargetUrlResolver.call(expansion["target_url"], require_known_route: true)
+    end
+
+    def execution_guide_target_label(expansion)
+      target = expansion["target"].presence
+      return "未特定" if target.blank?
+      return "未特定" if Aicoo::ActionTargetUrlResolver.metric_reference?(target)
+
+      sanitized_url = execution_guide_target_url(expansion)
+      return sanitized_url if sanitized_url.present? && target == expansion["target_url"]
+      return "未特定" if target.to_s.start_with?("/") && Aicoo::ActionTargetUrlResolver.call(target, require_known_route: true).blank?
+
+      target
+    end
+
+    def execution_guide_candidate_pages(expansion)
+      Array(expansion["candidate_pages"]).compact_blank
     end
 
     def execution_brief

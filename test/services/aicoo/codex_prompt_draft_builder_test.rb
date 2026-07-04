@@ -193,5 +193,42 @@ module Aicoo
       assert_equal true, draft.metadata.dig("action_expansion", "expanded")
       assert_equal "とり友 梅田 喫煙", draft.metadata.dig("execution_brief", "openai_context", "serp", "query")
     end
+
+    test "does not include metric-derived pseudo url in execution guide" do
+      candidate = ActionCandidate.create!(
+        business: businesses(:suelog),
+        title: "吸えログのCV導線を改善する",
+        description: "clicksはある一方でphone/map/affiliate_clicksが少ないため、送客に近い導線を改善します。",
+        action_type: "ui_improvement",
+        status: "approved",
+        immediate_value_yen: 10_000,
+        success_probability: 0.8,
+        execution_prompt: "電話・地図・アフィリエイトなど収益に近い導線を改善してください。",
+        metadata: {}
+      )
+      candidate.update_columns(
+        metadata: candidate.metadata.merge(
+          "action_expansion" => {
+            "expanded" => true,
+            "target" => "/map/affiliate_clicks",
+            "target_url" => "/map/affiliate_clicks",
+            "target_keyword" => nil,
+            "candidate_pages" => [ "店舗詳細ページ", "地図ページ", "記事内店舗カード" ],
+            "expected_minutes" => 35,
+            "execution_steps" => [ "対象ページを開く", "電話・地図・予約導線を確認する" ],
+            "completion_criteria" => [ "導線確認が完了している" ],
+            "warning" => false
+          }
+        )
+      )
+
+      draft = CodexPromptDraftBuilder.new(candidate).call
+
+      assert_includes draft.prompt_body, "対象: 未特定"
+      assert_includes draft.prompt_body, "対象URL: 未特定"
+      assert_includes draft.prompt_body, "候補ページ: 店舗詳細ページ, 地図ページ, 記事内店舗カード"
+      assert_no_match(/対象URL: \/map\/affiliate_clicks/, draft.prompt_body)
+      assert_no_match(/URL: \/map\/affiliate_clicks/, draft.prompt_body)
+    end
   end
 end

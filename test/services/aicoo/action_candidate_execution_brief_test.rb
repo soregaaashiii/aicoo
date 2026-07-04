@@ -51,5 +51,31 @@ module Aicoo
       assert_includes brief.prompt_markdown, "大阪 喫煙 カフェ"
       assert_equal "吸えログ", brief.openai_context.dig(:business, "name")
     end
+
+    test "hides metric-derived pseudo target url and shows candidate pages" do
+      candidate = ActionCandidate.create!(
+        business: businesses(:suelog),
+        title: "吸えログのCV導線を改善する",
+        description: "clicksはある一方でphone/map/affiliate_clicksが少ないため、送客に近い導線を改善します。",
+        action_type: "ui_improvement",
+        status: "pending",
+        generation_source: "ai_business",
+        immediate_value_yen: 42_000,
+        expected_hours: 0.5,
+        success_probability: 0.5,
+        metadata: {
+          "target_url" => "/map/affiliate_clicks",
+          "candidate_pages" => [ "店舗詳細ページ", "地図ページ", "記事内店舗カード" ],
+          "source_metric" => "affiliate_clicks"
+        }
+      )
+
+      brief = ActionCandidateExecutionBrief.new(candidate)
+
+      assert_equal "未特定", brief.target[:url]
+      assert_equal [ "店舗詳細ページ", "地図ページ", "記事内店舗カード" ], brief.target[:candidate_pages]
+      assert_empty brief.open_links.select { |link| link[:url] == "/map/affiliate_clicks" }
+      assert_no_match(/URL: \/map\/affiliate_clicks/, brief.prompt_markdown)
+    end
   end
 end

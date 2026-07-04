@@ -20,7 +20,7 @@ module Aicoo
                 "metric_name" => "impressions",
                 "current_value" => "1200",
                 "confidence" => "82",
-                "page" => "/umeda/toritomo",
+                "page" => "/businesses",
                 "keyword" => "とり友 梅田 喫煙"
               }
             ]
@@ -31,10 +31,45 @@ module Aicoo
       result = ActionExpansionEngine.new(candidate).call
 
       assert result.expanded
-      assert_equal "/umeda/toritomo", result.metadata["target_url"]
+      assert_equal "/businesses", result.metadata["target_url"]
       assert_equal "とり友 梅田 喫煙", result.metadata["target_keyword"]
       assert_includes result.metadata["execution_steps"].join(" "), "SEOタイトル"
       assert_includes result.metadata["completion_criteria"].join(" "), "対象KW"
+    end
+
+    test "does not treat metric names as target urls" do
+      candidate = ActionCandidate.new(
+        business: businesses(:suelog),
+        title: "吸えログのCV導線を改善する",
+        description: "clicksはある一方でphone/map/affiliate_clicksが少ないため、送客に近い導線を改善します。",
+        action_type: "ui_improvement",
+        execution_prompt: "電話・地図・アフィリエイトなど収益に近い導線を改善してください。",
+        metadata: {
+          "evidence" => {
+            "score" => "82",
+            "warning" => false,
+            "items" => [
+              {
+                "source" => "ga4",
+                "title" => "送客指標",
+                "summary" => "phone/map/affiliate_clicksが少ない。",
+                "metric_name" => "affiliate_clicks",
+                "current_value" => "0",
+                "confidence" => "82",
+                "page" => "/map/affiliate_clicks"
+              }
+            ]
+          }
+        }
+      )
+
+      result = ActionExpansionEngine.new(candidate).call
+
+      assert result.expanded
+      assert_nil result.metadata["target_url"]
+      assert_equal "/map/affiliate_clicks", result.metadata["rejected_target_url"]
+      assert_includes result.metadata["candidate_pages"], "店舗詳細ページ"
+      assert_no_match %r{/map/affiliate_clicks}, result.metadata["execution_steps"].join(" ")
     end
 
     test "warns when evidence is missing" do

@@ -125,6 +125,8 @@ module Aicoo
         "target_keyword" => target_keyword,
         "target_area" => target_area,
         "target_pages" => [ target_page ].compact,
+        "candidate_pages" => candidate_pages,
+        "rejected_target_url" => rejected_target_url,
         "recommended_tasks" => prioritized_tasks,
         "generated_tasks" => task_snapshots(prioritized_tasks),
         "task_priority" => task_priority(prioritized_tasks),
@@ -159,6 +161,8 @@ module Aicoo
         "target_keyword" => target_keyword,
         "target_area" => target_area,
         "target_pages" => [ target_page ].compact,
+        "candidate_pages" => candidate_pages,
+        "rejected_target_url" => rejected_target_url,
         "recommended_tasks" => [],
         "generated_tasks" => [],
         "task_priority" => {},
@@ -239,8 +243,32 @@ module Aicoo
     end
 
     def target_page
-      @target_page ||= evidence_items.filter_map { |item| item["page"].presence || item["url"].presence }.first ||
+      @target_page ||= Aicoo::ActionTargetUrlResolver.call(raw_target_page, require_known_route: true)
+    end
+
+    def raw_target_page
+      @raw_target_page ||= evidence_items.filter_map { |item| item["page"].presence || item["url"].presence }.first ||
         text[/\/[a-z0-9_\-\/]+/]
+    end
+
+    def rejected_target_url
+      return if raw_target_page.blank?
+      return if target_page.present?
+
+      raw_target_page
+    end
+
+    def candidate_pages
+      explicit = Array(action_candidate.metadata.to_h["candidate_pages"]).compact_blank
+      return explicit if explicit.any?
+
+      if text.match?(/電話|地図|予約|送客|店舗|affiliate|map_clicks|phone_clicks|affiliate_clicks/)
+        [ "店舗詳細ページ", "地図ページ", "記事内店舗カード" ]
+      elsif text.match?(/記事|seo|title|meta|ctr|検索/)
+        [ "記事詳細ページ", "エリア/カテゴリ一覧ページ", "関連LP" ]
+      else
+        [ "Business詳細", "関連LP", "関連コンテンツページ" ]
+      end
     end
 
     def target_keyword
@@ -263,7 +291,7 @@ module Aicoo
     end
 
     def target_unclear?
-      target_page.blank? && target_keyword.blank? && !text.match?(/梅田|難波|心斎橋|中崎町|店舗|[0-9]+件|[0-9]+本/)
+      target_page.blank? && target_keyword.blank? && !text.match?(/梅田|難波|心斎橋|中崎町|店舗|電話|地図|予約|送客|[0-9]+件|[0-9]+本/)
     end
 
     def playbook_prefers_seo?
