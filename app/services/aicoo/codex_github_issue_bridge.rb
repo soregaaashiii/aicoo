@@ -121,6 +121,7 @@ module Aicoo
       [
         "aicoo",
         "codex",
+        "aicoo-codex",
         "auto-revision",
         "risk:#{codex_submission.auto_revision_task.risk_level}"
       ]

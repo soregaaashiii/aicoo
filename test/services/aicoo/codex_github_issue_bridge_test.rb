@@ -50,6 +50,8 @@ module Aicoo
         assert_equal "https://github.com/example/suelog/issues/7", @submission.github_issue_url
         assert_equal 7, @submission.github_issue_number
         assert_includes @submission.response_payload["codex_handoff_mode"], "github_issue"
+        assert_equal "sent_to_codex", @submission.auto_revision_task.reload.status
+        assert_not_nil @submission.auto_revision_task.sent_to_codex_at
       end
     end
 

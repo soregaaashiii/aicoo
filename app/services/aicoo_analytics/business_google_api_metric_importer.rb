@@ -341,7 +341,7 @@ module AicooAnalytics
       explicit_id = business_source_setting(source_type)&.metadata.to_h["google_credential_id"]
       explicit_credential = AicooGoogleCredential.find_by(id: explicit_id) if explicit_id.present?
       return explicit_credential if explicit_credential
-      return nil if business_source_identifier(source_type).present?
+      return nil if business_source_identifier(source_type).present? && !business_uses_global_source?(source_type)
 
       AicooGoogleCredential.default
     end
@@ -353,6 +353,12 @@ module AicooAnalytics
       raise Error,
             "#{source_type.upcase}はBusiness個別設定を使用しますが、Google Credentialが未設定です。" \
             " /businesses/#{business.id}/google_settings でCredentialを選択してください。"
+    end
+
+    def business_uses_global_source?(source_type)
+      ActiveModel::Type::Boolean.new.cast(
+        business_source_setting(source_type)&.metadata.to_h.dig("source_binding", "use_global")
+      )
     end
 
     def business_source_setting(source_type)

@@ -131,7 +131,7 @@ module Aicoo
           profile_count: profiles.size,
           codex_enabled_count: profiles.count(&:codex_enabled?),
           github_configured_count: profiles.count { |profile| profile.effective_codex_repository_url.present? },
-          github_token_configured: ENV["GITHUB_TOKEN"].present? || ENV["GH_TOKEN"].present?,
+          github_token_configured: ENV["AICOO_GITHUB_TOKEN"].present? || ENV["GITHUB_TOKEN"].present? || ENV["GH_TOKEN"].present?,
           default_base_branch: most_common(profiles.map(&:effective_codex_base_branch)) || "main",
           default_working_branch: most_common(profiles.map(&:effective_codex_working_branch_prefix)) || "aicoo/",
           pr_rule: pr_rule_label(profiles),
@@ -285,10 +285,8 @@ module Aicoo
       def derived_task_status(task, submission)
         return "failed" if task.status == "failed" || submission&.status == "failed"
         return "completed" if task.status.in?(%w[completed succeeded partial_succeeded]) || submission&.status == "completed"
-        return "deploy_waiting" if submission && tracking_value(submission, "merge_status").in?(%w[merged merge済み])
-        return "merge_waiting" if submission && tracking_value(submission, "review_status").in?(%w[approved review済み])
-        return "review_waiting" if submission && pr_url_for(submission).present?
-        return "sent" if submission&.status == "submitted"
+        return submission.workflow_status if submission && submission.workflow_status.in?(%w[pr_created merge_waiting deploy_waiting completed failed])
+        return "sent" if submission&.workflow_status == "codex_executed"
         return "queued" if task.status.in?(%w[queued ready_for_codex sent_to_codex running])
         return "ready" if task.status.in?(%w[approved waiting_approval])
 
@@ -296,7 +294,7 @@ module Aicoo
       end
 
       def pr_url_for(submission)
-        submission&.response_payload.to_h["pull_request_url"].presence || submission&.response_payload.to_h["pr_url"].presence
+        submission&.pr_url
       end
 
       def tracking_value(submission, key)

@@ -1,4 +1,4 @@
-<% content_for :title, "Codex手動送信一覧" %>
+<% content_for :title, "Codex投入一覧" %>
 
 <% header_actions = capture do %>
   <%= link_to "改修キュー", codex_queue_auto_revision_tasks_path, class: "button secondary" %>
@@ -7,15 +7,15 @@
 
 <div class="aicoo-page">
   <%= render "shared/aicoo_header",
-             title: "Codex手動送信一覧",
-             description: "AutoRevisionTaskをCloud Codexへ手動で渡す前の作業単位として管理します。",
+             title: "Codex投入一覧",
+             description: "AutoRevisionTask、GitHub Issue、PR URL、失敗理由を一画面で追跡します。",
              active_main: :dashboard,
              actions: header_actions %>
 
   <section class="dashboard-section">
     <div class="section-heading">
       <h2>絞り込み</h2>
-      <p>status、Business、作業フォルダ、riskで手動送信待ちを確認します。</p>
+      <p>status、Business、作業フォルダ、riskでCodex投入状態を確認します。</p>
     </div>
     <%= form_with url: admin_codex_submissions_path, method: :get, class: "inline-form", data: { turbo: false } do |form| %>
       <div class="field compact-field">
@@ -49,27 +49,48 @@
             <th>Repository</th>
             <th>Task</th>
             <th>Risk</th>
+            <th>GitHub Issue</th>
+            <th>PR</th>
             <th>作成</th>
-            <th>手動送信</th>
+            <th>Codex実行</th>
             <th>操作</th>
           </tr>
         </thead>
         <tbody>
           <% @codex_submissions.each do |submission| %>
             <tr>
-              <td><span class="pill"><%= submission.status %></span></td>
+              <td><span class="pill"><%= submission.workflow_status_label %></span></td>
               <td><%= link_to submission.business.name, submission.business %></td>
               <td><%= submission.project_folder %></td>
               <td class="wide-text"><%= submission.repository_url %></td>
               <td class="wide-text"><%= link_to submission.auto_revision_task.title, submission.auto_revision_task %></td>
               <td><span class="pill"><%= submission.auto_revision_task.risk_level %></span></td>
+              <td>
+                <% if submission.github_issue_url.present? %>
+                  <%= link_to "Issue ##{submission.github_issue_number}", submission.github_issue_url, target: "_blank", rel: "noopener" %>
+                <% else %>
+                  -
+                <% end %>
+              </td>
+              <td>
+                <% if submission.pr_url.present? %>
+                  <%= link_to "PR", submission.pr_url, target: "_blank", rel: "noopener" %>
+                <% else %>
+                  -
+                <% end %>
+              </td>
               <td><%= l(submission.created_at, format: :short) %></td>
               <td><%= submission.submitted_at ? l(submission.submitted_at, format: :short) : "-" %></td>
-              <td><%= link_to "詳細", admin_codex_submission_path(submission), class: "button secondary" %></td>
+              <td class="actions compact-actions">
+                <%= link_to "詳細", admin_codex_submission_path(submission), class: "button secondary" %>
+                <% if submission.external_handoff_url.present? %>
+                  <%= link_to submission.external_handoff_label, submission.external_handoff_url, class: "button", target: "_blank", rel: "noopener" %>
+                <% end %>
+              </td>
             </tr>
           <% end %>
           <% if @codex_submissions.empty? %>
-            <tr><td colspan="9">Codex手動送信はまだありません。</td></tr>
+            <tr><td colspan="11">Codex投入Taskはまだありません。</td></tr>
           <% end %>
         </tbody>
       </table>

@@ -609,7 +609,7 @@ class MetricActionCandidateGenerator
       return
     end
 
-    business.action_candidates.create!(
+    candidate = business.action_candidates.create!(
       title: spec.title,
       description: spec.description,
       action_type: spec.action_type,
@@ -627,6 +627,8 @@ class MetricActionCandidateGenerator
       evaluation_reason: "metric_rule:#{spec.key}\n#{spec.evaluation_reason}",
       execution_prompt: spec.execution_prompt
     )
+    Aicoo::ActionCandidateInstructionStabilizer.call(candidate)
+    candidate.reload
   end
 
   def filter_specs_by_business_type(specs)

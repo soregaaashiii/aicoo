@@ -117,6 +117,12 @@
             <% else %>
               <%= button_to "GitHub Issueを作成", create_github_issue_owner_auto_revision_loop_task_path(row.auto_revision_task), method: :post, class: "button" %>
             <% end %>
+            <% if submission&.pr_url.present? %>
+              <%= link_to "PRを開く", submission.pr_url, class: "button", target: "_blank", rel: "noopener" %>
+            <% end %>
+            <% if submission %>
+              <%= link_to "Codex投入詳細", admin_codex_submission_path(submission), class: "button secondary" %>
+            <% end %>
           <% elsif row.action_candidate %>
             <%= button_to "自動改修タスク化", create_task_owner_auto_revision_loop_candidate_path(row.action_candidate), method: :post, class: "button" %>
           <% end %>

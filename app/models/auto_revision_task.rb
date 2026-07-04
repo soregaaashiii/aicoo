@@ -44,7 +44,7 @@ class AutoRevisionTask < ApplicationRecord
 
   before_validation :set_defaults
   before_validation :copy_execution_profile_defaults
-  after_commit :prepare_codex_submission_if_auto_submit, on: :create
+  after_commit :prepare_codex_submission, on: :create
 
   def self.from_action_candidate(action_candidate, generated_by: "owner")
     active.find_by(action_candidate:) ||
@@ -533,9 +533,7 @@ class AutoRevisionTask < ApplicationRecord
     end
   end
 
-  def prepare_codex_submission_if_auto_submit
-    return unless execution_profile&.codex_auto_submit_enabled?
-
+  def prepare_codex_submission
     Aicoo::CodexSubmissionBuilder.new(self).call
   rescue StandardError => e
     Rails.logger.warn("[CodexSubmissionBuilder] AutoRevisionTask##{id} failed: #{e.class} #{e.message}")

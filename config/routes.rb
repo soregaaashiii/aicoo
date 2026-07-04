@@ -9,6 +9,7 @@ Rails.application.routes.draw do
   namespace :api do
     namespace :aicoo do
       post "activity_logs", to: "activity_logs#create"
+      post "codex_submissions/:id/github_tracking", to: "codex_submissions#github_tracking"
     end
   end
   root "public_landing_pages#index"
@@ -195,6 +196,8 @@ Rails.application.routes.draw do
       post :create_github_issue, on: :member
       get :create_github_issue, on: :member, action: :create_github_issue_hint
       patch :update_tracking, on: :member
+      post :sync_github, on: :member
+      post :import_result, on: :member
       patch :mark_merged, on: :member
       patch :mark_deployed, on: :member
     end

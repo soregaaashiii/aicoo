@@ -1,4 +1,4 @@
-<% content_for :title, "Codex手動送信詳細" %>
+<% content_for :title, "Codex投入詳細" %>
 
 <% profile = @codex_submission.business_execution_profile %>
 <% task = @codex_submission.auto_revision_task %>
@@ -8,24 +8,48 @@
   <%= link_to "AutoRevisionTask", task, class: "button secondary" %>
   <%= button_to "GitHub Issueを作成", create_github_issue_admin_codex_submission_path(@codex_submission), method: :post, class: "button" unless @codex_submission.github_issue_url.present? %>
   <%= link_to "GitHub Issueを開く", @codex_submission.github_issue_url, class: "button", target: "_blank", rel: "noopener" if @codex_submission.github_issue_url.present? %>
+  <%= button_to "GitHubから同期", sync_github_admin_codex_submission_path(@codex_submission), method: :post, class: "button secondary" if @codex_submission.github_issue_url.present? || @codex_submission.pr_url.present? %>
   <%= button_to "完了にする", mark_completed_admin_codex_submission_path(@codex_submission), method: :patch, class: "button secondary" unless @codex_submission.status == "completed" %>
 <% end %>
 
 <div class="aicoo-page">
   <%= render "shared/aicoo_header",
-             title: "Codex手動送信詳細",
-             description: "AutoRevisionTaskをGitHub Issue化し、Codex Cloudで作業できる状態にします。",
+             title: "Codex投入詳細",
+             description: "AutoRevisionTaskをGitHub Issue化し、Codex Cloud作業とPR追跡まで管理します。",
              active_main: :dashboard,
              actions: header_actions %>
   <%= render "shared/purpose_context_bar",
              business: @codex_submission.business,
              section_label: "自動改修履歴",
-             detail_label: "Codex手動送信詳細",
+             detail_label: "Codex投入詳細",
              list_path: admin_codex_submissions_path %>
 
   <section class="dashboard-section">
+    <div class="section-heading">
+      <div>
+        <h2>次に開く場所</h2>
+        <% if @codex_submission.github_issue_url.present? %>
+          <p>GitHub Issueは作成済みです。このIssueを開いてCodex Cloudへ渡してください。PRができたら下のPR Trackingへ登録します。</p>
+        <% elsif @codex_submission.status == "ready" %>
+          <p>GitHub Issueを作成すると、Codex Cloudで開くべきURLがここに表示されます。</p>
+        <% else %>
+          <p>まだCodex投入準備が完了していません。失敗理由を確認してください。</p>
+        <% end %>
+      </div>
+      <div class="actions compact-actions">
+        <% if @codex_submission.external_handoff_url.present? %>
+          <%= link_to @codex_submission.external_handoff_label, @codex_submission.external_handoff_url, class: "button", target: "_blank", rel: "noopener" %>
+        <% elsif @codex_submission.status == "ready" %>
+          <%= button_to "GitHub Issueを作成", create_github_issue_admin_codex_submission_path(@codex_submission), method: :post, class: "button" %>
+        <% end %>
+        <%= link_to "Cloud Codexで開く", "https://chatgpt.com/codex", class: "button secondary", target: "_blank", rel: "noopener" if @codex_submission.github_issue_url.present? %>
+      </div>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
     <div class="metric-grid">
-      <div class="metric-card"><span>状態</span><strong><%= @codex_submission.status %></strong></div>
+      <div class="metric-card"><span>状態</span><strong><%= @codex_submission.workflow_status_label %></strong></div>
       <div class="metric-card"><span>Business</span><strong><%= @codex_submission.business.name %></strong></div>
       <div class="metric-card"><span>Codex作業フォルダ</span><strong><%= @codex_submission.project_folder %></strong></div>
       <div class="metric-card"><span>Risk</span><strong><%= task.risk_level %></strong></div>
@@ -49,6 +73,7 @@
         <% if @codex_submission.github_issue_url.present? %>
           <%= link_to "GitHub Issueを開く", @codex_submission.github_issue_url, class: "button", target: "_blank", rel: "noopener" %>
           <%= link_to "Cloud Codexで開く", "https://chatgpt.com/codex", class: "button secondary", target: "_blank", rel: "noopener" %>
+          <%= button_to "GitHubからPRを同期", sync_github_admin_codex_submission_path(@codex_submission), method: :post, class: "button secondary" %>
         <% else %>
           <%= button_to "GitHub Issueを作成", create_github_issue_admin_codex_submission_path(@codex_submission), method: :post, class: "button" %>
         <% end %>
@@ -98,6 +123,69 @@
       <%= button_to "merge済みにする", mark_merged_admin_codex_submission_path(@codex_submission), method: :patch, class: "button secondary" %>
       <%= button_to "deploy済みにする", mark_deployed_admin_codex_submission_path(@codex_submission), method: :patch, class: "button secondary" %>
     </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <div>
+        <h2>実装結果をAICOOへ戻す</h2>
+        <p>PRやCodexの作業結果をActionResult、Activity Log、Learning待ちへ一括登録します。</p>
+      </div>
+    </div>
+    <%= form_with url: import_result_admin_codex_submission_path(@codex_submission), scope: :codex_result_import, method: :post, class: "form", data: { turbo: false } do |form| %>
+      <div class="grid">
+        <div class="field">
+          <%= form.label :status, "結果状態" %>
+          <%= form.select :status, options_for_select([ [ "完了", "completed" ], [ "一部完了", "partial_succeeded" ], [ "失敗", "failed" ] ], "completed") %>
+        </div>
+        <div class="field">
+          <%= form.label :pull_request_url, "PR URL" %>
+          <%= form.url_field :pull_request_url, value: @codex_submission.pr_url, placeholder: "https://github.com/.../pull/1" %>
+        </div>
+        <div class="field">
+          <%= form.label :commit_sha, "commit SHA（任意）" %>
+          <%= form.text_field :commit_sha, placeholder: "例: abc123" %>
+        </div>
+        <div class="field">
+          <%= form.label :executed_at, "実行日時" %>
+          <%= form.datetime_field :executed_at, value: Time.current.strftime("%Y-%m-%dT%H:%M") %>
+        </div>
+        <div class="field">
+          <%= form.label :actual_revenue_yen, "実績売上（任意）" %>
+          <%= form.number_field :actual_revenue_yen, value: 0, step: 1 %>
+        </div>
+        <div class="field">
+          <%= form.label :actual_profit_yen, "実績利益（任意）" %>
+          <%= form.number_field :actual_profit_yen, value: 0, step: 1 %>
+        </div>
+        <div class="field">
+          <%= form.label :ci_status, "CI" %>
+          <%= form.select :ci_status, options_for_select(%w[未確認 pending success failed], @codex_submission.ci_status.presence || "未確認") %>
+        </div>
+        <div class="field">
+          <%= form.label :deploy_status, "Deploy" %>
+          <%= form.select :deploy_status, options_for_select(%w[未deploy pending deployed failed], @codex_submission.deploy_status.presence || "未deploy") %>
+        </div>
+      </div>
+      <div class="field">
+        <%= form.label :changed_files, "変更ファイル（1行1ファイル）" %>
+        <%= form.text_area :changed_files,
+                           rows: 4,
+                           value: Array(@codex_submission.response_payload.to_h["changed_files"]).join("\n"),
+                           placeholder: "app/views/...\napp/services/..." %>
+      </div>
+      <div class="field">
+        <%= form.label :result_summary, "実装内容" %>
+        <%= form.text_area :result_summary, rows: 5, required: true, placeholder: "Codexで実装した内容を記録します。" %>
+      </div>
+      <div class="field">
+        <%= form.label :test_result, "確認結果" %>
+        <%= form.text_area :test_result, rows: 3, placeholder: "bin/rails test ... 0 failures" %>
+      </div>
+      <div class="actions">
+        <%= form.submit "実装結果を取り込む", class: "button" %>
+      </div>
+    <% end %>
   </section>
 
   <section class="dashboard-section">

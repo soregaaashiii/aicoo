@@ -23,6 +23,35 @@ class AutoRevisionTaskTest < ActiveSupport::TestCase
     assert_equal "waiting_approval", task.status
   end
 
+  test "creates codex submission automatically when execution profile exists" do
+    BusinessExecutionProfile.create!(
+      business: businesses(:suelog),
+      repository_name: "suelog",
+      repository_type: "rails",
+      repository_path: "/apps/suelog",
+      github_repository: "https://github.com/example/suelog",
+      test_command: "bin/rails test",
+      deploy_command: "bin/deploy",
+      require_manual_approval: false,
+      codex_enabled: true,
+      codex_workspace_name: "AICOO",
+      codex_project_folder: "/workspace/suelog",
+      codex_repository_url: "https://github.com/example/suelog",
+      codex_base_branch: "main",
+      codex_auto_submit_enabled: false,
+      codex_risk_limit: "low"
+    )
+    candidate = action_candidates(:nagazakicho_article)
+    candidate.update!(execution_prompt: "SEOタイトルを改善してください。")
+
+    task = AutoRevisionTask.from_action_candidate(candidate)
+
+    assert task.codex_submission.present?
+    assert_equal "draft", task.codex_submission.status
+    assert_includes task.codex_submission.error_message, "Auto SubmitがOFFです。"
+    assert_includes task.codex_submission.prompt, "Codex Cloud Submission"
+  end
+
   test "detects high risk from migration and credentials" do
     candidate = action_candidates(:nagazakicho_article)
     candidate.update!(

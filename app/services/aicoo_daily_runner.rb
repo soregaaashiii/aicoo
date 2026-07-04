@@ -25,10 +25,12 @@ class AicooDailyRunner
     execute_steps!(run)
     final_status = partial_failures.empty? ? "success" : "partial_failed"
     run.update!(status: final_status, finished_at: Time.current, run_log: log_text)
-    if final_status == "success"
+    if auto_revision_queueable_status?(final_status)
       run_auto_revision_queue!(run)
       run_pipeline_stuck_detector!(run)
       run.update!(run_log: log_text)
+    end
+    if final_status == "success"
       AicooDailyRunSetting.current.update!(last_success_at: run.finished_at)
     end
     run
@@ -40,6 +42,10 @@ class AicooDailyRunner
   private
 
   attr_reader :target_date, :source, :log_lines, :partial_failures
+
+  def auto_revision_queueable_status?(status)
+    status.in?(%w[success partial_failed])
+  end
 
   def execute_steps!(run)
     log!("Daily Run started target_date=#{target_date}")

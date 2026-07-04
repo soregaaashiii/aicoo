@@ -14,6 +14,9 @@ class CodexSubmission < ApplicationRecord
   scope :ready, -> { where(status: "ready") }
   scope :draft, -> { where(status: "draft") }
   scope :failed, -> { where(status: "failed") }
+  scope :with_pull_request, -> {
+    where("response_payload ->> 'pull_request_url' IS NOT NULL OR response_payload ->> 'pr_url' IS NOT NULL")
+  }
 
   def mark_ready!
     update!(status: "ready")
@@ -25,6 +28,7 @@ class CodexSubmission < ApplicationRecord
       submitted_at: Time.current,
       response_payload: response_payload.to_h.merge(payload.to_h)
     )
+    mark_auto_revision_task_sent!
   end
 
   def mark_failed!(message)
@@ -81,9 +85,58 @@ class CodexSubmission < ApplicationRecord
       "last_checked_at" => Time.current.iso8601,
       "tracking_updated_by" => payload["tracking_updated_by"].presence || "owner"
     }.compact_blank
+    extra_payload = payload.except(
+      "pull_request_url",
+      "pr_status",
+      "review_status",
+      "ci_status",
+      "test_result",
+      "merge_status",
+      "deploy_status",
+      "tracking_updated_by"
+    )
     normalized_payload["pr_created_at"] = Time.current.iso8601 if normalized_payload["pull_request_url"].present? && response_payload.to_h["pr_created_at"].blank?
 
-    update!(response_payload: response_payload.to_h.merge(normalized_payload))
+    update!(response_payload: response_payload.to_h.merge(normalized_payload).merge(extra_payload))
+    sync_execution_tracking!(normalized_payload)
+  end
+
+  def workflow_status
+    return "failed" if status == "failed"
+    return "completed" if status == "completed"
+    return "deploy_waiting" if merge_status.to_s.in?(%w[merged merge済み]) && deploy_status.to_s.exclude?("deployed")
+    return "merge_waiting" if pr_url.present? && (review_status.to_s.in?(%w[approved review済み]) || pr_status.to_s == "merge_waiting")
+    return "pr_created" if pr_url.present?
+    return "codex_executed" if status == "submitted" || github_issue_url.present?
+    return "ready" if status == "ready"
+    return "draft" if status == "draft"
+
+    status
+  end
+
+  def workflow_status_label
+    {
+      "draft" => "準備不足",
+      "ready" => "Codex投入待ち",
+      "codex_executed" => "Codex実行済み",
+      "pr_created" => "PR作成済み",
+      "merge_waiting" => "merge待ち",
+      "deploy_waiting" => "deploy待ち",
+      "completed" => "完了",
+      "failed" => "失敗",
+      "cancelled" => "取消"
+    }.fetch(workflow_status, workflow_status)
+  end
+
+  def external_handoff_url
+    pr_url.presence || github_issue_url.presence
+  end
+
+  def external_handoff_label
+    return "PRを開く" if pr_url.present?
+    return "GitHub Issueを開く" if github_issue_url.present?
+
+    "Codex投入準備"
   end
 
   def mark_merged!
@@ -102,5 +155,52 @@ class CodexSubmission < ApplicationRecord
       deployed_at: Time.current.iso8601
     )
     mark_completed!(payload: { "deploy_status" => "deployed" }) unless status == "completed"
+  end
+
+  private
+
+  def mark_auto_revision_task_sent!
+    task = auto_revision_task
+    return if task.status.in?(%w[sent_to_codex running completed succeeded partial_succeeded failed canceled])
+
+    sent_time = Time.current
+    task.update!(
+      status: "sent_to_codex",
+      sent_to_codex_at: task.sent_to_codex_at || sent_time
+    )
+    task.current_execution.update!(
+      status: "sent_to_codex",
+      prompt_snapshot: task.current_execution.prompt_snapshot.presence || task.codex_prompt_markdown,
+      metadata: task.current_execution.metadata.to_h.merge(
+        "codex_submission_id" => id,
+        "github_issue_url" => github_issue_url,
+        "codex_handoff_mode" => response_payload.to_h["codex_handoff_mode"].presence || "github_issue"
+      ).compact_blank
+    )
+  rescue StandardError => e
+    Rails.logger.warn("[CodexSubmission] AutoRevisionTask##{auto_revision_task_id} sent sync failed: #{e.class} #{e.message}")
+  end
+
+  def sync_execution_tracking!(payload)
+    current_execution = auto_revision_task.current_execution
+    current_execution.update!(
+      pull_request_url: payload["pull_request_url"].presence || current_execution.pull_request_url,
+      deploy_status: payload["deploy_status"].presence || current_execution.deploy_status,
+      deploy_url: payload["deploy_url"].presence || current_execution.deploy_url,
+      metadata: current_execution.metadata.to_h.merge(
+        "codex_submission_id" => id,
+        "codex_submission_status" => status,
+        "codex_workflow_status" => workflow_status,
+        "github_issue_url" => github_issue_url,
+        "pull_request_url" => pr_url,
+        "pr_status" => pr_status,
+        "review_status" => review_status,
+        "ci_status" => ci_status,
+        "merge_status" => merge_status,
+        "deploy_status" => deploy_status
+      ).compact_blank
+    )
+  rescue StandardError => e
+    Rails.logger.warn("[CodexSubmission] AutoRevisionTask##{auto_revision_task_id} tracking sync failed: #{e.class} #{e.message}")
   end
 end

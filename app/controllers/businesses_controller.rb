@@ -22,6 +22,7 @@ class BusinessesController < ApplicationController
 
   # GET /businesses/1 or /businesses/1.json
   def show
+    auto_link_business_google_defaults!
     @action_candidates = @business.action_candidates.by_recommendation
     @ai_improvement_action_candidates = @business.action_candidates
                                                    .active_for_ranking
@@ -90,6 +91,7 @@ class BusinessesController < ApplicationController
   end
 
   def google_settings
+    auto_link_business_google_defaults!
     load_business_google_settings_context
   end
 
@@ -485,6 +487,7 @@ class BusinessesController < ApplicationController
         return
       end
 
+      auto_link_business_google_defaults!(source_types:)
       credential_status = google_credential_status_for_sources(source_types)
       if credential_status[:credential].blank? || credential_status[:reauthentication_required]
         redirect_to business_path(@business, anchor: "business-google"),
@@ -540,6 +543,12 @@ class BusinessesController < ApplicationController
 
     def business_system_statuses(business, keys)
       keys.index_with { |key| Aicoo::SystemStatusResolver.call(key, business:) }
+    end
+
+    def auto_link_business_google_defaults!(source_types: %w[gsc ga4])
+      Aicoo::BusinessGoogleDefaultLinker.call(@business, source_types:)
+    rescue StandardError => e
+      Rails.logger.warn("[BusinessesController] google default auto link failed business_id=#{@business.id}: #{e.class}: #{e.message}")
     end
 
     def repair_approved_new_business_candidates!

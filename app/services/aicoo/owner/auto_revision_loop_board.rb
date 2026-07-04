@@ -130,6 +130,11 @@ module Aicoo
       end
 
       def state_for_task(task)
+        submission = task.codex_submission
+        return "失敗" if submission&.workflow_status == "failed"
+        return "PR作成済み" if submission&.pr_url.present?
+        return "Codex実行済み" if submission&.workflow_status == "codex_executed"
+
         case task.status
         when "draft", "waiting_approval" then "Codex準備前"
         when "approved", "ready_for_codex", "queued" then "Codex送信待ち"
@@ -149,7 +154,11 @@ module Aicoo
         when "approved", "ready_for_codex", "queued"
           action("GitHub Issueを作成", routes.create_github_issue_owner_auto_revision_loop_task_path(task), :post, "Codex Cloudで開けるGitHub Issueを作成します。")
         when "sent_to_codex"
-          action("実装開始にする", routes.start_owner_auto_revision_loop_task_path(task), :patch, "Codexへ渡した後の作業状態へ進めます。")
+          if task.codex_submission&.pr_url.present?
+            action("実装結果を登録", nil, nil, "PR作成済みです。右側のフォームで実装結果を登録します。")
+          else
+            action("PR URLを登録", nil, nil, "GitHub Issueは作成済みです。Codex作業後のPR URLを登録します。")
+          end
         when "running"
           action("実装済みにする", nil, nil, "右側の実装結果フォームから結果を登録してください。")
         when "completed", "succeeded", "partial_succeeded"
@@ -191,6 +200,8 @@ module Aicoo
         case state_for_task(task)
         when "Codex準備前" then "Codex Prompt準備待ち"
         when "Codex送信待ち" then "Codex用プロンプト未コピー"
+        when "Codex実行済み" then "GitHub Issue作成済み。PR URL登録待ち"
+        when "PR作成済み" then "PR確認または実装結果登録待ち"
         when "Codex作業待ち" then "Codex送信済み。実装開始記録待ち"
         when "Codex作業中" then task.auto_revision_executions.recent.first&.pull_request_url.present? ? "実装結果登録待ち" : "PR URL未登録"
         when "結果登録待ち" then "ActionResult未登録"
@@ -215,6 +226,7 @@ module Aicoo
       def detail_for_task(task)
         {
           prompt: task.codex_prompt_markdown,
+          github_issue_url: task.codex_submission&.github_issue_url,
           target_url: task.action_candidate&.metadata.to_h["target_url"],
           changed_files: task.changed_files.presence || task.action_candidate&.metadata.to_h["target_files"],
           completion_criteria: task.action_candidate ? Aicoo::ActionCandidateExecutionBrief.new(task.action_candidate).completion_criteria : [],

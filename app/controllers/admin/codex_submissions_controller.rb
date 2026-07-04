@@ -10,6 +10,8 @@ module Admin
       retry
       create_github_issue
       update_tracking
+      sync_github
+      import_result
       mark_merged
       mark_deployed
     ]
@@ -52,7 +54,7 @@ module Admin
       result = Aicoo::CodexGithubIssueBridge.new(@codex_submission).call
       if result.issue_url.present?
         redirect_to admin_codex_submission_path(@codex_submission),
-                    notice: "#{result.message} Codex CloudでこのIssueを開いて作業できます。"
+                    notice: "#{result.message} 開く場所: #{result.issue_url}。Codex CloudでこのIssueを開いて作業できます。"
       else
         redirect_to admin_codex_submission_path(@codex_submission), alert: result.message
       end
@@ -73,6 +75,27 @@ module Admin
     def update_tracking
       @codex_submission.update_tracking!(tracking_params.merge(tracking_updated_by: "owner"))
       redirect_back fallback_location: admin_codex_connection_path, notice: "PR追跡情報を更新しました。"
+    end
+
+    def sync_github
+      result = Aicoo::CodexGithubPrTracker.new(@codex_submission).call
+      if result.pull_request_url.present?
+        redirect_to admin_codex_submission_path(@codex_submission),
+                    notice: "#{result.message} PR: #{result.pull_request_url}"
+      else
+        redirect_to admin_codex_submission_path(@codex_submission), notice: result.message
+      end
+    rescue ArgumentError => e
+      redirect_to admin_codex_submission_path(@codex_submission), alert: "GitHub同期に失敗しました: #{e.message}"
+    end
+
+    def import_result
+      result = Aicoo::CodexResultImporter.new(@codex_submission, codex_result_import_params).call
+      redirect_to result.action_result,
+                  notice: "Codex実装結果を取り込みました。ActionResult / Activity Log / Learning待ちへ反映しました。"
+    rescue ArgumentError, ActiveRecord::RecordInvalid => e
+      redirect_to admin_codex_submission_path(@codex_submission),
+                  alert: "Codex実装結果を取り込めませんでした: #{e.message}"
     end
 
     def mark_merged
@@ -117,6 +140,29 @@ module Admin
           :test_result,
           :merge_status,
           :deploy_status
+        ]
+      )
+    end
+
+    def codex_result_import_params
+      params.expect(
+        codex_result_import: [
+          :status,
+          :result_summary,
+          :changed_files,
+          :test_result,
+          :codex_output,
+          :error_message,
+          :commit_sha,
+          :pull_request_url,
+          :deploy_url,
+          :deploy_status,
+          :ci_status,
+          :merge_status,
+          :actual_revenue_yen,
+          :actual_profit_yen,
+          :evaluation_status,
+          :executed_at
         ]
       )
     end

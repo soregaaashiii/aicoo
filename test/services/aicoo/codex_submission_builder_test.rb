@@ -127,6 +127,29 @@ module Aicoo
       assert_empty result.reasons
     end
 
+    test "tracks pull request url as pr created workflow status" do
+      create_profile!(
+        codex_enabled: true,
+        codex_auto_submit_enabled: true,
+        require_manual_approval: false
+      )
+      submission = CodexSubmissionBuilder.new(@task).call.submission
+
+      submission.update_tracking!(
+        pull_request_url: "https://github.com/example/suelog/pull/42",
+        pr_status: "pr_created",
+        review_status: "pending",
+        ci_status: "success"
+      )
+
+      assert_equal "pr_created", submission.workflow_status
+      assert_equal "PR作成済み", submission.workflow_status_label
+      assert_equal "https://github.com/example/suelog/pull/42", submission.external_handoff_url
+      assert_equal "PRを開く", submission.external_handoff_label
+      assert_equal "https://github.com/example/suelog/pull/42", @task.auto_revision_executions.last.pull_request_url
+      assert_equal "success", @task.auto_revision_executions.last.metadata["ci_status"]
+    end
+
     private
 
     def create_profile!(attributes = {})

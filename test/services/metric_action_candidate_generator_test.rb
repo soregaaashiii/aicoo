@@ -37,6 +37,12 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     result = MetricActionCandidateGenerator.new(business: @business, today: @today).call
 
     assert result.created.any? { |candidate| candidate.title.include?("CTR改善") }
+    candidate = result.created.find { |record| record.title.include?("CTR改善") }
+    assert_includes candidate.execution_prompt, "ActionCandidate実行指示書"
+    assert_includes candidate.execution_prompt, "現在 → 変更後"
+    assert candidate.metadata.dig("execution_instruction", "quality", "has_before_after")
+    assert candidate.metadata.dig("execution_instruction", "quality", "has_completion_criteria")
+    assert_not_empty candidate.metadata.dig("execution_instruction", "file_changes")
   end
 
   test "creates conversion path candidate when clicks exist but cv clicks are missing" do

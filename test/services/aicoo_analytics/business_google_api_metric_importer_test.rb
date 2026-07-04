@@ -195,6 +195,40 @@ module AicooAnalytics
       assert_includes error.message, "Google Credentialが未設定"
     end
 
+    test "business google data source setting marked global uses default credential" do
+      BusinessDataSourceSetting.create!(
+        business: @business,
+        source_key: "ga4",
+        enabled: true,
+        connection_status: "linked",
+        property_identifier: "536889590",
+        metadata: {
+          "connection_fields" => { "property_id" => "536889590" },
+          "source_binding" => { "use_global" => "1" }
+        }
+      )
+      AnalyticsSourceSetting.create!(
+        source_type: "ga4",
+        name: "AICOO shared GA4",
+        property_id: "536889590",
+        enabled: true,
+        authentication_mode: "shared",
+        google_credential: @credential
+      )
+
+      result = BusinessGoogleApiMetricImporter.new(
+        business: @business,
+        today: Date.new(2026, 6, 28),
+        source_types: %w[ga4],
+        ga4_client: FakeGa4Client.new
+      ).call
+
+      ga4_result = result.source_results.find { |row| row[:source] == "ga4" }
+      assert_equal "536889590", ga4_result[:identifier]
+      assert_equal @credential.id, result.credential_snapshots.dig("ga4", "record_id")
+      assert BusinessMetricDaily.find_by!(business: @business, recorded_on: Date.new(2026, 6, 26)).sessions.positive?
+    end
+
     class FakeGscClient
       def query(site_url:, start_date:, end_date:, dimensions:, row_limit:)
         {

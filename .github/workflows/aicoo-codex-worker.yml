@@ -1,0 +1,62 @@
+name: AICOO Codex Worker
+
+on:
+  issues:
+    types:
+      - opened
+      - labeled
+      - edited
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: "AICOO Codex Issue number"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: aicoo-codex-worker-${{ github.event.inputs.issue_number || github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  build-pr:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      contains(join(github.event.issue.labels.*.name, ','), 'aicoo-codex') ||
+      (contains(join(github.event.issue.labels.*.name, ','), 'aicoo') && contains(join(github.event.issue.labels.*.name, ','), 'codex'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      ISSUE_NUMBER: ${{ github.event.inputs.issue_number || github.event.issue.number }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
+      AICOO_CODEX_MAX_RISK: ${{ vars.AICOO_CODEX_MAX_RISK || 'low' }}
+      AICOO_CODEX_BASE_BRANCH: ${{ vars.AICOO_CODEX_BASE_BRANCH || 'main' }}
+      AICOO_CODEX_DEFAULT_TEST_COMMANDS: ${{ vars.AICOO_CODEX_DEFAULT_TEST_COMMANDS || 'bin/rails test' }}
+      AICOO_CODEX_CALLBACK_URL: ${{ vars.AICOO_CODEX_CALLBACK_URL }}
+      AICOO_CODEX_CALLBACK_TOKEN: ${{ secrets.AICOO_CODEX_CALLBACK_TOKEN }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+
+      - name: Configure git author
+        run: |
+          git config user.name "aicoo-codex-worker"
+          git config user.email "aicoo-codex-worker@users.noreply.github.com"
+
+      - name: Build PR from AICOO Issue
+        run: ruby script/aicoo_codex_issue_worker.rb

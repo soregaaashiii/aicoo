@@ -78,7 +78,7 @@ module Owner
 
       issue_result = Aicoo::CodexGithubIssueBridge.new(submission_result.submission).call
       redirect_to owner_auto_revision_loop_path(selected: "auto_revision_task:#{task.id}", anchor: "selected-task"),
-                  notice: issue_result.message
+                  notice: "#{issue_result.message} 開く場所: #{issue_result.issue_url}"
     rescue ActiveRecord::RecordNotFound
       handle_missing_auto_revision_record
     rescue StandardError => e

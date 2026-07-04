@@ -84,7 +84,15 @@
       <div class="metric-card"><span>Auto PR</span><strong><%= profile&.codex_auto_pr_enabled? ? "ON" : "OFF" %></strong></div>
       <div class="metric-card"><span>Auto Merge</span><strong><%= profile&.codex_auto_merge_enabled? ? "ON" : "OFF" %></strong></div>
       <div class="metric-card"><span>Auto Deploy</span><strong><%= profile&.codex_auto_deploy_enabled? ? "ON" : "OFF" %></strong></div>
-      <div class="metric-card"><span>CodexSubmission</span><strong><%= submission ? submission.status : "未作成" %></strong></div>
+      <div class="metric-card"><span>Codex投入状態</span><strong><%= submission ? submission.workflow_status_label : "未作成" %></strong></div>
+      <div class="metric-card">
+        <span>GitHub Issue</span>
+        <strong><%= submission&.github_issue_url.present? ? "作成済み ##{submission.github_issue_number}" : "-" %></strong>
+      </div>
+      <div class="metric-card">
+        <span>PR</span>
+        <strong><%= submission&.pr_url.present? ? "登録済み" : "-" %></strong>
+      </div>
     </div>
 
     <% if unavailable_reasons.any? %>
@@ -108,11 +116,14 @@
       <%= link_to "プロンプト確認", export_codex_prompt_auto_revision_task_path(@auto_revision_task), class: "button secondary" %>
       <%= button_to "Codex手動送信用として準備", build_codex_submission_auto_revision_task_path(@auto_revision_task), method: :post, class: "button secondary" %>
       <% if submission %>
-        <%= link_to "送信詳細", admin_codex_submission_path(submission), class: "button secondary" %>
+        <%= link_to "Codex投入詳細", admin_codex_submission_path(submission), class: "button secondary" %>
         <% if submission.github_issue_url.present? %>
           <%= link_to "GitHub Issueを開く", submission.github_issue_url, class: "button", target: "_blank", rel: "noopener" %>
         <% else %>
           <%= button_to "GitHub Issueを作成", create_github_issue_admin_codex_submission_path(submission), method: :post, class: "button" %>
+        <% end %>
+        <% if submission.pr_url.present? %>
+          <%= link_to "PRを開く", submission.pr_url, class: "button", target: "_blank", rel: "noopener" %>
         <% end %>
         <%= button_to "送信失敗として記録", mark_codex_submission_failed_auto_revision_task_path(@auto_revision_task), method: :patch, class: "button danger" %>
       <% end %>

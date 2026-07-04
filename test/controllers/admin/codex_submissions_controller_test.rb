@@ -42,7 +42,7 @@ module Admin
       get admin_codex_submissions_url
 
       assert_response :success
-      assert_includes response.body, "Codex手動送信一覧"
+      assert_includes response.body, "Codex投入一覧"
       assert_includes response.body, @business.name
       assert_includes response.body, @submission.project_folder
       assert_includes response.body, @task.title
@@ -75,7 +75,8 @@ module Admin
       get admin_codex_submission_url(@submission)
 
       assert_response :success
-      assert_includes response.body, "Codex手動送信詳細"
+      assert_includes response.body, "Codex投入詳細"
+      assert_includes response.body, "次に開く場所"
       assert_includes response.body, "Execution Profile"
       assert_includes response.body, "AutoRevisionTask"
       assert_includes response.body, "Response Payload"
@@ -127,6 +128,7 @@ module Admin
 
       assert_redirected_to admin_codex_submission_url(@submission)
       assert_match "GitHub Issue #9", flash[:notice]
+      assert_match "https://github.com/example/suelog/issues/9", flash[:notice]
     ensure
       Aicoo::CodexGithubIssueBridge.define_singleton_method(:new) { |*args| original_new.call(*args) } if original_new
     end
@@ -136,6 +138,27 @@ module Admin
 
       assert_redirected_to admin_codex_submission_url(@submission)
       assert_match "画面内のボタン", flash[:alert]
+    end
+
+    test "syncs github pull request tracking" do
+      result = Aicoo::CodexGithubPrTracker::Result.new(
+        status: "synced",
+        message: "GitHub PR情報を同期しました。",
+        pull_request_url: "https://github.com/example/suelog/pull/12",
+        payload: {}
+      )
+      fake_tracker = Object.new
+      fake_tracker.define_singleton_method(:call) { result }
+      original_new = Aicoo::CodexGithubPrTracker.method(:new)
+      Aicoo::CodexGithubPrTracker.define_singleton_method(:new) { |_submission| fake_tracker }
+
+      post sync_github_admin_codex_submission_url(@submission)
+
+      assert_redirected_to admin_codex_submission_url(@submission)
+      assert_match "GitHub PR情報を同期しました", flash[:notice]
+      assert_match "https://github.com/example/suelog/pull/12", flash[:notice]
+    ensure
+      Aicoo::CodexGithubPrTracker.define_singleton_method(:new) { |*args| original_new.call(*args) } if original_new
     end
 
     test "missing github issue submission redirects to codex connection instead of 404" do
@@ -153,6 +176,28 @@ module Admin
       assert_redirected_to admin_codex_connection_url
       assert_equal "ready", @submission.reload.status
       assert_nil @submission.error_message
+    end
+
+    test "imports codex implementation result from submission detail" do
+      assert_difference("ActionResult.count", 1) do
+        post import_result_admin_codex_submission_url(@submission), params: {
+          codex_result_import: {
+            result_summary: "CodexでCTA導線を改善しました。",
+            changed_files: "app/views/shops/show.html.erb",
+            test_result: "bin/rails test 0 failures",
+            pull_request_url: "https://github.com/example/suelog/pull/21",
+            commit_sha: "abc123",
+            deploy_status: "deployed",
+            actual_profit_yen: 0
+          }
+        }
+      end
+
+      assert_redirected_to action_result_url(ActionResult.last)
+      assert_equal "completed", @submission.reload.status
+      assert_equal "completed", @task.reload.status
+      assert_equal "https://github.com/example/suelog/pull/21", @submission.pr_url
+      assert_match "Codex実装結果", flash[:notice]
     end
   end
 end

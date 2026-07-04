@@ -41,6 +41,18 @@ class AicooAutoRevisionDailyRunQueuerTest < ActiveSupport::TestCase
     assert AicooAutoRevisionSetting.current.last_auto_queue_at.present?
   end
 
+  test "runs for partial failed daily run after completed generation steps" do
+    AicooAutoRevisionSetting.current.update!(enabled: true)
+    daily_run = create_daily_run(status: "partial_failed")
+    create_candidate(title: "SEOタイトル改善", execution_prompt: "SEOタイトルを改善してください。")
+
+    result = AicooAutoRevisionDailyRunQueuer.new.call(daily_run:)
+
+    assert_equal true, result.ran
+    assert_equal 1, result.queue_run.generated_tasks_count
+    assert_equal daily_run, result.queue_run.aicoo_daily_run
+  end
+
   test "respects max tasks per run" do
     AicooAutoRevisionSetting.current.update!(enabled: true, max_tasks_per_run: 2)
     daily_run = create_daily_run
@@ -63,6 +75,8 @@ class AicooAutoRevisionDailyRunQueuerTest < ActiveSupport::TestCase
     assert_equal 0, AutoRevisionTask.count
     assert_equal "all_candidates_skipped", result.queue_run.metadata.fetch("reason")
     assert_includes result.queue_run.metadata.fetch("message"), "スコア不足"
+    assert_includes result.queue_run.metadata.fetch("message"), "診断"
+    assert_equal 1, result.queue_run.metadata.dig("diagnostics", "below_minimum_final_score_count")
     assert_equal "below_minimum_final_score", result.queue_run.metadata.fetch("skipped_reasons").first.fetch("reason")
   end
 
@@ -113,8 +127,8 @@ class AicooAutoRevisionDailyRunQueuerTest < ActiveSupport::TestCase
 
   private
 
-  def create_daily_run
-    AicooDailyRun.create!(target_date: Date.yesterday, status: "success", source: "manual", started_at: Time.current)
+  def create_daily_run(status: "success")
+    AicooDailyRun.create!(target_date: Date.yesterday, status:, source: "manual", started_at: Time.current)
   end
 
   def create_candidate(title:, execution_prompt:)
