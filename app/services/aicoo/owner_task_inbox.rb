@@ -7,7 +7,7 @@ module Aicoo
       "low" => 3
     }.freeze
     TASK_TYPE_LABELS = {
-      "action_candidate_approval" => "行動候補承認",
+      "action_candidate_approval" => "改修開始",
       "action_execution_ready" => "実行準備完了",
       "action_execution_running" => "作業中",
       "action_result_registration" => "実行結果登録",
@@ -20,7 +20,7 @@ module Aicoo
       "analysis_review" => "分析実行判断",
       "new_business_setup" => "新規事業初期設定",
       "discovery_source_warning" => "発見源警告",
-      "calibration_approval" => "評価式承認",
+      "calibration_approval" => "評価式反映",
       "daily_run_failure" => "Daily Run失敗",
       "daily_run_partial_failed" => "Daily Run一部失敗",
       "daily_run_step_failure" => "Daily Runステップ失敗",
@@ -90,7 +90,7 @@ module Aicoo
           priority: candidate.final_score.to_d >= 10_000.to_d ? "high" : "medium",
           task_type: "action_candidate_approval",
           title: candidate.title,
-          description: "オーナー承認待ちの行動候補です。",
+          description: "Ownerが押すと改修タスクまで作成される行動候補です。",
           target_label: candidate.business.name,
           target_path: routes.action_candidate_path(candidate),
           reason: "期待値 #{candidate.final_expected_value_yen.to_i.to_fs(:delimited)}円 / score #{candidate.final_score.to_d.round(1)}",
@@ -106,10 +106,10 @@ module Aicoo
           priority: calibration_priority(calibration),
           task_type: "calibration_approval",
           title: "#{calibration.action_type} の評価式補正を確認",
-          description: "危険または信頼度不足のため、補正係数の反映が承認待ちです。",
+          description: "危険または信頼度不足のため、補正係数の反映にOwner確認が必要です。",
           target_label: calibration.action_type,
           target_path: routes.admin_aicoo_calibration_path(filter: "pending"),
-          reason: calibration.warning_reason.presence || "承認待ちの補正があります。",
+          reason: calibration.warning_reason.presence || "反映待ちの補正があります。",
           created_at: calibration.approval_requested_at || calibration.updated_at,
           quick_actions: calibration_pending_quick_actions(calibration)
         )
@@ -127,7 +127,7 @@ module Aicoo
           priority: candidate.final_score.to_d >= 10_000.to_d ? "high" : "medium",
           task_type: "action_execution_ready",
           title: "#{candidate.title} を実行開始",
-          description: "承認済みActionCandidateの実行準備が完了しています。",
+          description: "ActionCandidateの実行準備が完了しています。",
           target_label: candidate.business.name,
           target_path: routes.action_execution_path(execution),
           reason: "score #{candidate.final_score.to_d.round(1)} / 期待利益 #{candidate.expected_profit_yen.to_i.to_fs(:delimited)}円",
@@ -259,7 +259,7 @@ module Aicoo
           created_at: opportunity.discovered_at || opportunity.created_at,
           quick_actions: [
             quick_action("Focusで処理", :get, routes.focus_owner_opportunities_path, style: "primary"),
-            quick_action("Approve", :patch, routes.focus_approve_owner_opportunity_path(opportunity), style: "secondary"),
+            quick_action("取り込む", :patch, routes.focus_approve_owner_opportunity_path(opportunity), style: "secondary"),
             opportunity_primary_quick_action(opportunity),
             quick_action("Opportunityを見る", :get, routes.owner_opportunity_path(opportunity), style: "secondary")
           ].compact
@@ -383,7 +383,7 @@ module Aicoo
           priority: "high",
           task_type: "new_business_setup",
           title: "#{business.name} の初期設定を進める",
-          description: "承認済みの新規事業です。Google連携、SERP走査、LP作成へ進めます。",
+          description: "作成済みの新規事業です。Google連携、SERP走査、LP作成へ進めます。",
           target_label: business.name,
           target_path: routes.business_path(business),
           reason: "Google連携未設定 / LP未作成 / SERP対象ON",
@@ -507,7 +507,7 @@ module Aicoo
 
     def action_candidate_quick_actions(candidate)
       [
-        quick_action("承認", :patch, routes.approve_action_candidate_path(candidate), style: "primary"),
+        quick_action("改修開始", :patch, routes.approve_action_candidate_path(candidate), style: "primary"),
         quick_action("却下", :patch, routes.reject_action_candidate_path(candidate), confirm_message: "この行動候補を却下しますか？", style: "danger"),
         quick_action("詳細を見る", :get, routes.action_candidate_path(candidate), style: "secondary")
       ]
@@ -515,7 +515,7 @@ module Aicoo
 
     def calibration_pending_quick_actions(calibration)
       [
-        quick_action("承認", :patch, routes.approve_owner_calibration_path(calibration), confirm_message: "この補正係数を承認して反映しますか？", style: "primary"),
+        quick_action("補正を反映", :patch, routes.approve_owner_calibration_path(calibration), confirm_message: "この補正係数を反映しますか？", style: "primary"),
         quick_action("却下", :patch, routes.reject_owner_calibration_path(calibration), confirm_message: "この補正係数を却下しますか？", style: "danger"),
         quick_action("補正詳細を見る", :get, routes.admin_aicoo_calibration_path(filter: "pending"), style: "secondary")
       ]

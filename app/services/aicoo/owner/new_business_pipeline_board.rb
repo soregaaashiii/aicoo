@@ -142,20 +142,20 @@ module Aicoo
         return "検証中" if landing_page&.publicly_visible?
         return "Business化済み" if candidate.status == "approved" && business.present?
         return "Business化済み" if candidate.metadata.to_h.dig("business_promotion", "promoted")
-        return "承認待ち" if candidate.status.in?(%w[idea pending])
+        return "候補" if candidate.status.in?(%w[idea pending])
 
-        candidate.status.presence || "承認待ち"
+        candidate.status.presence || "候補"
       end
 
       def next_action_for(candidate, business, landing_page)
         routes = Rails.application.routes.url_helpers
         state = state_for(candidate, business, landing_page)
-        if state.in?(%w[候補 承認待ち Business未作成])
+        if state.in?(%w[候補 Business未作成])
           return action(
-            "Business化する",
+            "Business作成",
             routes.approve_owner_new_business_pipeline_candidate_path(candidate),
             :patch,
-            "承認するとBusinessを作成し、事業一覧に反映します。"
+            "1クリックでBusinessを作成し、事業一覧に反映します。"
           )
         end
 
@@ -190,7 +190,7 @@ module Aicoo
 
       def progress_for(candidate, business, landing_page)
         case state_for(candidate, business, landing_page)
-        when "候補", "承認待ち" then { percent: 10, label: "Candidate" }
+        when "候補" then { percent: 10, label: "Candidate" }
         when "Business未作成" then { percent: 20, label: "Business" }
         when "LP未作成" then { percent: 35, label: "Business" }
         when "LP未公開" then { percent: 55, label: "LP" }
@@ -202,8 +202,8 @@ module Aicoo
 
       def stuck_reason_for(candidate, business, landing_page)
         case state_for(candidate, business, landing_page)
-        when "候補", "承認待ち" then "Owner承認待ち"
-        when "Business未作成" then "承認済みですがBusiness未作成"
+        when "候補" then "Business作成待ち"
+        when "Business未作成" then "Business作成が未完了"
         when "LP未作成" then "LP未作成"
         when "LP未公開" then "LP未公開"
         when "検証中" then "計測待ち"
@@ -227,7 +227,7 @@ module Aicoo
         Summary.new(
           serp_count: rows.count { |row| row.action_candidate.generation_source == "serp" },
           integrated_decision_count: rows.count { |row| row.action_candidate.generation_source == "integrated_decision" },
-          pending_count: rows.count { |row| row.current_state.in?(%w[候補 承認待ち]) },
+          pending_count: rows.count { |row| row.current_state == "候補" },
           business_created_count: rows.count { |row| row.business.present? },
           lp_waiting_count: rows.count { |row| row.current_state == "LP未作成" },
           lp_published_count: rows.count { |row| row.landing_page&.publicly_visible? },

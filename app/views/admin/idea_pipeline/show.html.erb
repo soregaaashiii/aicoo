@@ -52,7 +52,7 @@
         <div class="actions compact-actions">
           <%= button_to "再試行", admin_pipeline_recovery_path(@pipeline_run), method: :post, params: { recovery_action: "retry" }, class: "button secondary" %>
           <%= button_to "スキップ", admin_pipeline_recovery_path(@pipeline_run), method: :post, params: { recovery_action: "skip" }, class: "button secondary" %>
-          <%= button_to "承認して進む", admin_pipeline_recovery_path(@pipeline_run), method: :post, params: { recovery_action: "approve" }, class: "button secondary" %>
+          <%= button_to "次へ進む", admin_pipeline_recovery_path(@pipeline_run), method: :post, params: { recovery_action: "approve" }, class: "button secondary" %>
           <%= button_to "停止", admin_pipeline_recovery_path(@pipeline_run), method: :post, params: { recovery_action: "stop" }, class: "button secondary" %>
           <%= button_to "終了", admin_pipeline_recovery_path(@pipeline_run), method: :post, params: { recovery_action: "end" }, class: "button secondary", data: { turbo_confirm: "このPipelineを終了しますか？" } %>
           <a href="#pipeline-recovery-logs" class="button secondary">復旧ログを見る</a>

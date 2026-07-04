@@ -36,7 +36,7 @@
       <strong><%= @summary.total_count %></strong>
     </div>
     <div class="metric-card">
-      <span>承認待ち候補数</span>
+      <span>検証判断待ち候補数</span>
       <strong><%= @summary.approval_pending_count %></strong>
     </div>
     <div class="metric-card">
@@ -117,7 +117,7 @@
           <td class="number"><%= number_with_precision(candidate.lab_priority_score, precision: 4) || "-" %></td>
           <td>
             <div class="actions compact-actions">
-              <%= button_to "承認", approve_admin_aicoo_lab_candidate_path(candidate), method: :patch, class: "button secondary" unless candidate.status == "converted" %>
+              <%= button_to "検証へ進める", approve_admin_aicoo_lab_candidate_path(candidate), method: :patch, class: "button secondary" unless candidate.status == "converted" %>
               <%= button_to "却下", reject_admin_aicoo_lab_candidate_path(candidate), method: :patch, class: "danger" unless candidate.status == "converted" %>
               <%= button_to "検証化", convert_to_experiment_admin_aicoo_lab_candidate_path(candidate), method: :post, class: "button" unless candidate.status == "converted" %>
               <%= button_to "LP化", convert_to_experiment_with_landing_page_admin_aicoo_lab_candidate_path(candidate), method: :post, class: "button" if %w[proposed approved].include?(candidate.status) %>

@@ -127,7 +127,7 @@ module AicooExecutor
       assert_equal "action_candidate", task.source_type
       assert_equal action_candidate.id, task.source_id
       assert_equal "seo_content", task.execution_type
-      assert_equal "approval_pending", task.status
+      assert_equal "approved", task.status
       assert_common_prompt_text(task.execution_prompt)
     end
 

@@ -230,7 +230,7 @@ class AicooDailyRunsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Analytics取得"
     assert_includes response.body, "Insight生成"
     assert_includes response.body, "評価関数補正"
-    assert_includes response.body, "承認待ち補正"
+    assert_includes response.body, "反映待ち補正"
     assert_includes response.body, "Auto Revision Queue"
     assert_includes response.body, "Auto Revision生成"
     assert_includes response.body, "SERP Run"

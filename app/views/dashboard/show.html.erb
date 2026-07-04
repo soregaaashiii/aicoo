@@ -167,7 +167,7 @@
       <div class="metric-card">
         <span>Watch提案</span>
         <strong><%= @resource_control_summary.auto_snooze_candidates.size %>件</strong>
-        <small>Owner承認待ち</small>
+        <small>Owner確認待ち</small>
       </div>
     </div>
     <% if @resource_control_summary.today_businesses.any? %>
@@ -208,7 +208,7 @@
     <div class="section-heading">
       <div>
         <h2>MVP Promotion</h2>
-        <p>LP反応が良いBusinessを、Owner承認でMVP開発へ進める候補として監視します。</p>
+        <p>LP反応が良いBusinessを、Owner操作でMVP開発へ進める候補として監視します。</p>
       </div>
       <%= link_to "Business一覧", businesses_path, class: "button secondary" %>
     </div>
@@ -251,7 +251,7 @@
       <div class="metric-card">
         <span>投資待ちBusiness</span>
         <strong><%= @investment_waiting_businesses.size %>件</strong>
-        <small>Owner承認待ち</small>
+        <small>Owner確認待ち</small>
       </div>
     </div>
     <div class="system-status-grid compact">

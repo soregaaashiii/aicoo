@@ -19,9 +19,9 @@
   </div>
   <div class="actions compact-actions">
     <% if @experiment.status == "preview_ready" %>
-      <%= button_to "承認待ちに進める", approval_pending_admin_aicoo_lab_experiment_path(@experiment), method: :patch, class: "button" %>
+      <%= button_to "検証判断へ進める", approval_pending_admin_aicoo_lab_experiment_path(@experiment), method: :patch, class: "button" %>
     <% elsif @experiment.status == "approval_pending" && @experiment.approval_status != "approved" %>
-      <%= button_to "承認する", approve_admin_aicoo_lab_experiment_path(@experiment), method: :patch, class: "button" %>
+      <%= button_to "検証へ進める", approve_admin_aicoo_lab_experiment_path(@experiment), method: :patch, class: "button" %>
       <%= button_to "却下する", reject_admin_aicoo_lab_experiment_path(@experiment), method: :patch, class: "danger" %>
     <% elsif @experiment.approval_status == "approved" && !%w[running success failed].include?(@experiment.status) %>
       <%= button_to "検証開始", running_admin_aicoo_lab_experiment_path(@experiment), method: :patch, class: "button" %>
@@ -38,12 +38,12 @@
 <section class="dashboard-section">
   <div class="section-heading">
     <h2>操作</h2>
-    <p>プレビュー作成までは自動実行対象、外部公開や課金は承認制です。</p>
+    <p>プレビュー作成までは自動実行対象、外部公開や課金はOwner確認ありです。</p>
   </div>
   <div class="actions compact-actions">
     <%= button_to "LP作成済みにする", preview_ready_admin_aicoo_lab_experiment_path(@experiment), method: :patch, class: "button secondary" %>
-    <%= button_to "承認待ちにする", approval_pending_admin_aicoo_lab_experiment_path(@experiment), method: :patch, class: "button secondary" %>
-    <%= button_to "承認する", approve_admin_aicoo_lab_experiment_path(@experiment), method: :patch, class: "button" %>
+    <%= button_to "検証判断へ進める", approval_pending_admin_aicoo_lab_experiment_path(@experiment), method: :patch, class: "button secondary" %>
+    <%= button_to "検証へ進める", approve_admin_aicoo_lab_experiment_path(@experiment), method: :patch, class: "button" %>
     <%= button_to "却下する", reject_admin_aicoo_lab_experiment_path(@experiment), method: :patch, class: "danger" %>
     <%= button_to "検証開始", running_admin_aicoo_lab_experiment_path(@experiment), method: :patch, class: "button" %>
     <%= button_to "一時停止", paused_admin_aicoo_lab_experiment_path(@experiment), method: :patch, class: "button secondary" %>
@@ -153,7 +153,7 @@
 <section class="dashboard-section">
   <div class="section-heading">
     <h2>LPプレビュー</h2>
-    <p>本番公開前に、承認用のLP案を確認します。</p>
+    <p>本番公開前に、確認用のLP案を確認します。</p>
   </div>
 
   <% if @landing_page %>
@@ -185,7 +185,7 @@
     <div class="actions">
       <%= link_to "LP編集", edit_admin_aicoo_lab_experiment_landing_page_path(@experiment), class: "button secondary" %>
       <%= button_to "LP作成済みにする", preview_ready_admin_aicoo_lab_experiment_landing_page_path(@experiment), method: :patch, class: "button" %>
-      <%= button_to "承認待ちにする", approval_pending_admin_aicoo_lab_experiment_path(@experiment), method: :patch, class: "button secondary" if @landing_page.status == "preview_ready" %>
+      <%= button_to "検証判断待ちにする", approval_pending_admin_aicoo_lab_experiment_path(@experiment), method: :patch, class: "button secondary" if @landing_page.status == "preview_ready" %>
       <%= button_to "無料公開する", publish_admin_aicoo_lab_experiment_landing_page_path(@experiment), method: :patch, class: "button" if @landing_page.publishable? %>
       <%= button_to "非公開にする", unpublish_admin_aicoo_lab_experiment_landing_page_path(@experiment), method: :patch, class: "button secondary" if @landing_page.status == "published" %>
     </div>
@@ -237,7 +237,7 @@
 <dl class="detail-list">
   <dt>状態</dt>
   <dd><span class="pill"><%= aicoo_lab_status_label(@experiment.status) %></span></dd>
-  <dt>承認状態</dt>
+  <dt>検証判断状態</dt>
   <dd><span class="pill"><%= aicoo_lab_approval_status_label(@experiment.approval_status) %></span></dd>
   <dt>種類</dt>
   <dd><%= @experiment.experiment_type %></dd>

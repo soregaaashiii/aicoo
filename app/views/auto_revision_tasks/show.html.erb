@@ -13,7 +13,7 @@
               ),
               class: "button secondary" %>
   <% if %w[draft waiting_approval].include?(@auto_revision_task.status) %>
-    <%= button_to "承認", approve_auto_revision_task_path(@auto_revision_task), method: :patch, class: "button", data: { turbo_confirm: "#{@auto_revision_task.risk_level} riskの改修タスクを承認しますか？" } %>
+    <%= button_to "Codex Prompt準備", approve_auto_revision_task_path(@auto_revision_task), method: :patch, class: "button", data: { turbo_confirm: "#{@auto_revision_task.risk_level} riskの旧形式タスクをCodex準備へ進めますか？" } %>
   <% end %>
   <% if %w[approved ready_for_codex].include?(@auto_revision_task.status) && @auto_revision_task.risk_level != "high" %>
     <%= button_to "実行キューへ追加", enqueue_auto_revision_task_path(@auto_revision_task), method: :patch, class: "button" %>
@@ -323,7 +323,7 @@
   <section class="dashboard-section">
     <div class="section-heading">
       <h2>Codex用プロンプト</h2>
-      <p>この内容をCloud Codexに手動で貼って、承認済みタスクとして実行できます。</p>
+      <p>この内容をCloud Codexに手動で貼って、準備完了タスクとして実行できます。</p>
     </div>
     <div class="actions compact-actions">
       <button type="button"
@@ -366,7 +366,7 @@
       <div class="actions compact-actions">
         <%= link_to "Quality Gate詳細", quality_check, class: "button secondary" %>
         <% if quality_check.approval_status == "pending" %>
-          <%= button_to "Quality Gate承認", approve_codex_quality_check_path(quality_check), method: :patch, class: "button" %>
+          <%= button_to "Quality Gate通過", approve_codex_quality_check_path(quality_check), method: :patch, class: "button" %>
           <%= button_to "Quality Gate却下", reject_codex_quality_check_path(quality_check), method: :patch, class: "button danger" %>
         <% end %>
       </div>

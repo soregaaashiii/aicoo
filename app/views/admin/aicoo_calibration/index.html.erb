@@ -37,9 +37,9 @@
       <div class="metric-card"><span>warning件数</span><strong><%= @summary.warning_count %></strong></div>
       <div class="metric-card"><span>low confidence件数</span><strong><%= @summary.low_confidence_count %></strong></div>
       <div class="metric-card"><span>high confidence件数</span><strong><%= @summary.high_confidence_count %></strong></div>
-      <div class="metric-card"><span>承認待ち件数</span><strong><%= @summary.pending_count %></strong></div>
+      <div class="metric-card"><span>反映待ち件数</span><strong><%= @summary.pending_count %></strong></div>
       <div class="metric-card"><span>自動反映件数</span><strong><%= @summary.auto_applied_count %></strong></div>
-      <div class="metric-card"><span>承認済み件数</span><strong><%= @summary.approved_count %></strong></div>
+      <div class="metric-card"><span>反映済み件数</span><strong><%= @summary.approved_count %></strong></div>
       <div class="metric-card"><span>却下件数</span><strong><%= @summary.rejected_count %></strong></div>
       <div class="metric-card">
         <span>直近で最も変化</span>
@@ -48,7 +48,7 @@
     </div>
     <div class="actions compact-actions">
       <%= link_to "全件を見る", admin_aicoo_calibration_path, class: "button secondary" %>
-      <%= link_to "承認待ちだけ見る", admin_aicoo_calibration_path(filter: "pending"), class: "button secondary" %>
+      <%= link_to "反映待ちだけ見る", admin_aicoo_calibration_path(filter: "pending"), class: "button secondary" %>
     </div>
   </section>
 
@@ -76,8 +76,8 @@
             <th>approval_status</th>
             <th>pending利益補正</th>
             <th>pending確率補正</th>
-            <th>承認依頼</th>
-            <th>承認</th>
+            <th>反映依頼</th>
+            <th>反映</th>
             <th>却下</th>
             <th>approval_note</th>
             <th>前回利益補正</th>
@@ -116,7 +116,7 @@
               <td>
                 <% if calibration.pending? %>
                   <div class="actions compact-actions">
-                    <%= button_to "承認", admin_aicoo_calibration_approve_path(calibration, filter: @filter), method: :patch, class: "button" %>
+                    <%= button_to "補正を反映", admin_aicoo_calibration_approve_path(calibration, filter: @filter), method: :patch, class: "button" %>
                     <%= button_to "却下", admin_aicoo_calibration_reject_path(calibration, filter: @filter), method: :patch, class: "button danger" %>
                   </div>
                 <% else %>

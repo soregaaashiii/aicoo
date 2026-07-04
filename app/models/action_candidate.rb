@@ -95,7 +95,10 @@ class ActionCandidate < ApplicationRecord
       @business_promotion_result = Aicoo::ActionCandidateBusinessPromoter.new(self).call
       update!(status: "approved", approved_at: Time.current, approved_by:)
       ensure_action_execution!
-      AutoRevisionTask.from_action_candidate(self, generated_by: "action_candidate_approval")
+      AicooExecutor::TaskBuilder.from_action_candidate(self)
+      task = AutoRevisionTask.from_action_candidate(self, generated_by: "action_candidate_approval")
+      task.approve! if task.status.in?(%w[draft waiting_approval])
+      task
     end
   end
 

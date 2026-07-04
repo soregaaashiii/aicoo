@@ -95,7 +95,7 @@
       <div class="section-heading">
         <div>
           <h2>自動改修ループE2E</h2>
-          <p>Daily Runから改善候補、AutoRevisionTask、Codex Prompt、承認、実行結果、Learningまでの到達点を確認します。</p>
+          <p>Daily Runから改善候補、AutoRevisionTask、Codex Prompt、実行結果、Learningまでの到達点を確認します。</p>
         </div>
         <% if (stop_point = @result.auto_revision_stop_point) %>
           <span class="pill"><%= stop_point.label %>で確認が必要</span>
@@ -109,7 +109,7 @@
         <ul class="compact-list">
           <li>ONにする対象: AutoRevision Queue。Daily Run後にAutoRevisionTaskを作るだけです。</li>
           <li>手動のままにする対象: 自動merge、自動deploy、高リスク改修の自動実行。</li>
-          <li>Businessのauto_revision_modeがmanualの場合、タスクはdraft提案になります。Owner承認待ちに出すにはapprovalへ変更します。</li>
+          <li>Businessのauto_revision_modeがmanualの場合、タスクはdraft提案になります。Codex準備前に出すにはapprovalへ変更します。</li>
         </ul>
       </div>
 

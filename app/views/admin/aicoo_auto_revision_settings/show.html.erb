@@ -8,7 +8,7 @@
 <div class="aicoo-page">
   <%= render "shared/aicoo_header",
              title: "Auto Revision自動キュー設定",
-             description: "Daily Run成功後に、実行価値の高い候補を承認待ちAuto Revision Taskへ積むかを管理します。",
+             description: "Daily Run成功後に、実行価値の高い候補をCodex準備前Auto Revision Taskへ積むかを管理します。",
              active_main: :dashboard,
              actions: header_actions %>
   <%= render "shared/aicoo_execution_tabs", active: :dashboard %>
@@ -33,7 +33,7 @@
         <label>
           <span>自動キュー生成</span>
           <%= form.check_box :enabled %>
-          <small>ONにすると、Daily Run成功後に承認待ちAuto Revision Taskを自動作成します。</small>
+          <small>ONにすると、Daily Run成功後にCodex準備前Auto Revision Taskを自動作成します。</small>
         </label>
 
         <label>

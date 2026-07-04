@@ -13,15 +13,19 @@ module Aicoo
       )
 
       assert_difference("AutoRevisionTask.count", 1) do
-        assert_difference("ApprovalLog.count", 1) do
-          result = ApprovalService.approve(candidate, operator: "owner", source: "test")
+        assert_difference("AicooExecutorTask.count", 1) do
+          assert_difference("ApprovalLog.count", 1) do
+            result = ApprovalService.approve(candidate, operator: "owner", source: "test")
 
-          assert_match(/ActionCandidate/, result.message)
-          assert_equal AutoRevisionTask.last, result.redirect_record
+            assert_match(/ActionCandidate/, result.message)
+            assert_equal AutoRevisionTask.last, result.redirect_record
+          end
         end
       end
 
       assert_equal "approved", candidate.reload.status
+      assert_equal "ready_for_codex", AutoRevisionTask.last.status
+      assert_equal "approved", AicooExecutorTask.last.status
       assert_equal candidate, ApprovalLog.last.approvable
       assert_equal "approved", ApprovalLog.last.common_new_status
       assert_equal AutoRevisionTask.last.id, ApprovalLog.last.metadata["auto_revision_task_id"]
@@ -133,6 +137,30 @@ module Aicoo
       assert_equal "active", query.status
       assert_equal "active", keyword.reload.status
       assert_equal query.id, keyword.metadata_json["serp_query_id"]
+    end
+
+    test "approves serp landing page candidate into draft landing page" do
+      candidate = SerpLandingPageCandidate.create!(
+        keyword: "梅田 喫煙 カフェ",
+        service_name: "梅田 喫煙 カフェ ガイド",
+        target_audience: "梅田で喫煙できるカフェを探す人",
+        problem: "喫煙可否が分かりにくい。",
+        lp_title: "梅田で喫煙できるカフェを探す",
+        lp_description: "梅田の喫煙可能なカフェ選びを短時間で整理します。",
+        cta_text: "店舗リストを見る",
+        expected_value_score: 72
+      )
+
+      assert_difference("AicooLabLandingPage.count", 1) do
+        assert_difference("ApprovalLog.count", 1) do
+          result = ApprovalService.approve(candidate, operator: "owner", source: "test")
+
+          assert_equal AicooLabLandingPage.last, result.redirect_record
+        end
+      end
+
+      assert_equal "converted", candidate.reload.status
+      assert_equal "draft", candidate.aicoo_lab_landing_page.public_status
     end
 
     test "reject logs common rejected status" do

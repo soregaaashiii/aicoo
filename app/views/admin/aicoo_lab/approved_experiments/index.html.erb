@@ -1,9 +1,9 @@
-<% content_for :title, "承認済み未開始" %>
+<% content_for :title, "検証開始待ち" %>
 
 <div class="page-title">
   <div>
-    <h1>承認済み未開始</h1>
-    <p>承認済みの検証を開始し、開始日と採点予定日を自動設定します。</p>
+    <h1>検証開始待ち</h1>
+    <p>準備完了した検証を開始し、開始日と採点予定日を自動設定します。</p>
   </div>
   <div class="actions compact-actions">
     <%= link_to "新規事業", admin_aicoo_lab_experiments_path, class: "button secondary" %>
@@ -14,7 +14,7 @@
 <section class="dashboard-section">
   <div class="aicoo-lab-help">
     <strong>この画面でやること</strong>
-    <p>ここでは承認済みの検証を「検証中」にして、採点タイマーを開始します。検証中にしても自動で集客されるわけではありません。</p>
+    <p>ここでは準備完了した検証を「検証中」にして、採点タイマーを開始します。検証中にしても自動で集客されるわけではありません。</p>
   </div>
 </section>
 
@@ -34,7 +34,7 @@
         <th>種類</th>
         <th>市場</th>
         <th>状態</th>
-        <th>承認</th>
+        <th>検証判断</th>
         <th>次にやる操作</th>
         <th>90日期待利益</th>
         <th>成功確率</th>

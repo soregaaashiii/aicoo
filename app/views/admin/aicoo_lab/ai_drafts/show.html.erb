@@ -8,13 +8,13 @@
 <div class="aicoo-page">
   <%= render "shared/aicoo_header",
              title: @ai_draft.title,
-             description: "AI提案をレビューし、承認後に事業アイデアとして取り込みます。",
+             description: "AI提案をレビューし、事業アイデアとして取り込みます。",
              active_main: :lab,
              actions: header_actions %>
 
 <section class="dashboard-section">
   <div class="actions compact-actions">
-    <%= button_to "承認", approve_admin_aicoo_lab_ai_draft_path(@ai_draft), method: :patch, class: "button secondary" if @ai_draft.status == "draft" %>
+    <%= button_to "準備完了にする", approve_admin_aicoo_lab_ai_draft_path(@ai_draft), method: :patch, class: "button secondary" if @ai_draft.status == "draft" %>
     <%= button_to "却下", reject_admin_aicoo_lab_ai_draft_path(@ai_draft), method: :patch, class: "danger" if %w[draft approved].include?(@ai_draft.status) %>
     <%= button_to "事業アイデアとして取り込む", import_candidates_admin_aicoo_lab_ai_draft_path(@ai_draft), method: :post, class: "button" if @ai_draft.importable? %>
   </div>
@@ -27,7 +27,7 @@
   <dd><%= @ai_draft.candidate_count %></dd>
   <dt>アイデア生成履歴</dt>
   <dd><%= link_to "アイデア生成履歴 ##{@ai_draft.generation_run_id}", admin_aicoo_lab_generation_run_path(@ai_draft.generation_run) %></dd>
-  <dt>承認日時</dt>
+  <dt>準備完了日時</dt>
   <dd><%= @ai_draft.approved_at ? l(@ai_draft.approved_at, format: :long) : "-" %></dd>
   <dt>取込日時</dt>
   <dd><%= @ai_draft.imported_at ? l(@ai_draft.imported_at, format: :long) : "-" %></dd>

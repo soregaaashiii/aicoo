@@ -4,7 +4,7 @@ module Admin
       STATUS_LABELS = {
         "draft" => "下書き",
         "preview_ready" => "LP作成済み",
-        "approval_pending" => "承認待ち",
+        "approval_pending" => "検証判断待ち",
         "running" => "検証中",
         "paused" => "停止中",
         "success" => "成功",
@@ -14,8 +14,8 @@ module Admin
 
       APPROVAL_STATUS_LABELS = {
         "not_required" => "未申請",
-        "pending" => "承認待ち",
-        "approved" => "承認済み",
+        "pending" => "検証判断待ち",
+        "approved" => "検証開始待ち",
         "rejected" => "却下"
       }.freeze
 
@@ -32,7 +32,7 @@ module Admin
         return "採点待ち" if aicoo_lab_scoring_due?(experiment)
         return "検証中" if experiment.status == "running"
         return "検証開始待ち" if experiment.approval_status == "approved"
-        return "承認待ち" if experiment.status == "approval_pending" || experiment.approval_status == "pending"
+        return "検証判断待ち" if experiment.status == "approval_pending" || experiment.approval_status == "pending"
         return "レビュー待ち" if experiment.status == "preview_ready"
 
         experiment.aicoo_lab_landing_page ? "プレビュー準備待ち" : "LP作成待ち"
@@ -41,10 +41,10 @@ module Admin
       def aicoo_lab_next_operation_label(experiment)
         return "完了済み" if %w[success failed].include?(experiment.status)
         return "LP URLに流入させる / 採点待ちを確認" if experiment.status == "running"
-        return "承認済み未開始へ進む" if experiment.status == "approval_pending" && experiment.approval_status == "approved"
+        return "検証開始待ちへ進む" if experiment.status == "approval_pending" && experiment.approval_status == "approved"
         return "検証開始" if experiment.approval_status == "approved"
         return "LPを確認してレビューする" if experiment.status == "preview_ready"
-        return "承認する / 却下する" if experiment.status == "approval_pending" || experiment.approval_status == "pending"
+        return "検証へ進める / 却下する" if experiment.status == "approval_pending" || experiment.approval_status == "pending"
 
         experiment.aicoo_lab_landing_page ? "LP確認待ちに進める" : "LPを作成する"
       end

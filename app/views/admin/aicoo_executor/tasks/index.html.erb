@@ -3,20 +3,20 @@
 <div class="aicoo-page">
   <%= render "shared/aicoo_header",
              title: "実行指示",
-             description: "今日やることや新規事業の候補を、Codexへ貼り付ける実行タスクとして整理します。まだ自動実行はしません。",
+             description: "準備完了した改善をCodexへ貼り付ける実行タスクとして管理します。",
              active_main: :executor %>
 
 <section class="dashboard-section">
   <div class="aicoo-lab-help">
     <strong>この画面でやること</strong>
-    <p>今日やることや新規事業の候補を、Codexへ貼れる実行指示に変換し、承認してから実行に進めます。</p>
+    <p>準備完了した目的に対して、Codex Prompt確認、コピー、送信済み記録、完了記録を行います。</p>
   </div>
 </section>
 
 <section class="dashboard-section">
   <div class="metric-grid">
     <div class="metric-card"><span>実行待ち</span><strong><%= @summary.waiting_count %></strong></div>
-    <div class="metric-card"><span>承認待ち</span><strong><%= @summary.approval_pending_count %></strong></div>
+    <div class="metric-card"><span>実行準備前</span><strong><%= @summary.approval_pending_count %></strong></div>
     <div class="metric-card"><span>Codex送信待ち</span><strong><%= @summary.codex_waiting_count %></strong></div>
     <div class="metric-card"><span>データ整備タスク</span><strong><%= @summary.data_preparation_count %></strong></div>
     <div class="metric-card"><span>完了</span><strong><%= @summary.done_count %></strong></div>
@@ -26,7 +26,7 @@
 <section class="dashboard-section">
   <div class="section-heading">
     <h2>実行タスク</h2>
-    <p>Codex実行指示を確認し、人間が承認してから実行に進めます。</p>
+    <p>Codex実行指示を確認し、送信・PR・完了状態を管理します。</p>
   </div>
 
   <div class="actions compact-actions">

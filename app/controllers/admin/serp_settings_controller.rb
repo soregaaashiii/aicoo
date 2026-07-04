@@ -172,7 +172,7 @@ module Admin
       updated = results.count { |result| result.metadata["promoter_status"] == "updated" }
       skipped = results.count { |result| result.metadata["promoter_status"] == "skipped" }
       redirect_to admin_serp_settings_path(business_id: business.id, anchor: "serp-queries-executable"),
-                  notice: "AI候補を#{promoted}件承認し、実行対象の検索クエリに追加しました。作成 #{created}件 / 既存更新 #{updated}件 / skip #{skipped}件。承認だけではSERP取得は実行されません。次に「選択中BusinessのSERPを実行」を押せます。"
+                  notice: "AI候補#{promoted}件を実行対象の検索クエリに追加しました。作成 #{created}件 / 既存更新 #{updated}件 / skip #{skipped}件。追加だけではSERP取得は実行されません。次に「選択中BusinessのSERPを実行」を押せます。"
     end
 
     def approve_keyword

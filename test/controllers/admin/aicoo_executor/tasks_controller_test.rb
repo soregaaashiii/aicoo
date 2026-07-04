@@ -38,9 +38,9 @@ module Admin
         assert_response :success
         assert_includes response.body, "実行指示"
         assert_includes response.body, "この画面でやること"
-        assert_includes response.body, "Codexへ貼れる実行指示"
+        assert_includes response.body, "準備完了した目的"
         assert_includes response.body, "実行待ち"
-        assert_includes response.body, "承認待ち"
+        assert_includes response.body, "実行準備前"
         assert_includes response.body, "完了"
         assert_includes response.body, "Approved executor task"
         assert_includes response.body, "Pending executor task"
@@ -128,10 +128,10 @@ module Admin
         assert_includes response.body, "コピー"
         assert_includes response.body, "executor_prompt"
         assert_includes response.body, "この内容をCodexに貼って実行してください"
-        assert_includes response.body, "先に承認してください"
+        assert_includes response.body, "元のActionCandidateまたはOwner運用ページ"
         assert_includes response.body, "実行プロンプト本文"
-        assert_includes response.body, "承認"
-        assert_includes response.body, "却下"
+        assert_not_includes response.body, ">承認<"
+        assert_not_includes response.body, ">却下<"
       end
 
       test "approves and completes executor task" do

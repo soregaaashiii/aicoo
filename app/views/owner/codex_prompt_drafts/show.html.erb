@@ -28,8 +28,8 @@
       <dd><%= @codex_prompt_draft.verification_commands.join(" / ") %></dd>
     </dl>
     <div class="actions compact-actions">
-      <%= button_to "Approve", approve_owner_codex_prompt_draft_path(@codex_prompt_draft), method: :patch, class: "button secondary" %>
-      <%= button_to "Reject", reject_owner_codex_prompt_draft_path(@codex_prompt_draft), method: :patch, class: "button danger", data: { turbo_confirm: "このDraftを却下しますか？" } %>
+      <%= button_to "準備完了にする", approve_owner_codex_prompt_draft_path(@codex_prompt_draft), method: :patch, class: "button secondary" %>
+      <%= button_to "却下", reject_owner_codex_prompt_draft_path(@codex_prompt_draft), method: :patch, class: "button danger", data: { turbo_confirm: "このDraftを却下しますか？" } %>
       <%= button_to "Mark copied", mark_copied_owner_codex_prompt_draft_path(@codex_prompt_draft), method: :patch, class: "button secondary" %>
       <%= button_to "Mark executed", mark_executed_owner_codex_prompt_draft_path(@codex_prompt_draft), method: :patch, class: "button secondary" %>
     </div>

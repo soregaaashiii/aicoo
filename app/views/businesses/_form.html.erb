@@ -84,14 +84,14 @@
 
   <fieldset class="aicoo-card aicoo-card-compact">
     <legend>Auto Build Policy</legend>
-    <p class="aicoo-lab-help">LP反応とLearning Valueを見てMVP生成候補を作るかを決めます。初期は承認必須で、merge/deployはExecution Profile設定に従います。</p>
+    <p class="aicoo-lab-help">LP反応とLearning Valueを見てMVP生成候補を作るかを決めます。初期はOwner確認ありで、merge/deployはExecution Profile設定に従います。</p>
     <label>
       <%= form.check_box :auto_build_enabled %>
       Auto Build対象にする
     </label>
     <label>
       <%= form.check_box :auto_build_requires_approval %>
-      Owner承認を必須にする
+      Owner確認を必須にする
     </label>
     <label>
       <%= form.check_box :new_lp_auto_deploy_enabled %>
@@ -127,7 +127,7 @@
 
   <fieldset class="aicoo-card aicoo-card-compact">
     <legend>自動デプロイ</legend>
-    <p class="aicoo-lab-help">Codex改訂後のDeploy判断です。AutomaticでもPrecheckに失敗した場合は承認待ちへ落とします。</p>
+    <p class="aicoo-lab-help">Codex改訂後のDeploy判断です。AutomaticでもPrecheckに失敗した場合はOwner確認へ落とします。</p>
     <div class="aicoo-grid aicoo-grid-3">
       <% Business::AUTO_DEPLOY_MODES.each do |mode| %>
         <label class="aicoo-card aicoo-card-compact">

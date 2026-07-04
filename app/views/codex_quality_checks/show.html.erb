@@ -5,7 +5,7 @@
   <%= link_to "一覧", codex_quality_checks_path, class: "button secondary" %>
   <%= link_to "AutoRevisionTask", task, class: "button secondary" %>
   <% if @codex_quality_check.approval_status == "pending" %>
-    <%= button_to "承認", approve_codex_quality_check_path(@codex_quality_check), method: :patch, class: "button", data: { turbo_confirm: "この品質チェックを承認しますか？" } %>
+    <%= button_to "Quality Gate通過", approve_codex_quality_check_path(@codex_quality_check), method: :patch, class: "button", data: { turbo_confirm: "この品質チェックを通過にしますか？" } %>
     <%= button_to "却下", reject_codex_quality_check_path(@codex_quality_check), method: :patch, class: "button danger", data: { turbo_confirm: "この品質チェックを却下しますか？" } %>
   <% end %>
 <% end %>
@@ -23,7 +23,7 @@
       <div class="metric-card"><span>リスクスコア</span><strong><%= @codex_quality_check.risk_score %></strong></div>
       <div class="metric-card"><span>test_status</span><strong><%= @codex_quality_check.test_status %></strong></div>
       <div class="metric-card"><span>result</span><strong><%= @codex_quality_check.result %></strong></div>
-      <div class="metric-card"><span>approval</span><strong><%= @codex_quality_check.approval_status %></strong></div>
+      <div class="metric-card"><span>Quality Gate</span><strong><%= @codex_quality_check.approval_status %></strong></div>
       <div class="metric-card"><span>migration</span><strong><%= @codex_quality_check.migration_detected? ? "あり" : "なし" %></strong></div>
       <div class="metric-card"><span>high risk</span><strong><%= @codex_quality_check.high_risk_change_detected? ? "あり" : "なし" %></strong></div>
       <div class="metric-card"><span>changed files</span><strong><%= @codex_quality_check.changed_files_count %></strong></div>
@@ -42,11 +42,11 @@
       <dd><%= simple_format(task.test_result.presence || "-") %></dd>
       <dt>codex_output</dt>
       <dd><%= simple_format(task.codex_output.presence || "-") %></dd>
-      <dt>approval_note</dt>
+      <dt>gate_note</dt>
       <dd><%= simple_format(@codex_quality_check.approval_note.presence || "-") %></dd>
-      <dt>approved_at</dt>
+      <dt>passed_at</dt>
       <dd><%= @codex_quality_check.approved_at ? l(@codex_quality_check.approved_at, format: :long) : "-" %></dd>
-      <dt>approved_by</dt>
+      <dt>passed_by</dt>
       <dd><%= @codex_quality_check.approved_by.presence || "-" %></dd>
     </dl>
   </section>

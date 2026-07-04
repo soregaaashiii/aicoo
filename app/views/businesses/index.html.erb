@@ -23,7 +23,7 @@
     <div class="section-heading">
       <div>
         <h2>SERP新規事業候補</h2>
-        <p>SERPがGoogle上を走って見つけた候補です。承認するとBusinessを作成して事業一覧に追加します。却下するとこの一覧から消えます。</p>
+        <p>SERPがGoogle上を走って見つけた候補です。Business作成を押すと事業一覧に追加します。却下するとこの一覧から消えます。</p>
       </div>
       <%= link_to "事業一覧へ", businesses_path(tab: "businesses"), class: "button secondary" %>
     </div>
@@ -62,12 +62,12 @@
                 <td><span class="pill"><%= row.status %></span></td>
                 <td>
                   <div class="actions compact-actions">
-                    <%= button_to "承認して事業化",
+                    <%= button_to "Business作成",
                                   approve_action_candidate_path(candidate),
                                   method: :patch,
                                   params: { return_to: businesses_path(tab: "businesses") },
                                   class: "button",
-                                  data: { turbo_confirm: "この候補を承認してBusinessを作成します。" } %>
+                                  data: { turbo_confirm: "この候補からBusinessを作成します。" } %>
                     <%= button_to "却下",
                                   reject_action_candidate_path(candidate),
                                   method: :patch,
@@ -198,7 +198,7 @@
           </td>
           <td>
             <span class="pill <%= business.auto_build_enabled? ? "status-warning" : "" %>">Build: <%= business.auto_build_enabled? ? "ON" : "OFF" %></span><br>
-            <small><%= business.auto_build_requires_approval? ? "承認必須" : "承認不要" %> / risk <%= business.auto_build_risk_level %></small><br>
+            <small><%= business.auto_build_requires_approval? ? "Owner確認あり" : "Owner確認なし" %> / risk <%= business.auto_build_risk_level %></small><br>
             <small>新規LP Deploy: <%= business.new_lp_auto_deploy_enabled? ? "ON" : "OFF" %><%= " / 停止中" if business.auto_deploy_suspended? %></small>
             <hr>
             <span class="pill <%= business.automatic_auto_revision? ? "status-warning" : "" %>"><%= auto_revision_mode_label(business.auto_revision_mode) %></span><br>

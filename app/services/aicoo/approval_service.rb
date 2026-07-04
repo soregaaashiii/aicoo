@@ -91,22 +91,24 @@ module Aicoo
         approve_auto_revision_task!
       when BusinessSerpKeyword
         approve_business_serp_keyword!
+      when SerpLandingPageCandidate
+        approve_serp_landing_page_candidate!
       when AicooLabExperimentCandidate
         approve_lab_candidate!
       when AicooLabExperiment
-        update_approval_status!("approved", "#{record.title} を承認しました。")
+        update_approval_status!("approved", "#{record.title} を準備完了にしました。")
       when CodexPromptDraft
         record.approve!
-        operation("Codex Prompt Draftを承認しました。")
+        operation("Codex Prompt Draftを準備完了にしました。")
       when ActionPredictionCalibration
         record.approve!(note: metadata["approval_note"].presence || "ApprovalService")
-        operation("#{record.action_type} の補正を承認しました。")
+        operation("#{record.action_type} の補正を反映しました。")
       when CodexQualityCheck
         record.approve!(approved_by: operator, approval_note: metadata["approval_note"])
-        operation("Quality Gateを承認しました。")
+        operation("Quality Gateを通過にしました。")
       when AicooExecutorTask
         record.approve!
-        operation("Executor taskを承認しました。")
+        operation("Executor taskを準備完了にしました。")
       when OpportunityDiscoveryItem
         approve_opportunity!
       else
@@ -217,8 +219,9 @@ module Aicoo
           promotion_result = Aicoo::ActionCandidateBusinessPromoter.new(record).call
           auto_revision_task = AutoRevisionTask.active.find_by(action_candidate: record) ||
                                AutoRevisionTask.from_action_candidate(record, generated_by: "approval_service_recovery")
+          auto_revision_task.approve! if auto_revision_task.status.in?(%w[draft waiting_approval])
           promotion_message = [
-            "すでに承認済みです。既存のAutoRevisionTaskへ紐付けました。",
+            "すでに準備完了です。既存のAutoRevisionTaskへ紐付けました。",
             promotion_result&.message
           ].compact.join(" ")
         else
@@ -230,7 +233,7 @@ module Aicoo
       operation(
         [
           promotion_message,
-          "ActionCandidate『#{record.title}』を承認し、AutoRevisionTask ##{auto_revision_task.id} を作成または確認しました。"
+          "ActionCandidate『#{record.title}』の改修を開始し、AutoRevisionTask ##{auto_revision_task.id} を作成または確認しました。"
         ].compact.join(" "),
         metadata: {
           auto_revision_task_id: auto_revision_task.id,
@@ -243,11 +246,11 @@ module Aicoo
 
     def approve_auto_revision_task!
       if record.status.in?(%w[ready_for_codex approved queued sent_to_codex running completed succeeded partial_succeeded])
-        return operation("AutoRevisionTaskはすでに承認済みです。", metadata: { idempotent: true })
+        return operation("AutoRevisionTaskはすでにCodex準備済みです。", metadata: { idempotent: true })
       end
 
       record.approve!
-      operation("AutoRevisionTaskを承認しました。", metadata: { auto_revision_task_status: record.status })
+      operation("AutoRevisionTaskをCodex準備済みにしました。", metadata: { auto_revision_task_status: record.status })
     end
 
     def approve_business_serp_keyword!
@@ -261,12 +264,24 @@ module Aicoo
         end
 
       operation(
-        "AI候補『#{record.keyword}』を承認し、実行対象の検索クエリに#{status_word}しました。承認だけではSERP取得は実行されません。",
+        "AI候補『#{record.keyword}』を実行対象の検索クエリに#{status_word}しました。追加だけではSERP取得は実行されません。",
         metadata: {
           serp_query_id: result.serp_query&.id,
           promoter_status: result.status
         },
         redirect_record: result.serp_query || record
+      )
+    end
+
+    def approve_serp_landing_page_candidate!
+      landing_page = record.create_draft_landing_page!
+      operation(
+        "LP候補『#{record.lp_title}』からLPを作成しました。次はLP公開です。",
+        metadata: {
+          landing_page_id: landing_page.id,
+          business_id: landing_page.business_id
+        },
+        redirect_record: landing_page
       )
     end
 
@@ -288,7 +303,7 @@ module Aicoo
       end
 
       operation(
-        created_business ? "Businessを作成しました: #{created_business.name}" : "Opportunity『#{record.title}』を承認しました。",
+        created_business ? "Businessを作成しました: #{created_business.name}" : "Opportunity『#{record.title}』を準備完了にしました。",
         metadata: { business_id: created_business&.id || record.business_id },
         redirect_record: created_business || record
       )
@@ -307,7 +322,7 @@ module Aicoo
       else
         raise ArgumentError, "#{record.class.name} does not support approval"
       end
-      operation("#{record_label}を承認しました。")
+      operation("#{record_label}を準備完了にしました。")
     end
 
     def generic_reject!

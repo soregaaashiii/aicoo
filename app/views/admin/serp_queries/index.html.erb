@@ -111,7 +111,7 @@
               <td><%= query.next_run_label %></td>
               <td><%= query.success_count %></td>
               <td><%= query.failure_count %></td>
-              <td><%= query.total_candidates_generated %> / 承認 <%= query.total_candidates_approved %></td>
+              <td><%= query.total_candidates_generated %> / 採用 <%= query.total_candidates_approved %></td>
               <td>¥<%= number_with_delimiter(query.total_revenue_yen) %></td>
               <td class="actions compact-actions">
                 <%= link_to "編集", edit_admin_serp_query_path(query), class: "button secondary" %>

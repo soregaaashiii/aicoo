@@ -8,7 +8,7 @@
       <%= link_to "改訂キューを見る", codex_queue_auto_revision_tasks_path, class: "button secondary" %>
     </div>
     <div class="metric-grid">
-      <div class="metric-card"><span>承認待ち改訂</span><strong><%= summary.waiting_approval_count %>件</strong></div>
+      <div class="metric-card"><span>Codex準備前</span><strong><%= summary.waiting_approval_count %>件</strong></div>
       <div class="metric-card"><span>実行待ち改訂</span><strong><%= summary.queued_count %>件</strong></div>
       <div class="metric-card"><span>実行中改訂</span><strong><%= summary.running_count %>件</strong></div>
       <div class="metric-card"><span>失敗改訂</span><strong><%= summary.failed_count %>件</strong></div>

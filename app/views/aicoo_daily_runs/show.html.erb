@@ -138,7 +138,7 @@
       <div class="metric-card"><span>評価関数補正</span><strong><%= @daily_run.calibration_ran? ? "実行済み" : "未実行" %></strong></div>
       <div class="metric-card"><span>補正更新</span><strong><%= @daily_run.updated_calibration_count %></strong></div>
       <div class="metric-card"><span>補正ログ</span><strong><%= @daily_run.calibration_log_count %></strong></div>
-      <div class="metric-card"><span>承認待ち補正</span><strong><%= @daily_run.pending_calibration_count %></strong></div>
+      <div class="metric-card"><span>反映待ち補正</span><strong><%= @daily_run.pending_calibration_count %></strong></div>
       <div class="metric-card"><span>Auto Revision Queue</span><strong><%= @auto_revision_queue_run ? "実行済み" : "未実行" %></strong></div>
       <div class="metric-card"><span>Auto Revision生成</span><strong><%= @auto_revision_queue_run&.generated_tasks_count.to_i %></strong></div>
       <div class="metric-card"><span>Auto Revision高risk</span><strong><%= @auto_revision_queue_run&.high_risk_candidates_count.to_i %></strong></div>
@@ -377,7 +377,7 @@
   <section class="dashboard-section">
     <div class="section-heading">
       <h2>最近作成されたAuto Revision Task</h2>
-      <p>Daily Runとの直接紐づきがない場合も、直近の承認待ちタスクを確認できます。</p>
+      <p>Daily Runとの直接紐づきがない場合も、直近のCodex準備前タスクを確認できます。</p>
     </div>
     <div class="table-wrap">
       <table>

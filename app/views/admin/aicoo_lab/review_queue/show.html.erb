@@ -11,7 +11,7 @@
 <div class="aicoo-page">
   <%= render "shared/aicoo_header",
              title: @experiment.title,
-             description: "1件ずつ確認し、承認・却下・停止をすばやく判断します。",
+             description: "1件ずつ確認し、検証開始・却下・停止をすばやく判断します。",
              active_main: :lab,
              actions: header_actions %>
 
@@ -62,8 +62,8 @@
 
 <section class="dashboard-section">
   <div class="actions compact-actions">
-    <%= button_to "承認待ちにする", admin_aicoo_lab_review_queue_approval_pending_path(@experiment), method: :patch, class: "button secondary" %>
-    <%= button_to "承認", admin_aicoo_lab_review_queue_approve_path(@experiment), method: :patch, class: "button" %>
+    <%= button_to "検証判断待ちにする", admin_aicoo_lab_review_queue_approval_pending_path(@experiment), method: :patch, class: "button secondary" %>
+    <%= button_to "検証へ進める", admin_aicoo_lab_review_queue_approve_path(@experiment), method: :patch, class: "button" %>
     <%= button_to "却下", admin_aicoo_lab_review_queue_reject_path(@experiment), method: :patch, class: "danger" %>
     <%= button_to "一時停止", admin_aicoo_lab_review_queue_paused_path(@experiment), method: :patch, class: "button secondary" %>
   </div>

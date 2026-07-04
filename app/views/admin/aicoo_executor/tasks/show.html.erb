@@ -3,7 +3,7 @@
 <div class="page-title">
   <div>
     <h1><%= @task.title %></h1>
-    <p>Codex実行指示を確認し、承認・却下・完了を記録します。自動実行は行いません。</p>
+    <p>準備完了した実行指示を確認し、Codex送信、PR、完了、結果登録へ進める管理画面です。</p>
   </div>
   <div class="actions compact-actions">
     <%= link_to "実行指示一覧", admin_aicoo_executor_path, class: "button secondary" %>
@@ -28,7 +28,7 @@
 
   <% unless @task.status.in?(%w[approved done]) %>
     <div class="aicoo-lab-help">
-      先に承認してください。承認前のタスクは、まだ人間が実行してよいと判断していない状態です。
+      このタスクはまだ実行準備前です。元のActionCandidateまたはOwner運用ページで改修開始してください。
     </div>
   <% end %>
 
@@ -38,10 +38,6 @@
 
 <section class="dashboard-section">
   <div class="actions compact-actions">
-    <% if @task.status.in?(%w[draft approval_pending]) %>
-      <%= button_to "承認", approve_admin_aicoo_executor_task_path(@task), method: :patch, class: "button" %>
-      <%= button_to "却下", reject_admin_aicoo_executor_task_path(@task), method: :patch, class: "danger" %>
-    <% end %>
     <% if @task.status == "approved" %>
       <%= button_to "完了", done_admin_aicoo_executor_task_path(@task), method: :patch, class: "button" %>
     <% end %>

@@ -9,7 +9,7 @@
 <section class="dashboard-section">
   <div class="section-heading">
     <h2>今日の確認タスク</h2>
-    <p>承認・警告・失敗対応をここに集約します。</p>
+    <p>改修開始・警告・失敗対応をここに集約します。</p>
   </div>
 
   <div class="aicoo-card aicoo-card-compact">
@@ -70,7 +70,7 @@
           <%= link_to "失敗ステップを復旧", aicoo_daily_run_path(digest.daily_run_health.latest_run, anchor: "step-breakdown"), class: "button secondary" %>
         <% end %>
         <%= link_to "Daily Run一覧", aicoo_daily_runs_path, class: "button secondary" %>
-        <%= link_to "Calibration承認待ち", admin_aicoo_calibration_path(filter: "pending"), class: "button secondary" %>
+        <%= link_to "Calibration反映待ち", admin_aicoo_calibration_path(filter: "pending"), class: "button secondary" %>
       </div>
     </div>
 
@@ -173,7 +173,7 @@
         <% if visible_tasks.empty? %>
           <tr>
             <td colspan="7">
-              今すぐ確認が必要なタスクはありません。承認・却下・再実行済みの内容は下の「直近処理済み」で確認できます。
+              今すぐ確認が必要なタスクはありません。開始・却下・再実行済みの内容は下の「直近処理済み」で確認できます。
             </td>
           </tr>
         <% end %>
@@ -184,7 +184,7 @@
   <div class="aicoo-card aicoo-card-compact">
     <div class="section-heading">
       <h3>直近処理済み</h3>
-      <p>承認・却下・再実行でInboxから消えた内容を確認できます。</p>
+      <p>開始・却下・再実行でInboxから消えた内容を確認できます。</p>
     </div>
 
     <% if completion_logs.any? %>

@@ -32,7 +32,7 @@ class CodexQualityChecksControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.body, "Quality Gate ##{quality_check.id}"
     assert_includes response.body, "品質スコア"
-    assert_includes response.body, "承認"
+    assert_includes response.body, "Quality Gate通過"
     assert_includes response.body, "却下"
   end
 

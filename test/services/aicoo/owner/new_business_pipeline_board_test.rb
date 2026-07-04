@@ -22,8 +22,8 @@ module Aicoo
 
         assert_equal "候補", result.selected.current_state
         assert_equal 10, result.selected.progress_percent
-        assert_equal "Owner承認待ち", result.selected.stuck_reason
-        assert_equal "Business化する", result.selected.next_action_label
+        assert_equal "Business作成待ち", result.selected.stuck_reason
+        assert_equal "Business作成", result.selected.next_action_label
         assert_match %r{/owner/new_business_pipeline/action_candidates/#{candidate.id}/approve}, result.selected.next_action_path
       end
     end

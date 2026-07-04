@@ -30,9 +30,10 @@ module Admin
       end
 
       def create_landing_page
-        landing_page = @candidate.create_draft_landing_page!
+        result = Aicoo::ApprovalService.approve(@candidate, operator: "owner", source: "serp_landing_page_candidates")
+        landing_page = result.redirect_record
         redirect_to admin_aicoo_lab_edit_public_landing_page_path(landing_page),
-                    notice: "SERP候補からdraft LPを作成しました。内容を確認して公開できます。"
+                    notice: result.message
       rescue ActiveRecord::RecordInvalid => error
         redirect_to admin_aicoo_lab_serp_landing_page_candidates_path,
                     alert: "LPを作成できませんでした: #{error.record.errors.full_messages.to_sentence}"

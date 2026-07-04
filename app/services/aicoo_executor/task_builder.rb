@@ -36,7 +36,8 @@ module AicooExecutor
         execution_type:,
         execution_prompt: source_record.execution_prompt.presence || execution_prompt,
         estimated_minutes:,
-        status: "approval_pending"
+        status: "approved",
+        approved_at: Time.current
       )
     end
 

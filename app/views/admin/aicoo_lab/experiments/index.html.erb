@@ -3,9 +3,9 @@
 <% header_actions = capture do %>
     <%= link_to "事業アイデア", admin_aicoo_lab_candidates_path, class: "button secondary" %>
     <%= link_to "レビュー待ち", admin_aicoo_lab_review_queue_path, class: "button secondary" %>
-    <%= link_to "承認済み未開始", admin_aicoo_lab_approved_experiments_path, class: "button secondary" %>
+    <%= link_to "検証開始待ち", admin_aicoo_lab_approved_experiments_path, class: "button secondary" %>
     <%= link_to "採点待ち", admin_aicoo_lab_scoring_queue_path, class: "button secondary" %>
-    <%= link_to "承認待ち", admin_aicoo_lab_approvals_path, class: "button secondary" %>
+    <%= link_to "検証判断待ち", admin_aicoo_lab_approvals_path, class: "button secondary" %>
     <%= link_to "アイデア生成履歴", admin_aicoo_lab_generation_runs_path, class: "button secondary" %>
     <%= link_to "AI提案", admin_aicoo_lab_ai_drafts_path, class: "button secondary" %>
     <%= link_to "SERPからLP候補生成", admin_aicoo_lab_serp_landing_page_candidates_path, class: "button secondary" %>
@@ -23,7 +23,7 @@
 <section class="dashboard-section">
   <div class="aicoo-lab-help">
     <strong>この画面でやること</strong>
-    <p>アイデアをLP化し、市場の反応を検証してください。レビュー、承認、検証開始、採点までの詰まりもここから確認できます。</p>
+    <p>アイデアをLP化し、市場の反応を検証してください。レビュー、検証開始、採点までの詰まりもここから確認できます。</p>
   </div>
 </section>
 
@@ -49,8 +49,8 @@
     <strong>用語メモ</strong>
     <p><b>事業アイデア</b>: まだ検証ではありません。</p>
     <p><b>LP作成済み</b>: 公開前の下書きLPを確認する段階です。</p>
-    <p><b>承認待ち</b>: 検証として進めるか判断する段階です。</p>
-    <p><b>承認済み</b>: まだ検証開始前です。</p>
+    <p><b>検証判断待ち</b>: 検証として進めるか判断する段階です。</p>
+    <p><b>検証開始待ち</b>: まだ検証開始前です。</p>
     <p><b>検証中</b>: LP URLに人を流すとPV/CTA/Signupが記録されます。</p>
     <p><b>採点待ち</b>: 結果を記録して予測精度を改善する段階です。</p>
   </div>
@@ -85,7 +85,7 @@
     <%= form.select :status, options_for_select(AicooLabExperiment::STATUSES.map { |status| [aicoo_lab_status_label(status), status] }, params[:status]), include_blank: "すべて" %>
   </div>
   <div class="field compact-field">
-    <%= form.label :approval_status, "承認" %>
+    <%= form.label :approval_status, "検証判断" %>
     <%= form.select :approval_status, options_for_select(AicooLabExperiment::APPROVAL_STATUSES.map { |status| [aicoo_lab_approval_status_label(status), status] }, params[:approval_status]), include_blank: "すべて" %>
   </div>
   <div class="field compact-field">
@@ -112,7 +112,7 @@
         <th>種類</th>
         <th>市場</th>
         <th>状態</th>
-        <th>承認</th>
+        <th>検証判断</th>
         <th>LP公開</th>
         <th>次にやる操作</th>
         <th>90日期待利益</th>

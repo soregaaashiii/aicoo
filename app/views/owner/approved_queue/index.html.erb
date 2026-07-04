@@ -3,14 +3,14 @@
 <div class="aicoo-page">
   <%= render "shared/aicoo_header",
              title: "改訂待ちへ統合済み",
-             description: "承認済みキューはAutoRevisionTaskへ統合しました。",
+             description: "旧キューはAutoRevisionTaskへ統合しました。",
              active_main: :today %>
 
   <section class="dashboard-section">
     <div class="aicoo-card">
-      <h2>承認後の管理場所が変わりました</h2>
-      <p>ActionCandidateを承認すると、承認済みキューを経由せずAutoRevisionTaskが直接作成されます。</p>
-      <p>Codex Prompt確認、承認待ち、queued、running、completed、failedはAutoRevisionTaskで管理します。</p>
+      <h2>改修開始後の管理場所が変わりました</h2>
+      <p>ActionCandidateで改修開始すると、旧キューを経由せずAutoRevisionTaskが直接作成されます。</p>
+      <p>Codex Prompt確認、Codex準備前、queued、running、completed、failedはAutoRevisionTaskで管理します。</p>
       <div class="actions compact-actions">
         <%= link_to "改訂待ちを見る", auto_revision_tasks_path(status: "waiting_approval"), class: "button" %>
         <%= link_to "Owner Homeへ戻る", owner_dashboard_path, class: "button secondary" %>

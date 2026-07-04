@@ -10,7 +10,7 @@
     <div class="aicoo-card">
       <div class="section-heading">
         <h2>CEO MODEでは意思決定だけに集中します</h2>
-        <p>今日やること、承認、事業判断だけを表示します。詳細分析・設定・運用はSYSTEM MODEから確認できます。</p>
+        <p>今日やること、改修開始、事業判断だけを表示します。詳細分析・設定・運用はSYSTEM MODEから確認できます。</p>
       </div>
       <button type="button" class="button secondary" onclick="localStorage.setItem('aicoo_ceo_intro_closed', '1'); this.closest('[data-ceo-intro]').hidden = true;">次回から表示しない</button>
     </div>
@@ -95,7 +95,7 @@
             <th>収益</th>
             <th>学習</th>
             <th>信頼度</th>
-            <th>承認</th>
+            <th>操作</th>
           </tr>
         </thead>
         <tbody>
@@ -126,9 +126,9 @@
               <td><%= action_candidate.final_confidence_score.to_i %></td>
               <td>
                 <% if action_candidate.status == "approved" %>
-                  承認済み
+                  準備完了
                 <% else %>
-                  <%= button_to "承認", approve_action_candidate_path(action_candidate), method: :patch, class: "button" %>
+                  <%= button_to "改修開始", approve_action_candidate_path(action_candidate), method: :patch, class: "button" %>
                 <% end %>
               </td>
             </tr>
@@ -255,17 +255,17 @@
   <section class="dashboard-section">
     <div class="section-heading">
       <h2>改訂待ち</h2>
-      <p>承認後のCodex Prompt確認・実行待ちはAutoRevisionTaskで管理します。</p>
+      <p>Codex Prompt確認・実行待ちはAutoRevisionTaskで管理します。</p>
     </div>
     <% approval = @dashboard_summary.approval_queue %>
     <div class="metric-grid aicoo-owner-secondary">
       <div class="metric-card"><span>行動候補</span><strong><%= approval.action_candidate_count %>件</strong></div>
       <%= link_to auto_revision_tasks_path(status: "waiting_approval"), class: "metric-card" do %>
-        <span>改訂承認待ち</span><strong><%= approval.approved_remaining_count %>件</strong>
+        <span>Codex準備前</span><strong><%= approval.approved_remaining_count %>件</strong>
       <% end %>
-      <div class="metric-card"><span>今日承認</span><strong><%= approval.today_approved_count %>件</strong></div>
+      <div class="metric-card"><span>今日開始</span><strong><%= approval.today_approved_count %>件</strong></div>
       <div class="metric-card"><span>今日Codex送信待ちへ</span><strong><%= approval.today_executor_queued_count %>件</strong></div>
-      <div class="metric-card"><span>AutoRevision承認待ち</span><strong><%= approval.executor_task_count %>件</strong></div>
+      <div class="metric-card"><span>AutoRevision準備前</span><strong><%= approval.executor_task_count %>件</strong></div>
       <div class="metric-card"><span>学習準備</span><strong><%= approval.data_preparation_count %>件</strong></div>
     </div>
     <div class="actions compact-actions">

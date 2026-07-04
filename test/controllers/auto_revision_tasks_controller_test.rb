@@ -12,7 +12,8 @@ class AutoRevisionTasksControllerTest < ActionDispatch::IntegrationTest
     task = AutoRevisionTask.last
     assert_redirected_to auto_revision_task_url(task)
     assert_equal candidate, task.action_candidate
-    assert_equal "meta descriptionを改善してください。", task.execution_prompt
+    assert_includes task.execution_prompt, "meta descriptionを改善してください。"
+    assert_includes task.execution_prompt, "ActionCandidate実行指示書"
   end
 
   test "does not duplicate active task for same action candidate" do
@@ -36,7 +37,7 @@ class AutoRevisionTasksControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "db:drop / db:reset / drop database は絶対に実行しない"
     assert_includes response.body, "bin/rails test"
     assert_includes response.body, "Codex用プロンプトをコピー"
-    assert_includes response.body, "承認"
+    assert_includes response.body, "Codex Prompt準備"
     assert_includes response.body, "Codex Quality Check"
     assert_includes response.body, "実装結果を登録"
     assert_includes response.body, "Target Repository"

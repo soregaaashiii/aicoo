@@ -237,11 +237,13 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
     @action_candidate.update!(status: "idea")
 
     assert_difference("AutoRevisionTask.count", 1) do
-      assert_difference("OwnerTaskCompletionLog.count", 1) do
-        assert_difference("OwnerDecisionLog.count", 1) do
-          assert_difference("ApprovalLog.count", 1) do
-            assert_difference("ActionExecution.count", 1) do
-              patch approve_action_candidate_url(@action_candidate), headers: { "HTTP_REFERER" => owner_tasks_url }
+      assert_difference("AicooExecutorTask.count", 1) do
+        assert_difference("OwnerTaskCompletionLog.count", 1) do
+          assert_difference("OwnerDecisionLog.count", 1) do
+            assert_difference("ApprovalLog.count", 1) do
+              assert_difference("ActionExecution.count", 1) do
+                patch approve_action_candidate_url(@action_candidate), headers: { "HTTP_REFERER" => owner_tasks_url }
+              end
             end
           end
         end
@@ -255,10 +257,11 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "manual", @action_candidate.action_execution.execution_type
     assert_includes @action_candidate.action_execution.execution_prompt, @action_candidate.title
     assert_equal @action_candidate, auto_revision_task.action_candidate
-    assert_equal "waiting_approval", auto_revision_task.status
+    assert_equal "ready_for_codex", auto_revision_task.status
+    assert_equal "approved", AicooExecutorTask.last.status
     assert_not_nil @action_candidate.approved_at
-    assert_includes flash[:notice], "ActionCandidate『#{@action_candidate.title}』を承認"
-    assert_equal "承認", OwnerTaskCompletionLog.last.action_label
+    assert_includes flash[:notice], "ActionCandidate『#{@action_candidate.title}』の改修を開始"
+    assert_equal "改修開始", OwnerTaskCompletionLog.last.action_label
     assert_equal "approve", OwnerDecisionLog.last.decision_type
     assert_equal "action_candidate_detail", OwnerDecisionLog.last.decision_source
     assert_equal auto_revision_task.id, OwnerTaskCompletionLog.last.metadata["auto_revision_task_id"]
@@ -290,7 +293,7 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
     )
 
     assert_difference("Business.real_businesses.count", 1) do
-      assert_difference("AutoRevisionTask.count", 1) do
+      assert_no_difference("AutoRevisionTask.count") do
         assert_difference("ApprovalLog.count", 1) do
           patch approve_action_candidate_url(candidate)
         end
@@ -298,7 +301,7 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
     end
 
     business = Business.real_businesses.find_by!(name: "フリーランス請求前チェックリスト")
-    assert_redirected_to auto_revision_task_url(AutoRevisionTask.last)
+    assert_redirected_to business_url(business)
     assert_equal business, candidate.reload.business
     assert_equal "approved", candidate.status
     assert_equal "integrated_decision", business.source
@@ -341,7 +344,7 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
       patch approve_action_candidate_url(candidate)
     end
 
-    assert_redirected_to auto_revision_task_url(AutoRevisionTask.last)
+    assert_redirected_to business_url(existing)
     assert_equal existing, candidate.reload.business
     assert_equal "approved", candidate.status
     assert_includes flash[:notice], "既存Businessに紐付けました: #{existing.name}"

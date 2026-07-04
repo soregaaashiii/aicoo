@@ -237,7 +237,7 @@
       <% if @serp_summary.pending_keyword_count.positive? || @serp_summary.failed_business_count.positive? || @serp_summary.stopped_business_count.positive? %>
         <ul class="compact-list">
           <% if @serp_summary.pending_keyword_count.positive? %>
-            <li>承認待ち検索クエリが<%= @serp_summary.pending_keyword_count %>件あります。</li>
+            <li>追加待ち検索クエリが<%= @serp_summary.pending_keyword_count %>件あります。</li>
           <% end %>
           <% if @serp_summary.failed_business_count.positive? %>
             <li>SERP取得に失敗したBusinessが<%= @serp_summary.failed_business_count %>件あります。</li>
@@ -251,7 +251,7 @@
       <div class="metric-grid aicoo-owner-secondary">
         <div class="metric-card"><span>止まっているBusiness</span><strong><%= @serp_summary.stopped_business_count %>件</strong></div>
         <div class="metric-card"><span>Scheduler</span><strong><%= @serp_summary.scheduler_enabled ? "ON" : "OFF" %></strong></div>
-        <div class="metric-card"><span>承認待ち検索クエリ</span><strong><%= @serp_summary.pending_keyword_count %>件</strong></div>
+        <div class="metric-card"><span>追加待ち検索クエリ</span><strong><%= @serp_summary.pending_keyword_count %>件</strong></div>
         <div class="metric-card"><span>今日実行Query</span><strong><%= @serp_summary.today_query_count %>件</strong></div>
         <div class="metric-card"><span>成功Query</span><strong><%= @serp_summary.today_success_query_count %>件</strong></div>
         <div class="metric-card"><span>失敗Query</span><strong><%= @serp_summary.today_failed_query_count %>件</strong></div>
@@ -275,10 +275,10 @@
     </div>
 
     <details class="aicoo-card">
-      <summary><strong>改修・Codex管理</strong> <span class="muted">承認待ち改修、Codex手動送信待ち、PR/deploy前の作業単位</span></summary>
+      <summary><strong>改修・Codex管理</strong> <span class="muted">Codex準備前、Codex手動送信待ち、PR/deploy前の作業単位</span></summary>
       <div class="metric-grid aicoo-owner-secondary">
         <div class="metric-card"><span>Codex送信待ち</span><strong><%= @codex_submission_summary&.ready_count.to_i %>件</strong></div>
-        <div class="metric-card"><span>承認待ち改修</span><strong><%= @auto_revision_execution_summary&.waiting_approval_count.to_i %>件</strong></div>
+        <div class="metric-card"><span>Codex準備前</span><strong><%= @auto_revision_execution_summary&.waiting_approval_count.to_i %>件</strong></div>
         <div class="metric-card"><span>PR待ち</span><strong><%= @auto_revision_execution_summary&.pr_review_waiting_count.to_i %>件</strong></div>
       </div>
       <div class="actions compact-actions">

@@ -100,7 +100,7 @@
                 <% else %>
                   <div class="actions compact-actions">
                     <% if opportunity.status == "pending" %>
-                      <%= button_to "Approve", approve_owner_opportunity_path(opportunity), method: :patch, class: "button secondary" %>
+                      <%= button_to "取り込む", approve_owner_opportunity_path(opportunity), method: :patch, class: "button secondary" %>
                     <% end %>
                     <% if opportunity.new_service_candidate? %>
                       <%= button_to "新規サービス下書き", create_business_owner_opportunity_path(opportunity), method: :post, class: "button" %>

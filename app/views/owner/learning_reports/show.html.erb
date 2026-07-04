@@ -76,7 +76,7 @@
   <section class="dashboard-section">
     <div class="section-heading">
       <h2>Decision Log Summary</h2>
-      <p>Ownerの承認・却下・変換・実行判断を学習データとして集計します。</p>
+      <p>Ownerの開始・却下・変換・実行判断を学習データとして集計します。</p>
     </div>
     <div class="metric-grid">
       <div class="metric-card"><span>Today</span><strong><%= decision_summary.today_count %>件</strong></div>
@@ -175,7 +175,7 @@
 
     <div class="aicoo-grid aicoo-grid-2">
       <div class="aicoo-card aicoo-card-compact">
-        <h3>Top Approved ActionType</h3>
+        <h3>Top Started ActionType</h3>
         <ul class="compact-list">
           <% strategic_report.top_approved_action_types.each do |action_type, count| %>
             <li><strong><%= action_type %></strong> / <%= count %>件</li>

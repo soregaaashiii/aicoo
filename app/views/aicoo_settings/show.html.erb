@@ -197,8 +197,8 @@
     <div class="aicoo-card">
       <h2>データ整備タスク自動キュー投入</h2>
       <p class="aicoo-lab-help">
-        ONにすると、Daily Run後に生成されたデータ整備タスクをExecutorの実行承認待ちへ自動で積みます。
-        自動実行は行わず、人間がExecutorで承認してから進めます。
+        ONにすると、Daily Run後に生成されたデータ整備タスクをExecutorの実行準備前へ自動で積みます。
+        自動実行は行わず、Executorで準備完了にしてから進めます。
       </p>
 
       <div class="metric-grid">
@@ -221,7 +221,7 @@
         <% end %>
 
         <div class="form-row">
-          <%= form.label :auto_queue_data_preparation_tasks, "Daily Run後にデータ整備タスクをExecutor承認待ちへ自動投入する" %>
+          <%= form.label :auto_queue_data_preparation_tasks, "Daily Run後にデータ整備タスクをExecutor実行準備前へ自動投入する" %>
           <%= form.check_box :auto_queue_data_preparation_tasks %>
         </div>
 
@@ -270,7 +270,7 @@
     <div class="aicoo-card">
       <h2>Strategic Philosophy</h2>
       <p class="aicoo-lab-help">
-        Decision Logだけで「よく承認される提案」に寄りすぎないよう、AICOOの経営思想を目的関数として設定します。
+        Decision Logだけで「よく開始される提案」に寄りすぎないよう、AICOOの経営思想を目的関数として設定します。
         Decision Logはこの思想を補正する材料として使います。
       </p>
 

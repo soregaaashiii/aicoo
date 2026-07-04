@@ -26,7 +26,7 @@ module Aicoo
       assert task
       assert_equal "high", task.priority
       assert_equal Rails.application.routes.url_helpers.action_candidate_path(candidate), task.target_path
-      assert_equal [ "承認", "却下", "詳細を見る" ], task.quick_actions.map(&:label)
+      assert_equal [ "改修開始", "却下", "詳細を見る" ], task.quick_actions.map(&:label)
       assert_equal Rails.application.routes.url_helpers.approve_action_candidate_path(candidate), task.quick_actions.first.path
     end
 
@@ -118,7 +118,7 @@ module Aicoo
       assert task
       assert_equal "critical", task.priority
       assert_includes task.reason, "極端"
-      assert_equal [ "承認", "却下", "補正詳細を見る" ], task.quick_actions.map(&:label)
+      assert_equal [ "補正を反映", "却下", "補正詳細を見る" ], task.quick_actions.map(&:label)
     end
 
     test "returns failed and stuck daily runs as critical" do
@@ -254,7 +254,7 @@ module Aicoo
       assert_equal "high", task.priority
       assert_equal Rails.application.routes.url_helpers.focus_owner_opportunities_path, task.target_path
       assert_includes task.reason, "Focus Score"
-      assert_equal [ "Focusで処理", "Approve", "Convert", "Opportunityを見る" ], task.quick_actions.map(&:label)
+      assert_equal [ "Focusで処理", "取り込む", "Convert", "Opportunityを見る" ], task.quick_actions.map(&:label)
     end
 
     test "returns new business setup tasks for approved aicoo businesses" do
@@ -313,7 +313,7 @@ module Aicoo
       assert task
       assert_equal "high", task.priority
       assert_equal Rails.application.routes.url_helpers.focus_owner_opportunities_path, task.target_path
-      assert_equal [ "Focusで処理", "Approve", "新規サービス下書き", "Opportunityを見る" ], task.quick_actions.map(&:label)
+      assert_equal [ "Focusで処理", "取り込む", "新規サービス下書き", "Opportunityを見る" ], task.quick_actions.map(&:label)
     end
 
     test "returns high score explore signals that are not converted yet" do

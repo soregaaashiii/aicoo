@@ -3,8 +3,8 @@ module AicooLabelHelper
     "candidate" => "事業アイデア",
     "proposed" => "提案中",
     "preview_ready" => "LP作成済み",
-    "approval_pending" => "承認待ち",
-    "approved" => "承認済み",
+    "approval_pending" => "検証判断待ち",
+    "approved" => "準備完了",
     "running" => "検証中",
     "rejected" => "却下",
     "converted" => "LP化済み",
@@ -19,8 +19,8 @@ module AicooLabelHelper
 
   EXECUTOR_STATUS_LABELS = {
     "draft" => "下書き",
-    "approval_pending" => "実行承認待ち",
-    "approved" => "実行承認済み",
+    "approval_pending" => "実行準備前",
+    "approved" => "実行準備完了",
     "done" => "完了",
     "rejected" => "却下"
   }.freeze

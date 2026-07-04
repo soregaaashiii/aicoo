@@ -72,7 +72,7 @@
     <div class="metric-card">
       <span>改善候補</span>
       <strong><%= @business.action_candidates.where(status: %w[idea approved]).count %>件</strong>
-      <small>承認・実行待ち</small>
+      <small>改修開始・実行待ち</small>
     </div>
     <div class="metric-card">
       <span>LP状況</span>
@@ -163,15 +163,15 @@
       </ul>
     </div>
     <div class="aicoo-card aicoo-card-compact">
-      <h3>Owner承認で運用状態を変更</h3>
+      <h3>Owner操作で運用状態を変更</h3>
       <div class="actions compact-actions">
         <% Business::RESOURCE_STATUSES.each do |status| %>
           <%= button_to resource_status_label(status),
                         update_resource_status_business_path(@business),
                         method: :patch,
-                        params: { resource_status: status, reason: "Business詳細からOwner承認で#{status}へ変更" },
+                        params: { resource_status: status, reason: "Business詳細からOwner操作で#{status}へ変更" },
                         class: @business.resource_status == status ? "button" : "button secondary",
-                        data: { turbo_confirm: "運用状態を#{status}へ変更します。自動変更ではなくOwner承認として記録します。" } %>
+                        data: { turbo_confirm: "運用状態を#{status}へ変更します。自動変更ではなくOwner操作として記録します。" } %>
         <% end %>
       </div>
       <% if @resource_summary.auto_snooze_recommended %>
@@ -375,7 +375,7 @@
     <div class="section-heading">
       <div>
         <h3>自動改訂 / 自動デプロイ</h3>
-        <p>このBusinessだけの改訂・Deployループ設定です。AutomaticでもDeploy Precheckに失敗した場合は承認待ちへ落とします。</p>
+        <p>このBusinessだけの改訂・Deployループ設定です。AutomaticでもDeploy Precheckに失敗した場合はOwner確認へ落とします。</p>
       </div>
     </div>
     <%= form_with model: @business, method: :patch, class: "aicoo-form" do |form| %>
@@ -383,7 +383,7 @@
       <h4>Auto Build Policy</h4>
       <div class="metric-grid aicoo-owner-secondary">
         <div class="metric-card"><span>Auto Build</span><strong><%= @business.auto_build_enabled? ? "ON" : "OFF" %></strong></div>
-        <div class="metric-card"><span>承認</span><strong><%= @business.auto_build_requires_approval? ? "必須" : "不要" %></strong></div>
+        <div class="metric-card"><span>Owner確認</span><strong><%= @business.auto_build_requires_approval? ? "必須" : "不要" %></strong></div>
         <div class="metric-card"><span>Risk</span><strong><%= @business.auto_build_risk_level %></strong></div>
         <div class="metric-card"><span>新規LP自動Deploy</span><strong><%= @business.new_lp_auto_deploy_enabled? ? "ON" : "OFF" %></strong></div>
         <div class="metric-card"><span>Deploy停止</span><strong><%= @business.auto_deploy_suspended? ? "停止中" : "稼働可" %></strong></div>
@@ -395,7 +395,7 @@
       </label>
       <label>
         <%= form.check_box :auto_build_requires_approval %>
-        Owner承認を必須にする
+        Owner確認を必須にする
       </label>
       <label>
         <%= form.check_box :new_lp_auto_deploy_enabled %>
@@ -443,7 +443,7 @@
       <% end %>
       <div class="actions compact-actions">
         <%= form.submit "自動設定を保存", class: "button secondary" %>
-        <%= link_to "承認待ちを見る", auto_revision_tasks_path(status: "waiting_approval"), class: "button secondary" %>
+        <%= link_to "Codex準備前を見る", auto_revision_tasks_path(status: "waiting_approval"), class: "button secondary" %>
       </div>
     <% end %>
 
@@ -470,7 +470,7 @@
               <td><%= log.auto_revision_task ? link_to(log.auto_revision_task.title, log.auto_revision_task) : "-" %></td>
               <td class="number"><%= log.changed_files_count %></td>
               <td><%= log.test_result.presence || "-" %></td>
-              <td><%= log.deploy_result.presence || "Deploy承認待ち" %></td>
+              <td><%= log.deploy_result.presence || "Deploy確認待ち" %></td>
               <td>
                 <%= button_to "Rollback",
                               admin_auto_revision_run_log_rollback_path(log),
@@ -508,7 +508,7 @@
         <div class="actions compact-actions">
           <%= button_to "再試行", admin_pipeline_recovery_path(@pipeline_run), method: :post, params: { recovery_action: "retry" }, class: "button secondary" %>
           <%= button_to "スキップ", admin_pipeline_recovery_path(@pipeline_run), method: :post, params: { recovery_action: "skip" }, class: "button secondary" %>
-          <%= button_to "承認して進む", admin_pipeline_recovery_path(@pipeline_run), method: :post, params: { recovery_action: "approve" }, class: "button secondary" %>
+          <%= button_to "次へ進む", admin_pipeline_recovery_path(@pipeline_run), method: :post, params: { recovery_action: "approve" }, class: "button secondary" %>
           <%= button_to "停止", admin_pipeline_recovery_path(@pipeline_run), method: :post, params: { recovery_action: "stop" }, class: "button secondary" %>
           <%= button_to "終了", admin_pipeline_recovery_path(@pipeline_run), method: :post, params: { recovery_action: "end" }, class: "button secondary", data: { turbo_confirm: "このPipelineを終了しますか？" } %>
           <a href="#pipeline-recovery-log-table" class="button secondary">復旧ログを見る</a>
@@ -1485,7 +1485,7 @@
 <section class="dashboard-section" id="business-serp">
   <div class="section-heading">
     <h2>SERP競合分析</h2>
-    <p>SERPのキーワード管理・候補承認・取得操作はSERP設定画面に集約しています。</p>
+    <p>SERPの検索クエリ管理・AI候補・取得操作はSERP設定画面に集約しています。</p>
   </div>
 
   <% serp_cost = Aicoo::CostEngine.new(business: @business).estimate("serp") %>
@@ -1495,7 +1495,7 @@
       <strong><%= @business.serp_enabled? ? "ON" : "OFF" %></strong>
     </div>
     <div class="metric-card">
-      <span>承認済みKW</span>
+      <span>Active検索クエリ</span>
       <strong><%= @business.business_serp_keywords.active.count %>件</strong>
     </div>
     <div class="metric-card">
@@ -1503,7 +1503,7 @@
       <strong><%= @business.serp_queries.enabled.count %>件</strong>
     </div>
     <div class="metric-card">
-      <span>承認待ち候補</span>
+      <span>追加待ち候補</span>
       <strong><%= @business.business_serp_keywords.pending.count %>件</strong>
     </div>
     <div class="metric-card">

@@ -319,7 +319,7 @@
   <section class="dashboard-section">
     <div class="section-heading">
       <h2>実行管理</h2>
-      <p>承認後の実行準備・実行・結果登録を管理します。</p>
+      <p>改修開始後の実行準備・実行・結果登録を管理します。</p>
     </div>
     <div class="metric-grid">
       <div class="metric-card"><span>状態</span><strong><%= @action_execution.status %></strong></div>
@@ -413,13 +413,13 @@
 
 <section class="dashboard-section">
   <div class="section-heading">
-    <h2>承認履歴</h2>
-    <p>Owner承認からExecutor投入までの状態を確認します。</p>
+    <h2>開始履歴</h2>
+    <p>Owner操作からExecutor投入までの状態を確認します。</p>
   </div>
   <dl class="detail-list">
-    <dt>approved_at</dt>
+    <dt>開始日時</dt>
     <dd><%= @action_candidate.approved_at ? l(@action_candidate.approved_at, format: :short) : "-" %></dd>
-    <dt>approved_by</dt>
+    <dt>開始者</dt>
     <dd><%= @action_candidate.approved_by.presence || "-" %></dd>
     <dt>executor_queued_at</dt>
     <dd><%= @action_candidate.executor_queued_at ? l(@action_candidate.executor_queued_at, format: :short) : "-" %></dd>

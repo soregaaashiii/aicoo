@@ -131,7 +131,7 @@ module Aicoo
 
       def state_for_task(task)
         case task.status
-        when "draft", "waiting_approval" then "承認待ち"
+        when "draft", "waiting_approval" then "Codex準備前"
         when "approved", "ready_for_codex", "queued" then "Codex送信待ち"
         when "sent_to_codex" then "Codex作業待ち"
         when "running" then "Codex作業中"
@@ -145,7 +145,7 @@ module Aicoo
         routes = Rails.application.routes.url_helpers
         case task.status
         when "draft", "waiting_approval"
-          action("承認する", routes.approve_owner_auto_revision_loop_task_path(task), :patch, "承認するとCodex用プロンプト確認へ進めます。")
+          action("Codex Prompt準備", routes.approve_owner_auto_revision_loop_task_path(task), :patch, "旧形式の待機タスクをCodex用プロンプト確認へ進めます。")
         when "approved", "ready_for_codex", "queued"
           action("Codex用プロンプトをコピー", nil, nil, "Cloud Codex API連携前のため、このページ内のプロンプトをコピーして送信します。")
         when "sent_to_codex"
@@ -175,7 +175,7 @@ module Aicoo
 
       def progress_for_task(task)
         case state_for_task(task)
-        when "承認待ち" then { percent: 20, label: "Approval" }
+        when "Codex準備前" then { percent: 20, label: "Prompt" }
         when "Codex送信待ち" then { percent: 40, label: "Prompt" }
         when "Codex作業待ち" then { percent: 55, label: "Codex" }
         when "Codex作業中" then { percent: 65, label: "Implementation" }
@@ -189,7 +189,7 @@ module Aicoo
 
       def stuck_reason_for_task(task)
         case state_for_task(task)
-        when "承認待ち" then "Owner承認待ち"
+        when "Codex準備前" then "Codex Prompt準備待ち"
         when "Codex送信待ち" then "Codex用プロンプト未コピー"
         when "Codex作業待ち" then "Codex送信済み。実装開始記録待ち"
         when "Codex作業中" then task.auto_revision_executions.recent.first&.pull_request_url.present? ? "実装結果登録待ち" : "PR URL未登録"

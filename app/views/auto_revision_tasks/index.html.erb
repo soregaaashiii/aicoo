@@ -17,10 +17,10 @@
   <section class="dashboard-section">
     <div class="section-heading">
       <h2>改訂フロー</h2>
-      <p>改善案から承認、Codexキュー、実行中、完了、失敗までの状態を管理します。</p>
+      <p>改善案からCodex準備、Codexキュー、実行中、完了、失敗までの状態を管理します。</p>
     </div>
     <div class="metric-grid">
-      <div class="metric-card"><span>承認待ち</span><strong><%= status_counts.fetch("waiting_approval", 0) %>件</strong></div>
+      <div class="metric-card"><span>Codex準備前</span><strong><%= status_counts.fetch("waiting_approval", 0) %>件</strong></div>
       <div class="metric-card"><span>実行待ち</span><strong><%= status_counts.fetch("queued", 0) + status_counts.fetch("ready_for_codex", 0) %>件</strong></div>
       <div class="metric-card"><span>実行中</span><strong><%= status_counts.fetch("running", 0) %>件</strong></div>
       <div class="metric-card"><span>完了</span><strong><%= status_counts.fetch("completed", 0) + status_counts.fetch("succeeded", 0) + status_counts.fetch("partial_succeeded", 0) %>件</strong></div>

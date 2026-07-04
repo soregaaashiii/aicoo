@@ -85,18 +85,18 @@ class ActionCandidatesController < ApplicationController
     OwnerTaskCompletionLog.record_success!(
       task_type: "action_candidate_approval",
       target: @action_candidate,
-      action_label: "承認",
+      action_label: redirect_record.is_a?(Business) ? "Business作成" : "改修開始",
       message:,
       metadata: {
         status: @action_candidate.status,
         approved_at: @action_candidate.approved_at,
         redirect_record_type: redirect_record&.class&.name,
         redirect_record_id: redirect_record&.id
-      }
+      }.merge(result.metadata.to_h)
     )
     redirect_to redirect_record || @action_candidate, notice: message
   rescue ActiveRecord::RecordInvalid => e
-    redirect_to @action_candidate, alert: "承認できませんでした。Business化に失敗しました: #{e.record.errors.full_messages.to_sentence}"
+    redirect_to @action_candidate, alert: "Business化に失敗しました: #{e.record.errors.full_messages.to_sentence}"
   end
 
   def reject

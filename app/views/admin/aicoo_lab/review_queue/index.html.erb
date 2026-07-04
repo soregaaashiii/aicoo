@@ -3,7 +3,7 @@
 <div class="page-title">
   <div>
     <h1>レビュー待ち</h1>
-    <p>LP作成済みまたは承認待ちの検証を、高速に承認・却下します。</p>
+    <p>LP作成済みまたは検証判断待ちの検証を、高速に検証開始・却下します。</p>
   </div>
   <div class="actions compact-actions">
     <%= link_to "新規事業", admin_aicoo_lab_experiments_path, class: "button secondary" %>
@@ -14,7 +14,7 @@
 <section class="dashboard-section">
   <div class="aicoo-lab-help">
     <strong>この画面でやること</strong>
-    <p>ここではLPプレビューを見ることで、検証として進めるか判断します。承認しても本番公開や課金は発生しません。検証開始前の承認です。</p>
+    <p>ここではLPプレビューを見ることで、検証として進めるか判断します。検証へ進めても本番公開や課金は発生しません。</p>
   </div>
 </section>
 
@@ -22,8 +22,8 @@
   <div class="field compact-field">
     <%= form.label :bulk_action, "一括操作" %>
     <%= form.select :bulk_action, options_for_select([
-      [ "承認待ちにする", "approval_pending" ],
-      [ "承認する", "approve" ],
+      [ "検証判断待ちにする", "approval_pending" ],
+      [ "検証へ進める", "approve" ],
       [ "却下する", "reject" ],
       [ "一時停止にする", "paused" ]
     ]) %>
@@ -82,7 +82,7 @@
             <div class="actions compact-actions">
               <%= link_to "詳細", admin_aicoo_lab_experiment_path(experiment), class: "button secondary" %>
               <%= link_to "レビュー", admin_aicoo_lab_review_queue_experiment_path(experiment), class: "button" %>
-              <%= button_to "承認", admin_aicoo_lab_review_queue_approve_path(experiment), method: :patch, class: "button" %>
+              <%= button_to "検証へ進める", admin_aicoo_lab_review_queue_approve_path(experiment), method: :patch, class: "button" %>
               <%= button_to "却下", admin_aicoo_lab_review_queue_reject_path(experiment), method: :patch, class: "danger" %>
               <%= button_to "一時停止", admin_aicoo_lab_review_queue_paused_path(experiment), method: :patch, class: "button secondary" %>
             </div>

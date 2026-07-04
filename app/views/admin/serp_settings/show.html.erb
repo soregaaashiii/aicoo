@@ -40,8 +40,8 @@
     <div class="metric-grid">
       <div class="metric-card"><span>SERP由来候補</span><strong><%= @new_business_candidate_board.candidates.size %>件</strong></div>
       <div class="metric-card"><span>今日生成</span><strong><%= @new_business_candidate_board.today_count %>件</strong></div>
-      <div class="metric-card"><span>承認待ち</span><strong><%= @new_business_candidate_board.pending_count %>件</strong></div>
-      <div class="metric-card"><span>承認済み</span><strong><%= @new_business_candidate_board.approved_count %>件</strong></div>
+      <div class="metric-card"><span>Business作成待ち</span><strong><%= @new_business_candidate_board.pending_count %>件</strong></div>
+      <div class="metric-card"><span>作成済み</span><strong><%= @new_business_candidate_board.approved_count %>件</strong></div>
     </div>
 
     <% if @new_business_candidate_board.top_candidates.any? %>
@@ -125,7 +125,7 @@
         <strong><%= @serp_summary.fail_count %></strong>
       </div>
       <div class="metric-card">
-        <span>承認待ち検索クエリ</span>
+        <span>追加待ち検索クエリ</span>
         <strong><%= @serp_summary.pending_keyword_count %></strong>
       </div>
       <div class="metric-card">
@@ -307,7 +307,7 @@
               <% health_label = if !business.serp_enabled?
                                   "OFF"
                                 elsif active_count.zero? && pending_count.positive?
-                                  "承認待ち"
+                                  "追加待ち"
                                 elsif active_count.zero?
                                   "検索クエリなし"
                                 elsif latest_analysis&.failed?
@@ -457,7 +457,7 @@
           <p>Business情報、GSC、SERP、Learning、ActionResultから毎日推薦します。</p>
           <div class="compact-actions">
             <%= button_to "候補を再生成", business_suggestions_admin_serp_settings_path(selected_business), method: :post, class: "button secondary" %>
-            <%= button_to "Pendingを一括承認", business_approve_pending_admin_serp_settings_path(selected_business), method: :post, class: "button", data: { aicoo_confirm: "承認待ち検索クエリをすべてActiveにします。" } %>
+            <%= button_to "検索クエリ追加", business_approve_pending_admin_serp_settings_path(selected_business), method: :post, class: "button", data: { aicoo_confirm: "候補を実行対象の検索クエリに追加します。" } %>
           </div>
         </div>
       </div>
@@ -520,14 +520,14 @@
 
       <div class="aicoo-card aicoo-card-compact">
         <h3>AI候補</h3>
-        <p class="muted">承認すると実行対象のSERP検索クエリに追加されます。承認だけではSerper APIは実行されません。</p>
+        <p class="muted">追加すると実行対象のSERP検索クエリに入ります。追加だけではSerper APIは実行されません。</p>
         <%= form_with url: business_approve_pending_admin_serp_settings_path(selected_business), method: :post, class: "form" do %>
           <%= hidden_field_tag :selected_only, "1" %>
           <div class="compact-actions">
-            <%= submit_tag "選択した候補を承認", class: "button" %>
-            <%= link_to "Pendingをすべて承認",
+            <%= submit_tag "選択した候補を検索クエリ化", class: "button" %>
+            <%= link_to "すべて検索クエリ追加",
                         business_approve_pending_admin_serp_settings_path(selected_business),
-                        data: { turbo_method: :post, turbo_confirm: "承認待ち検索クエリをすべて実行対象へ追加します。" },
+                        data: { turbo_method: :post, turbo_confirm: "候補をすべて実行対象へ追加します。" },
                         class: "button secondary" %>
             <%= link_to "候補を再生成",
                         business_suggestions_admin_serp_settings_path(selected_business),
@@ -558,14 +558,14 @@
                   <td><%= keyword.source %></td>
                   <td>
                     <div class="compact-actions">
-                      <%= link_to "承認", approve_keyword_admin_serp_settings_path(keyword), data: { turbo_method: :patch }, class: "button" %>
+                      <%= link_to "検索クエリ追加", approve_keyword_admin_serp_settings_path(keyword), data: { turbo_method: :patch }, class: "button" %>
                       <%= link_to "除外", exclude_keyword_admin_serp_settings_path(keyword), data: { turbo_method: :patch }, class: "button secondary" %>
                     </div>
                   </td>
                 </tr>
               <% end %>
               <% if pending_keywords.empty? %>
-                <tr><td colspan="7">承認待ち候補はありません。</td></tr>
+                <tr><td colspan="7">追加待ち候補はありません。</td></tr>
               <% end %>
             </tbody>
           </table>
