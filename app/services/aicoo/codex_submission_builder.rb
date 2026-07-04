@@ -51,7 +51,18 @@ module Aicoo
     attr_reader :auto_revision_task, :force
 
     def profile
-      @profile ||= auto_revision_task.business&.business_execution_profile&.then { |record| record.active? ? record : nil }
+      @profile ||= begin
+        ensure_internal_execution_profile!
+        auto_revision_task.business&.business_execution_profile&.then { |record| record.active? ? record : nil }
+      end
+    end
+
+    def ensure_internal_execution_profile!
+      business = auto_revision_task.business
+      return unless business&.aicoo_internal_codex?
+      return if business.business_execution_profile&.active?
+
+      Aicoo::NewBusinessAutomationDefaults.apply!(business)
     end
 
     def prompt_body

@@ -40,6 +40,30 @@ module Aicoo
       assert_includes result.submission.prompt, "電話・地図・予約導線を改善してください。"
     end
 
+    test "creates default execution profile for aicoo internal business" do
+      @business.business_execution_profile&.destroy!
+      @business.update!(created_by_aicoo: true, lifecycle_stage: "lp_validation", launched: false)
+
+      result = CodexSubmissionBuilder.new(@task).call
+
+      assert result.ready
+      assert @business.reload.business_execution_profile.present?
+      assert_equal "aicoo_internal", @business.business_execution_profile.execution_type
+      assert_equal "https://github.com/soregaaashiii/aicoo", result.submission.repository_url
+      assert_equal "ready", result.submission.status
+    end
+
+    test "keeps missing profile error for external business" do
+      @business.business_execution_profile&.destroy!
+      @business.update!(created_by_aicoo: false)
+
+      result = CodexSubmissionBuilder.new(@task).call
+
+      assert_not result.ready
+      assert_nil result.submission
+      assert_includes result.reasons, "Execution Profileがありません。"
+    end
+
     test "keeps draft when codex is disabled" do
       create_profile!(codex_enabled: false, codex_auto_submit_enabled: true)
 

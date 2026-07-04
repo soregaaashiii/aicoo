@@ -124,8 +124,14 @@ module Admin
 
     def regenerate_suggestions
       business = find_business
-      suggestions = Aicoo::Serp::KeywordManager.generate_suggestions!(business:)
-      redirect_to admin_serp_settings_path(anchor: business_anchor(business)), notice: "#{business.name}の検索クエリ候補を#{suggestions.size}件生成しました。"
+      report = Aicoo::Serp::KeywordManager.generate_suggestions_report!(business:)
+      if report.no_new_suggestions?
+        redirect_to admin_serp_settings_path(business_id: business.id, anchor: "serp-keyword-suggestions"),
+                    alert: "検索クエリ候補は増えませんでした。対象Business: #{business.name}。理由: #{report.reason_summary}。既に実行対象なら「選択中BusinessのSERPを実行」を押してください。"
+      else
+        redirect_to admin_serp_settings_path(business_id: business.id, anchor: "serp-keyword-suggestions"),
+                    notice: "検索クエリ候補を#{report.added.size}件追加しました。対象Business: #{business.name}。追加だけではSERP取得は実行されません。"
+      end
     end
 
     def scan_business

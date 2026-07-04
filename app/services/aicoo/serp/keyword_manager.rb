@@ -2,6 +2,25 @@ module Aicoo
   module Serp
     class KeywordManager
       Result = Data.define(:added, :existing, :excluded, :invalid)
+      SuggestionReport = Data.define(:added, :pending_existing, :existing, :execution_targets, :excluded, :invalid) do
+        def size
+          added.size
+        end
+
+        def no_new_suggestions?
+          added.empty?
+        end
+
+        def reason_summary
+          reasons = []
+          reasons << "追加待ち #{pending_existing.size}件" if pending_existing.any?
+          reasons << "既存候補 #{existing.size}件" if existing.any?
+          reasons << "実行対象登録済み #{execution_targets.size}件" if execution_targets.any?
+          reasons << "除外済み #{excluded.size}件" if excluded.any?
+          reasons << "無効 #{invalid.size}件" if invalid.any?
+          reasons.presence&.join(" / ") || "生成できる候補がありません"
+        end
+      end
 
       def self.add_manual_keywords!(business:, raw_keywords:)
         new(business).add_manual_keywords!(raw_keywords)
@@ -9,6 +28,10 @@ module Aicoo
 
       def self.generate_suggestions!(business:)
         new(business).generate_suggestions!
+      end
+
+      def self.generate_suggestions_report!(business:)
+        new(business).generate_suggestions_report!
       end
 
       def initialize(business)
@@ -49,10 +72,41 @@ module Aicoo
       end
 
       def generate_suggestions!
-        suggestion_rows.filter_map do |attrs|
+        generate_suggestions_report!.added
+      end
+
+      def generate_suggestions_report!
+        added = []
+        pending_existing = []
+        existing = []
+        execution_targets = []
+        excluded = []
+        invalid = []
+
+        suggestion_rows.each do |attrs|
           normalized = BusinessSerpKeyword.normalize(attrs.fetch(:keyword))
-          next if normalized.blank?
-          next if business.business_serp_keywords.where(normalized_keyword: normalized, status: %w[active paused archived excluded]).exists?
+          if normalized.blank?
+            invalid << attrs
+            next
+          end
+
+          keyword = business.business_serp_keywords.find_by(normalized_keyword: normalized)
+          if keyword&.status == "excluded"
+            excluded << keyword
+            next
+          elsif keyword&.status == "pending"
+            pending_existing << keyword
+            next
+          elsif keyword
+            existing << keyword
+            next
+          end
+
+          serp_query = business.serp_queries.find_by(normalized_query: SerpQuery.normalize(attrs.fetch(:keyword)))
+          if serp_query
+            execution_targets << serp_query
+            next
+          end
 
           keyword = business.business_serp_keywords.find_or_initialize_by(normalized_keyword: normalized)
           keyword.assign_attributes(
@@ -63,8 +117,10 @@ module Aicoo
             )
           )
           keyword.save!
-          keyword
+          added << keyword
         end
+
+        SuggestionReport.new(added:, pending_existing:, existing:, execution_targets:, excluded:, invalid:)
       end
 
       private

@@ -27,6 +27,20 @@ module Aicoo
         assert suggestions.all? { |keyword| keyword.status == "pending" }
         assert_not business.business_serp_keywords.where(keyword: business.name, status: "pending").exists?
       end
+
+      test "reports why suggestions were not added" do
+        business = businesses(:suelog)
+        business.business_serp_keywords.create!(keyword: "#{business.name} 比較", source: "ai_suggested", status: "active")
+        business.serp_queries.create!(query: business.name, category: "existing_business", status: "active", enabled: true)
+
+        report = KeywordManager.generate_suggestions_report!(business:)
+
+        assert_includes report.existing.map(&:keyword), "#{business.name} 比較"
+        assert_includes report.execution_targets.map(&:query), business.name
+        assert_not business.business_serp_keywords.where(keyword: business.name, status: "pending").exists?
+        assert_includes report.reason_summary, "既存候補"
+        assert_includes report.reason_summary, "実行対象登録済み"
+      end
     end
   end
 end

@@ -12,22 +12,20 @@
 <% period_success_rate = period_total.positive? ? ((@period_success_count.to_f / period_total) * 100).round(1) : 0 %>
 
 <% header_actions = capture do %>
-  <%= link_to "SERP E2E診断", admin_serp_e2e_check_path, class: "button" %>
   <% if selected_business %>
     <%= button_to "選択中BusinessのSERPを実行", run_selected_business_admin_serp_settings_path(business_id: selected_business.id), method: :post, class: "button" %>
   <% end %>
-  <%= button_to "全BusinessのSERPを実行", run_all_businesses_admin_serp_settings_path, method: :post, class: "button secondary" %>
-  <%= link_to "SERP検索クエリ", admin_serp_queries_path(business_id: selected_business&.id), class: "button secondary" %>
-  <%= link_to "AICOO全体設定", aicoo_setting_path, class: "button secondary" %>
+  <%= link_to "検索クエリ管理", "#serp-keywords", class: "button secondary" %>
 <% end %>
 
 <div class="aicoo-page">
   <%= render "shared/aicoo_header",
              title: "SERP設定",
-             description: "検索需要の発見、競合分析、改善提案、Learningまでをこの画面で管理します。",
+             description: "走査前に必要な予算、走査設定、検索クエリだけを上から確認します。分析・候補・履歴は下部の折りたたみに退避しています。",
              active_main: :system,
              actions: header_actions %>
 
+  <% content_for :serp_advanced_sections do %>
   <section class="dashboard-section" id="serp-new-business-candidates">
     <div class="section-heading">
       <div>
@@ -138,20 +136,20 @@
       </div>
     </div>
   </section>
+  <% end %>
 
   <nav class="aicoo-tab-nav" aria-label="SERP設定タブ">
-    <%= link_to "全体設定", "#serp-global", class: "button secondary" %>
-    <%= link_to "Business設定", "#serp-businesses", class: "button secondary" %>
+    <%= link_to "予算", "#serp-global", class: "button secondary" %>
+    <%= link_to "走査設定", "#serp-scheduler-settings", class: "button secondary" %>
     <%= link_to "検索クエリ管理", "#serp-keywords", class: "button secondary" %>
-    <%= link_to "実行状況", "#serp-execution", class: "button secondary" %>
-    <%= link_to "市場分析結果", "#serp-market-results", class: "button secondary" %>
+    <%= link_to "その他", "#serp-advanced", class: "button secondary" %>
   </nav>
 
   <section class="dashboard-section" id="serp-global">
     <div class="section-heading">
       <div>
-        <h2>全体設定</h2>
-        <p>全Business共通のProvider、API Key、SERP Scheduler、予算だけを管理します。SERPはDaily Runとは分離して動きます。</p>
+        <h2>予算</h2>
+        <p>走査前に見るのは、API Key、月予算、今月使用額、1回あたり取得件数だけです。</p>
       </div>
     </div>
 
@@ -211,38 +209,37 @@
         <% end %>
       </div>
 
-      <div class="aicoo-card aicoo-card-compact">
-        <h3>テスト検索</h3>
-        <p>Google Searchのみ実装済みです。API Key確認とProvider疎通確認に使います。</p>
-        <%= form_with url: test_search_admin_serp_settings_path, scope: :serp_test, method: :post, class: "form" do |form| %>
+      <div class="aicoo-card aicoo-card-compact" id="serp-scheduler-settings">
+        <h3>走査設定</h3>
+        <p>SERP専用SchedulerのON/OFF、実行頻度、1日の最大実行クエリ数を設定します。</p>
+        <%= form_with url: update_scheduler_admin_serp_settings_path, scope: :serp_scheduler, method: :patch, class: "form" do |form| %>
           <div class="form-grid">
             <div>
-              <%= form.label :provider, "Provider" %>
-              <%= form.select :provider, @provider_keys.map { |key| [key.to_s, key.to_s] }, selected: @test_params[:provider] %>
+              <%= form.label :scheduler_enabled, "SERP Scheduler ON/OFF" %><br>
+              <%= form.check_box :scheduler_enabled, { checked: ActiveModel::Type::Boolean.new.cast(@serp_scheduler_settings["scheduler_enabled"]) }, "1", "0" %>
             </div>
             <div>
-              <%= form.label :type, "検索タイプ" %>
-              <%= form.select :type, Aicoo::Serp::Adapter::TYPES.map { |type| [type.to_s, type.to_s] }, selected: @test_params[:type] %>
+              <%= form.label :frequency, "実行頻度" %>
+              <%= form.select :frequency, options_for_select([["毎日", "daily"], ["毎週", "weekly"], ["毎月", "monthly"]], @serp_scheduler_settings["frequency"]) %>
             </div>
             <div>
-              <%= form.label :query, "query" %>
-              <%= form.text_field :query, value: @test_params[:query], required: true %>
+              <%= form.label :run_time, "実行時刻" %>
+              <%= form.time_field :run_time, value: @serp_scheduler_settings["run_time"] %>
             </div>
             <div>
-              <%= form.label :location, "location" %>
-              <%= form.text_field :location, value: @test_params[:location] %>
+              <%= form.label :daily_query_limit, "1日最大実行クエリ数" %>
+              <%= form.number_field :daily_query_limit, value: @serp_scheduler_settings["daily_query_limit"], min: 1 %>
             </div>
             <div>
-              <%= form.label :language, "language" %>
-              <%= form.text_field :language, value: @test_params[:language] %>
-            </div>
-            <div>
-              <%= form.label :limit, "limit" %>
-              <%= form.number_field :limit, value: @test_params[:limit], min: 1, max: 100 %>
+              <%= form.label :max_concurrency, "最大同時実行数" %>
+              <%= form.number_field :max_concurrency, value: @serp_scheduler_settings["max_concurrency"], min: 1 %>
             </div>
           </div>
-          <div class="actions">
-            <%= form.submit "SERP Adapterでテスト検索", class: "button", data: { aicoo_loading_label: "SERP検索中..." } %>
+          <div class="actions compact-actions">
+            <%= form.submit "走査設定を保存", class: "button" %>
+            <% if selected_business %>
+              <%= button_to "選択中BusinessのSERPを実行", run_selected_business_admin_serp_settings_path(business_id: selected_business.id), method: :post, class: "button secondary" %>
+            <% end %>
           </div>
         <% end %>
       </div>
@@ -271,6 +268,7 @@
     </details>
   </section>
 
+  <% content_for :serp_business_settings_section do %>
   <section class="dashboard-section" id="serp-businesses">
     <div class="section-heading">
       <div>
@@ -382,42 +380,9 @@
         <% end %>
       </div>
 
-      <div class="aicoo-card aicoo-card-compact">
-        <h3>SERP Scheduler</h3>
-        <%= form_with url: update_scheduler_admin_serp_settings_path, scope: :serp_scheduler, method: :patch, class: "form" do |form| %>
-          <div class="form-grid">
-            <div>
-              <%= form.label :scheduler_enabled, "SERP Scheduler ON/OFF" %><br>
-              <%= form.check_box :scheduler_enabled, { checked: ActiveModel::Type::Boolean.new.cast(@serp_scheduler_settings["scheduler_enabled"]) }, "1", "0" %>
-            </div>
-            <div>
-              <%= form.label :frequency, "実行頻度" %>
-              <%= form.select :frequency, options_for_select([["毎日", "daily"], ["毎週", "weekly"], ["毎月", "monthly"]], @serp_scheduler_settings["frequency"]) %>
-            </div>
-            <div>
-              <%= form.label :run_time, "実行時刻" %>
-              <%= form.time_field :run_time, value: @serp_scheduler_settings["run_time"] %>
-            </div>
-            <div>
-              <%= form.label :daily_query_limit, "1日最大実行クエリ数" %>
-              <%= form.number_field :daily_query_limit, value: @serp_scheduler_settings["daily_query_limit"], min: 1 %>
-            </div>
-            <div>
-              <%= form.label :max_concurrency, "最大同時実行数" %>
-              <%= form.number_field :max_concurrency, value: @serp_scheduler_settings["max_concurrency"], min: 1 %>
-            </div>
-          </div>
-          <div class="actions compact-actions">
-            <%= form.submit "SERP Scheduler設定を保存", class: "button" %>
-          </div>
-        <% end %>
-        <div class="actions compact-actions">
-          <%= button_to "1件だけテスト実行", run_now_admin_serp_settings_path(force: true), method: :post, class: "button secondary" %>
-          <%= button_to "全Businessを上限無視で実行", run_all_businesses_admin_serp_settings_path(ignore_limit: true), method: :post, class: "button secondary", data: { aicoo_confirm: "1日最大実行クエリ数を無視して全Businessを実行します。" } %>
-        </div>
-      </div>
     </div>
   </section>
+  <% end %>
 
   <section class="dashboard-section" id="serp-keywords">
     <div class="section-heading">
@@ -518,7 +483,7 @@
         </div>
       </div>
 
-      <div class="aicoo-card aicoo-card-compact">
+      <div class="aicoo-card aicoo-card-compact" id="serp-keyword-suggestions">
         <h3>AI候補</h3>
         <p class="muted">追加すると実行対象のSERP検索クエリに入ります。追加だけではSerper APIは実行されません。</p>
         <div class="compact-actions">
@@ -615,6 +580,74 @@
       <p>Businessがありません。</p>
     <% end %>
   </section>
+
+  <section class="dashboard-section" id="serp-advanced">
+    <div class="section-heading">
+      <div>
+        <h2>下部メニュー</h2>
+        <p>走査前に毎回見る必要がない情報はここに集約しています。</p>
+      </div>
+    </div>
+
+    <details class="aicoo-card aicoo-card-compact">
+      <summary>Business別SERP設定</summary>
+      <%= content_for(:serp_business_settings_section) %>
+    </details>
+
+    <details class="aicoo-card aicoo-card-compact">
+      <summary>新規事業候補 / SERP Summary</summary>
+      <%= content_for(:serp_advanced_sections) %>
+    </details>
+
+    <details class="aicoo-card aicoo-card-compact">
+      <summary>テスト検索・API疎通確認</summary>
+      <p>通常の走査前確認では使いません。API Key確認とProvider疎通確認が必要な時だけ開きます。</p>
+      <%= form_with url: test_search_admin_serp_settings_path, scope: :serp_test, method: :post, class: "form" do |form| %>
+        <div class="form-grid">
+          <div>
+            <%= form.label :provider, "Provider" %>
+            <%= form.select :provider, @provider_keys.map { |key| [key.to_s, key.to_s] }, selected: @test_params[:provider] %>
+          </div>
+          <div>
+            <%= form.label :type, "検索タイプ" %>
+            <%= form.select :type, Aicoo::Serp::Adapter::TYPES.map { |type| [type.to_s, type.to_s] }, selected: @test_params[:type] %>
+          </div>
+          <div>
+            <%= form.label :query, "検索クエリ" %>
+            <%= form.text_field :query, value: @test_params[:query], required: true %>
+          </div>
+          <div>
+            <%= form.label :location, "location" %>
+            <%= form.text_field :location, value: @test_params[:location] %>
+          </div>
+          <div>
+            <%= form.label :language, "language" %>
+            <%= form.text_field :language, value: @test_params[:language] %>
+          </div>
+          <div>
+            <%= form.label :limit, "limit" %>
+            <%= form.number_field :limit, value: @test_params[:limit], min: 1, max: 100 %>
+          </div>
+        </div>
+        <div class="actions">
+          <%= form.submit "SERP Adapterでテスト検索", class: "button", data: { aicoo_loading_label: "SERP検索中..." } %>
+        </div>
+      <% end %>
+    </details>
+
+    <details class="aicoo-card aicoo-card-compact">
+      <summary>高度な操作・診断</summary>
+      <div class="compact-actions">
+        <%= link_to "SERP E2E診断", admin_serp_e2e_check_path(business_id: selected_business&.id), class: "button secondary" %>
+        <%= button_to "全BusinessのSERPを実行", run_all_businesses_admin_serp_settings_path, method: :post, class: "button secondary" %>
+        <%= button_to "1件だけテスト実行", run_now_admin_serp_settings_path(force: true), method: :post, class: "button secondary" %>
+        <%= button_to "全Businessを上限無視で実行", run_all_businesses_admin_serp_settings_path(ignore_limit: true), method: :post, class: "button secondary", data: { aicoo_confirm: "1日最大実行クエリ数を無視して全Businessを実行します。" } %>
+        <%= link_to "AICOO全体設定", aicoo_setting_path, class: "button secondary" %>
+      </div>
+    </details>
+
+    <details class="aicoo-card aicoo-card-compact">
+      <summary>実行状況 / 市場分析結果</summary>
 
   <section class="dashboard-section" id="serp-execution">
     <div class="section-heading">
@@ -741,6 +774,8 @@
       </table>
     </div>
   </section>
+    </details>
+  </section>
 
   <% if @error_message.present? %>
     <section class="dashboard-section">
@@ -788,3 +823,17 @@
     </section>
   <% end %>
 </div>
+
+<script>
+  (() => {
+    const businessAnchor = window.location.hash.match(/^#serp-business-(\d+)$/);
+    if (!businessAnchor) return;
+
+    const businessId = businessAnchor[1];
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("business_id") === businessId) return;
+
+    url.searchParams.set("business_id", businessId);
+    window.location.replace(url.toString());
+  })();
+</script>

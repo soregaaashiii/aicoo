@@ -191,6 +191,24 @@ module Admin
       assert_match "画面内のボタン", flash[:alert]
     end
 
+    test "regenerate suggestions explains when all candidates already exist" do
+      business = businesses(:suelog)
+      [
+        business.name,
+        "#{business.name} #{business.business_type}",
+        "#{business.name} 比較",
+        "#{business.name} おすすめ"
+      ].each do |keyword|
+        business.business_serp_keywords.create!(keyword:, source: "ai_suggested", status: "active")
+      end
+
+      post business_suggestions_admin_serp_settings_url(business)
+
+      assert_redirected_to admin_serp_settings_url(business_id: business.id, anchor: "serp-keyword-suggestions")
+      assert_match "検索クエリ候補は増えませんでした", flash[:alert]
+      assert_match "既存候補 4件", flash[:alert]
+    end
+
     test "approving duplicate keyword activates existing serp query without duplication" do
       business = businesses(:suelog)
       existing = business.serp_queries.create!(
