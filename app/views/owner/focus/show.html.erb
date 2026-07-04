@@ -1,6 +1,8 @@
 <% content_for :title, "今日の事業改善" %>
 
 <% header_actions = capture do %>
+  <%= link_to "自動改修ループ", owner_auto_revision_loop_path, class: "button" %>
+  <%= link_to "新規事業作成", owner_new_business_pipeline_path, class: "button" %>
   <%= link_to "事業一覧", businesses_path, class: "button secondary" %>
   <%= link_to "実行履歴", admin_execution_runs_path, class: "button secondary" %>
   <%= link_to "SYSTEM MODE", dashboard_path, class: "button secondary" %>

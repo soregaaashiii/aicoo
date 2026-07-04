@@ -23,6 +23,13 @@ Rails.application.routes.draw do
   get "owner", to: "owner/dashboard#show", as: :owner_dashboard
   get "owner/dashboard", to: "owner/dashboard#show"
   get "owner/focus", to: "owner/focus#show", as: :owner_focus
+  get "owner/auto_revision_loop", to: "owner/auto_revision_loops#show", as: :owner_auto_revision_loop
+  post "owner/auto_revision_loop/action_results", to: "owner/auto_revision_loops#create_action_result", as: :owner_auto_revision_loop_action_results
+  patch "owner/auto_revision_loop/auto_revision_tasks/:id/mark_sent", to: "owner/auto_revision_loops#mark_task_sent", as: :mark_sent_owner_auto_revision_loop_task
+  patch "owner/auto_revision_loop/auto_revision_tasks/:id/record_result", to: "owner/auto_revision_loops#record_task_result", as: :record_result_owner_auto_revision_loop_task
+  get "owner/new_business_pipeline", to: "owner/new_business_pipelines#show", as: :owner_new_business_pipeline
+  patch "owner/new_business_pipeline/action_candidates/:id/approve", to: "owner/new_business_pipelines#approve_candidate", as: :approve_owner_new_business_pipeline_candidate
+  patch "owner/new_business_pipeline/action_candidates/:id/reject", to: "owner/new_business_pipelines#reject_candidate", as: :reject_owner_new_business_pipeline_candidate
   patch "owner/focus/defer", to: "owner/focus#defer", as: :defer_owner_focus
   patch "owner/focus/restore", to: "owner/focus#restore", as: :restore_owner_focus
   get "owner/tasks", to: "owner/tasks#index", as: :owner_tasks

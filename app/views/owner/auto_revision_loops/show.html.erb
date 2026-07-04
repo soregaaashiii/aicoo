@@ -1,0 +1,164 @@
+<% content_for :title, "自動改修ループ" %>
+
+<section class="page-header">
+  <div>
+    <p class="eyebrow">CEO MODE</p>
+    <h1>自動改修ループ</h1>
+    <p class="muted">改善案からCodex用プロンプト、PR確認、ActionResult登録、再評価までをこの画面で進めます。</p>
+  </div>
+  <div class="button-row">
+    <%= link_to "Owner Home", owner_focus_path, class: "button secondary" %>
+    <%= link_to "詳細一覧", auto_revision_tasks_path, class: "button secondary" %>
+  </div>
+</section>
+
+<% if @board.next_action %>
+  <section class="panel">
+    <p class="eyebrow">次に押すボタン</p>
+    <h2><%= @board.next_action.next_action_label %></h2>
+    <p><%= @board.next_action.next_action_reason %></p>
+    <% if @board.next_action.next_action_path.present? %>
+      <% if @board.next_action.next_action_method == :get %>
+        <%= link_to @board.next_action.next_action_label, @board.next_action.next_action_path, class: "button primary" %>
+      <% else %>
+        <%= button_to @board.next_action.next_action_label, @board.next_action.next_action_path, method: @board.next_action.next_action_method, class: "button primary" %>
+      <% end %>
+    <% else %>
+      <a href="#selected-task" class="button primary"><%= @board.next_action.next_action_label %></a>
+    <% end %>
+  </section>
+<% end %>
+
+<section class="metrics-grid">
+  <div class="metric-card"><span>送信待ち</span><strong><%= @board.summary.waiting_to_copy_count %></strong></div>
+  <div class="metric-card"><span>Codex作業中</span><strong><%= @board.summary.codex_running_count %></strong></div>
+  <div class="metric-card"><span>PR待ち</span><strong><%= @board.summary.pr_waiting_count %></strong></div>
+  <div class="metric-card"><span>確認待ち</span><strong><%= @board.summary.confirmation_waiting_count %></strong></div>
+  <div class="metric-card"><span>結果登録待ち</span><strong><%= @board.summary.result_waiting_count %></strong></div>
+  <div class="metric-card"><span>失敗</span><strong><%= @board.summary.failed_count %></strong></div>
+  <div class="metric-card"><span>完了</span><strong><%= @board.summary.completed_count %></strong></div>
+</section>
+
+<div class="two-column-layout">
+  <section class="panel">
+    <h2>改修キュー</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>優先</th>
+            <th>Business</th>
+            <th>作業</th>
+            <th>期待利益</th>
+            <th>期待時給</th>
+            <th>状態</th>
+            <th>次の操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @board.rows.each_with_index do |row, index| %>
+            <tr class="<%= "is-selected" if row == @board.selected %>">
+              <td><%= index + 1 %></td>
+              <td><%= link_to row.business.name, row.business %></td>
+              <td><%= link_to row.title, owner_auto_revision_loop_path(selected: row.key, anchor: "selected-task") %></td>
+              <td>¥<%= number_with_delimiter(row.expected_profit_yen) %></td>
+              <td>¥<%= number_with_delimiter(row.expected_hourly_value_yen) %></td>
+              <td><span class="pill"><%= row.current_state %></span></td>
+              <td>
+                <% if row.next_action_path.present? %>
+                  <% if row.next_action_method == :get %>
+                    <%= link_to row.next_action_label, row.next_action_path, class: "button small" %>
+                  <% else %>
+                    <%= button_to row.next_action_label, row.next_action_path, method: row.next_action_method, class: "button small" %>
+                  <% end %>
+                <% else %>
+                  <%= link_to row.next_action_label, owner_auto_revision_loop_path(selected: row.key, anchor: "selected-task"), class: "button small" %>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+          <% if @board.rows.empty? %>
+            <tr><td colspan="7">改修キューはありません。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel" id="selected-task">
+    <h2>選択中タスク詳細</h2>
+    <% if (row = @board.selected) %>
+      <p class="eyebrow"><%= row.current_state %></p>
+      <h3><%= row.title %></h3>
+      <p><strong>Business:</strong> <%= link_to row.business.name, row.business %></p>
+      <p><strong>対象URL:</strong> <%= row.detail[:target_url].presence || "未特定" %></p>
+      <p><strong>期待効果:</strong>
+        CTR <%= row.detail.dig(:expected_effects, :ctr) || "-" %> /
+        順位 <%= row.detail.dig(:expected_effects, :rank) || "-" %> /
+        利益 <%= row.detail.dig(:expected_effects, :profit) || "-" %>
+      </p>
+
+      <h4>変更ファイル</h4>
+      <ul>
+        <% Array(row.detail[:changed_files]).each do |path| %>
+          <li><code><%= path %></code></li>
+        <% end %>
+      </ul>
+
+      <h4>完成条件</h4>
+      <ul>
+        <% Array(row.detail[:completion_criteria]).each do |criterion| %>
+          <li><%= criterion %></li>
+        <% end %>
+      </ul>
+
+      <h4>Codex操作</h4>
+      <div class="button-row">
+        <% if row.auto_revision_task %>
+          <%= link_to "Codex用プロンプトをコピー", export_codex_prompt_auto_revision_task_path(row.auto_revision_task), class: "button secondary" %>
+          <%= link_to "Cloud Codexで開く", "https://chatgpt.com/codex", class: "button secondary", target: "_blank", rel: "noopener" %>
+          <%= button_to "手動送信済みにする", mark_sent_owner_auto_revision_loop_task_path(row.auto_revision_task), method: :patch, class: "button" %>
+        <% elsif row.action_candidate %>
+          <%= button_to "自動改修タスク化", auto_revision_tasks_path(action_candidate_id: row.action_candidate.id), method: :post, class: "button" %>
+        <% end %>
+      </div>
+
+      <textarea class="prompt-preview" rows="12" readonly><%= row.detail[:prompt] %></textarea>
+
+      <% if row.auto_revision_task %>
+        <h4>PR / 実装結果</h4>
+        <%= form_with url: record_result_owner_auto_revision_loop_task_path(row.auto_revision_task), method: :patch, scope: :auto_revision_task, local: true do |form| %>
+          <div class="form-grid">
+            <label>状態 <%= form.select :status, AutoRevisionTask::STATUSES, selected: "completed" %></label>
+            <label>PR URL <%= form.url_field :pull_request_url, value: row.detail[:pr_url] %></label>
+            <label>Deploy状態 <%= form.text_field :deploy_status, value: row.detail[:deploy_status] %></label>
+            <label>変更ファイル <%= form.text_area :changed_files, rows: 3 %></label>
+            <label>テスト結果 <%= form.text_area :test_result, rows: 3 %></label>
+            <label>実装内容 <%= form.text_area :result_summary, rows: 3 %></label>
+          </div>
+          <label><%= check_box_tag :create_action_execution_log, "1", true %> ActionExecutionLogも作成する</label>
+          <%= form.submit "実装結果を登録", class: "button primary" %>
+        <% end %>
+      <% end %>
+
+      <% if row.action_candidate && row.action_candidate.action_result.blank? %>
+        <h4>ActionResult登録</h4>
+        <%= form_with url: owner_auto_revision_loop_action_results_path, scope: :action_result, local: true do |form| %>
+          <%= hidden_field_tag :action_candidate_id, row.action_candidate.id %>
+          <div class="form-grid">
+            <label>実行日 <%= form.date_field :executed_on, value: Date.current %></label>
+            <label>評価日 <%= form.date_field :evaluated_on, value: Date.current %></label>
+            <label>売上 <%= form.number_field :actual_revenue_yen, value: 0 %></label>
+            <label>利益 <%= form.number_field :actual_profit_yen, value: 0 %></label>
+            <label>メモ <%= form.text_area :note, rows: 3, value: row.detail[:result_summary] %></label>
+          </div>
+          <%= form.submit "ActionResultを登録", class: "button primary" %>
+        <% end %>
+      <% elsif row.action_candidate&.action_result %>
+        <p><%= link_to "登録済みActionResultを見る", row.action_candidate.action_result, class: "button secondary" %></p>
+      <% end %>
+    <% else %>
+      <p>選択中タスクはありません。</p>
+    <% end %>
+  </section>
+</div>

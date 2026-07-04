@@ -1,0 +1,144 @@
+<% content_for :title, "新規事業作成" %>
+
+<section class="page-header">
+  <div>
+    <p class="eyebrow">CEO MODE</p>
+    <h1>新規事業作成</h1>
+    <p class="muted">SERP・Integrated Decision・AI候補から、承認、Business化、LP検証までをこの画面で進めます。</p>
+  </div>
+  <div class="button-row">
+    <%= link_to "Owner Home", owner_focus_path, class: "button secondary" %>
+    <%= link_to "事業一覧", businesses_path, class: "button secondary" %>
+  </div>
+</section>
+
+<% if @board.next_action %>
+  <section class="panel">
+    <p class="eyebrow">次に押すボタン</p>
+    <h2><%= @board.next_action.next_action_label %></h2>
+    <p><%= @board.next_action.next_action_reason %></p>
+    <% if @board.next_action.next_action_path.present? %>
+      <% if @board.next_action.next_action_method == :get %>
+        <%= link_to @board.next_action.next_action_label, @board.next_action.next_action_path, class: "button primary" %>
+      <% else %>
+        <%= button_to @board.next_action.next_action_label, @board.next_action.next_action_path, method: @board.next_action.next_action_method, class: "button primary" %>
+      <% end %>
+    <% end %>
+  </section>
+<% end %>
+
+<section class="metrics-grid">
+  <div class="metric-card"><span>SERP由来候補</span><strong><%= @board.summary.serp_count %></strong></div>
+  <div class="metric-card"><span>総合判断候補</span><strong><%= @board.summary.integrated_decision_count %></strong></div>
+  <div class="metric-card"><span>承認待ち</span><strong><%= @board.summary.pending_count %></strong></div>
+  <div class="metric-card"><span>Business化済み</span><strong><%= @board.summary.business_created_count %></strong></div>
+  <div class="metric-card"><span>LP作成待ち</span><strong><%= @board.summary.lp_waiting_count %></strong></div>
+  <div class="metric-card"><span>LP公開済み</span><strong><%= @board.summary.lp_published_count %></strong></div>
+  <div class="metric-card"><span>検証中</span><strong><%= @board.summary.validating_count %></strong></div>
+  <div class="metric-card"><span>撤退候補</span><strong><%= @board.summary.withdrawal_candidate_count %></strong></div>
+</section>
+
+<div class="two-column-layout">
+  <section class="panel">
+    <h2>新規事業候補一覧</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>優先</th>
+            <th>候補名</th>
+            <th>想定顧客</th>
+            <th>期待利益</th>
+            <th>期待時給</th>
+            <th>状態</th>
+            <th>次の操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @board.rows.each_with_index do |row, index| %>
+            <tr class="<%= "is-selected" if row == @board.selected %>">
+              <td><%= index + 1 %></td>
+              <td><%= link_to row.title, owner_new_business_pipeline_path(selected_id: row.action_candidate.id, anchor: "selected-candidate") %></td>
+              <td><%= truncate(row.target_customer, length: 40) %></td>
+              <td>¥<%= number_with_delimiter(row.expected_profit_yen) %></td>
+              <td>¥<%= number_with_delimiter(row.expected_hourly_value_yen) %></td>
+              <td><span class="pill"><%= row.current_state %></span></td>
+              <td>
+                <% if row.next_action_path.present? %>
+                  <% if row.next_action_method == :get %>
+                    <%= link_to row.next_action_label, row.next_action_path, class: "button small" %>
+                  <% else %>
+                    <%= button_to row.next_action_label, row.next_action_path, method: row.next_action_method, class: "button small" %>
+                  <% end %>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+          <% if @board.rows.empty? %>
+            <tr>
+              <td colspan="7">
+                新規事業候補はありません。
+                <% @board.zero_reasons.each do |reason| %>
+                  <div class="muted"><%= reason %></div>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel" id="selected-candidate">
+    <h2>選択中候補詳細</h2>
+    <% if (row = @board.selected) %>
+      <p class="eyebrow"><%= row.current_state %></p>
+      <h3><%= row.title %></h3>
+      <div class="button-row">
+        <% if row.action_candidate.status.in?(%w[idea pending]) %>
+          <%= button_to "Business化する", approve_owner_new_business_pipeline_candidate_path(row.action_candidate), method: :patch, class: "button primary" %>
+          <%= button_to "却下", reject_owner_new_business_pipeline_candidate_path(row.action_candidate), method: :patch, class: "button danger" %>
+        <% end %>
+        <% if row.business %>
+          <%= link_to "Business詳細へ", row.business, class: "button secondary" %>
+          <%= link_to "Business一覧で確認", businesses_path, class: "button secondary" %>
+        <% end %>
+      </div>
+
+      <dl class="definition-list">
+        <dt>解決する課題</dt><dd><%= row.problem %></dd>
+        <dt>想定顧客</dt><dd><%= row.target_customer %></dd>
+        <dt>収益モデル</dt><dd><%= row.revenue_model %></dd>
+        <dt>LP案</dt><dd><%= row.lp_idea %></dd>
+        <dt>検証方法</dt><dd><%= row.validation_method %></dd>
+        <dt>SERP根拠</dt><dd><%= row.serp_evidence %></dd>
+        <dt>競合</dt><dd><%= row.competitors.any? ? row.competitors.join(" / ") : "未整理" %></dd>
+        <dt>初期コスト</dt><dd>¥<%= number_with_delimiter(row.initial_cost_yen) %></dd>
+        <dt>想定作業時間</dt><dd><%= row.expected_hours %>h</dd>
+        <dt>成功条件</dt><dd><%= row.success_condition %></dd>
+        <dt>撤退条件</dt><dd><%= row.rejection_condition %></dd>
+      </dl>
+
+      <h4>Business化</h4>
+      <% if row.business && row.business.id != row.action_candidate.business_id %>
+        <p class="notice">Business化済み: <%= link_to row.business.name, row.business %></p>
+      <% elsif row.current_state == "承認待ち" %>
+        <p>承認するとBusinessを作成し、事業一覧へ即反映します。</p>
+      <% else %>
+        <p>Business化状態: <%= row.current_state %></p>
+      <% end %>
+
+      <h4>LP作成・公開</h4>
+      <p>LP作成・公開は作成済みBusinessの詳細画面から進めます。ここでは候補承認とBusiness化までを迷わず完了できます。</p>
+
+      <h4>検証管理</h4>
+      <ul>
+        <li>7日評価: PV / CTR / CV を確認</li>
+        <li>14日評価: 検索流入とCTAクリックを確認</li>
+        <li>30日評価: 継続 / 改善 / 撤退を判断</li>
+      </ul>
+    <% else %>
+      <p>選択中候補はありません。</p>
+    <% end %>
+  </section>
+</div>
