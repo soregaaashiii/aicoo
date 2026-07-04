@@ -12,6 +12,10 @@ module Aicoo
         :expected_hourly_value_yen,
         :priority_score,
         :current_state,
+        :progress_percent,
+        :progress_label,
+        :stuck_reason,
+        :bucket,
         :next_action_label,
         :next_action_path,
         :next_action_method,
@@ -87,6 +91,10 @@ module Aicoo
           expected_hourly_value_yen: candidate&.expected_hourly_value_yen.to_i,
           priority_score: task.priority_score.to_d,
           current_state: state_for_task(task),
+          progress_percent: progress_for_task(task)[:percent],
+          progress_label: progress_for_task(task)[:label],
+          stuck_reason: stuck_reason_for_task(task),
+          bucket: bucket_for_task(task),
           next_action_label: next_action_for_task(task)[:label],
           next_action_path: next_action_for_task(task)[:path],
           next_action_method: next_action_for_task(task)[:method],
@@ -108,8 +116,12 @@ module Aicoo
           expected_hourly_value_yen: candidate.expected_hourly_value_yen.to_i,
           priority_score: candidate.final_score.to_d,
           current_state: "改修タスク化待ち",
+          progress_percent: 10,
+          progress_label: "Candidate",
+          stuck_reason: "AutoRevisionTask未作成",
+          bucket: :active,
           next_action_label: "自動改修タスク化",
-          next_action_path: Rails.application.routes.url_helpers.auto_revision_tasks_path(action_candidate_id: candidate.id),
+          next_action_path: Rails.application.routes.url_helpers.create_task_owner_auto_revision_loop_candidate_path(candidate),
           next_action_method: :post,
           next_action_reason: "改善案はありますが、AutoRevisionTaskがまだありません。",
           updated_at: candidate.updated_at,
@@ -123,7 +135,7 @@ module Aicoo
         when "approved", "ready_for_codex", "queued" then "Codex送信待ち"
         when "sent_to_codex" then "Codex作業待ち"
         when "running" then "Codex作業中"
-        when "completed", "succeeded", "partial_succeeded" then task.action_candidate&.action_result ? "完了" : "結果登録待ち"
+        when "completed", "succeeded", "partial_succeeded" then result_state_for(task)
         when "failed" then "失敗"
         else task.status
         end
@@ -133,24 +145,67 @@ module Aicoo
         routes = Rails.application.routes.url_helpers
         case task.status
         when "draft", "waiting_approval"
-          action("承認する", routes.approve_auto_revision_task_path(task), :patch, "承認するとCodex用プロンプト確認へ進めます。")
+          action("承認する", routes.approve_owner_auto_revision_loop_task_path(task), :patch, "承認するとCodex用プロンプト確認へ進めます。")
         when "approved", "ready_for_codex", "queued"
-          action("Codex用プロンプトをコピー", routes.export_codex_prompt_auto_revision_task_path(task), :get, "Cloud Codex API連携前のため、手動コピーで送信します。")
+          action("Codex用プロンプトをコピー", nil, nil, "Cloud Codex API連携前のため、このページ内のプロンプトをコピーして送信します。")
         when "sent_to_codex"
-          action("実装開始にする", routes.start_implementation_auto_revision_task_path(task), :patch, "Codexへ渡した後の作業状態へ進めます。")
+          action("実装開始にする", routes.start_owner_auto_revision_loop_task_path(task), :patch, "Codexへ渡した後の作業状態へ進めます。")
         when "running"
           action("実装済みにする", nil, nil, "右側の実装結果フォームから結果を登録してください。")
         when "completed", "succeeded", "partial_succeeded"
           if task.action_candidate&.action_result
-            action("再評価する", routes.evaluate_action_result_path(task.action_candidate.action_result), :post, "実績と予測の差分を再評価します。")
+            action("Learning状態を見る", nil, nil, "ActionResult登録済みです。評価ステータスをこのページで確認します。")
           else
             action("ActionResultを登録", nil, nil, "右側のActionResultフォームで学習データ化します。")
           end
         when "failed"
-          action("再実行する", routes.retry_execution_auto_revision_task_path(task), :patch, "失敗理由を確認し、再実行キューへ戻します。")
+          action("再実行する", routes.retry_owner_auto_revision_loop_task_path(task), :patch, "失敗理由を確認し、再実行キューへ戻します。")
         else
-          action("詳細を見る", routes.auto_revision_task_path(task), :get, "詳細画面で状態を確認します。")
+          action("状態を確認", nil, nil, "このカード内で状態を確認してください。")
         end
+      end
+
+      def result_state_for(task)
+        result = task.action_candidate&.action_result
+        return "結果登録待ち" unless result
+        return "完了" if result.evaluation_status == "evaluated"
+
+        "Learning待ち"
+      end
+
+      def progress_for_task(task)
+        case state_for_task(task)
+        when "承認待ち" then { percent: 20, label: "Approval" }
+        when "Codex送信待ち" then { percent: 40, label: "Prompt" }
+        when "Codex作業待ち" then { percent: 55, label: "Codex" }
+        when "Codex作業中" then { percent: 65, label: "Implementation" }
+        when "結果登録待ち" then { percent: 80, label: "Result" }
+        when "Learning待ち" then { percent: 90, label: "Learning" }
+        when "完了" then { percent: 100, label: "Done" }
+        when "失敗" then { percent: 60, label: "Failed" }
+        else { percent: 30, label: "Task" }
+        end
+      end
+
+      def stuck_reason_for_task(task)
+        case state_for_task(task)
+        when "承認待ち" then "Owner承認待ち"
+        when "Codex送信待ち" then "Codex用プロンプト未コピー"
+        when "Codex作業待ち" then "Codex送信済み。実装開始記録待ち"
+        when "Codex作業中" then task.auto_revision_executions.recent.first&.pull_request_url.present? ? "実装結果登録待ち" : "PR URL未登録"
+        when "結果登録待ち" then "ActionResult未登録"
+        when "Learning待ち" then "7日/14日/30日評価待ち"
+        when "失敗" then task.error_message.presence || "失敗理由未記録"
+        when "完了" then "完了"
+        else "状態確認が必要"
+        end
+      end
+
+      def bucket_for_task(task)
+        return :failed if state_for_task(task) == "失敗"
+        return :recent_completed if state_for_task(task) == "完了"
+
+        :active
       end
 
       def action(label, path, method, reason)

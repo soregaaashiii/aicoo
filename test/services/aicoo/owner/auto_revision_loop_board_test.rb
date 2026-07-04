@@ -17,8 +17,10 @@ module Aicoo
         result = AutoRevisionLoopBoard.new(selected_key: "auto_revision_task:#{task.id}").call
 
         assert_equal "承認待ち", result.selected.current_state
+        assert_equal 20, result.selected.progress_percent
+        assert_equal "Owner承認待ち", result.selected.stuck_reason
         assert_equal "承認する", result.selected.next_action_label
-        assert_match %r{/auto_revision_tasks/#{task.id}/approve}, result.selected.next_action_path
+        assert_match %r{/owner/auto_revision_loop/auto_revision_tasks/#{task.id}/approve}, result.selected.next_action_path
       end
     end
   end

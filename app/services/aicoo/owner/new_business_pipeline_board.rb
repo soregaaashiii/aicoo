@@ -5,6 +5,7 @@ module Aicoo
         :key,
         :action_candidate,
         :business,
+        :landing_page,
         :title,
         :target_customer,
         :problem,
@@ -18,12 +19,17 @@ module Aicoo
         :initial_cost_yen,
         :expected_hours,
         :current_state,
+        :progress_percent,
+        :progress_label,
+        :stuck_reason,
+        :bucket,
         :next_action_label,
         :next_action_path,
         :next_action_method,
         :next_action_reason,
         :success_condition,
         :rejection_condition,
+        :public_lp_path,
         :updated_at
       )
       Summary = Data.define(
@@ -80,10 +86,12 @@ module Aicoo
       def row_for(candidate)
         metadata = candidate.metadata.to_h
         business = business_for(candidate)
+        landing_page = landing_page_for(business)
         Row.new(
           key: "action_candidate:#{candidate.id}",
           action_candidate: candidate,
           business:,
+          landing_page:,
           title: metadata["business_name"].presence || metadata["service_name"].presence || candidate.title,
           target_customer: metadata["target_customer"].presence || metadata["target_user"].presence || "SERP検索意図に近いユーザー",
           problem: metadata["problem"].presence || candidate.description.presence || "候補詳細で解決課題を確認してください。",
@@ -96,35 +104,53 @@ module Aicoo
           expected_hourly_value_yen: candidate.expected_hourly_value_yen.to_i,
           initial_cost_yen: candidate.cost_yen.to_i,
           expected_hours: candidate.expected_hours.to_d,
-          current_state: state_for(candidate, business),
-          next_action_label: next_action_for(candidate, business)[:label],
-          next_action_path: next_action_for(candidate, business)[:path],
-          next_action_method: next_action_for(candidate, business)[:method],
-          next_action_reason: next_action_for(candidate, business)[:reason],
+          current_state: state_for(candidate, business, landing_page),
+          progress_percent: progress_for(candidate, business, landing_page)[:percent],
+          progress_label: progress_for(candidate, business, landing_page)[:label],
+          stuck_reason: stuck_reason_for(candidate, business, landing_page),
+          bucket: bucket_for(candidate, business, landing_page),
+          next_action_label: next_action_for(candidate, business, landing_page)[:label],
+          next_action_path: next_action_for(candidate, business, landing_page)[:path],
+          next_action_method: next_action_for(candidate, business, landing_page)[:method],
+          next_action_reason: next_action_for(candidate, business, landing_page)[:reason],
           success_condition: metadata["success_condition"].presence || "7日以内にCTAクリックまたはCVが発生する",
           rejection_condition: metadata["rejection_condition"].presence || "30日で検索流入・CTAクリック・CVがすべて弱い",
+          public_lp_path: landing_page&.published_slug.present? ? Rails.application.routes.url_helpers.public_lp_path(landing_page.published_slug) : nil,
           updated_at: candidate.updated_at
         )
       end
 
       def business_for(candidate)
-        metadata_business_id = candidate.metadata.to_h.dig("business_promotion", "business_id")
-        Business.find_by(id: metadata_business_id) || candidate.business
+        promotion = candidate.metadata.to_h["business_promotion"].to_h
+        metadata_business = Business.find_by(id: promotion["business_id"])
+        return metadata_business if promotion["promoted"] && metadata_business
+        return candidate.business if candidate.status == "approved" && promotion["promoted"]
+
+        nil
       end
 
-      def state_for(candidate, business)
+      def landing_page_for(business)
+        business&.aicoo_lab_landing_pages&.order(updated_at: :desc)&.first
+      end
+
+      def state_for(candidate, business, landing_page)
         return "却下済み" if candidate.status == "rejected"
-        return "Business化済み" if candidate.status == "approved" && business.present? && business.id != candidate.business_id
+        return "候補" if candidate.status.in?(%w[idea pending]) && business.blank?
+        return "Business未作成" if candidate.status == "approved" && business.blank?
+        return "LP未作成" if business.present? && landing_page.blank?
+        return "LP未公開" if landing_page && !landing_page.publicly_visible?
+        return "検証中" if landing_page&.publicly_visible?
+        return "Business化済み" if candidate.status == "approved" && business.present?
         return "Business化済み" if candidate.metadata.to_h.dig("business_promotion", "promoted")
         return "承認待ち" if candidate.status.in?(%w[idea pending])
-        return "LP作成待ち" if candidate.status == "approved"
 
         candidate.status.presence || "承認待ち"
       end
 
-      def next_action_for(candidate, business)
+      def next_action_for(candidate, business, landing_page)
         routes = Rails.application.routes.url_helpers
-        if candidate.status.in?(%w[idea pending])
+        state = state_for(candidate, business, landing_page)
+        if state.in?(%w[候補 承認待ち Business未作成])
           return action(
             "Business化する",
             routes.approve_owner_new_business_pipeline_candidate_path(candidate),
@@ -137,11 +163,60 @@ module Aicoo
           return action("却下済み", nil, nil, "この候補は却下済みです。")
         end
 
-        if business
-          return action("Businessを見る", routes.business_path(business), :get, "作成済みBusinessでLP/検証を進めます。")
+        if state == "LP未作成"
+          return action(
+            "LP作成",
+            routes.create_lp_owner_new_business_pipeline_candidate_path(candidate),
+            :post,
+            "作成済みBusinessに検証LPを追加します。"
+          )
         end
 
-        action("状態を確認", routes.action_candidate_path(candidate), :get, "候補詳細で不足情報を確認します。")
+        if state == "LP未公開"
+          return action(
+            "LP公開",
+            routes.publish_owner_new_business_pipeline_landing_page_path(landing_page),
+            :patch,
+            "公開LPとして計測開始できる状態にします。"
+          )
+        end
+
+        if state == "検証中"
+          return action("検証結果待ち", nil, nil, "7日/14日/30日のPV・CTR・CVをこのページで確認します。")
+        end
+
+        action("状態を確認", nil, nil, "このカード内で不足情報を確認してください。")
+      end
+
+      def progress_for(candidate, business, landing_page)
+        case state_for(candidate, business, landing_page)
+        when "候補", "承認待ち" then { percent: 10, label: "Candidate" }
+        when "Business未作成" then { percent: 20, label: "Business" }
+        when "LP未作成" then { percent: 35, label: "Business" }
+        when "LP未公開" then { percent: 55, label: "LP" }
+        when "検証中" then { percent: 75, label: "Validation" }
+        when "却下済み" then { percent: 0, label: "Rejected" }
+        else { percent: 30, label: "Pipeline" }
+        end
+      end
+
+      def stuck_reason_for(candidate, business, landing_page)
+        case state_for(candidate, business, landing_page)
+        when "候補", "承認待ち" then "Owner承認待ち"
+        when "Business未作成" then "承認済みですがBusiness未作成"
+        when "LP未作成" then "LP未作成"
+        when "LP未公開" then "LP未公開"
+        when "検証中" then "計測待ち"
+        when "却下済み" then "却下済み"
+        else "状態確認が必要"
+        end
+      end
+
+      def bucket_for(candidate, business, landing_page)
+        return :failed if candidate.status == "rejected"
+        return :active unless landing_page&.publicly_visible?
+
+        :active
       end
 
       def action(label, path, method, reason)
@@ -152,11 +227,11 @@ module Aicoo
         Summary.new(
           serp_count: rows.count { |row| row.action_candidate.generation_source == "serp" },
           integrated_decision_count: rows.count { |row| row.action_candidate.generation_source == "integrated_decision" },
-          pending_count: rows.count { |row| row.current_state == "承認待ち" },
-          business_created_count: rows.count { |row| row.current_state == "Business化済み" },
-          lp_waiting_count: rows.count { |row| row.current_state == "LP作成待ち" },
-          lp_published_count: rows.count { |row| row.business&.aicoo_lab_landing_pages&.publicly_available&.exists? },
-          validating_count: rows.count { |row| row.business&.lifecycle_stage == "lp_validation" },
+          pending_count: rows.count { |row| row.current_state.in?(%w[候補 承認待ち]) },
+          business_created_count: rows.count { |row| row.business.present? },
+          lp_waiting_count: rows.count { |row| row.current_state == "LP未作成" },
+          lp_published_count: rows.count { |row| row.landing_page&.publicly_visible? },
+          validating_count: rows.count { |row| row.current_state == "検証中" },
           result_waiting_count: rows.count { |row| row.current_state.in?(%w[検証中 結果待ち]) },
           withdrawal_candidate_count: rows.count { |row| row.action_candidate.action_type == "withdraw" }
         )

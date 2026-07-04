@@ -32,5 +32,18 @@ module Owner
       assert_redirected_to owner_auto_revision_loop_url(selected: "action_candidate:#{candidate.id}", anchor: "selected-task")
       assert_equal candidate, ActionResult.last.action_candidate
     end
+
+    test "creates auto revision task from loop page without leaving owner flow" do
+      candidate = action_candidates(:nagazakicho_article)
+      candidate.auto_revision_tasks.destroy_all
+
+      assert_difference("AutoRevisionTask.count", 1) do
+        post create_task_owner_auto_revision_loop_candidate_url(candidate)
+      end
+
+      task = AutoRevisionTask.last
+      assert_redirected_to owner_auto_revision_loop_url(selected: "auto_revision_task:#{task.id}", anchor: "selected-task")
+      assert_equal candidate, task.action_candidate
+    end
   end
 end

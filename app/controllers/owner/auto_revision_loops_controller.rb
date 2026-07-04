@@ -17,6 +17,43 @@ module Owner
       end
     end
 
+    def create_task
+      candidate = ActionCandidate.find(params.expect(:id))
+      task = AutoRevisionTask.from_action_candidate(candidate, generated_by: "owner_auto_revision_loop")
+      redirect_to owner_auto_revision_loop_path(selected: "auto_revision_task:#{task.id}", anchor: "selected-task"),
+                  notice: "自動改修タスクを作成しました。"
+    rescue ActiveRecord::RecordInvalid => e
+      redirect_to owner_auto_revision_loop_path(selected: "action_candidate:#{params[:id]}", anchor: "selected-task"),
+                  alert: "自動改修タスクを作成できません: #{e.record.errors.full_messages.to_sentence}"
+    end
+
+    def approve_task
+      task = AutoRevisionTask.find(params.expect(:id))
+      result = Aicoo::ApprovalService.approve(task, operator: "owner", source: "owner_auto_revision_loop")
+      redirect_to owner_auto_revision_loop_path(selected: "auto_revision_task:#{task.id}", anchor: "selected-task"),
+                  notice: result.message
+    rescue ActiveRecord::RecordInvalid => e
+      redirect_to owner_auto_revision_loop_path(selected: "auto_revision_task:#{params[:id]}", anchor: "selected-task"),
+                  alert: "承認できません: #{e.record.errors.full_messages.to_sentence}"
+    end
+
+    def start_task
+      task = AutoRevisionTask.find(params.expect(:id))
+      task.start_implementation!
+      redirect_to owner_auto_revision_loop_path(selected: "auto_revision_task:#{task.id}", anchor: "selected-task"),
+                  notice: "実装開始として記録しました。"
+    end
+
+    def retry_task
+      task = AutoRevisionTask.find(params.expect(:id))
+      task.enqueue_for_codex!(operator: "owner_auto_revision_loop_retry")
+      redirect_to owner_auto_revision_loop_path(selected: "auto_revision_task:#{task.id}", anchor: "selected-task"),
+                  notice: "再実行キューへ戻しました。"
+    rescue ActiveRecord::RecordInvalid => e
+      redirect_to owner_auto_revision_loop_path(selected: "auto_revision_task:#{params[:id]}", anchor: "selected-task"),
+                  alert: "再実行できません: #{e.record.errors.full_messages.to_sentence}"
+    end
+
     def mark_task_sent
       task = AutoRevisionTask.find(params.expect(:id))
       task.mark_sent_to_codex!
