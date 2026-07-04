@@ -158,6 +158,12 @@ module Aicoo
           created_by_aicoo: true,
           daily_run_enabled: true,
           serp_enabled: true,
+          auto_revision_mode: "automatic",
+          auto_deploy_mode: "approval",
+          auto_build_enabled: true,
+          auto_build_requires_approval: false,
+          auto_build_risk_level: "low",
+          new_lp_auto_deploy_enabled: true,
           lifecycle_stage: "lp_validation",
           resource_status: "active",
           business_type: "landing_page",
@@ -168,6 +174,7 @@ module Aicoo
             "auto_published_at" => Time.current.iso8601
           )
         )
+        Aicoo::NewBusinessAutomationDefaults.apply!(business)
       end
 
       def auto_created_business?(business)

@@ -78,7 +78,13 @@ module Admin
         assert_not business.launched?
         assert business.daily_run_enabled?
         assert business.serp_enabled?
-        assert_equal "manual", business.auto_revision_mode
+        assert_equal "automatic", business.auto_revision_mode
+        assert_equal "approval", business.auto_deploy_mode
+        assert business.auto_build_enabled?
+        assert_not business.auto_build_requires_approval?
+        assert business.new_lp_auto_deploy_enabled?
+        assert business.business_execution_profile.codex_enabled?
+        assert business.business_execution_profile.codex_auto_submit_enabled?
         assert_not business.system_business?
 
         get businesses_url

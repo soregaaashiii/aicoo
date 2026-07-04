@@ -113,6 +113,12 @@ module Aicoo
       assert_equal "approved", candidate.reload.status
       assert_equal business, candidate.business
       assert_equal "serp", business.source
+      assert_equal "automatic", business.auto_revision_mode
+      assert_equal "approval", business.auto_deploy_mode
+      assert business.auto_build_enabled?
+      assert_not business.auto_build_requires_approval?
+      assert business.business_execution_profile.codex_enabled?
+      assert business.business_execution_profile.codex_auto_submit_enabled?
     end
 
     test "approves serp ai suggestion into executable serp query" do

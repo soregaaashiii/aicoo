@@ -37,8 +37,13 @@ module Aicoo
           launched: true,
           daily_run_enabled: true,
           serp_enabled: true,
-          auto_revision_mode: "manual"
-        )
+          auto_revision_mode: "automatic",
+          auto_deploy_mode: "approval",
+          auto_build_enabled: true,
+          auto_build_requires_approval: false,
+          auto_build_risk_level: "low",
+          new_lp_auto_deploy_enabled: true
+        ).tap { |business| Aicoo::NewBusinessAutomationDefaults.apply!(business) }
       end
 
       def landing_page

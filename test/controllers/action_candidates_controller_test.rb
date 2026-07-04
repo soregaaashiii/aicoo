@@ -306,10 +306,17 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "approved", candidate.status
     assert_equal "integrated_decision", business.source
     assert_equal "lp_validation", business.lifecycle_stage
-    assert_equal "idea", business.status
+    assert_equal "launched", business.status
     assert business.created_by_aicoo?
     assert business.daily_run_enabled?
     assert business.serp_enabled?
+    assert_equal "automatic", business.auto_revision_mode
+    assert_equal "approval", business.auto_deploy_mode
+    assert business.auto_build_enabled?
+    assert_not business.auto_build_requires_approval?
+    assert business.new_lp_auto_deploy_enabled?
+    assert business.business_execution_profile.codex_enabled?
+    assert business.business_execution_profile.codex_auto_submit_enabled?
     assert_includes business.metadata, "action_candidate_id"
     assert_includes flash[:notice], "Businessを作成しました: #{business.name}"
 
