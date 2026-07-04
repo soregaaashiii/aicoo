@@ -382,6 +382,11 @@ class AicooDailyRunner
         "message",
         "skipped_reasons",
         "candidate_count",
+        "codex_issue_processed_count",
+        "codex_issue_created_count",
+        "codex_issue_skipped_count",
+        "codex_issue_failed_count",
+        "codex_issue_details",
         "minimum_final_score",
         "max_tasks_per_run"
       ))

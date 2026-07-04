@@ -13,6 +13,10 @@ class AicooAutoRevisionDailyRunQueuer
       minimum_final_score: setting.minimum_final_score,
       allow_medium_risk: setting.allow_medium_risk
     ).call(limit: setting.max_tasks_per_run)
+    codex_issue_result = Aicoo::AutoRevisionCodexIssueDispatcher.new.call(
+      tasks: result.created_tasks,
+      limit: setting.max_tasks_per_run
+    )
 
     queue_run = AutoRevisionQueueRun.create!(
       aicoo_daily_run: daily_run,
@@ -30,6 +34,11 @@ class AicooAutoRevisionDailyRunQueuer
         "auto_revision_mode_counts" => result.logs.group_by(&:auto_revision_mode).transform_values(&:size),
         "auto_revision_status_counts" => result.logs.group_by(&:status).transform_values(&:size),
         "high_risk_candidate_ids" => result.high_risk_candidates.map(&:id),
+        "codex_issue_processed_count" => codex_issue_result.processed_count,
+        "codex_issue_created_count" => codex_issue_result.created_issue_count,
+        "codex_issue_skipped_count" => codex_issue_result.skipped_count,
+        "codex_issue_failed_count" => codex_issue_result.failed_count,
+        "codex_issue_details" => codex_issue_result.details.first(20),
         "minimum_final_score" => setting.minimum_final_score.to_s,
         "max_tasks_per_run" => setting.max_tasks_per_run,
         "allow_medium_risk" => setting.allow_medium_risk

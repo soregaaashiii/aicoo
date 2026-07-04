@@ -4,10 +4,13 @@ class AicooAutoRevisionDailyRunQueuerTest < ActiveSupport::TestCase
   setup do
     AutoRevisionRunLog.delete_all
     AutoRevisionQueueRun.delete_all
+    CodexSubmission.delete_all
+    AutoRevisionExecution.delete_all
     AutoRevisionTask.delete_all
     AicooAutoRevisionSetting.delete_all
     ActionCandidate.update_all(status: "done")
     Business.update_all(auto_revision_mode: "manual")
+    businesses(:suelog).business_execution_profile&.destroy!
   end
 
   test "does not run when setting is disabled" do
@@ -91,6 +94,23 @@ class AicooAutoRevisionDailyRunQueuerTest < ActiveSupport::TestCase
     end
   end
 
+  test "dispatches ready codex tasks to github issue during queue run" do
+    AicooAutoRevisionSetting.current.update!(enabled: true, max_tasks_per_run: 2)
+    daily_run = create_daily_run
+    task = create_ready_codex_task
+
+    with_fake_github_issue_bridge do
+      result = AicooAutoRevisionDailyRunQueuer.new.call(daily_run:)
+
+      assert_equal true, result.ran
+      assert_equal 1, result.queue_run.metadata.fetch("codex_issue_processed_count")
+      assert_equal 1, result.queue_run.metadata.fetch("codex_issue_created_count")
+      assert_equal "sent_to_codex", task.reload.status
+      assert_equal "submitted", task.codex_submission.status
+      assert_equal "https://github.com/example/suelog/issues/#{task.id}", task.codex_submission.github_issue_url
+    end
+  end
+
   private
 
   def create_daily_run
@@ -108,5 +128,63 @@ class AicooAutoRevisionDailyRunQueuerTest < ActiveSupport::TestCase
       expected_hours: 1,
       execution_prompt:
     )
+  end
+
+  def create_ready_codex_task
+    create_profile!
+    candidate = create_candidate(title: "SEOタイトル改善", execution_prompt: "SEOタイトルを改善してください。")
+    AutoRevisionTask.from_action_candidate(candidate).tap do |task|
+      task.update!(status: "ready_for_codex", risk_level: "low", approved_at: Time.current)
+    end
+  end
+
+  def create_profile!
+    businesses(:suelog).create_business_execution_profile!(
+      repository_name: "suelog",
+      repository_type: "rails",
+      repository_path: "/apps/suelog",
+      github_repository: "https://github.com/example/suelog",
+      test_command: "bin/rails test",
+      lint_command: "bin/rails zeitwerk:check",
+      deploy_command: "bin/deploy",
+      require_manual_approval: false,
+      codex_enabled: true,
+      codex_workspace_name: "AICOO",
+      codex_project_folder: "/workspace/suelog",
+      codex_repository_url: "https://github.com/example/suelog",
+      codex_base_branch: "main",
+      codex_working_branch_prefix: "aicoo/",
+      codex_auto_submit_enabled: true,
+      codex_risk_limit: "low"
+    )
+  end
+
+  def with_fake_github_issue_bridge
+    original_new = Aicoo::CodexGithubIssueBridge.method(:new)
+    Aicoo::CodexGithubIssueBridge.define_singleton_method(:new) do |submission|
+      fake_bridge = Object.new
+      fake_bridge.define_singleton_method(:call) do
+        issue_url = "https://github.com/example/suelog/issues/#{submission.auto_revision_task_id}"
+        submission.mark_submitted!(
+          payload: {
+            "github_issue_url" => issue_url,
+            "github_issue_number" => submission.auto_revision_task_id,
+            "codex_handoff_mode" => "github_issue"
+          }
+        )
+        Aicoo::CodexGithubIssueBridge::Result.new(
+          created: true,
+          issue_url:,
+          issue_number: submission.auto_revision_task_id,
+          message: "GitHub Issueを作成しました。",
+          payload: submission.response_payload
+        )
+      end
+      fake_bridge
+    end
+
+    yield
+  ensure
+    Aicoo::CodexGithubIssueBridge.define_singleton_method(:new) { |*args| original_new.call(*args) } if original_new
   end
 end
