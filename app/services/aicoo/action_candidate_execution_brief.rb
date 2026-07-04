@@ -146,6 +146,7 @@ module Aicoo
         model: "Article",
         structure: article_structure,
         comparison_table: article_comparison_table,
+        body_sections: article_body_sections,
         cta: proposed_cta,
         faq: proposed_faq,
         internal_links: article_internal_link_targets,
@@ -180,6 +181,9 @@ module Aicoo
 
         記事構成:
         #{new_article_spec[:structure].map { |row| "- #{row[:level]} #{row[:text]}" }.join("\n")}
+
+        本文案:
+        #{new_article_spec[:body_sections].map { |section| "#{section[:heading]}\n#{section[:body]}" }.join("\n\n")}
 
         比較表:
         列: #{new_article_spec[:comparison_table][:columns].join(" / ")}
@@ -416,6 +420,44 @@ module Aicoo
       end
     end
 
+    def article_body_sections
+      if branded_search_page_needed? && suelog_business?
+        return [
+          {
+            heading: "H2 吸えログでできること",
+            body: "吸えログは、大阪で喫煙できる飲食店・カフェ・居酒屋を探すためのサービスです。喫煙可否だけでなく、紙タバコや加熱式など条件に合わせてお店を探しやすくすることを目的にしています。梅田や難波など、行きたいエリアから喫煙できるお店へすぐ進める導線を用意します。"
+          },
+          {
+            heading: "H2 食べログ・Googleマップ・Rettyとの違い",
+            body: "食べログやGoogleマップ、Rettyは幅広い飲食店探しに便利ですが、喫煙情報は口コミや店舗情報の中に分散しがちです。吸えログは、喫煙できるお店を探すことに絞っているため、喫煙可否を前提に比較できます。喫煙者が知りたい条件を先に見られる点が大きな違いです。"
+          },
+          {
+            heading: "H2 比較表",
+            body: "ここでは、吸えログ・食べログ・Googleマップ・Rettyを喫煙情報の探しやすさで比較します。喫煙情報、紙タバコ/加熱式、地図検索、掲載店舗、向いている人の観点で整理します。比較表を見れば、喫煙できるお店を探す時にどのサービスを使えばよいか判断できます。"
+          },
+          {
+            heading: "H2 吸えログが向いている人",
+            body: "吸えログは、大阪で喫煙できるお店を早く見つけたい人に向いています。食事や待ち合わせの前に、喫煙可否を確認してからお店を決めたい時に使いやすい構成です。特に梅田・難波周辺で、カフェや居酒屋を喫煙条件つきで探したい人に合います。"
+          },
+          {
+            heading: "H2 大阪で喫煙できる店を探す",
+            body: "大阪で喫煙できるお店を探す場合は、エリアと利用シーンを先に決めると探しやすくなります。梅田なら待ち合わせ前のカフェ、難波なら食事や飲み会向けの居酒屋など、目的別に確認できます。本文内から大阪・梅田・難波・カフェ・居酒屋の各ページへ内部リンクを設置します。"
+          },
+          {
+            heading: "H2 FAQ",
+            body: "FAQでは、吸えログで何ができるか、食べログやGoogleマップとどう違うか、紙タバコと加熱式の情報を見られるかを回答します。検索ユーザーが最後に迷いやすい点をここで解消します。FAQの下には、大阪で喫煙できるお店を探すCTAを表示します。"
+          }
+        ]
+      end
+
+      article_structure.select { |row| row[:level] == "H2" }.map do |row|
+        {
+          heading: "H2 #{row[:text]}",
+          body: "#{row[:text]}について、検索ユーザーが最初に知りたい結論、判断材料、次に取る行動を2〜4文で整理します。上位SERPの共通要素と自サイトの不足要素を踏まえ、比較表・FAQ・CTAへ自然につなげます。"
+        }
+      end
+    end
+
     def article_internal_link_targets
       if branded_search_page_needed? && suelog_business?
         [
@@ -431,20 +473,19 @@ module Aicoo
     end
 
     def article_creation_implementation_note
-      "Articleを新規作成できるseed/task/admin導線がある場合はそれを使う。なければ既存Article作成フローに合わせ、slug/title/seo_title/meta_description/body/statusを登録する。記事テンプレートだけで終わらせず、実データ登録方法まで確認する。"
+      "対象プロジェクトの既存Article作成フローを確認し、admin導線・service・taskのいずれか既存の方法で実データを登録する。新規routeやseed追加は、既存Article作成フローに必要な場合だけ行う。記事テンプレートだけで終わらせず、slug/title/seo_title/meta_description/body/statusを保存する。"
     end
 
     def new_article_completion_criteria
       [
-        "#{new_article_spec[:url]} が存在すること",
-        "slug=#{new_article_spec[:slug]} でArticle実データが登録されていること",
-        "title/meta/H1が新規記事作成仕様どおりに設定されていること",
-        "記事本文に指定したH2/H3構成が入っていること",
-        "比較表があること",
-        "大阪/梅田/難波/カフェ/居酒屋への内部リンクがあること",
-        "CTAがあること",
-        "FAQがあること",
-        "ActionResultへ登録できる変更メモがあること"
+        "Article slug=#{new_article_spec[:slug]} が作成されている",
+        "#{new_article_spec[:url]} で公開確認できる",
+        "SEO title/meta description/H1 が設定されている",
+        "比較表が本文内にある",
+        "FAQが本文内にある",
+        "#{new_article_spec[:internal_links].join(' ')} への内部リンクがある",
+        "CTA「#{new_article_spec[:cta]}」が表示される",
+        "ActionResult登録用の変更メモが生成される"
       ]
     end
 
@@ -464,6 +505,9 @@ module Aicoo
 
         ### 記事構成
         #{new_article_spec[:structure].map { |row| "- #{row[:level]} #{row[:text]}" }.join("\n")}
+
+        ### H2ごとの本文案
+        #{new_article_spec[:body_sections].map { |section| "#### #{section[:heading]}\n#{section[:body]}" }.join("\n\n")}
 
         ### 比較表
         - 列: #{new_article_spec[:comparison_table][:columns].join(" / ")}
@@ -792,8 +836,6 @@ module Aicoo
           app/controllers/articles_controller.rb
           app/views/articles/show.html.erb
           app/services/article_seo_presenter.rb
-          config/routes.rb
-          db/seeds.rb
         ]
       end
 

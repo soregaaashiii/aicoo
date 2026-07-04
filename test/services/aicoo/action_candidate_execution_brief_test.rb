@@ -114,10 +114,16 @@ module Aicoo
       assert_includes brief.prompt_markdown, "推奨slug: suelog-comparison"
       assert_includes brief.prompt_markdown, "URL: /articles/suelog-comparison"
       assert_includes brief.prompt_markdown, "H2 食べログ・Googleマップ・Rettyとの違い"
+      assert_includes brief.prompt_markdown, "食べログやGoogleマップ、Rettyは幅広い飲食店探しに便利ですが"
       assert_includes brief.prompt_markdown, "サービス / 喫煙情報 / 紙タバコ/加熱式"
       assert_includes brief.prompt_markdown, "指名検索対策ページ"
       assert_includes brief.prompt_markdown, "大阪で喫煙できる店探し"
-      assert_includes brief.completion_criteria, "/articles/suelog-comparison が存在すること"
+      assert_includes brief.completion_criteria, "Article slug=suelog-comparison が作成されている"
+      assert_includes brief.completion_criteria, "/articles/suelog-comparison で公開確認できる"
+      assert_includes brief.completion_criteria, "CTA「大阪で喫煙できるお店を探す」が表示される"
+      assert_includes brief.file_changes, "app/models/article.rb"
+      assert_not_includes brief.file_changes, "config/routes.rb"
+      assert_not_includes brief.file_changes, "db/seeds.rb"
       assert_no_match(/- 1位 ログ管理システム比較/, brief.prompt_markdown)
     end
   end
