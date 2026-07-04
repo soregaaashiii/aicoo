@@ -196,7 +196,9 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
       result_count: 10,
       competition_score: 82
     )
-    latest.serp_results.create!(position: 1, title: "強い競合", url: "https://example.com", snippet: "競合ページ")
+    latest.serp_results.create!(position: 1, title: "梅田 喫煙 カフェ 比較", url: "https://example.com/1", snippet: "大阪 梅田で喫煙可のカフェを比較")
+    latest.serp_results.create!(position: 2, title: "大阪 喫煙可能 飲食店", url: "https://example.com/2", snippet: "紙タバコと加熱式に対応した飲食店")
+    latest.serp_results.create!(position: 3, title: "難波 喫煙可 居酒屋", url: "https://example.com/3", snippet: "難波で喫煙可能な居酒屋を探せます")
 
     result = MetricActionCandidateGenerator.new(business: @business, today: @today).call
     serp_candidates = result.created.select { |candidate| candidate.generation_source == "serp" }

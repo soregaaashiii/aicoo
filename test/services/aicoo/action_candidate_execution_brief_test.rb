@@ -77,5 +77,38 @@ module Aicoo
       assert_empty brief.open_links.select { |link| link[:url] == "/map/affiliate_clicks" }
       assert_no_match(/URL: \/map\/affiliate_clicks/, brief.prompt_markdown)
     end
+
+    test "does not use unrelated serp results for suelog branded query" do
+      candidate = ActionCandidate.create!(
+        business: businesses(:suelog),
+        title: "吸えログの指名検索対策ページを作る",
+        description: "吸えログ 比較のSERPに無関係なログ管理記事が混ざっています。",
+        action_type: "seo_article",
+        status: "pending",
+        generation_source: "serp",
+        immediate_value_yen: 18_000,
+        expected_hours: 2,
+        success_probability: 0.36,
+        metadata: {
+          "source_query" => "吸えログ 比較",
+          "serp_top_results" => [
+            { "position" => 1, "title" => "ログ管理システム比較", "url" => "https://example.com/log", "snippet" => "操作ログと監査ログの比較" },
+            { "position" => 2, "title" => "勤怠ログ管理ツール比較", "url" => "https://example.com/time-log", "snippet" => "業務日報とログ管理" },
+            { "position" => 3, "title" => "大阪 喫煙可能 カフェ", "url" => "https://example.com/smoking-cafe", "snippet" => "梅田で喫煙可のカフェを探す" }
+          ]
+        }
+      )
+
+      brief = ActionCandidateExecutionBrief.new(candidate)
+
+      assert_equal [ "大阪 喫煙可能 カフェ" ], brief.top_serp_results.map { |row| row["title"] }
+      assert_equal "指名検索ページ不足", brief.serp_comparison.dig(:relevance, :status)
+      assert_includes brief.own_site_gap, "食べログ/Googleマップ/Rettyとの違い"
+      assert_includes brief.before_after_items.first[:after], "吸えログとは？"
+      assert_includes brief.prompt_markdown, "SERP関連度"
+      assert_includes brief.prompt_markdown, "指名検索対策ページ"
+      assert_includes brief.prompt_markdown, "大阪で喫煙できる店探し"
+      assert_no_match(/- 1位 ログ管理システム比較/, brief.prompt_markdown)
+    end
   end
 end

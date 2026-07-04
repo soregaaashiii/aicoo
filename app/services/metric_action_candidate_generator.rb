@@ -475,6 +475,7 @@ class MetricActionCandidateGenerator
 
   def serp_rank_decline_risk_spec
     return unless latest_serp_analysis&.successful?
+    return unless latest_serp_relevant_enough?
     return unless previous_serp_analysis
     return unless serp_competition_delta >= 20
 
@@ -495,6 +496,7 @@ class MetricActionCandidateGenerator
 
   def serp_competition_rising_spec
     return unless latest_serp_analysis&.successful?
+    return unless latest_serp_relevant_enough?
     return unless latest_serp_analysis.competition_score.to_i >= 70
 
     CandidateSpec.new(
@@ -515,6 +517,24 @@ class MetricActionCandidateGenerator
   def serp_uncovered_keyword_spec
     return unless latest_serp_analysis&.successful?
     return if keyword_covered_by_recent_action?(latest_serp_analysis.keyword)
+
+    if latest_serp_branded_gap?
+      return CandidateSpec.new(
+        key: "serp_branded_search_page_gap",
+        title: "#{business.name}の指名検索対策ページを作る",
+        description: "#{latest_serp_analysis.keyword} は指名検索ですが、SERP上位にBusiness領域外の結果が多いため、#{business.name}とは何かを説明するページが必要です。",
+        action_type: media_like_business? ? "seo_article" : "seo_improvement",
+        immediate_value_yen: estimate_value(18_000),
+        success_probability: 0.36,
+        strategic_value_score: 58,
+        risk_reduction_score: 35,
+        expected_hours: 2,
+        evaluation_reason: "指名検索ですが関連SERPが#{latest_serp_relevant_count}件のみです。Business領域外SERPを根拠にせず、指名検索対策ページ不足として扱います。",
+        execution_prompt: "#{business.name}とは何か、食べログ/Googleマップ/Rettyとの違い、大阪で喫煙できる店探しに特化していることを説明する指名検索対策ページを作成してください。"
+      )
+    end
+
+    return unless latest_serp_relevant_enough?
 
     CandidateSpec.new(
       key: "serp_uncovered_keyword",
@@ -671,6 +691,8 @@ class MetricActionCandidateGenerator
       "serp_provider" => latest_serp_analysis.provider,
       "serp_competition_score" => latest_serp_analysis.competition_score,
       "serp_result_count" => latest_serp_analysis.result_count,
+      "serp_relevant_result_count" => latest_serp_relevant_count,
+      "serp_branded_search_gap" => latest_serp_branded_gap?,
       "serp_analyzed_at" => latest_serp_analysis.analyzed_at&.iso8601
     }
   end
@@ -749,6 +771,37 @@ class MetricActionCandidateGenerator
 
   def latest_serp_analysis
     @latest_serp_analysis ||= business.serp_analyses.successful.order(analyzed_at: :desc, created_at: :desc).first
+  end
+
+  def latest_serp_relevant_enough?
+    return true unless latest_serp_analysis
+
+    latest_serp_relevant_count >= 3
+  end
+
+  def latest_serp_branded_gap?
+    return false unless latest_serp_analysis
+
+    serp_relevance_filter.branded_query? && latest_serp_rows.any? && latest_serp_relevant_count < 3
+  end
+
+  def latest_serp_relevant_count
+    @latest_serp_relevant_count ||= serp_relevance_filter.relevant_results(latest_serp_rows).size
+  end
+
+  def latest_serp_rows
+    @latest_serp_rows ||= latest_serp_analysis
+      &.serp_results
+      &.order(:position)
+      &.limit(10)
+      &.map { |row| { "position" => row.position, "title" => row.title, "url" => row.url, "snippet" => row.snippet } } || []
+  end
+
+  def serp_relevance_filter
+    @serp_relevance_filter ||= Aicoo::Serp::ResultRelevance.new(
+      business:,
+      query: latest_serp_analysis&.keyword
+    )
   end
 
   def previous_serp_analysis
