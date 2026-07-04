@@ -6,7 +6,7 @@ module Aicoo
 
     def call
       <<~PROMPT
-        # AICOO Action Execution
+        # AICOO Action Execution 指示書
 
         ## 行動タイトル
         #{action_candidate.title}
@@ -20,13 +20,17 @@ module Aicoo
         ## 目的
         #{action_candidate.evaluation_reason.presence || action_candidate.description.presence || "AICOOが提案した行動候補を安全に実行する。"}
 
-        ## 実行内容
+        ## 元の実行内容
         #{action_candidate.execution_prompt.presence || action_candidate.description.presence || action_candidate.title}
 
-        ## 完了条件
-        - 実行内容に記載された作業が完了している
-        - 変更内容または実行内容をresult_summaryへ記録できる
-        - 実行後にActionResultへ進める状態になっている
+        #{execution_brief.prompt_markdown}
+
+        ## Codex実装指示
+        - 上記のBefore/Afterと「Codexへ渡す修正文」をそのまま実装してください。
+        - 改善対象ページURLが未特定の場合は、候補ページ1位から順に実在するRails route/view/controllerを確認して対象を確定してください。
+        - 指標名 clicks / phone_clicks / map_clicks / affiliate_clicks をURLとして扱わないでください。
+        - 実在しないURLを実装対象・完了報告・ActionResultに書かないでください。
+        - 修正対象ファイルに挙げたviews/controllers/servicesを優先し、必要最小限の変更に留めてください。
 
         ## 注意事項
         - 既存機能を壊さない
@@ -39,5 +43,9 @@ module Aicoo
     private
 
     attr_reader :action_candidate
+
+    def execution_brief
+      @execution_brief ||= Aicoo::ActionCandidateExecutionBrief.new(action_candidate)
+    end
   end
 end

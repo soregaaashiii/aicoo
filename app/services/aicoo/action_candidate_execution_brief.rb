@@ -81,6 +81,62 @@ module Aicoo
       expansion["expected_minutes"].presence || metadata["expected_minutes"].presence || minutes_from_hours || 30
     end
 
+    def search_query
+      source_query.presence || "未特定"
+    end
+
+    def top_serp_results
+      serp_results.first(5)
+    end
+
+    def own_site_gap
+      missing = serp_comparison[:missing_elements]
+      common = serp_comparison[:common_words]
+      [
+        common.present? && "上位サイトは #{common.join("・")} を訴求しています。",
+        missing.present? && "#{business&.name || '自サイト'}には #{missing.join("・")} が不足しています。",
+        "差分を埋めるため、Before/Afterの修正文をそのまま実装してください。"
+      ].compact.join("\n")
+    end
+
+    def page_change_type
+      return "新規記事" if action_candidate.action_type.in?(%w[seo_article build_lp lp_experiment]) || expansion["expansion_type"] == "content_area_expansion"
+      return "既存記事" if resource_type == "Article"
+      return "既存ページ" if target_url.present?
+
+      "未特定"
+    end
+
+    def article_id
+      metadata["article_id"].presence ||
+        metadata["resource_id"].presence ||
+        metadata.dig("article", "id").presence ||
+        expansion["article_id"].presence
+    end
+
+    def ranked_candidate_pages
+      candidate_pages.each_with_index.map do |page, index|
+        {
+          rank: index + 1,
+          page:,
+          reason: candidate_page_reason(page, index)
+        }
+      end
+    end
+
+    def codex_patch_text
+      before_after_items.map do |row|
+        <<~TEXT.strip
+          #{row[:label]}:
+          現在:
+          #{row[:current]}
+
+          修正後:
+          #{row[:after]}
+        TEXT
+      end.join("\n\n")
+    end
+
     def prompt_markdown
       <<~MARKDOWN.strip
         # ActionCandidate実行指示書
@@ -93,10 +149,47 @@ module Aicoo
         - URL: #{target[:url]}
         - 管理画面URL: #{target[:admin_url]}
         - 対象: #{target[:resource_type]} #{target[:resource_name]}
+        - 記事ID: #{article_id.presence || "未特定"}
+        - 新規/既存: #{page_change_type}
         - 候補ページ: #{target[:candidate_pages].presence&.join(", ") || "未特定"}
+
+        ## ① 検索クエリ
+        #{search_query}
+
+        ## ② SERP上位5件
+        #{top_serp_results.any? ? top_serp_results.map { |row| "- #{row['position'] || '-'}位 #{row['title']} #{row['url']}\n  #{row['snippet']}" }.join("\n") : "- 未取得"}
+
+        ## ③ 上位サイト共通要素
+        - 共通ワード: #{serp_comparison[:common_words].join(", ")}
+        - 共通構成: #{serp_comparison[:common_structure].join(", ")}
+
+        ## ④ 自サイトとの差分
+        #{own_site_gap}
+
+        ## ⑤ 改善対象ページ
+        - URL: #{target[:url]}
+        - Business: #{target[:business]}
+        - 記事ID: #{article_id.presence || "未特定"}
+        - 候補ページ:
+        #{ranked_candidate_pages.map { |row| "  #{row[:rank]}. #{row[:page]} - #{row[:reason]}" }.join("\n")}
+
+        ## ⑥ 新規記事か既存記事か
+        #{page_change_type}
+
+        ## ⑦ 修正対象ファイル
+        #{file_changes.map { |path| "- #{path}" }.join("\n")}
 
         ## 現在 → 変更後
         #{before_after_items.map { |row| "- #{row[:label]}\n  - 現在: #{row[:current]}\n  - 変更後: #{row[:after]}" }.join("\n")}
+
+        ## ⑧ Before
+        #{before_after_items.map { |row| "- #{row[:label]}: #{row[:current]}" }.join("\n")}
+
+        ## ⑨ After（AI生成）
+        #{before_after_items.map { |row| "- #{row[:label]}: #{row[:after]}" }.join("\n")}
+
+        ## ⑩ Codexへ渡す修正文
+        #{codex_patch_text}
 
         ## SERP差分
         - 根拠検索クエリ: #{serp_comparison[:query]}
@@ -108,13 +201,13 @@ module Aicoo
         ## 変更ファイル
         #{file_changes.map { |path| "- #{path}" }.join("\n")}
 
-        ## 完了条件
+        ## ⑪ 完成条件（完了条件）
         #{completion_criteria.map { |criterion| "- #{criterion}" }.join("\n")}
 
         ## 期待効果
-        - CTR: #{expected_effects[:ctr]}
-        - 順位: #{expected_effects[:rank]}
-        - 期待利益: #{expected_effects[:profit]}
+        - ⑫ 期待CTR: #{expected_effects[:ctr]}
+        - ⑬ 期待順位: #{expected_effects[:rank]}
+        - ⑭ 期待利益: #{expected_effects[:profit]}
         - 期待時給: #{expected_effects[:hourly]}
       MARKDOWN
     end
@@ -194,6 +287,13 @@ module Aicoo
       else
         [ "関連ページを特定してください" ]
       end
+    end
+
+    def candidate_page_reason(page, index)
+      base_score = [ "最も期待値が高い候補", "次点の候補", "補助候補" ][index] || "候補"
+      return "#{base_score}。送客CTAとの距離が近いです。" if page.match?(/店舗|地図|カード/)
+      return "#{base_score}。検索意図と本文改善を結びつけやすいです。" if page.match?(/記事|コンテンツ/)
+      return "#{base_score}。Business全体の導線改善に使えます。"
     end
 
     def metric_target_reference?

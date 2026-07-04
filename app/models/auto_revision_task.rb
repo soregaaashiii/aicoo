@@ -52,7 +52,7 @@ class AutoRevisionTask < ApplicationRecord
         action_candidate:,
         business: action_candidate.business,
         title: action_candidate.title,
-        execution_prompt: action_candidate.execution_prompt.presence || action_candidate.evaluation_reason,
+        execution_prompt: Aicoo::ExecutionPromptBuilder.new(action_candidate).call,
         priority_score: action_candidate.final_score.to_d,
         generated_by:,
         risk_level: risk_level_for(action_candidate),

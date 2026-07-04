@@ -69,5 +69,5 @@
   <dd><%= simple_format(action_candidate.evaluation_reason) %></dd>
 
   <dt id="execution_prompt">実行プロンプト</dt>
-  <dd><%= simple_format(action_candidate.execution_prompt) %></dd>
+  <dd><%= simple_format(Aicoo::ExecutionPromptBuilder.new(action_candidate).call) %></dd>
 </dl>

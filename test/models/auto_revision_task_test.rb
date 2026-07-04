@@ -14,7 +14,9 @@ class AutoRevisionTaskTest < ActiveSupport::TestCase
     assert_equal candidate, task.action_candidate
     assert_equal candidate.business, task.business
     assert_equal candidate.title, task.title
-    assert_equal "SEOタイトルを改善してください。", task.execution_prompt
+    assert_includes task.execution_prompt, "SEOタイトルを改善してください。"
+    assert_includes task.execution_prompt, "ActionCandidate実行指示書"
+    assert_includes task.execution_prompt, "Codexへ渡す修正文"
     assert_equal candidate.reload.final_score.to_d, task.priority_score
     assert_equal candidate.action_type, task.metadata["action_type"]
     assert_equal "low", task.risk_level
