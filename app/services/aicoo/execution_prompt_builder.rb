@@ -28,11 +28,11 @@ module Aicoo
         #{execution_brief.prompt_markdown}
 
         ## Codex実装指示
-        - 上記のBefore/Afterと「Codexへ渡す修正文」をそのまま実装してください。
+        - AICOOは判断情報だけを渡します。本文や長文修正文はここでは生成しません。
+        - 記事作成が必要な場合は、記事生成AIが作成した本文を既存Article作成フローで登録・公開する範囲に留めてください。
         - 改善対象ページURLが未特定の場合は、候補ページ1位から順に実在するRails route/view/controllerを確認して対象を確定してください。
         - 指標名 clicks / phone_clicks / map_clicks / affiliate_clicks をURLとして扱わないでください。
         - 実在しないURLを実装対象・完了報告・ActionResultに書かないでください。
-        - 修正対象ファイルに挙げたviews/controllers/servicesを優先し、必要最小限の変更に留めてください。
 
         ## 注意事項
         - 既存機能を壊さない

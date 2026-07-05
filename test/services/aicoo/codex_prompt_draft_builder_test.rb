@@ -26,10 +26,9 @@ module Aicoo
       assert_includes draft.prompt_body, "AicooActivityLogger.log"
       assert_includes draft.prompt_body, "吸えログ Activity Loggingルール"
       assert_includes draft.prompt_body, "ActionCandidate実行指示書"
-      assert_includes draft.prompt_body, "現在 → 変更後"
-      assert_includes draft.prompt_body, "変更ファイル"
-      assert_includes draft.prompt_body, "完了条件"
-      assert draft.metadata.dig("execution_brief", "before_after_items").present?
+      assert_includes draft.prompt_body, "AICOOは判断だけを保持します"
+      assert_no_match(/現在 → 変更後|Codexへ渡す修正文|After（AI生成）/, draft.prompt_body)
+      assert draft.metadata.dig("execution_brief", "article_plan").present?
     end
 
     test "includes business codex execution target settings" do
@@ -187,9 +186,8 @@ module Aicoo
       assert_includes draft.prompt_body, "ActionCandidate実行指示書"
       assert_includes draft.prompt_body, "実行手順"
       assert_includes draft.prompt_body, "完了条件"
-      assert_includes draft.prompt_body, "現在: 吸えログ｜とり友 梅田 喫煙"
-      assert_includes draft.prompt_body, "変更後: 【#{Date.current.year}年版】とり友 梅田 喫煙｜吸えログ"
-      assert_includes draft.prompt_body, "変更ファイル"
+      assert_includes draft.prompt_body, "① 検索クエリ"
+      assert_no_match(/現在: 吸えログ｜とり友 梅田 喫煙|変更後:|Codexへ渡す修正文/, draft.prompt_body)
       assert_equal true, draft.metadata.dig("action_expansion", "expanded")
       assert_equal "とり友 梅田 喫煙", draft.metadata.dig("execution_brief", "openai_context", "serp", "query")
     end

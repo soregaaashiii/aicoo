@@ -102,6 +102,12 @@ module Aicoo
             "benchmark_value" => 55,
             "serp_top_results" => serp_rows(analysis),
             "serp_common_words" => serp_common_words(analysis),
+            "article_type" => article_type_for_query(query),
+            "target_user" => target_user_for_query(query),
+            "search_intent" => search_intent_for_query(query),
+            "recommended_sections" => recommended_sections_for_query(query),
+            "related_pages" => candidate_pages_for_query(query),
+            "internal_links" => candidate_pages_for_query(query),
             "recommended_slug" => slug,
             "recommended_title" => "#{query}の比較・選び方｜#{business.name}",
             "proposed_h1" => "#{query}の比較・選び方",
@@ -225,6 +231,12 @@ module Aicoo
             "current_value" => recent_article_activity_count,
             "benchmark_value" => keywords.size,
             "candidate_keywords" => keywords,
+            "article_type" => article_type_for_query(keywords.first),
+            "target_user" => target_user_for_query(keywords.first),
+            "search_intent" => search_intent_for_query(keywords.first),
+            "recommended_sections" => recommended_sections_for_query(keywords.first),
+            "related_pages" => keywords.map { |keyword| "/articles/#{query_slug(keyword)}" },
+            "internal_links" => candidate_pages_for_query(keywords.first),
             "recommended_slug" => query_slug(keywords.first),
             "recommended_title" => "#{keywords.first}の探し方｜#{business.name}",
             "proposed_h1" => "#{keywords.first}の探し方",
@@ -481,6 +493,51 @@ module Aicoo
           "#{priority_area}エリア一覧",
           "関連カテゴリ一覧"
         ]
+      end
+
+      def article_type_for_query(query)
+        text = query.to_s
+        return "comparison" if text.match?(/比較|違い/)
+        return "area" if text.match?(/大阪|梅田|難波|福島|天王寺|心斎橋|新宿|渋谷|池袋|銀座|駅|エリア/)
+        return "genre" if text.match?(/居酒屋|カフェ|バー|焼肉|ランチ|喫茶/)
+        return "faq" if text.match?(/とは|方法|できる/)
+
+        "guide"
+      end
+
+      def target_user_for_query(query)
+        text = query.to_s
+        return "大阪で喫煙できる店を探したい人" if text.match?(/喫煙|タバコ|煙草/)
+        return "#{priority_area}周辺で条件に合う店を探したい人" if article_type_for_query(query) == "area"
+        return "複数サービスや選択肢を比較したい人" if article_type_for_query(query) == "comparison"
+
+        "検索キーワードに合う選択肢を探したい人"
+      end
+
+      def search_intent_for_query(query)
+        case article_type_for_query(query)
+        when "comparison"
+          "比較したい"
+        when "area", "genre"
+          "探したい"
+        when "faq"
+          "違いを知りたい"
+        else
+          "おすすめを知りたい"
+        end
+      end
+
+      def recommended_sections_for_query(query)
+        case article_type_for_query(query)
+        when "comparison"
+          [ "#{business.name}とは", "他サービスとの違い", "比較表", "メリット", "FAQ", "#{priority_area}ページへの導線" ]
+        when "area"
+          [ "#{query}の結論", "エリア別の探し方", "おすすめ条件", "店舗一覧への導線", "FAQ" ]
+        when "genre"
+          [ "#{query}の結論", "ジャンル別の選び方", "利用シーン", "店舗一覧への導線", "FAQ" ]
+        else
+          [ "#{query}の結論", "選び方", "注意点", "関連ページへの導線", "FAQ" ]
+        end
       end
 
       def query_slug(query)

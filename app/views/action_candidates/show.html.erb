@@ -2,15 +2,17 @@
 
 <% header_actions = capture do %>
     <%= button_to "AIで再評価", reevaluate_ai_action_candidate_path(@action_candidate), method: :post, class: "button" %>
-    <% if (auto_revision_task = @action_candidate.auto_revision_tasks.active.first) %>
-      <%= link_to "自動改修タスクを見る", auto_revision_task, class: "button secondary" %>
-    <% else %>
-      <%= button_to "自動改修タスク化", auto_revision_tasks_path(action_candidate_id: @action_candidate.id), method: :post, class: "button secondary" %>
-    <% end %>
-    <% if @codex_prompt_draft %>
-      <%= link_to "Codex Promptを見る", owner_codex_prompt_draft_path(@codex_prompt_draft), class: "button secondary" %>
-    <% else %>
-      <%= button_to "Codex Promptを生成", generate_codex_prompt_draft_action_candidate_path(@action_candidate), method: :post, class: "button secondary" %>
+    <% if @action_candidate.code_revision_execution_mode? %>
+      <% if (auto_revision_task = @action_candidate.auto_revision_tasks.active.first) %>
+        <%= link_to "自動改修タスクを見る", auto_revision_task, class: "button secondary" %>
+      <% else %>
+        <%= button_to "自動改修タスク化", auto_revision_tasks_path(action_candidate_id: @action_candidate.id), method: :post, class: "button secondary" %>
+      <% end %>
+      <% if @codex_prompt_draft %>
+        <%= link_to "Codex Promptを見る", owner_codex_prompt_draft_path(@codex_prompt_draft), class: "button secondary" %>
+      <% else %>
+        <%= button_to "Codex Promptを生成", generate_codex_prompt_draft_action_candidate_path(@action_candidate), method: :post, class: "button secondary" %>
+      <% end %>
     <% end %>
     <% if @action_candidate.data_preparation? || @action_candidate.generation_source == "ai_insight" %>
       <% executor_task = @action_candidate.unfinished_executor_task %>
@@ -151,7 +153,7 @@
   <div class="section-heading">
     <div>
       <h2>実行指示書</h2>
-      <p>分析ではなく、どこをどう直すかをそのまま作業できる粒度で表示します。</p>
+      <p>AICOOは何をやるべきかを判断します。本文・コード・データ登録は別コンポーネントへ渡します。</p>
     </div>
     <div class="actions compact-actions">
       <% @execution_brief.open_links.each do |link| %>
@@ -181,27 +183,47 @@
     <div class="metric-card"><span>期待利益</span><strong><%= @execution_brief.expected_effects[:profit] %></strong><small>期待時給 <%= @execution_brief.expected_effects[:hourly] %></small></div>
   </div>
 
-  <div class="table-wrap">
-    <h3>競合上位5件</h3>
-    <table>
-      <thead>
-        <tr>
-          <th>項目</th>
-          <th>現在</th>
-          <th>変更後</th>
-        </tr>
-      </thead>
-      <tbody>
-        <% @execution_brief.before_after_items.each do |row| %>
+  <% if @action_candidate.execution_mode == "content_creation" %>
+    <% plan = @execution_brief.article_plan %>
+    <div class="table-wrap">
+      <h3>記事計画</h3>
+      <table>
+        <tbody>
+          <tr><td><strong>記事タイトル</strong></td><td class="wide-text"><%= plan[:title] %></td></tr>
+          <tr><td><strong>検索キーワード</strong></td><td class="wide-text"><%= plan[:keyword] %></td></tr>
+          <tr><td><strong>記事タイプ</strong></td><td><%= plan[:article_type] %></td></tr>
+          <tr><td><strong>ターゲット</strong></td><td class="wide-text"><%= plan[:target_user] %></td></tr>
+          <tr><td><strong>検索意図</strong></td><td class="wide-text"><%= plan[:search_intent] %></td></tr>
+          <tr><td><strong>理由</strong></td><td class="wide-text"><%= plan[:reason] %></td></tr>
+          <tr><td><strong>推奨構成</strong></td><td class="wide-text"><%= plan[:recommended_sections].join(" / ") %></td></tr>
+          <tr><td><strong>関連ページ</strong></td><td class="wide-text"><%= plan[:related_pages].join(" / ") %></td></tr>
+          <tr><td><strong>内部リンク候補</strong></td><td class="wide-text"><%= plan[:internal_links].join(" / ") %></td></tr>
+        </tbody>
+      </table>
+    </div>
+  <% elsif @execution_brief.before_after_items.any? %>
+    <div class="table-wrap">
+      <h3>変更概要</h3>
+      <table>
+        <thead>
           <tr>
-            <td><strong><%= row[:label] %></strong></td>
-            <td class="wide-text"><%= simple_format(row[:current]) %></td>
-            <td class="wide-text"><%= simple_format(row[:after]) %></td>
+            <th>項目</th>
+            <th>現在</th>
+            <th>変更後</th>
           </tr>
-        <% end %>
-      </tbody>
-    </table>
-  </div>
+        </thead>
+        <tbody>
+          <% @execution_brief.before_after_items.each do |row| %>
+            <tr>
+              <td><strong><%= row[:label] %></strong></td>
+              <td class="wide-text"><%= simple_format(row[:current]) %></td>
+              <td class="wide-text"><%= simple_format(row[:after]) %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
 </section>
 
 <section class="dashboard-section" id="serp-gap">
@@ -251,6 +273,7 @@
   </div>
 </section>
 
+<% if @action_candidate.code_revision_execution_mode? %>
 <section class="dashboard-section" id="implementation-files">
   <div class="section-heading">
     <h2>変更ファイルと完了条件</h2>
@@ -275,6 +298,7 @@
     </div>
   </div>
 </section>
+<% end %>
 
 <section class="dashboard-section">
   <div class="section-heading">

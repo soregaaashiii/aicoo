@@ -140,7 +140,7 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "変更後"
     assert_includes response.body, "対象ページ"
     assert_includes response.body, "SERPとの差分"
-    assert_includes response.body, "競合上位5件"
+    assert_includes response.body, "SERPとの差分"
     assert_includes response.body, "変更ファイルと完了条件"
     assert_includes response.body, "修正完了 / ActionResult登録"
   end

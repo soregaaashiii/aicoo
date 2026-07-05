@@ -188,9 +188,7 @@ module Aicoo
         "action_expansion" => action_expansion,
         "execution_brief" => {
           "target" => execution_brief.target,
-          "before_after_items" => execution_brief.before_after_items,
-          "file_changes" => execution_brief.file_changes,
-          "completion_criteria" => execution_brief.completion_criteria,
+          "article_plan" => execution_brief.article_plan,
           "openai_context" => execution_brief.openai_context
         },
         "project_configured" => project_key.present? && local_project_path.present?,

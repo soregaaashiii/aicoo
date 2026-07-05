@@ -30,8 +30,10 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     assert_match(/どれだけ:/, candidate.evaluation_reason)
     assert_match(/なぜ:/, candidate.evaluation_reason)
     assert_match(/期待効果:/, candidate.evaluation_reason)
-    assert_includes candidate.execution_prompt, "ActionCandidate実行指示書"
-    assert_includes candidate.execution_prompt, "現在 → 変更後"
+    assert_includes candidate.execution_prompt, "ActionCandidate 記事計画"
+    assert_includes candidate.execution_prompt, "記事タイプ"
+    assert_includes candidate.execution_prompt, "検索意図"
+    assert_no_match(/現在 → 変更後|Codexへ渡す修正文|After（AI生成）/, candidate.execution_prompt)
     assert_equal "Aicoo::BusinessAnalyzers::SeoBusinessAnalyzer", candidate.metadata.fetch("analyzer")
   end
 

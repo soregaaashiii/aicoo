@@ -31,6 +31,8 @@ module Aicoo
     end
 
     def before_after_items
+      return [] if content_creation_execution?
+
       @before_after_items ||= [
         item("SEOタイトル", current_title, proposed_title),
         item("meta description", current_meta_description, proposed_meta_description),
@@ -55,10 +57,13 @@ module Aicoo
     end
 
     def file_changes
+      return [] unless action_candidate.code_revision_execution_mode?
+
       @file_changes ||= explicit_file_changes.presence || inferred_file_changes
     end
 
     def completion_criteria
+      return [] if content_creation_execution?
       return new_article_completion_criteria if new_article_creation? && explicit_completion_criteria.blank?
 
       explicit_completion_criteria.presence || [
@@ -84,6 +89,34 @@ module Aicoo
       expansion["expected_minutes"].presence || metadata["expected_minutes"].presence || minutes_from_hours || 30
     end
 
+    def content_creation_execution?
+      action_candidate.execution_mode == "content_creation"
+    end
+
+    def article_plan
+      @article_plan ||= {
+        title: recommended_article_title,
+        keyword: search_query,
+        article_type: article_type,
+        target_user: target_user,
+        search_intent: search_intent,
+        reason: reason,
+        expected_profit: expected_effects[:profit],
+        priority: action_candidate.final_score.to_i,
+        recommended_sections: recommended_sections,
+        related_pages: related_pages,
+        internal_links: article_internal_link_targets,
+        evidence: {
+          source: Array(metadata.dig("analyzer_evidence", "source") || metadata.dig("evidence", "source")),
+          query: search_query,
+          current_value: metadata["current_value"],
+          benchmark_value: metadata["benchmark_value"],
+          expected_ctr: expected_effects[:ctr],
+          expected_rank: expected_effects[:rank]
+        }.compact
+      }
+    end
+
     def search_query
       source_query.presence || "未特定"
     end
@@ -100,7 +133,7 @@ module Aicoo
       [
         common.present? && "上位サイトは #{common.join("・")} を訴求しています。",
         missing.present? && "#{business&.name || '自サイト'}には #{missing.join("・")} が不足しています。",
-        "差分を埋めるため、Before/Afterの修正文をそのまま実装してください。"
+        "差分を踏まえて、記事生成AIへ渡す推奨構成だけを決めます。"
       ].compact.join("\n")
     end
 
@@ -145,16 +178,15 @@ module Aicoo
         edit_url: recommended_article_edit_url,
         model: "Article",
         structure: article_structure,
-        comparison_table: article_comparison_table,
-        body_sections: article_body_sections,
         cta: proposed_cta,
-        faq: proposed_faq,
         internal_links: article_internal_link_targets,
         implementation_note: article_creation_implementation_note
       }
     end
 
     def codex_patch_text
+      return "AICOOは本文を生成しません。記事生成AIまたは記事作成フローへ記事計画を渡してください。" if content_creation_execution?
+
       base = before_after_items.map do |row|
         <<~TEXT.strip
           #{row[:label]}:
@@ -182,16 +214,15 @@ module Aicoo
         記事構成:
         #{new_article_spec[:structure].map { |row| "- #{row[:level]} #{row[:text]}" }.join("\n")}
 
-        本文案:
-        #{new_article_spec[:body_sections].map { |section| "#{section[:heading]}\n#{section[:body]}" }.join("\n\n")}
-
-        比較表:
-        列: #{new_article_spec[:comparison_table][:columns].join(" / ")}
-        #{new_article_spec[:comparison_table][:rows].map { |row| "- #{row.join(" / ") }" }.join("\n")}
+        注意:
+        AICOOは本文を生成しません。
+        必要な本文は記事生成AIへ記事計画を渡して作成してください。
       TEXT
     end
 
     def prompt_markdown
+      return content_plan_markdown if content_creation_execution?
+
       <<~MARKDOWN.strip
         # ActionCandidate実行指示書
 
@@ -239,21 +270,6 @@ module Aicoo
         ## ⑥ 新規記事か既存記事か
         #{page_change_type}
 
-        ## ⑦ 修正対象ファイル
-        #{file_changes.map { |path| "- #{path}" }.join("\n")}
-
-        ## 現在 → 変更後
-        #{before_after_items.map { |row| "- #{row[:label]}\n  - 現在: #{row[:current]}\n  - 変更後: #{row[:after]}" }.join("\n")}
-
-        ## ⑧ Before
-        #{before_after_items.map { |row| "- #{row[:label]}: #{row[:current]}" }.join("\n")}
-
-        ## ⑨ After（AI生成）
-        #{before_after_items.map { |row| "- #{row[:label]}: #{row[:after]}" }.join("\n")}
-
-        ## ⑩ Codexへ渡す修正文
-        #{codex_patch_text}
-
         ## SERP差分
         - 根拠検索クエリ: #{serp_comparison[:query]}
         - SERP関連度: #{serp_comparison[:relevance][:status]}（関連#{serp_comparison[:relevance][:relevant_count]}/取得#{serp_comparison[:relevance][:total_count]}）
@@ -262,17 +278,64 @@ module Aicoo
         - 不足要素: #{serp_comparison[:missing_elements].join(", ")}
         - 修正理由: #{serp_comparison[:reason]}
 
-        ## 変更ファイル
-        #{file_changes.map { |path| "- #{path}" }.join("\n")}
+        ## 期待効果
+        - 期待CTR: #{expected_effects[:ctr]}
+        - 期待順位: #{expected_effects[:rank]}
+        - 期待利益: #{expected_effects[:profit]}
+        - 期待時給: #{expected_effects[:hourly]}
 
-        ## ⑪ 完成条件（完了条件）
-        #{completion_criteria.map { |criterion| "- #{criterion}" }.join("\n")}
+        ## 分離方針
+        - AICOOは判断だけを保持します。
+        - 本文や長大なCodex Promptは生成しません。
+        - 実装や記事作成が必要な場合は、別コンポーネントへこの判断情報を渡します。
+      MARKDOWN
+    end
+
+    def content_plan_markdown
+      plan = article_plan
+      <<~MARKDOWN.strip
+        # ActionCandidate 記事計画
+
+        ## AICOOの判断
+        #{action_candidate.title}
+
+        ## 記事タイトル
+        #{plan[:title]}
+
+        ## 検索キーワード
+        #{plan[:keyword]}
+
+        ## 記事タイプ
+        #{plan[:article_type]}
+
+        ## ターゲット
+        #{plan[:target_user]}
+
+        ## 検索意図
+        #{plan[:search_intent]}
+
+        ## 理由
+        #{plan[:reason]}
 
         ## 期待効果
-        - ⑫ 期待CTR: #{expected_effects[:ctr]}
-        - ⑬ 期待順位: #{expected_effects[:rank]}
-        - ⑭ 期待利益: #{expected_effects[:profit]}
-        - 期待時給: #{expected_effects[:hourly]}
+        - 期待CTR: #{expected_effects[:ctr]}
+        - 期待順位: #{expected_effects[:rank]}
+        - 期待利益: #{expected_effects[:profit]}
+
+        ## 推奨構成
+        #{plan[:recommended_sections].map { |section| "- #{section}" }.join("\n")}
+
+        ## 関連ページ
+        #{plan[:related_pages].map { |page| "- #{page}" }.join("\n")}
+
+        ## 内部リンク候補
+        #{plan[:internal_links].map { |path| "- #{path}" }.join("\n")}
+
+        ## 分離方針
+        - AICOOは記事本文を生成しません。
+        - 本文や長文修正文は保持しません。
+        - 記事を書く場合は、この記事計画を記事生成AIへ渡してください。
+        - Codexを使う場合はArticle作成・DB登録・公開・内部リンク更新だけを対象にします。
       MARKDOWN
     end
 
@@ -401,63 +464,6 @@ module Aicoo
       end
     end
 
-    def article_comparison_table
-      if branded_search_page_needed? && suelog_business?
-        {
-          columns: [ "サービス", "喫煙情報", "紙タバコ/加熱式", "地図検索", "掲載店舗", "向いている人" ],
-          rows: [
-            [ "吸えログ", "喫煙可否に特化", "条件として明示", "エリア別に探せる", "大阪の喫煙可能店", "喫煙できる飲食店を早く探したい人" ],
-            [ "食べログ", "店舗情報の一部", "店舗により確認が必要", "あり", "幅広い飲食店", "口コミや点数も見たい人" ],
-            [ "Googleマップ", "口コミや店舗情報に分散", "明示されない場合がある", "強い", "幅広い店舗", "現在地から探したい人" ],
-            [ "Retty", "口コミ中心", "明示されない場合がある", "あり", "飲食店", "実名口コミを参考にしたい人" ]
-          ]
-        }
-      else
-        {
-          columns: [ "項目", "自サイト", "上位競合", "追加する内容" ],
-          rows: missing_elements.map { |element| [ element, "不足", "掲載あり", "#{element}を本文へ追加" ] }
-        }
-      end
-    end
-
-    def article_body_sections
-      if branded_search_page_needed? && suelog_business?
-        return [
-          {
-            heading: "H2 吸えログでできること",
-            body: "吸えログは、大阪で喫煙できる飲食店・カフェ・居酒屋を探すためのサービスです。喫煙可否だけでなく、紙タバコや加熱式など条件に合わせてお店を探しやすくすることを目的にしています。梅田や難波など、行きたいエリアから喫煙できるお店へすぐ進める導線を用意します。"
-          },
-          {
-            heading: "H2 食べログ・Googleマップ・Rettyとの違い",
-            body: "食べログやGoogleマップ、Rettyは幅広い飲食店探しに便利ですが、喫煙情報は口コミや店舗情報の中に分散しがちです。吸えログは、喫煙できるお店を探すことに絞っているため、喫煙可否を前提に比較できます。喫煙者が知りたい条件を先に見られる点が大きな違いです。"
-          },
-          {
-            heading: "H2 比較表",
-            body: "ここでは、吸えログ・食べログ・Googleマップ・Rettyを喫煙情報の探しやすさで比較します。喫煙情報、紙タバコ/加熱式、地図検索、掲載店舗、向いている人の観点で整理します。比較表を見れば、喫煙できるお店を探す時にどのサービスを使えばよいか判断できます。"
-          },
-          {
-            heading: "H2 吸えログが向いている人",
-            body: "吸えログは、大阪で喫煙できるお店を早く見つけたい人に向いています。食事や待ち合わせの前に、喫煙可否を確認してからお店を決めたい時に使いやすい構成です。特に梅田・難波周辺で、カフェや居酒屋を喫煙条件つきで探したい人に合います。"
-          },
-          {
-            heading: "H2 大阪で喫煙できる店を探す",
-            body: "大阪で喫煙できるお店を探す場合は、エリアと利用シーンを先に決めると探しやすくなります。梅田なら待ち合わせ前のカフェ、難波なら食事や飲み会向けの居酒屋など、目的別に確認できます。本文内から大阪・梅田・難波・カフェ・居酒屋の各ページへ内部リンクを設置します。"
-          },
-          {
-            heading: "H2 FAQ",
-            body: "FAQでは、吸えログで何ができるか、食べログやGoogleマップとどう違うか、紙タバコと加熱式の情報を見られるかを回答します。検索ユーザーが最後に迷いやすい点をここで解消します。FAQの下には、大阪で喫煙できるお店を探すCTAを表示します。"
-          }
-        ]
-      end
-
-      article_structure.select { |row| row[:level] == "H2" }.map do |row|
-        {
-          heading: "H2 #{row[:text]}",
-          body: "#{row[:text]}について、検索ユーザーが最初に知りたい結論、判断材料、次に取る行動を2〜4文で整理します。上位SERPの共通要素と自サイトの不足要素を踏まえ、比較表・FAQ・CTAへ自然につなげます。"
-        }
-      end
-    end
-
     def article_internal_link_targets
       if branded_search_page_needed? && suelog_business?
         [
@@ -506,25 +512,65 @@ module Aicoo
         ### 記事構成
         #{new_article_spec[:structure].map { |row| "- #{row[:level]} #{row[:text]}" }.join("\n")}
 
-        ### H2ごとの本文案
-        #{new_article_spec[:body_sections].map { |section| "#### #{section[:heading]}\n#{section[:body]}" }.join("\n\n")}
-
-        ### 比較表
-        - 列: #{new_article_spec[:comparison_table][:columns].join(" / ")}
-        #{new_article_spec[:comparison_table][:rows].map { |row| "- #{row.join(" / ")}" }.join("\n")}
-
         ### CTA
         #{new_article_spec[:cta]}
-
-        ### FAQ
-        #{new_article_spec[:faq]}
 
         ### 内部リンク先候補
         #{new_article_spec[:internal_links].map { |path| "- #{path}" }.join("\n")}
 
-        ### Codex指示
-        #{new_article_spec[:implementation_note]}
+        ### 分離方針
+        AICOOは本文を生成しません。
       MARKDOWN
+    end
+
+    def article_type
+      metadata["article_type"].presence || inferred_article_type
+    end
+
+    def inferred_article_type
+      return "comparison" if branded_search_page_needed? || search_query.match?(/比較|違い/)
+      return "area" if search_query.match?(/大阪|梅田|難波|福島|天王寺/)
+      return "genre" if search_query.match?(/居酒屋|カフェ|バー|焼肉|ランチ/)
+      return "faq" if search_query.match?(/とは|方法|できる/)
+
+      "guide"
+    end
+
+    def target_user
+      return metadata["target_user"] if metadata["target_user"].present?
+
+      if branded_search_page_needed?
+        "初めて#{business&.name}を知った人"
+      elsif search_query.match?(/喫煙|タバコ|煙草/)
+        "大阪で喫煙できる店を探したい人"
+      else
+        "検索キーワードに合う選択肢を比較したい人"
+      end
+    end
+
+    def search_intent
+      return metadata["search_intent"] if metadata["search_intent"].present?
+
+      if article_type == "comparison"
+        "比較したい"
+      elsif article_type == "area"
+        "探したい"
+      elsif article_type == "faq"
+        "違いを知りたい"
+      else
+        "おすすめを知りたい"
+      end
+    end
+
+    def recommended_sections
+      explicit = Array(metadata["recommended_sections"]).compact_blank
+      return explicit if explicit.any?
+
+      article_structure.map { |row| row[:text] }.uniq
+    end
+
+    def related_pages
+      Array(metadata["related_pages"]).presence || candidate_pages
     end
 
     def candidate_pages
@@ -550,7 +596,8 @@ module Aicoo
       base_score = [ "最も期待値が高い候補", "次点の候補", "補助候補" ][index] || "候補"
       return "#{base_score}。送客CTAとの距離が近いです。" if page.match?(/店舗|地図|カード/)
       return "#{base_score}。検索意図と本文改善を結びつけやすいです。" if page.match?(/記事|コンテンツ/)
-      return "#{base_score}。Business全体の導線改善に使えます。"
+
+      "#{base_score}。Business全体の導線改善に使えます。"
     end
 
     def metric_target_reference?
@@ -794,7 +841,7 @@ module Aicoo
       when "未取得"
         "SERP取得後に再具体化する"
       else
-        "関連SERPのみを根拠にBefore/Afterを生成する"
+        "関連SERPのみを根拠に記事計画を生成する"
       end
     end
 

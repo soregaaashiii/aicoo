@@ -30,11 +30,8 @@ module Aicoo
         "target" => brief.target,
         "search_query" => brief.search_query,
         "page_change_type" => brief.page_change_type,
-        "before_after_items" => brief.before_after_items,
-        "file_changes" => brief.file_changes,
-        "completion_criteria" => brief.completion_criteria,
         "expected_effects" => brief.expected_effects,
-        "codex_patch_text" => brief.codex_patch_text,
+        "article_plan" => brief.article_plan,
         "quality" => quality_for(brief)
       }
     end

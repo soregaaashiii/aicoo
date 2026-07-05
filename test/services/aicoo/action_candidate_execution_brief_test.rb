@@ -46,8 +46,9 @@ module Aicoo
       assert_equal [ "料金", "掲載件数" ], brief.serp_comparison[:missing_elements]
       assert_equal [ "app/views/articles/show.html.erb" ], brief.file_changes
       assert_equal [ "タイトル変更済み", "CTA変更済み" ], brief.completion_criteria
-      assert_includes brief.prompt_markdown, "現在: 大阪の喫煙カフェ"
-      assert_includes brief.prompt_markdown, "変更後: 【2026年版】大阪で喫煙できるカフェ比較｜吸えログ"
+      assert_includes brief.prompt_markdown, "① 検索クエリ"
+      assert_includes brief.prompt_markdown, "期待効果"
+      assert_no_match(/現在 → 変更後|Codexへ渡す修正文|After（AI生成）/, brief.prompt_markdown)
       assert_includes brief.prompt_markdown, "大阪 喫煙 カフェ"
       assert_equal "吸えログ", brief.openai_context.dig(:business, "name")
     end
@@ -90,6 +91,7 @@ module Aicoo
         expected_hours: 2,
         success_probability: 0.36,
         metadata: {
+          "execution_mode" => "content_creation",
           "source_query" => "吸えログ 比較",
           "serp_top_results" => [
             { "position" => 1, "title" => "ログ管理システム比較", "url" => "https://example.com/log", "snippet" => "操作ログと監査ログの比較" },
@@ -109,21 +111,18 @@ module Aicoo
       assert_equal "新規作成", brief.article_id
       assert_equal "新規記事", brief.page_change_type
       assert_includes brief.own_site_gap, "食べログ/Googleマップ/Rettyとの違い"
-      assert_includes brief.before_after_items.first[:after], "吸えログとは？"
-      assert_includes brief.prompt_markdown, "SERP関連度"
-      assert_includes brief.prompt_markdown, "推奨slug: suelog-comparison"
-      assert_includes brief.prompt_markdown, "URL: /articles/suelog-comparison"
-      assert_includes brief.prompt_markdown, "H2 食べログ・Googleマップ・Rettyとの違い"
-      assert_includes brief.prompt_markdown, "食べログやGoogleマップ、Rettyは幅広い飲食店探しに便利ですが"
-      assert_includes brief.prompt_markdown, "サービス / 喫煙情報 / 紙タバコ/加熱式"
-      assert_includes brief.prompt_markdown, "指名検索対策ページ"
-      assert_includes brief.prompt_markdown, "大阪で喫煙できる店探し"
-      assert_includes brief.completion_criteria, "Article slug=suelog-comparison が作成されている"
-      assert_includes brief.completion_criteria, "/articles/suelog-comparison で公開確認できる"
-      assert_includes brief.completion_criteria, "CTA「大阪で喫煙できるお店を探す」が表示される"
-      assert_includes brief.file_changes, "app/models/article.rb"
-      assert_not_includes brief.file_changes, "config/routes.rb"
-      assert_not_includes brief.file_changes, "db/seeds.rb"
+      assert_empty brief.before_after_items
+      assert_empty brief.file_changes
+      assert_empty brief.completion_criteria
+      assert_equal "comparison", brief.article_plan[:article_type]
+      assert_equal "初めて吸えログを知った人", brief.article_plan[:target_user]
+      assert_equal "比較したい", brief.article_plan[:search_intent]
+      assert_includes brief.article_plan[:recommended_sections], "比較表"
+      assert_includes brief.article_plan[:internal_links], "/osaka"
+      assert_includes brief.prompt_markdown, "記事タイプ"
+      assert_includes brief.prompt_markdown, "記事タイトル"
+      assert_includes brief.prompt_markdown, "推奨構成"
+      assert_no_match(/本文案|FAQ本文|比較表本文|Codexへ渡す修正文|現在 → 変更後/, brief.prompt_markdown)
       assert_no_match(/- 1位 ログ管理システム比較/, brief.prompt_markdown)
     end
   end
