@@ -24,6 +24,8 @@ module Owner
       assert_includes response.body, "SYSTEM MODEへ"
       assert_order high_total.title, low_total.title
       assert_includes response.body, "今日やること TOP10"
+      expected_loop_path = owner_auto_revision_loop_path(selected: "action_candidate:#{high_total.id}", anchor: "selected-task")
+      assert_select "a[href='#{expected_loop_path}']", text: high_total.title
       assert_includes response.body, "今日の確認タスク"
       assert_includes response.body, "今日の確認ダイジェスト"
       assert_includes response.body, "Daily Run Health"

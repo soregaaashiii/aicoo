@@ -86,10 +86,8 @@ module AicooNavigationHelper
       instance_variable_get(:@action_result)&.business,
       instance_variable_get(:@revenue_event)&.business,
       instance_variable_get(:@business_metric_daily)&.business,
-      instance_variable_get(:@auto_revision_task)&.business,
       instance_variable_get(:@business_activity_log)&.business,
       instance_variable_get(:@auto_build_task)&.business,
-      instance_variable_get(:@codex_submission)&.business,
       instance_variable_get(:@action_execution)&.action_candidate&.business,
       instance_variable_get(:@action_execution_log)&.business
     ].compact.find { |business| business.respond_to?(:persisted?) ? business.persisted? : business.present? }
@@ -150,8 +148,8 @@ module AicooNavigationHelper
   end
 
   def aicoo_business_context_path?
-    request.path.match?(%r{\A/(businesses|action_candidates|action_executions|action_execution_logs|action_results|revenue_events|business_metric_dailies|auto_revision_tasks)}) ||
-      request.path.match?(%r{\A/admin/(business_activity_logs|auto_build_tasks|codex_submissions)})
+    request.path.match?(%r{\A/(businesses|action_candidates|action_executions|action_execution_logs|action_results|revenue_events|business_metric_dailies)}) ||
+      request.path.match?(%r{\A/admin/(business_activity_logs|auto_build_tasks)})
   end
 
   def aicoo_business_context_breadcrumb_items
@@ -171,7 +169,7 @@ module AicooNavigationHelper
 
   def aicoo_context_objective_label
     path = request.path
-    return "改善履歴" if path.match?(%r{\A/(action_candidates|action_executions|action_execution_logs|action_results|auto_revision_tasks)}) || path.match?(%r{\A/admin/(business_activity_logs|auto_build_tasks|codex_submissions)})
+    return "改善履歴" if path.match?(%r{\A/(action_candidates|action_executions|action_execution_logs|action_results)}) || path.match?(%r{\A/admin/(business_activity_logs|auto_build_tasks)})
     return "売上" if path.start_with?("/revenue_events")
     return "分析データ" if path.start_with?("/business_metric_dailies")
     return "設定" if path.start_with?("/businesses") && path.include?("google_settings")
@@ -210,8 +208,6 @@ module AicooNavigationHelper
       "売上履歴詳細"
     elsif instance_variable_get(:@business_metric_daily)
       "詳細データ"
-    elsif instance_variable_get(:@auto_revision_task)
-      "自動改修詳細"
     elsif instance_variable_get(:@business_activity_log)
       "Activity詳細"
     elsif instance_variable_get(:@auto_build_task)

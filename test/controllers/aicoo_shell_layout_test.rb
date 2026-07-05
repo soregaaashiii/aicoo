@@ -78,6 +78,27 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "この事業へ戻る"
   end
 
+  test "auto revision task pages keep auto revision context" do
+    action_candidate = ActionCandidate.create!(
+      business: businesses(:suelog),
+      title: "自動改修サイドバー確認",
+      status: "approved",
+      action_type: "ui_improvement",
+      immediate_value_yen: 5_000,
+      success_probability: 0.4,
+      expected_hours: 1,
+      execution_prompt: "サイドバーが移動しないことを確認してください。"
+    )
+    task = AutoRevisionTask.from_action_candidate(action_candidate)
+
+    get auto_revision_task_url(task)
+
+    assert_response :success
+    assert_select ".aicoo-sidebar-group.active .aicoo-sidebar-category strong", text: "CEO MODE"
+    assert_select ".aicoo-sidebar-child.active strong", text: "Auto Revision"
+    assert_not_select ".aicoo-sidebar-child.active strong", text: "Businesses"
+  end
+
   test "business revenue detail pages keep business context" do
     revenue_event = RevenueEvent.create!(
       business: businesses(:suelog),

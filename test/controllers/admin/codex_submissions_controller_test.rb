@@ -82,6 +82,8 @@ module Admin
       assert_includes response.body, "Response Payload"
       assert_includes response.body, @profile.codex_project_folder
       assert_includes response.body, "main直接pushは禁止"
+      assert_select ".aicoo-sidebar-group.active .aicoo-sidebar-category strong", text: "CEO MODE"
+      assert_select ".aicoo-sidebar-child.active strong", text: "Auto Revision"
     end
 
     test "marks submission as completed" do

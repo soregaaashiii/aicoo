@@ -127,7 +127,7 @@
           <% @dashboard_summary.today_tasks.each.with_index(1) do |action_candidate, index| %>
             <tr>
               <td><%= index %></td>
-              <td><%= link_to action_candidate.title, action_candidate_path(action_candidate) %></td>
+              <td><%= link_to action_candidate.title, owner_auto_revision_loop_path(selected: "action_candidate:#{action_candidate.id}", anchor: "selected-task") %></td>
               <td><%= action_candidate.business.name %></td>
               <td>
                 <strong><%= number_to_currency(action_candidate.final_expected_value_yen, unit: "¥", precision: 0) %></strong>
@@ -172,7 +172,7 @@
         <ol>
           <% @dashboard_summary.owner_fallback_tasks.first(3).each do |task| %>
             <li>
-              <strong><%= link_to task.title, action_candidate_path(task) %></strong>
+              <strong><%= link_to task.title, owner_auto_revision_loop_path(selected: "action_candidate:#{task.id}", anchor: "selected-task") %></strong>
               <br>
               <small><%= task.evaluation_reason.presence || task.description %></small>
             </li>
