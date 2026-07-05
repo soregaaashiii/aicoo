@@ -20,6 +20,7 @@ class ActionCandidatesController < ApplicationController
 
   # GET /action_candidates/1 or /action_candidates/1.json
   def show
+    @action_workspace = action_workspace_request?
     @action_prediction_precision = AicooJudge::ActionResultJudge.new.precision_for(@action_candidate)
     @action_candidate_judge_score = AicooJudge::ActionCandidateScore.new.score_for(@action_candidate)
     @score_snapshots = @action_candidate.action_candidate_score_snapshots.recent.limit(10)
@@ -95,9 +96,9 @@ class ActionCandidatesController < ApplicationController
         redirect_record_id: redirect_record&.id
       }.merge(result.metadata.to_h)
     )
-    redirect_to redirect_record || @action_candidate, notice: message
+    redirect_to safe_return_to || redirect_record || @action_candidate, notice: message
   rescue ActiveRecord::RecordInvalid => e
-    redirect_to @action_candidate, alert: "Business化に失敗しました: #{e.record.errors.full_messages.to_sentence}"
+    redirect_to safe_return_to || @action_candidate, alert: "Business化に失敗しました: #{e.record.errors.full_messages.to_sentence}"
   end
 
   def reject
@@ -112,7 +113,11 @@ class ActionCandidatesController < ApplicationController
       message:,
       metadata: { status: @action_candidate.status }
     )
-    redirect_back fallback_location: owner_tasks_path, notice: message
+    if (return_to = safe_return_to)
+      redirect_to return_to, notice: message
+    else
+      redirect_back fallback_location: owner_tasks_path, notice: message
+    end
   end
 
   def reevaluate_ai
@@ -185,5 +190,18 @@ class ActionCandidatesController < ApplicationController
         previous_status:,
         new_status: @action_candidate.status
       )
+    end
+
+    def action_workspace_request?
+      request.path.match?(%r{\A/actions/\d+})
+    end
+
+    def safe_return_to
+      return_to = params[:return_to].to_s
+      return if return_to.blank?
+      return unless return_to.start_with?("/")
+      return if return_to.start_with?("//")
+
+      return_to
     end
 end

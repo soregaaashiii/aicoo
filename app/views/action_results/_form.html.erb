@@ -13,6 +13,7 @@
   <%= form.hidden_field :action_candidate_id %>
   <%= form.hidden_field :action_execution_id %>
   <%= form.hidden_field :business_id %>
+  <%= hidden_field_tag :return_to, @return_to if @return_to.present? %>
 
   <% if action_result.action_execution %>
     <% execution = action_result.action_execution %>

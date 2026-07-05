@@ -9,6 +9,8 @@ class ActionResultsController < ApplicationController
   end
 
   def new
+    @return_to = safe_return_to
+
     if params[:action_execution_id].present? || params.dig(:action_result, :action_execution_id).present?
       action_execution = ActionExecution.find(params[:action_execution_id] || params.dig(:action_result, :action_execution_id))
       if action_execution.action_result
@@ -28,8 +30,9 @@ class ActionResultsController < ApplicationController
     apply_action_expansion_learning
 
     if @action_result.save
-      redirect_to @action_result, notice: "Action result was successfully created."
+      redirect_to safe_return_to || @action_result, notice: "Action result was successfully created."
     else
+      @return_to = safe_return_to
       render :new, status: :unprocessable_content
     end
   end
@@ -104,5 +107,14 @@ class ActionResultsController < ApplicationController
         "captured_at" => Time.current.iso8601
       }
     )
+  end
+
+  def safe_return_to
+    return_to = params[:return_to].to_s
+    return if return_to.blank?
+    return unless return_to.start_with?("/")
+    return if return_to.start_with?("//")
+
+    return_to
   end
 end

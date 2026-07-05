@@ -142,7 +142,26 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "SERPとの差分"
     assert_includes response.body, "SERPとの差分"
     assert_includes response.body, "変更ファイルと完了条件"
-    assert_includes response.body, "修正完了 / ActionResult登録"
+    assert_includes response.body, "完了 / 実行結果を記録"
+  end
+
+  test "action workspace keeps today context and avoids business breadcrumb" do
+    @action_candidate.update!(status: "idea")
+
+    get action_workspace_url(@action_candidate)
+
+    assert_response :success
+    assert_includes response.body, "Todayから開いた1つの仕事です"
+    assert_includes response.body, "Today"
+    assert_includes response.body, "Action"
+    assert_includes response.body, "戻る"
+    assert_includes response.body, "実行する"
+    assert_includes response.body, "保留"
+    assert_includes response.body, "却下する"
+    assert_includes response.body, "Businessを見る"
+    assert_select ".aicoo-sidebar-child.active strong", text: "Today"
+    assert_not_select ".aicoo-sidebar-child.active strong", text: "Businesses"
+    assert_not_includes response.body, "この事業へ戻る"
   end
 
   test "show renders analyzer evidence in Japanese" do
@@ -330,6 +349,24 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
     assert_equal @action_candidate, ApprovalLog.last.approvable
     assert_equal "approve", ApprovalLog.last.action
     assert_equal "approved", ApprovalLog.last.common_new_status
+  end
+
+  test "approves from action workspace and returns to workspace" do
+    @action_candidate.update!(status: "idea")
+
+    patch approve_action_candidate_url(@action_candidate, return_to: action_workspace_path(@action_candidate))
+
+    assert_redirected_to action_workspace_url(@action_candidate)
+    assert_equal "approved", @action_candidate.reload.status
+  end
+
+  test "rejects from action workspace and returns to today" do
+    @action_candidate.update!(status: "idea")
+
+    patch reject_action_candidate_url(@action_candidate, return_to: owner_focus_path)
+
+    assert_redirected_to owner_focus_url
+    assert_equal "rejected", @action_candidate.reload.status
   end
 
   test "approving non code candidate does not create auto revision task" do

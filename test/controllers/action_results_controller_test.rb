@@ -17,6 +17,15 @@ class ActionResultsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "new from action workspace keeps today return target" do
+    get new_action_result_url(action_result: { action_candidate_id: @action_candidate.id }, return_to: owner_focus_path)
+
+    assert_response :success
+    assert_includes response.body, "Todayへ戻る"
+    assert_includes response.body, "name=\"return_to\""
+    assert_includes response.body, owner_focus_path
+  end
+
   test "gets new from action execution draft" do
     execution = @action_candidate.create_action_execution!(
       status: "completed",
@@ -67,6 +76,25 @@ class ActionResultsControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_redirected_to action_result_url(ActionResult.last)
+  end
+
+  test "creates action result from action workspace and returns to today" do
+    assert_difference("ActionResult.count", 1) do
+      post action_results_url, params: {
+        return_to: owner_focus_path,
+        action_result: {
+          action_candidate_id: @action_candidate.id,
+          business_id: @action_candidate.business_id,
+          executed_on: Date.current,
+          evaluated_on: Date.current,
+          actual_revenue_yen: 1_000,
+          actual_profit_yen: 800,
+          note: "Manual result"
+        }
+      }
+    end
+
+    assert_redirected_to owner_focus_url
   end
 
   test "stores executed action expansion tasks on result" do

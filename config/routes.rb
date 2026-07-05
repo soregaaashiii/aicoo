@@ -42,6 +42,7 @@ Rails.application.routes.draw do
   patch "owner/new_business_pipeline/landing_pages/:id/update", to: "owner/new_business_pipelines#update_landing_page", as: :update_owner_new_business_pipeline_landing_page
   patch "owner/focus/defer", to: "owner/focus#defer", as: :defer_owner_focus
   patch "owner/focus/restore", to: "owner/focus#restore", as: :restore_owner_focus
+  get "actions/:id", to: "action_candidates#show", as: :action_workspace
   get "owner/tasks", to: "owner/tasks#index", as: :owner_tasks
   post "owner/serp_scan", to: "owner/serp_scans#create", as: :owner_serp_scan
   patch "owner/serp_scan_settings", to: "owner/serp_scans#update_settings", as: :owner_serp_scan_settings

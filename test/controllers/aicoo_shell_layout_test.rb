@@ -78,6 +78,19 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "この事業へ戻る"
   end
 
+  test "action workspace keeps today context instead of business context" do
+    action_candidate = action_candidates(:nagazakicho_article)
+
+    get action_workspace_url(action_candidate)
+
+    assert_response :success
+    assert_select ".aicoo-sidebar-group.active .aicoo-sidebar-category strong", text: "CEO MODE"
+    assert_select ".aicoo-sidebar-child.active strong", text: "Today"
+    assert_not_select ".aicoo-sidebar-child.active strong", text: "Businesses"
+    assert_select ".aicoo-breadcrumb", text: /Today.*Action/m
+    assert_not_includes response.body, "この事業へ戻る"
+  end
+
   test "auto revision task pages keep auto revision context" do
     action_candidate = ActionCandidate.create!(
       business: businesses(:suelog),

@@ -1,6 +1,6 @@
 module AicooNavigationHelper
   def aicoo_ceo_mode?
-    request.path.match?(%r{\A/(owner|businesses|action_candidates|auto_revision_tasks|revenue_events|action_results)}) ||
+    request.path.match?(%r{\A/(owner|actions|businesses|action_candidates|auto_revision_tasks|revenue_events|action_results)}) ||
       request.path.start_with?("/admin/auto_build_tasks", "/admin/codex_submissions")
   end
 
@@ -29,6 +29,7 @@ module AicooNavigationHelper
   end
 
   def aicoo_breadcrumb_items
+    return aicoo_action_workspace_breadcrumb_items if aicoo_action_workspace_path?
     return aicoo_business_context_breadcrumb_items if aicoo_context_business
 
     category = aicoo_current_sidebar_category
@@ -111,7 +112,7 @@ module AicooNavigationHelper
     path = request.path
     return :ceo_businesses if aicoo_context_business && aicoo_business_context_path?
     return :ceo_home if path.match?(%r{\A/owner(?:/dashboard)?\z})
-    return :ceo_today if path.start_with?("/owner/focus")
+    return :ceo_today if path.start_with?("/owner/focus", "/actions/")
     return :ceo_businesses if path.start_with?("/businesses")
     return :ceo_action_candidates if path.start_with?("/action_candidates")
     return :ceo_auto_revision if path.start_with?("/owner/auto_revision_loop", "/auto_revision_tasks", "/admin/codex_submissions")
@@ -148,8 +149,21 @@ module AicooNavigationHelper
   end
 
   def aicoo_business_context_path?
+    return false if aicoo_action_workspace_path?
+
     request.path.match?(%r{\A/(businesses|action_candidates|action_executions|action_execution_logs|action_results|revenue_events|business_metric_dailies)}) ||
       request.path.match?(%r{\A/admin/(business_activity_logs|auto_build_tasks)})
+  end
+
+  def aicoo_action_workspace_path?
+    request.path.match?(%r{\A/actions/\d+})
+  end
+
+  def aicoo_action_workspace_breadcrumb_items
+    [
+      { label: "Today", path: owner_focus_path },
+      { label: "Action", path: request.path }
+    ]
   end
 
   def aicoo_business_context_breadcrumb_items
@@ -244,7 +258,7 @@ module AicooNavigationHelper
         children: [
           { key: :ceo_home, label: "Home", description: "CEO MODEホーム", path: owner_dashboard_path, matchers: [ %r{\A/owner(?:/dashboard)?\z} ] },
           { key: :ceo_businesses, label: "Businesses", description: "事業を見る", path: businesses_path, matchers: [ %r{\A/businesses} ] },
-          { key: :ceo_today, label: "Today", description: "今日改善する事業", path: owner_focus_path, matchers: [ %r{\A/owner/focus} ] },
+          { key: :ceo_today, label: "Today", description: "今日やる仕事", path: owner_focus_path, matchers: [ %r{\A/owner/focus}, %r{\A/actions/} ] },
           { key: :ceo_action_candidates, label: "Action Candidates", description: "改善案", path: action_candidates_path, matchers: [ %r{\A/action_candidates} ] },
           { key: :ceo_auto_revision, label: "Auto Revision", description: "自動改修とCodex送信", path: owner_auto_revision_loop_path, matchers: [ %r{\A/owner/auto_revision_loop}, %r{\A/auto_revision_tasks}, %r{\A/admin/codex_submissions} ] },
           { key: :ceo_new_business, label: "New Business", description: "新規事業候補とLP作成", path: owner_new_business_pipeline_path, matchers: [ %r{\A/owner/new_business_pipeline} ] },

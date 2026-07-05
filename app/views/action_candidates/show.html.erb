@@ -1,13 +1,20 @@
 <% content_for :title, @action_candidate.title %>
 
+<% workspace_return_params = @action_workspace ? { return_to: action_workspace_path(@action_candidate) } : {} %>
+<% today_return_params = @action_workspace ? { return_to: owner_focus_path } : {} %>
+<% start_label = @action_workspace ? "実行する" : "承認する" %>
+
 <% header_actions = capture do %>
+  <% if @action_workspace %>
+    <%= link_to "戻る", owner_focus_path, class: "button secondary" %>
+  <% end %>
   <% if !%w[approved created running completed done rejected archived].include?(@action_candidate.status) %>
-    <%= button_to "承認する", approve_action_candidate_path(@action_candidate), method: :patch, class: "button" %>
+    <%= button_to start_label, approve_action_candidate_path(@action_candidate, workspace_return_params), method: :patch, class: "button" %>
   <% elsif @action_candidate.action_result.blank? %>
-    <%= link_to "実行する", new_action_result_path(action_result: { action_candidate_id: @action_candidate.id }), class: "button" %>
+    <%= link_to "完了", new_action_result_path({ action_result: { action_candidate_id: @action_candidate.id } }.merge(today_return_params)), class: "button" %>
   <% end %>
   <% unless %w[rejected archived completed done].include?(@action_candidate.status) %>
-    <%= button_to "却下する", reject_action_candidate_path(@action_candidate), method: :patch, class: "button danger" %>
+    <%= button_to "却下する", reject_action_candidate_path(@action_candidate, today_return_params), method: :patch, class: "button danger" %>
   <% end %>
   <%= link_to "詳細を見る", "#developer-mode", class: "button secondary" %>
 <% end %>
@@ -15,11 +22,17 @@
 <div class="aicoo-page">
   <%= render "shared/aicoo_header",
              title: @action_candidate.title,
-             description: "今日やるかどうかだけを判断します。",
+             description: @action_workspace ? "Todayから開いた1つの仕事です。完了したらTodayへ戻ります。" : "今日やるかどうかだけを判断します。",
              mode: :ceo,
              active_main: :revenue,
              actions: header_actions %>
   <%= render "shared/aicoo_execution_tabs", active: :today %>
+  <% unless @action_workspace %>
+    <%= render "shared/purpose_context_bar",
+               business: @action_candidate.business,
+               section_label: "改善履歴",
+               detail_label: "改善案詳細" %>
+  <% end %>
 
 <section class="dashboard-section aicoo-decision-hero">
   <div class="aicoo-decision-card">
@@ -32,6 +45,8 @@
       <div><span>成功率</span><strong><%= number_to_percentage(@action_candidate.success_probability.to_d * 100, precision: 0) %></strong></div>
       <div><span>予想時間</span><strong><%= @action_candidate.expected_hours.present? ? "#{@action_candidate.expected_hours.to_f.round(1)}h" : "-" %></strong></div>
       <div><span>期待時給</span><strong><%= @action_candidate.expected_hourly_value_yen.present? ? number_to_currency(@action_candidate.expected_hourly_value_yen, unit: "¥", precision: 0) : "-" %></strong></div>
+      <div><span>実行方法</span><strong><%= @evidence_presenter.execution_mode_label %></strong></div>
+      <div><span>根拠データ</span><strong><%= @evidence_presenter.source_label.presence || @action_candidate.generation_source %></strong></div>
     </div>
 
     <% if @evidence_presenter&.execution_units? %>
@@ -50,16 +65,29 @@
       </div>
     <% end %>
 
+    <% if @evidence_presenter&.amount_label.present? %>
+      <div class="aicoo-decision-subcard">
+        <strong>実施量</strong>
+        <p><%= @evidence_presenter.amount_label %></p>
+      </div>
+    <% end %>
+
     <div class="actions compact-actions">
       <% if !%w[approved created running completed done rejected archived].include?(@action_candidate.status) %>
-        <%= button_to "承認する", approve_action_candidate_path(@action_candidate), method: :patch, class: "button" %>
+        <%= button_to start_label, approve_action_candidate_path(@action_candidate, workspace_return_params), method: :patch, class: "button" %>
       <% elsif @action_candidate.action_result.blank? %>
-        <%= link_to "実行する", new_action_result_path(action_result: { action_candidate_id: @action_candidate.id }), class: "button" %>
+        <%= link_to @action_workspace ? "完了" : "実行する", new_action_result_path({ action_result: { action_candidate_id: @action_candidate.id } }.merge(today_return_params)), class: "button" %>
       <% else %>
         <%= link_to "詳細を見る", "#developer-mode", class: "button secondary" %>
       <% end %>
+      <% if @action_workspace && !%w[rejected archived completed done].include?(@action_candidate.status) %>
+        <%= button_to "保留", defer_owner_focus_path(task_key: "action_candidate:#{@action_candidate.id}"), method: :patch, class: "button secondary" %>
+      <% end %>
       <% unless %w[rejected archived completed done].include?(@action_candidate.status) %>
-        <%= button_to "却下する", reject_action_candidate_path(@action_candidate), method: :patch, class: "button secondary" %>
+        <%= button_to "却下する", reject_action_candidate_path(@action_candidate, today_return_params), method: :patch, class: "button secondary" %>
+      <% end %>
+      <% if @action_workspace %>
+        <%= link_to "Businessを見る", business_path(@action_candidate.business), class: "button secondary" %>
       <% end %>
     </div>
   </div>
@@ -177,7 +205,7 @@
           <%= button_to "Codex用プロンプト生成", generate_codex_prompt_draft_action_candidate_path(@action_candidate), method: :post, class: "button" %>
         <% end %>
       <% end %>
-      <%= link_to "修正完了 / ActionResult登録", new_action_result_path(action_result: { action_candidate_id: @action_candidate.id }), class: "button secondary" %>
+      <%= link_to "完了 / 実行結果を記録", new_action_result_path(action_result: { action_candidate_id: @action_candidate.id }), class: "button secondary" %>
     </div>
   </div>
 

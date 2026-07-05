@@ -58,6 +58,20 @@ module Owner
       assert_operator response.body.index("運用・実行管理"), :<, response.body.index("Daily Run Health")
     end
 
+    test "today action links open action workspace instead of business detail" do
+      candidate = create_candidate!(
+        title: "梅田の未確認店舗を30件確認済みにする",
+        immediate_value_yen: 80_000,
+        success_probability: 0.8,
+        expected_hours: 1
+      )
+
+      get owner_focus_url
+
+      assert_response :success
+      assert_select "a[href='#{action_workspace_path(candidate)}']", text: /実行する|詳細/
+    end
+
     test "shows compact serp summary without keyword details" do
       business = businesses(:suelog)
       business.business_serp_keywords.create!(

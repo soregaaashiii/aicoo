@@ -23,6 +23,11 @@
         見ている内容: <strong><%= section_label %></strong>
       </p>
     </div>
-    <span class="pill"><%= detail_label %></span>
+    <div class="actions compact-actions">
+      <% if business %>
+        <%= link_to "この事業へ戻る", business_path_value, class: "button secondary" %>
+      <% end %>
+      <span class="pill"><%= detail_label %></span>
+    </div>
   </div>
 </section>
