@@ -36,6 +36,9 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     assert_equal "「吸えログ 比較」", candidate.metadata.dig("opportunity", "target", "label")
     assert_equal "content_creation", candidate.metadata.dig("opportunity", "execution_mode")
     assert_equal [ "gsc", "ga4" ], candidate.metadata.dig("opportunity", "supporting_metrics", "source")
+    assert_equal candidate.title, candidate.metadata.dig("decision", "selected", "concrete_task")
+    assert candidate.metadata.dig("decision", "selected", "asset_type").present?
+    assert candidate.metadata.dig("business_knowledge", "assets").present?
     assert_equal false, candidate.metadata.fetch("codex_eligible")
     assert_match(/今日やること:/, candidate.evaluation_reason)
     assert_match(/理由:/, candidate.evaluation_reason)
@@ -287,6 +290,7 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     assert_not_empty analyzer_candidates
     assert analyzer_candidates.all? { |candidate| candidate.metadata["opportunity_type"].present? }
     assert analyzer_candidates.all? { |candidate| candidate.metadata.dig("opportunity", "opportunity_type").present? }
+    assert analyzer_candidates.all? { |candidate| candidate.metadata.dig("decision", "selected", "concrete_task").present? }
     assert analyzer_candidates.all? { |candidate| candidate.metadata["execution_units"].present? }
   end
 

@@ -9,24 +9,40 @@ module Aicoo
       def call
         business = opportunity.business
         issue = opportunity.source_issue
-        plan = Aicoo::ActionPlanner.call(opportunity, analyzer:)
+        decision = Aicoo::ActionDecisionEngine.call(opportunity)
+        return unless decision.valid?
+
+        plan = Aicoo::ActionPlanner.call(opportunity, analyzer:, decision:)
         return unless plan.valid?
+
+        metadata = analyzer.candidate_metadata(issue, opportunity:).merge(
+          "action_plan" => plan.to_metadata,
+          "decision" => decision.to_metadata,
+          "business_knowledge" => decision.business_knowledge.to_h,
+          "concrete_task" => decision.concrete_task,
+          "target" => decision.target,
+          "target_type" => decision.target_type,
+          "target_url_or_identifier" => decision.target_url_or_identifier,
+          "execution_mode" => decision.execution_mode,
+          "execution_units" => decision.execution_units,
+          "codex_eligible" => decision.execution_mode == "code_revision"
+        )
 
         candidate = business.action_candidates.create!(
           title: plan.summary,
           description: plan.goal,
           action_type: action_type,
-          immediate_value_yen: opportunity.expected_value_yen,
-          success_probability: opportunity.success_probability,
+          immediate_value_yen: decision.expected_profit_yen,
+          success_probability: decision.success_probability,
           strategic_value_score: issue.strategic_value_score,
           risk_reduction_score: issue.risk_reduction_score,
           confidence_score: opportunity.confidence,
           data_confidence_score: opportunity.confidence,
-          expected_hours: opportunity.expected_hours,
-          cost_yen: 0,
+          expected_hours: decision.expected_hours,
+          cost_yen: decision.cost_yen,
           status: "idea",
           generation_source: "business_analyzer",
-          metadata: analyzer.candidate_metadata(issue, opportunity:).merge("action_plan" => plan.to_metadata),
+          metadata:,
           evaluation_reason: evaluation_reason_for(plan),
           execution_prompt: execution_prompt_for(plan)
         )
@@ -34,10 +50,14 @@ module Aicoo
         candidate.reload.update_columns(
           metadata: candidate.metadata.to_h.merge(
             "action_plan" => plan.to_metadata,
+            "decision" => decision.to_metadata,
+            "business_knowledge" => decision.business_knowledge.to_h,
             "opportunity" => opportunity.to_metadata,
             "evidence" => analyzer.evidence_for(issue),
             "execution_units" => plan.execution_units,
-            "execution_mode" => plan.execution_mode
+            "execution_mode" => plan.execution_mode,
+            "concrete_task" => plan.summary,
+            "codex_eligible" => plan.execution_mode == "code_revision"
           ),
           execution_prompt: execution_prompt_for(plan),
           updated_at: Time.current

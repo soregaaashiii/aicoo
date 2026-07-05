@@ -1,0 +1,437 @@
+module Aicoo
+  class ActionDecisionEngine
+    Candidate = Data.define(
+      :action_key,
+      :asset_type,
+      :concrete_task,
+      :goal,
+      :target,
+      :target_type,
+      :target_url_or_identifier,
+      :execution_mode,
+      :expected_profit_yen,
+      :expected_hours,
+      :success_probability,
+      :historical_success_rate,
+      :learning_value,
+      :cost_yen,
+      :risk,
+      :score,
+      :reason,
+      :execution_steps,
+      :execution_units,
+      :required_resources,
+      :supporting_metrics
+    ) do
+      def to_metadata
+        {
+          "action_key" => action_key,
+          "asset_type" => asset_type,
+          "concrete_task" => concrete_task,
+          "goal" => goal,
+          "target" => target,
+          "target_type" => target_type,
+          "target_url_or_identifier" => target_url_or_identifier,
+          "execution_mode" => execution_mode,
+          "expected_profit_yen" => expected_profit_yen.to_i,
+          "expected_hours" => expected_hours.to_d.to_s,
+          "success_probability" => success_probability.to_d.to_s,
+          "historical_success_rate" => historical_success_rate.to_d.to_s,
+          "learning_value" => learning_value.to_i,
+          "cost_yen" => cost_yen.to_i,
+          "risk" => risk,
+          "score" => score.to_d.to_s,
+          "reason" => reason,
+          "execution_steps" => execution_steps,
+          "execution_units" => execution_units,
+          "required_resources" => required_resources,
+          "supporting_metrics" => supporting_metrics
+        }.compact
+      end
+    end
+
+    Decision = Data.define(:opportunity, :business_knowledge, :candidates, :selected) do
+      def valid?
+        selected.present? && selected.concrete_task.present? && selected.execution_units.any?
+      end
+
+      def concrete_task = selected&.concrete_task
+      def goal = selected&.goal
+      def target = selected&.target
+      def target_type = selected&.target_type
+      def target_url_or_identifier = selected&.target_url_or_identifier
+      def execution_mode = selected&.execution_mode
+      def execution_steps = selected&.execution_steps || []
+      def execution_units = selected&.execution_units || []
+      def expected_profit_yen = selected&.expected_profit_yen || opportunity.expected_value_yen
+      def expected_hours = selected&.expected_hours || opportunity.expected_hours
+      def success_probability = selected&.success_probability || opportunity.success_probability
+      def cost_yen = selected&.cost_yen || 0
+
+      def to_metadata
+        {
+          "selected" => selected&.to_metadata,
+          "candidate_count" => candidates.size,
+          "candidates" => candidates.map(&:to_metadata),
+          "business_knowledge" => business_knowledge.to_h
+        }.compact
+      end
+    end
+
+    def self.call(...)
+      new(...).call
+    end
+
+    def initialize(opportunity)
+      @opportunity = opportunity
+      @profile = Aicoo::BusinessCapabilityProfile.for(opportunity.business)
+    end
+
+    def call
+      candidates = enumerate_candidates
+      Decision.new(
+        opportunity:,
+        business_knowledge: profile,
+        candidates:,
+        selected: candidates.max_by(&:score)
+      )
+    end
+
+    private
+
+    attr_reader :opportunity, :profile
+
+    def enumerate_candidates
+      profile.assets.filter_map do |asset|
+        next unless asset_applicable?(asset)
+
+        build_candidate(asset)
+      end
+    end
+
+    def asset_applicable?(asset)
+      case pattern
+      when "demand_without_asset"
+        asset.can_create
+      when "high_impression_low_ctr", "rank_11_20_gap", "traffic_without_conversion",
+           "asset_without_traffic", "activity_gap", "data_quality_gap"
+        asset.can_update || asset.can_create
+      else
+        asset.can_update || asset.can_create
+      end
+    end
+
+    def build_candidate(asset)
+      action = action_for(asset)
+      return if action.blank?
+
+      hours = candidate_hours(asset, action)
+      profit = candidate_profit(asset)
+      success = candidate_success(asset)
+      learning = learning_value_for(asset)
+      cost = asset.cost_yen.to_i
+      risk = risk_for(asset)
+      score = ((profit.to_d / [ hours.to_d, 0.1.to_d ].max) * success.to_d * risk_multiplier(risk)) +
+        (learning.to_d * 0.4) - cost
+
+      Candidate.new(
+        action_key: "#{pattern}:#{asset.asset_type}",
+        asset_type: asset.asset_type,
+        concrete_task: action.fetch(:task),
+        goal: action.fetch(:goal),
+        target: target_label,
+        target_type: action.fetch(:target_type),
+        target_url_or_identifier: target_identifier,
+        execution_mode: action.fetch(:execution_mode),
+        expected_profit_yen: profit,
+        expected_hours: hours,
+        success_probability: success,
+        historical_success_rate: asset.historical_success_rate,
+        learning_value: learning,
+        cost_yen: cost,
+        risk:,
+        score:,
+        reason: opportunity.reason,
+        execution_steps: action.fetch(:steps),
+        execution_units: execution_units_for(action, hours),
+        required_resources: action.fetch(:required_resources, {}).merge("asset_type" => asset.asset_type),
+        supporting_metrics: opportunity.supporting_metrics.to_h.deep_stringify_keys
+      )
+    end
+
+    def action_for(asset)
+      case pattern
+      when "demand_without_asset"
+        demand_action(asset)
+      when "high_impression_low_ctr"
+        ctr_action(asset)
+      when "rank_11_20_gap"
+        rank_gap_action(asset)
+      when "traffic_without_conversion"
+        conversion_action(asset)
+      when "asset_without_traffic"
+        asset_traffic_action(asset)
+      when "activity_gap"
+        activity_gap_action(asset)
+      when "data_quality_gap"
+        data_quality_action(asset)
+      else
+        generic_action(asset)
+      end
+    end
+
+    def demand_action(asset)
+      case asset.asset_type
+      when "articles"
+        content_action(
+          task: "「#{plain_target}」向けの記事を1本作成する",
+          goal: "需要がある検索テーマに対応する記事入口を作る",
+          target_type: "article",
+          steps: %w[タイトル決定 記事構成作成 記事作成 内部リンク追加 公開]
+        )
+      when "comparison_pages"
+        return unless comparison_intent?
+
+        content_action(
+          task: "「#{plain_target}」向けの比較ページを1本作成する",
+          goal: "比較検討中のユーザーに対応する受け皿を作る",
+          target_type: "comparison_page",
+          steps: %w[比較軸決定 ページ構成作成 比較表追加 内部リンク追加 公開]
+        )
+      when "landing_pages"
+        code_action(
+          task: "「#{plain_target}」向けLPを1本作成する",
+          goal: "需要があるテーマに対応するLPを作る",
+          target_type: "landing_page",
+          steps: %w[LP構成決定 ファーストビュー作成 CTA追加 公開 計測確認]
+        )
+      when "faq"
+        content_action(
+          task: "「#{plain_target}」に対応するFAQを追加する",
+          goal: "需要がある疑問に短い回答資産を作る",
+          target_type: "faq",
+          steps: %w[質問選定 回答案作成 関連ページへ追加 公開]
+        )
+      when "area_pages", "category_pages"
+        content_action(
+          task: "「#{plain_target}」に対応するカテゴリ入口を1件作成する",
+          goal: "需要テーマへ遷移できる分類入口を作る",
+          target_type: asset.asset_type.singularize,
+          steps: %w[分類名決定 対象資産整理 ページ作成 内部リンク追加 公開]
+        )
+      end
+    end
+
+    def ctr_action(asset)
+      return unless %w[articles landing_pages comparison_pages area_pages category_pages].include?(asset.asset_type)
+
+      content_action(
+        task: "#{target_label}のタイトル・meta・ファーストビュー訴求を#{target_amount}件改善する",
+        goal: "表示回数がある入口のクリック理由を明確にする",
+        target_type: "traffic_entry",
+        steps: %w[対象ページ確認 検索クエリ確認 タイトル修正 meta修正 公開]
+      )
+    end
+
+    def rank_gap_action(asset)
+      return unless %w[articles comparison_pages faq internal_links area_pages category_pages].include?(asset.asset_type)
+
+      content_action(
+        task: "#{target_label}のSERP差分を1件埋める",
+        goal: "順位11〜20位の入口に不足要素を追加する",
+        target_type: "page_or_query",
+        steps: %w[不足要素確認 FAQまたは比較要素追加 内部リンク追加 公開 順位確認メモ作成]
+      )
+    end
+
+    def conversion_action(asset)
+      return unless %w[cta internal_links signup checkout pricing landing_pages listings].include?(asset.asset_type)
+
+      code_action(
+        task: "流入上位#{target_amount}ページに#{conversion_label}導線を追加する",
+        goal: "流入をCVに近い行動へつなげる",
+        target_type: "conversion_path",
+        steps: %w[対象ページ選定 CTA位置決定 CTA追加 イベント計測確認 ActionResult登録]
+      )
+    end
+
+    def asset_traffic_action(asset)
+      return unless %w[internal_links articles landing_pages comparison_pages area_pages category_pages].include?(asset.asset_type)
+
+      content_action(
+        task: "#{target_label}への流入導線を3件追加する",
+        goal: "作成済み資産に初回流入を作る",
+        target_type: "asset",
+        steps: %w[対象資産確認 リンク元選定 内部リンク追加 公開 クリック確認メモ作成]
+      )
+    end
+
+    def activity_gap_action(asset)
+      return if asset.asset_type.in?(%w[signup checkout pricing]) && !asset.can_update
+
+      {
+        task: "#{asset_label(asset)}の改善を1件実行する",
+        goal: "止まっている改善サイクルを再開する",
+        target_type: "operation",
+        execution_mode: "manual_operation",
+        steps: %w[対象選定 小さな改善実行 Activity記録 ActionResult登録],
+        required_resources: {}
+      }
+    end
+
+    def data_quality_action(asset)
+      return unless %w[cta signup checkout landing_pages pricing owner_tasks].include?(asset.asset_type)
+
+      code_action(
+        task: "#{asset_label(asset)}の計測設定を確認する",
+        goal: "成果判断に必要なデータを揃える",
+        target_type: "measurement",
+        steps: %w[不足項目確認 設定確認 テスト取得 エラー記録 次Action作成]
+      )
+    end
+
+    def generic_action(asset)
+      return unless asset.can_update || asset.can_create
+
+      {
+        task: "#{target_label}に対して#{asset_label(asset)}の改善を1件実行する",
+        goal: "検出された改善機会を実行可能な作業に変える",
+        target_type: "task",
+        execution_mode: execution_mode_for_asset(asset),
+        steps: %w[対象確認 作業実行 結果確認 ActionResult登録],
+        required_resources: {}
+      }
+    end
+
+    def content_action(task:, goal:, target_type:, steps:)
+      {
+        task:,
+        goal:,
+        target_type:,
+        execution_mode: "content_creation",
+        steps:,
+        required_resources: {}
+      }
+    end
+
+    def code_action(task:, goal:, target_type:, steps:)
+      {
+        task:,
+        goal:,
+        target_type:,
+        execution_mode: "code_revision",
+        steps:,
+        required_resources: {}
+      }
+    end
+
+    def execution_units_for(action, hours)
+      [
+        {
+          "label" => action.fetch(:task),
+          "target_amount" => target_amount,
+          "estimated_minutes" => (hours.to_d * 60).round,
+          "reason" => opportunity.reason,
+          "target_type" => action.fetch(:target_type),
+          "target_identifier" => target_identifier
+        }.compact
+      ]
+    end
+
+    def pattern = opportunity.opportunity_type.to_s
+
+    def target_hash
+      @target_hash ||= opportunity.target.to_h.deep_stringify_keys
+    end
+
+    def target_label
+      target_hash["label"].presence || target_hash["query"].presence || target_hash["page_path"].presence || opportunity.source_issue.title
+    end
+
+    def plain_target
+      target_label.to_s.delete_prefix("「").delete_suffix("」")
+    end
+
+    def target_identifier
+      target_hash["page_path"].presence || target_hash["query"].presence || target_hash["label"].presence || plain_target
+    end
+
+    def target_amount
+      target_hash["amount"].presence || opportunity.source_issue.quantity.presence || 1
+    end
+
+    def comparison_intent?
+      plain_target.match?(/比較|違い|料金|compare|versus|vs/i)
+    end
+
+    def conversion_label
+      events = Array(opportunity.required_resources.to_h.dig("conversion_events")).presence ||
+        Array(profile.conversion_events)
+      events.first.presence || "CV"
+    end
+
+    def candidate_hours(asset, action)
+      base_minutes = asset.estimated_minutes.to_i
+      expected_minutes = (opportunity.expected_hours.to_d * 60).round
+      minutes = [ base_minutes, expected_minutes ].compact.max
+      minutes = 30 if minutes.zero?
+      (minutes.to_d / 60).round(2)
+    end
+
+    def candidate_profit(asset)
+      (opportunity.expected_value_yen.to_d * asset.expected_roi.to_d).round
+    end
+
+    def candidate_success(asset)
+      ((opportunity.success_probability.to_d + asset.historical_success_rate.to_d) / 2).round(2)
+    end
+
+    def learning_value_for(asset)
+      confidence_gap = [ 100 - opportunity.confidence.to_i, 0 ].max
+      novelty = asset.required_data.any? { |source| !Array(opportunity.supporting_metrics.to_h["source"]).include?(source) } ? 10 : 0
+      [ confidence_gap / 2 + novelty, 80 ].min
+    end
+
+    def risk_for(asset)
+      return "medium" if asset.cost_yen.to_i.positive?
+      return "medium" if %w[checkout pricing].include?(asset.asset_type)
+
+      "low"
+    end
+
+    def risk_multiplier(risk)
+      { "low" => 1.0.to_d, "medium" => 0.85.to_d, "high" => 0.6.to_d }.fetch(risk, 0.8.to_d)
+    end
+
+    def execution_mode_for_asset(asset)
+      case asset.asset_type
+      when "listings"
+        "data_operation"
+      when "articles", "comparison_pages", "faq", "area_pages", "category_pages"
+        "content_creation"
+      when "owner_tasks"
+        "manual_operation"
+      else
+        "code_revision"
+      end
+    end
+
+    def asset_label(asset)
+      {
+        "articles" => "記事",
+        "listings" => "掲載データ",
+        "area_pages" => "エリアページ",
+        "category_pages" => "カテゴリページ",
+        "landing_pages" => "LP",
+        "comparison_pages" => "比較ページ",
+        "faq" => "FAQ",
+        "cta" => "CTA",
+        "internal_links" => "内部リンク",
+        "signup" => "登録導線",
+        "checkout" => "購入導線",
+        "pricing" => "料金訴求",
+        "owner_tasks" => "手作業"
+      }.fetch(asset.asset_type, asset.asset_type)
+    end
+  end
+end

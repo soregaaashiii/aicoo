@@ -36,9 +36,10 @@ module Aicoo
       new(...).call
     end
 
-    def initialize(opportunity, analyzer:)
+    def initialize(opportunity, analyzer:, decision: nil)
       @opportunity = opportunity
       @analyzer = analyzer
+      @decision = decision
       @issue = opportunity.source_issue
       @attrs = issue.metadata.to_h.deep_stringify_keys
     end
@@ -60,25 +61,27 @@ module Aicoo
 
     private
 
-    attr_reader :opportunity, :analyzer, :issue, :attrs
+    attr_reader :opportunity, :analyzer, :decision, :issue, :attrs
 
     def pattern
       opportunity.opportunity_type.to_s
     end
 
     def execution_mode
-      opportunity.execution_mode.presence || attrs["execution_mode"].presence || "manual_operation"
+      decision&.execution_mode.presence || opportunity.execution_mode.presence || attrs["execution_mode"].presence || "manual_operation"
     end
 
     def summary
-      concrete_task.presence || issue.title
+      decision&.concrete_task.presence || concrete_task.presence || issue.title
     end
 
     def concrete_task
-      attrs["concrete_task"].presence || issue.title
+      decision&.concrete_task.presence || attrs["concrete_task"].presence || issue.title
     end
 
     def goal
+      return decision.goal if decision&.goal.present?
+
       case pattern
       when "demand_without_asset"
         "#{target_label}に対応する受け皿を作り、需要を流入に変える"
@@ -113,6 +116,8 @@ module Aicoo
     end
 
     def execution_steps
+      return decision.execution_steps if decision&.execution_steps.present?
+
       case pattern
       when "demand_without_asset"
         demand_without_asset_steps
@@ -134,6 +139,8 @@ module Aicoo
     end
 
     def execution_units
+      return decision.execution_units if decision&.execution_units.present?
+
       units = Array(analyzer.execution_units_for(issue)).map { |unit| unit.to_h.deep_stringify_keys }
       return units if units.any?
 
@@ -148,6 +155,8 @@ module Aicoo
     end
 
     def target_label
+      return decision.target if decision&.target.present?
+
       opportunity.target.to_h["label"].presence ||
         attrs["target_identifier"].presence ||
         attrs["source_query"].presence ||
@@ -155,15 +164,20 @@ module Aicoo
     end
 
     def target_type
+      return decision.target_type if decision&.target_type.present?
+
       attrs["target_type"].presence || "task"
     end
 
     def target_url_or_identifier
+      return decision.target_url_or_identifier if decision&.target_url_or_identifier.present?
+
       attrs["target_url_or_identifier"].presence || attrs["target_identifier"].presence || target_label
     end
 
     def estimated_minutes
-      (opportunity.expected_hours.to_d * 60).round
+      hours = decision&.expected_hours.presence || opportunity.expected_hours
+      (hours.to_d * 60).round
     end
 
     def estimated_completion
