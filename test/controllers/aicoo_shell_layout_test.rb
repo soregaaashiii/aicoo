@@ -19,6 +19,7 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Today"
     assert_includes response.body, "Action Candidates"
     assert_includes response.body, "Auto Revision"
+    assert_includes response.body, "New Business"
     assert_includes response.body, "Auto Build"
     assert_includes response.body, "Revenue"
     assert_includes response.body, "Learning"
@@ -26,6 +27,8 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, "Pipeline E2E"
     assert_not_includes response.body, "Execution Profiles"
     assert_includes response.body, "現在位置"
+    assert_select "a[href='#{owner_auto_revision_loop_path}']", text: /Auto Revision/
+    assert_select "a[href='#{owner_new_business_pipeline_path}']", text: /New Business/
   end
 
   test "system mode uses purpose sidebar and breadcrumb" do

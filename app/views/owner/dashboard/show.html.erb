@@ -41,6 +41,31 @@
     </div>
   </section>
 
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>毎日使う運用入口</h2>
+      <p>URLを探さず、ここから自動改修と新規事業作成を進めます。</p>
+    </div>
+    <div class="aicoo-card-grid">
+      <%= link_to owner_auto_revision_loop_path, class: "aicoo-card" do %>
+        <p><span class="pill">自動改修</span></p>
+        <h3>自動改修ループ</h3>
+        <p>改善案、Codex Prompt、GitHub Issue、PR、ActionResult登録までを1ページで処理します。</p>
+        <div class="actions compact-actions">
+          <span class="button">自動改修ループを開く</span>
+        </div>
+      <% end %>
+      <%= link_to owner_new_business_pipeline_path, class: "aicoo-card" do %>
+        <p><span class="pill">新規事業</span></p>
+        <h3>新規事業作成</h3>
+        <p>SERP/AI由来候補、Business作成、LP作成、LP公開、検証管理までを1ページで処理します。</p>
+        <div class="actions compact-actions">
+          <span class="button">新規事業作成を開く</span>
+        </div>
+      <% end %>
+    </div>
+  </section>
+
   <%= render "shared/owner_task_inbox",
              owner_task_inbox: @owner_task_inbox,
              limit: 10 %>
@@ -269,6 +294,7 @@
       <div class="metric-card"><span>学習準備</span><strong><%= approval.data_preparation_count %>件</strong></div>
     </div>
     <div class="actions compact-actions">
+      <%= link_to "自動改修ループを開く", owner_auto_revision_loop_path, class: "button" %>
       <%= link_to "確認タスクを見る", owner_tasks_path, class: "button secondary" %>
     </div>
   </section>

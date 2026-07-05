@@ -116,7 +116,8 @@ module AicooNavigationHelper
     return :ceo_today if path.start_with?("/owner/focus")
     return :ceo_businesses if path.start_with?("/businesses")
     return :ceo_action_candidates if path.start_with?("/action_candidates")
-    return :ceo_auto_revision if path.start_with?("/auto_revision_tasks", "/admin/codex_submissions")
+    return :ceo_auto_revision if path.start_with?("/owner/auto_revision_loop", "/auto_revision_tasks", "/admin/codex_submissions")
+    return :ceo_new_business if path.start_with?("/owner/new_business_pipeline")
     return :ceo_auto_build if path.start_with?("/admin/auto_build_tasks")
     return :ceo_revenue if path.start_with?("/revenue_events")
     return :ceo_learning if path.start_with?("/action_results", "/owner/learning_report")
@@ -249,7 +250,8 @@ module AicooNavigationHelper
           { key: :ceo_businesses, label: "Businesses", description: "事業を見る", path: businesses_path, matchers: [ %r{\A/businesses} ] },
           { key: :ceo_today, label: "Today", description: "今日改善する事業", path: owner_focus_path, matchers: [ %r{\A/owner/focus} ] },
           { key: :ceo_action_candidates, label: "Action Candidates", description: "改善案", path: action_candidates_path, matchers: [ %r{\A/action_candidates} ] },
-          { key: :ceo_auto_revision, label: "Auto Revision", description: "自動改修とCodex送信", path: auto_revision_tasks_path, matchers: [ %r{\A/auto_revision_tasks}, %r{\A/admin/codex_submissions} ] },
+          { key: :ceo_auto_revision, label: "Auto Revision", description: "自動改修とCodex送信", path: owner_auto_revision_loop_path, matchers: [ %r{\A/owner/auto_revision_loop}, %r{\A/auto_revision_tasks}, %r{\A/admin/codex_submissions} ] },
+          { key: :ceo_new_business, label: "New Business", description: "新規事業候補とLP作成", path: owner_new_business_pipeline_path, matchers: [ %r{\A/owner/new_business_pipeline} ] },
           { key: :ceo_auto_build, label: "Auto Build", description: "MVP自動Build", path: admin_auto_build_tasks_path, matchers: [ %r{\A/admin/auto_build_tasks} ] },
           { key: :ceo_revenue, label: "Revenue", description: "売上履歴", path: revenue_events_path, matchers: [ %r{\A/revenue_events} ] },
           { key: :ceo_learning, label: "Learning", description: "実行結果と学習", path: action_results_path, matchers: [ %r{\A/action_results}, %r{\A/owner/learning_report} ] },
