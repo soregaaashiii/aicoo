@@ -67,8 +67,8 @@ module Owner
       assert_not_includes today_section, "href=\"#{business_path(candidate.business)}\""
     end
 
-    test "does not show analyzer intermediate result without concrete task" do
-      ActionCandidate.create!(
+    test "shows incomplete analyzer result as needs refinement instead of hiding it" do
+      incomplete = ActionCandidate.create!(
         business: businesses(:suelog),
         title: "検索需要があるテーマの記事を1本追加する",
         status: "approved",
@@ -99,8 +99,8 @@ module Owner
 
       assert_response :success
       assert_includes response.body, concrete.title
-      assert_not_includes response.body, "検索需要があるテーマの記事を1本追加する"
-      assert_not_includes response.body, "Analyzer intermediate result"
+      assert_includes response.body, "要具体化: #{incomplete.title}"
+      assert_select "a[href='#{action_workspace_path(incomplete)}']", text: "詳細を見る"
     end
 
     test "does not show dashboard in sidebar" do

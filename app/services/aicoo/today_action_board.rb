@@ -127,9 +127,7 @@ module Aicoo
     end
 
     def today_eligible?(candidate, presenter, action_plan, execution_mode, approval_task)
-      return false unless required_fields_present?(candidate, presenter, action_plan, execution_mode)
-      return false unless concrete_task_specific?(candidate, presenter, action_plan)
-      return false if target_unspecified?(presenter, action_plan)
+      return false unless minimum_fields_present?(candidate, execution_mode)
 
       owner_work = OWNER_EXECUTION_MODES.include?(execution_mode)
       approval_waiting_code_revision = execution_mode == "code_revision" && approval_task.present?
@@ -137,43 +135,36 @@ module Aicoo
       owner_work || approval_waiting_code_revision
     end
 
-    def required_fields_present?(candidate, presenter, action_plan, execution_mode)
-      approval_task = approval_required_task(candidate)
-
-      concrete_task_for(candidate, presenter, action_plan).present? &&
-        target_for(presenter, action_plan).present? &&
-        execution_mode.present? &&
+    def minimum_fields_present?(candidate, execution_mode)
+      execution_mode.present? &&
         candidate.expected_hours.present? &&
         candidate.success_probability.present? &&
-        owner_next_step_for(presenter, action_plan, approval_task).present? &&
-        action_workspace_path(candidate).present? &&
-        (approval_task.present? || presenter.execution_units?)
-    end
-
-    def concrete_task_specific?(candidate, presenter, action_plan)
-      text = concrete_task_for(candidate, presenter, action_plan).to_s
-      return false if text.blank?
-
-      ABSTRACT_PATTERNS.none? { |pattern| text.match?(pattern) }
-    end
-
-    def target_unspecified?(presenter, action_plan)
-      target = target_for(presenter, action_plan).to_s.strip
-      target.blank? || UNSPECIFIED_VALUES.include?(target.downcase) || target.include?("未特定")
+        action_workspace_path(candidate).present?
     end
 
     def concrete_task_for(candidate, presenter, action_plan)
-      action_plan["summary"].presence ||
+      text = action_plan["summary"].presence ||
         candidate.metadata.to_h["concrete_task"].presence ||
-        candidate.metadata.to_h.dig("decision", "selected", "concrete_task").presence
+        candidate.metadata.to_h.dig("decision", "selected", "concrete_task").presence ||
+        candidate.title.presence
+
+      return "要具体化" if text.blank?
+      return "要具体化: #{text}" if ABSTRACT_PATTERNS.any? { |pattern| text.match?(pattern) }
+
+      text
     end
 
     def target_for(presenter, action_plan)
-      action_plan["target"].presence ||
+      target = action_plan["target"].presence ||
         action_plan["target_url_or_identifier"].presence ||
         presenter.action_plan["target"].presence ||
         presenter.action_plan["target_url_or_identifier"].presence ||
         presenter.target_label.presence
+
+      return "要具体化" if target.to_s.strip.blank?
+      return "要具体化" if UNSPECIFIED_VALUES.include?(target.to_s.downcase) || target.to_s.include?("未特定")
+
+      target
     end
 
     def owner_next_step_for(presenter, action_plan, approval_task)
@@ -182,7 +173,8 @@ module Aicoo
       Array(action_plan["execution_steps"]).compact_blank.first.presence ||
         action_plan["owner_next_step"].presence ||
         Array(action_plan["execution_units"]).compact_blank.first.to_h["label"].presence ||
-        presenter.execution_units.first.to_h["label"].presence
+        presenter.execution_units.first.to_h["label"].presence ||
+        "要具体化: 対象と作業単位を確認する"
     end
 
     def approval_required_task(candidate)

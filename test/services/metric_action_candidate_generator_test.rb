@@ -301,6 +301,31 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     assert analyzer_candidates.all? { |candidate| candidate.metadata["execution_units"].present? }
   end
 
+  test "creates baseline pv revenue db ctr and todo candidates when analysis data exists" do
+    create_metric_series(
+      default_impressions: 20,
+      recent_impressions: 50,
+      default_clicks: 1,
+      recent_clicks: 2,
+      default_pageviews: 30,
+      recent_pageviews: 40,
+      default_conversions: 0,
+      recent_conversions: 0
+    )
+
+    result = MetricActionCandidateGenerator.new(business: @business, today: @today).call
+    issue_keys = result.created.map { |candidate| candidate.metadata.fetch("issue_key") }
+
+    assert_includes issue_keys, "pv_maximization"
+    assert_includes issue_keys, "revenue_maximization"
+    assert_includes issue_keys, "db_strengthening"
+    assert_includes issue_keys, "ctr_improvement"
+    assert_includes issue_keys, "auto_todo"
+    result.created.each do |candidate|
+      assert_includes %w[ready needs_refinement], candidate.metadata.fetch("concretization_status")
+    end
+  end
+
   private
 
   def create_metric_series(default_clicks: 0, recent_clicks: nil, default_impressions: 0, recent_impressions: nil,

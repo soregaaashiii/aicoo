@@ -19,7 +19,12 @@ module Aicoo
           rank_11_20_gap_issue,
           traffic_without_conversion_issue,
           asset_without_traffic_issue,
-          activity_gap_issue
+          activity_gap_issue,
+          pv_maximization_issue,
+          revenue_maximization_issue,
+          db_strengthening_issue,
+          ctr_improvement_todo_issue,
+          auto_todo_issue
         ].compact
       end
 
@@ -251,6 +256,166 @@ module Aicoo
         )
       end
 
+      def pv_maximization_issue
+        return unless analysis_data_available?
+
+        target = demand_query.presence || top_asset_label
+        issue(
+          key: "pv_maximization",
+          title: "#{target}のPV最大化TODOを1件作成する",
+          description: "PVを増やす余地がある入口または資産を、まず1件の実行TODOにします。",
+          action_type: "seo_improvement",
+          quantity: 1,
+          unit: "件",
+          why: "GSC/GA4/DBに分析可能なデータがあるため、PV最大化の候補を0件にせず実行候補として残します。",
+          expected_effect: "PV改善TODO 1件、次回判断材料を追加",
+          expected_value_yen: estimated_value(10_000),
+          success_probability: 0.38,
+          strategic_value_score: 46,
+          risk_reduction_score: 18,
+          expected_hours: 0.8,
+          metadata: common_metadata(
+            "asset_without_traffic",
+            target_type: "pv_growth",
+            target_identifier: target,
+            current_value: recent_traffic,
+            benchmark_value: [ recent_traffic + 1, 1 ].max,
+            source_metric: "pv_growth_signal",
+            concrete_task: "#{target}のPVを増やす導線改善を1件実行する",
+            required_resources: { "fallback_category" => "pv_maximization" }
+          ).merge("todo_category" => "pv_maximization")
+        )
+      end
+
+      def revenue_maximization_issue
+        return unless analysis_data_available?
+
+        event_label = capability.conversion_events.first || "CV"
+        amount = [ top_page_count, 5 ].max.clamp(3, 10)
+        issue(
+          key: "revenue_maximization",
+          title: "流入上位#{amount}ページの収益最大化TODOを1件作成する",
+          description: "収益に近い導線を増やす余地を実行候補として残します。",
+          action_type: "ui_improvement",
+          quantity: amount,
+          unit: "ページ",
+          why: "GA4/DBに流入またはCV判断データがあるため、収益最大化候補を0件にしません。",
+          expected_effect: "#{event_label}改善TODO 1件、CVイベント +#{[ amount, 1 ].max}/週",
+          expected_value_yen: estimated_value(18_000),
+          success_probability: 0.36,
+          strategic_value_score: 54,
+          risk_reduction_score: 26,
+          expected_hours: 1.2,
+          metadata: common_metadata(
+            "traffic_without_conversion",
+            target_type: "conversion_path",
+            target_identifier: "流入上位ページ",
+            current_value: recent_conversions_total,
+            benchmark_value: 1,
+            source_metric: "revenue_growth_signal",
+            concrete_task: "流入上位#{amount}ページに#{event_label}導線を追加する",
+            required_resources: {
+              "fallback_category" => "revenue_maximization",
+              "conversion_events" => capability.conversion_events
+            }
+          ).merge("todo_category" => "revenue_maximization")
+        )
+      end
+
+      def db_strengthening_issue
+        return unless analysis_data_available?
+
+        asset = data_asset_label
+        issue(
+          key: "db_strengthening",
+          title: "#{asset}のDB強化TODOを1件作成する",
+          description: "Business DBを強くする作業候補を実行候補として残します。",
+          action_type: "data_preparation",
+          quantity: 1,
+          unit: "件",
+          why: "DBまたはActivityに判断材料があるため、DB強化候補を0件にしません。",
+          expected_effect: "DB改善TODO 1件、分析精度とCV判断材料を追加",
+          expected_value_yen: estimated_value(9_000),
+          success_probability: 0.5,
+          strategic_value_score: 44,
+          risk_reduction_score: 38,
+          expected_hours: 0.8,
+          metadata: common_metadata(
+            "activity_gap",
+            target_type: "business_db",
+            target_identifier: asset,
+            current_value: recent_activity_count,
+            benchmark_value: 1,
+            source_metric: "business_db_strength",
+            concrete_task: "#{asset}のデータ品質を1件改善する",
+            required_resources: { "fallback_category" => "db_strengthening" }
+          ).merge("todo_category" => "db_strengthening")
+        )
+      end
+
+      def ctr_improvement_todo_issue
+        return unless analysis_data_available?
+
+        query = demand_query.presence || "表示回数のある検索入口"
+        issue(
+          key: "ctr_improvement",
+          title: "#{query}のCTR改善TODOを1件作成する",
+          description: "CTR改善の余地を実行候補として残します。",
+          action_type: "seo_improvement",
+          quantity: 1,
+          unit: "件",
+          why: "GSC/GA4に検索または流入データがあるため、CTR改善候補を0件にしません。",
+          expected_effect: "CTR改善TODO 1件、クリック改善余地を確認",
+          expected_value_yen: estimated_value(12_000),
+          success_probability: 0.34,
+          strategic_value_score: 48,
+          risk_reduction_score: 20,
+          expected_hours: 0.8,
+          metadata: common_metadata(
+            "high_impression_low_ctr",
+            target_type: "traffic_entry",
+            target_identifier: query,
+            query:,
+            current_value: recent_ctr.to_f,
+            benchmark_value: 0.03,
+            source_metric: "ctr_improvement_signal",
+            concrete_task: "#{query}のタイトル・meta改善候補を1件具体化する",
+            required_resources: { "fallback_category" => "ctr_improvement" }
+          ).merge("todo_category" => "ctr_improvement")
+        )
+      end
+
+      def auto_todo_issue
+        return unless analysis_data_available?
+
+        asset = capability.primary_assets.first || top_asset_label
+        issue(
+          key: "auto_todo",
+          title: "#{asset}の自動TODOを1件作成する",
+          description: "分析データから今日処理できるTODOを最低1件残します。",
+          action_type: "operations",
+          quantity: 1,
+          unit: "件",
+          why: "GSC/GA4/DBのいずれかにデータがあるため、候補0件で止めず自動TODOを生成します。",
+          expected_effect: "自動TODO 1件、改善サイクルを継続",
+          expected_value_yen: estimated_value(7_000),
+          success_probability: 0.55,
+          strategic_value_score: 40,
+          risk_reduction_score: 36,
+          expected_hours: 0.5,
+          metadata: common_metadata(
+            "activity_gap",
+            target_type: "operation",
+            target_identifier: asset,
+            current_value: recent_activity_count,
+            benchmark_value: 1,
+            source_metric: "auto_todo_signal",
+            concrete_task: "#{asset}の改善TODOを1件実行する",
+            required_resources: { "fallback_category" => "auto_todo" }
+          ).merge("todo_category" => "auto_todo")
+        )
+      end
+
       def common_metadata(pattern, target_type:, target_identifier:, current_value:, benchmark_value:, source_metric:, concrete_task:, query: nil, required_resources: {})
         {
           "opportunity_type" => pattern,
@@ -335,6 +500,22 @@ module Aicoo
         capability.content_assets.first || capability.primary_assets.first || "作成済み資産"
       end
 
+      def top_asset_label
+        capability.primary_assets.first || capability.content_assets.first || "主要資産"
+      end
+
+      def data_asset_label
+        if capability.has_listings
+          "掲載データ"
+        elsif capability.has_articles
+          "記事データ"
+        elsif capability.has_lp
+          "LPデータ"
+        else
+          "Business DB"
+        end
+      end
+
       def asset_resource_types
         types = []
         types << "Article" if capability.has_articles
@@ -345,6 +526,13 @@ module Aicoo
 
       def conversion_measurement_present?
         recent_conversions_total.positive? || recent_metrics.any? { |record| record.event_count.to_i.positive? }
+      end
+
+      def analysis_data_available?
+        recent30_metrics.any? ||
+          recent_activity_count.positive? ||
+          business.serp_queries.exists? ||
+          business.serp_analyses.exists?
       end
 
       def demand_query

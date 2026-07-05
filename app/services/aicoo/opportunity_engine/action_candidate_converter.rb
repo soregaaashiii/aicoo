@@ -14,7 +14,9 @@ module Aicoo
 
         plan = Aicoo::ActionPlanner.call(opportunity, analyzer:, decision:)
         return unless plan.valid?
-        return unless concrete_action_valid?(plan)
+
+        concretization_warnings = concretization_warnings_for(plan)
+        concretization_status = concretization_warnings.empty? ? "ready" : "needs_refinement"
 
         metadata = analyzer.candidate_metadata(issue, opportunity:).merge(
           "action_plan" => plan.to_metadata,
@@ -28,6 +30,8 @@ module Aicoo
           "target_url_or_identifier" => decision.target_url_or_identifier,
           "execution_mode" => decision.execution_mode,
           "execution_units" => decision.execution_units,
+          "concretization_status" => concretization_status,
+          "concretization_warnings" => concretization_warnings,
           "codex_eligible" => decision.execution_mode == "code_revision"
         )
 
@@ -62,6 +66,8 @@ module Aicoo
             "execution_units" => plan.execution_units,
             "execution_mode" => plan.execution_mode,
             "concrete_task" => plan.summary,
+            "concretization_status" => concretization_status,
+            "concretization_warnings" => concretization_warnings,
             "codex_eligible" => plan.execution_mode == "code_revision"
           ),
           execution_prompt: execution_prompt_for(plan),
@@ -126,14 +132,15 @@ module Aicoo
         /Analyzer/i
       ].freeze
 
-      def concrete_action_valid?(plan)
+      def concretization_warnings_for(plan)
+        warnings = []
         text = plan.summary.to_s.strip
-        return false if text.blank?
-        return false if ABSTRACT_PATTERNS.any? { |pattern| text.match?(pattern) }
-        return false if plan.target.to_s.blank? || plan.target.to_s.include?("未特定")
-        return false if plan.execution_units.blank?
+        warnings << "concrete_task_missing" if text.blank?
+        warnings << "concrete_task_abstract" if ABSTRACT_PATTERNS.any? { |pattern| text.match?(pattern) }
+        warnings << "target_unspecified" if plan.target.to_s.blank? || plan.target.to_s.include?("未特定")
+        warnings << "execution_units_missing" if plan.execution_units.blank?
 
-        true
+        warnings
       end
     end
   end
