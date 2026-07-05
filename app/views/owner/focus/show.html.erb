@@ -20,9 +20,21 @@
         <p class="aicoo-decision-reason"><%= primary_item.reason_lines.first || "期待値が最も高い改善候補です。" %></p>
         <div class="aicoo-decision-metrics">
           <div><span>期待利益</span><strong><%= number_to_currency(primary_item.expected_profit_yen, unit: "¥", precision: 0) %></strong></div>
-          <div><span>成功率</span><strong><%= number_to_percentage(primary_item.success_probability * 100, precision: 0) %></strong></div>
           <div><span>予想時間</span><strong><%= primary_item.required_minutes.positive? ? "#{primary_item.required_minutes}分" : "-" %></strong></div>
-          <div><span>学習価値</span><strong><%= primary_item.learning_value_yen.positive? ? number_to_currency(primary_item.learning_value_yen, unit: "¥", precision: 0) : "-" %></strong></div>
+          <div><span>期待時給</span><strong><%= primary_item.expected_hourly_value_yen.positive? ? number_to_currency(primary_item.expected_hourly_value_yen, unit: "¥", precision: 0) : "-" %></strong></div>
+          <div><span>成功率</span><strong><%= number_to_percentage(primary_item.success_probability * 100, precision: 0) %></strong></div>
+        </div>
+
+        <div class="aicoo-decision-metrics">
+          <div><span>対象</span><strong><%= primary_item.target_label.presence || "-" %></strong></div>
+          <div><span>実施量</span><strong><%= primary_item.amount_label.presence || "-" %></strong></div>
+          <div><span>実行方法</span><strong><%= primary_item.execution_mode_label.presence || "-" %></strong></div>
+          <div><span>Codex対象</span><strong><%= primary_item.codex_target_label %></strong></div>
+        </div>
+
+        <div class="aicoo-decision-subcard">
+          <strong>Codex判定</strong>
+          <p><%= primary_item.codex_target_reason %></p>
         </div>
 
         <% if primary_item.evidence_lines.any? %>

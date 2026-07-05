@@ -99,7 +99,7 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     assert candidate
     assert_match(/電話・地図・アフィリエイト導線を\d+ページに追加する/, candidate.title)
     assert_equal "ui_improvement", candidate.action_type
-    assert_equal "add_shop_links", candidate.metadata.fetch("seo_action_type")
+    assert_equal "improve_cv_path", candidate.metadata.fetch("seo_action_type")
     assert_equal "code_revision", candidate.metadata.fetch("execution_mode")
     assert_equal "phone_map_affiliate_clicks", candidate.metadata.fetch("source_metric")
     assert candidate.metadata.fetch("execution_units").any?
@@ -156,11 +156,11 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     candidate = result.created.find { |record| record.metadata.fetch("issue_key") == "seo_content_gap_articles" }
 
     assert candidate
-    assert_match(/記事を3本追加する/, candidate.title)
+    assert_equal "「梅田 喫煙 居酒屋」向けのエリア記事を1本作成する", candidate.title
     assert_equal "create_area_article", candidate.metadata.fetch("seo_action_type")
     assert_equal "content_creation", candidate.metadata.fetch("execution_mode")
     assert_equal "「梅田 喫煙 居酒屋」の記事を1本作成", candidate.metadata.fetch("execution_units").first.fetch("label")
-    assert_equal %w[梅田\ 喫煙\ 居酒屋 難波\ 喫煙\ カフェ 大阪\ 喫煙可能\ 飲食店], candidate.metadata.fetch("candidate_keywords")
+    assert_equal [ "梅田 喫煙 居酒屋" ], candidate.metadata.fetch("candidate_keywords")
   end
 
   test "creates serp-backed concrete rank opportunity" do

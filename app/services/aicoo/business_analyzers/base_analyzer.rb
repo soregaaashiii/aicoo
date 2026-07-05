@@ -167,7 +167,7 @@ module Aicoo
           verification_units(issue, attrs)
         when "create_area_article", "create_genre_article"
           article_units(issue, attrs)
-        when "add_shop_links"
+        when "add_shop_links", "improve_cv_path"
           shop_link_units(issue, attrs)
         when "improve_ctr_title"
           ctr_title_units(issue, attrs)
@@ -185,7 +185,10 @@ module Aicoo
           "verify_listings" => "manual_operation",
           "create_area_article" => "content_creation",
           "create_genre_article" => "content_creation",
+          "rewrite_existing_article" => "content_creation",
           "add_shop_links" => "code_revision",
+          "improve_shop_page" => "code_revision",
+          "improve_cv_path" => "code_revision",
           "improve_ctr_title" => "content_creation",
           "respond_to_serp_gap" => "content_creation"
         }.fetch(action_type, "code_revision")

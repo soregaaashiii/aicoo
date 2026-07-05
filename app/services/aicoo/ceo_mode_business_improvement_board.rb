@@ -27,6 +27,11 @@ module Aicoo
       :defer_path,
       :evidence_lines,
       :seo_action_type_label,
+      :target_label,
+      :amount_label,
+      :execution_mode_label,
+      :codex_target_label,
+      :codex_target_reason,
       :execution_unit_lines,
       :execution_units_warning
     )
@@ -107,6 +112,7 @@ module Aicoo
       required_minutes = minutes_for(candidate.expected_hours)
       learning_value = candidate.expected_learning_value_yen.to_i
       auto_revision_task = candidate.auto_revision_tasks.active.by_priority.first
+      presenter = Aicoo::ActionCandidateEvidencePresenter.new(candidate)
       codex_path = if auto_revision_task
         export_codex_prompt_auto_revision_task_path(auto_revision_task)
       elsif candidate.code_revision_execution_mode?
@@ -133,6 +139,11 @@ module Aicoo
         defer_path: defer_owner_focus_path(task_key: "action_candidate:#{candidate.id}"),
         evidence_lines: evidence_lines_for(candidate),
         seo_action_type_label: seo_action_type_label_for(candidate),
+        target_label: presenter.target_label,
+        amount_label: presenter.amount_label,
+        execution_mode_label: presenter.execution_mode_label,
+        codex_target_label: codex_target_label(candidate),
+        codex_target_reason: codex_target_reason(candidate),
         execution_unit_lines: execution_unit_lines_for(candidate),
         execution_units_warning: execution_units_warning_for(candidate)
       )
@@ -165,6 +176,11 @@ module Aicoo
         defer_path: defer_owner_focus_path(task_key: "auto_revision_task:#{task.id}"),
         evidence_lines: candidate ? evidence_lines_for(candidate) : [],
         seo_action_type_label: candidate ? seo_action_type_label_for(candidate) : nil,
+        target_label: candidate ? Aicoo::ActionCandidateEvidencePresenter.new(candidate).target_label : task.business.name,
+        amount_label: candidate ? Aicoo::ActionCandidateEvidencePresenter.new(candidate).amount_label : "1件",
+        execution_mode_label: "Codex改修",
+        codex_target_label: "はい",
+        codex_target_reason: "これはコード改修タスクなのでCodexへ渡せます。",
         execution_unit_lines: candidate ? execution_unit_lines_for(candidate) : [],
         execution_units_warning: candidate ? execution_units_warning_for(candidate) : false
       )
@@ -239,7 +255,7 @@ module Aicoo
       return false if Aicoo::ActionCandidateEvidencePresenter.new(candidate).concrete?
 
       text = [ candidate.title, candidate.description, candidate.evaluation_reason ].join(" ")
-      text.match?(/CVを改善|UXを改善|CTAを改善|デザインを改善|サイト改善|導線改善|改善する|最適化する|強化する/)
+      text.match?(/検索需要があるテーマ|CVを改善|UXを改善|CTAを改善|デザインを改善|サイト改善|導線改善|記事を増やす|改善する|最適化する|強化する/)
     end
 
     def reason_lines_for_candidate(candidate, category:)
@@ -278,10 +294,32 @@ module Aicoo
         "掲載店舗追加" => 6_000,
         "確認済み追加" => 5_000,
         "店舗リンク追加" => 4_000,
+        "CV導線改善" => 4_000,
         "エリア記事作成" => 3_000,
         "ジャンル記事作成" => 2_000,
+        "既存記事リライト" => 2_000,
+        "店舗ページ改善" => 3_500,
         "SERP差分対応" => 1_000
       }.fetch(row.seo_action_type_label.to_s, 0)
+    end
+
+    def codex_target_label(candidate)
+      candidate.code_revision_execution_mode? ? "はい" : "いいえ"
+    end
+
+    def codex_target_reason(candidate)
+      case candidate.execution_mode
+      when "code_revision"
+        "これはコード改修タスクなのでCodexへ渡せます。"
+      when "content_creation"
+        "これは記事作成タスクなので、Codexではなく記事作成AIまたはOwnerが実行します。"
+      when "data_operation"
+        "これはデータ作業なので、Codexではなく管理画面・CSV投入・外注で実行します。"
+      when "manual_operation"
+        "これは手作業なので、CodexではなくOwnerまたは外注が実行します。"
+      else
+        "実行方法が未確定のため、詳細で確認してください。"
+      end
     end
 
     def reason_lines_for_auto_revision(task, candidate:, category:)

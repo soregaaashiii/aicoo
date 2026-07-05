@@ -142,7 +142,7 @@ module Aicoo
           risk_reduction_score: 32,
           expected_hours: 2,
           metadata: {
-            "seo_action_type" => "add_shop_links",
+            "seo_action_type" => "improve_cv_path",
             "evidence_sources" => [ "gsc", "ga4", "business_db" ],
             "source_metric" => "phone_map_affiliate_clicks",
             "current_value" => recent_conversion_clicks,
@@ -207,43 +207,46 @@ module Aicoo
         return if recent_article_activity_count.positive?
         return if recent_impressions.zero? && latest_serp_analysis.blank?
 
-        keywords = content_keywords.first(3)
+        keyword = content_keywords.first
+        return if keyword.blank?
+        action_type = article_seo_action_type(keyword)
+        article_label = action_type == "create_area_article" ? "エリア記事" : "ジャンル記事"
 
         issue(
           key: "seo_content_gap_articles",
-          title: "検索需要があるテーマの記事を#{keywords.size}本追加する",
-          description: "#{keywords.join(' / ')} の検索需要に対して、直近30日の記事作成/更新Activityがありません。",
+          title: "「#{keyword}」向けの#{article_label}を1本作成する",
+          description: "#{keyword} の検索需要に対して、直近30日の記事作成/更新Activityがありません。",
           action_type: "seo_article",
-          quantity: keywords.size,
+          quantity: 1,
           unit: "本",
-          why: "GSC/SERPの検索需要はありますが、Article Activityが直近30日で0件です。",
-          expected_effect: "新規検索入口 #{keywords.size}本、初月クリック +#{keywords.size * 20}",
+          why: "GSC/SERPに「#{keyword}」の検索需要がありますが、対応する記事作成Activityが直近30日で0件です。",
+          expected_effect: "新規検索入口 1本、初月クリック +20",
           expected_value_yen: estimated_value(27_000),
           success_probability: 0.34,
           strategic_value_score: 64,
           risk_reduction_score: 24,
-          expected_hours: keywords.size * 1.5,
+          expected_hours: 1.5,
           metadata: {
-            "seo_action_type" => article_seo_action_type(keywords.first),
+            "seo_action_type" => action_type,
             "evidence_sources" => [ "gsc", "serp", "business_db" ],
-            "source_query" => keywords.first,
-            "target_genre" => "SEO記事",
+            "source_query" => keyword,
+            "target_genre" => article_label,
             "current_value" => recent_article_activity_count,
-            "benchmark_value" => keywords.size,
-            "candidate_keywords" => keywords,
-            "article_type" => article_type_for_query(keywords.first),
-            "target_user" => target_user_for_query(keywords.first),
-            "search_intent" => search_intent_for_query(keywords.first),
-            "recommended_sections" => recommended_sections_for_query(keywords.first),
-            "related_pages" => keywords.map { |keyword| "/articles/#{query_slug(keyword)}" },
-            "internal_links" => candidate_pages_for_query(keywords.first),
-            "recommended_slug" => query_slug(keywords.first),
-            "recommended_title" => "#{keywords.first}の探し方｜#{business.name}",
-            "proposed_h1" => "#{keywords.first}の探し方",
-            "proposed_title" => "【#{Date.current.year}年版】#{keywords.first}の探し方｜#{business.name}",
-            "proposed_meta_description" => "#{keywords.first}を探す人向けに、喫煙可否・エリア・お店の選び方を整理。#{business.name}で条件に合うお店を確認できます。",
-            "candidate_pages" => keywords.map { |keyword| "/articles/#{query_slug(keyword)}" },
-            "expected_ctr_delta" => "+#{keywords.size * 20} clicks/月",
+            "benchmark_value" => 1,
+            "candidate_keywords" => [ keyword ],
+            "article_type" => article_type_for_query(keyword),
+            "target_user" => target_user_for_query(keyword),
+            "search_intent" => search_intent_for_query(keyword),
+            "recommended_sections" => recommended_sections_for_query(keyword),
+            "related_pages" => [ "/articles/#{query_slug(keyword)}" ],
+            "internal_links" => candidate_pages_for_query(keyword),
+            "recommended_slug" => query_slug(keyword),
+            "recommended_title" => "#{keyword}の探し方｜#{business.name}",
+            "proposed_h1" => "#{keyword}の探し方",
+            "proposed_title" => "【#{Date.current.year}年版】#{keyword}の探し方｜#{business.name}",
+            "proposed_meta_description" => "#{keyword}を探す人向けに、喫煙可否・エリア・お店の選び方を整理。#{business.name}で条件に合うお店を確認できます。",
+            "candidate_pages" => [ "/articles/#{query_slug(keyword)}" ],
+            "expected_ctr_delta" => "+20 clicks/月",
             "expected_rank_delta" => "新規流入"
           }
         )

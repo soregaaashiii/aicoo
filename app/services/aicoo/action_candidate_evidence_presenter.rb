@@ -12,9 +12,12 @@ module Aicoo
       "verify_listings" => "確認済み追加",
       "create_area_article" => "エリア記事作成",
       "create_genre_article" => "ジャンル記事作成",
+      "rewrite_existing_article" => "既存記事リライト",
       "add_shop_links" => "店舗リンク追加",
+      "improve_shop_page" => "店舗ページ改善",
       "improve_ctr_title" => "CTRタイトル改善",
-      "respond_to_serp_gap" => "SERP差分対応"
+      "respond_to_serp_gap" => "SERP差分対応",
+      "improve_cv_path" => "CV導線改善"
     }.freeze
     EXECUTION_MODE_LABELS = {
       "code_revision" => "Codex改修",
