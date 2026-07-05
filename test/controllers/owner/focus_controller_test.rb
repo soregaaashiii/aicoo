@@ -38,6 +38,12 @@ module Owner
       assert_includes response.body, low.title
       assert_operator response.body.index(high.title), :<, response.body.index(low.title)
       assert_not_includes response.body, "aicoo-decision-hero"
+      assert_not_includes response.body, "Developer Mode"
+      assert_not_includes response.body, "運用・実行管理"
+      assert_not_includes response.body, "Auto Build"
+      assert_not_includes response.body, "Queue"
+      assert_not_includes response.body, "Raw Data"
+      assert_not_includes response.body, "Prompt一覧"
       assert_not_includes response.body, "今日すぐ実行すべき改善はありません。"
     end
 
@@ -67,8 +73,15 @@ module Owner
       assert_response :success
       assert_includes response.body, "CEO MODE"
       assert_includes response.body, "Today"
+      assert_includes response.body, "SERP"
+      assert_includes response.body, "Business"
+      assert_includes response.body, "Overview"
       assert_not_includes response.body, ">Dashboard<"
       assert_not_includes response.body, ">操作盤<"
+      assert_not_includes response.body, ">Auto Build<"
+      assert_not_includes response.body, ">Learning<"
+      assert_not_includes response.body, ">Revenue<"
+      assert_not_includes response.body, ">Action Candidates<"
     end
 
     private

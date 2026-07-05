@@ -9,30 +9,32 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "AICOO"
     assert_includes response.body, "CEO MODE"
     assert_includes response.body, "SYSTEM MODE"
-    assert_includes response.body, "Search"
-    assert_includes response.body, "Notifications"
-    assert_includes response.body, "Profile"
+    assert_not_includes response.body, "Search"
+    assert_not_includes response.body, "Notifications"
+    assert_not_includes response.body, "Profile"
     assert_includes response.body, "目的から探す"
     assert_includes response.body, "今日どのBusinessを改善するか"
     assert_includes response.body, "Home"
-    assert_includes response.body, "Businesses"
     assert_includes response.body, "Today"
-    assert_includes response.body, "Action Candidates"
-    assert_includes response.body, "Auto Revision"
-    assert_includes response.body, "New Business"
-    assert_includes response.body, "Auto Build"
-    assert_includes response.body, "Revenue"
-    assert_includes response.body, "Learning"
-    assert_includes response.body, "Dashboard"
+    assert_includes response.body, "SERP"
+    assert_includes response.body, "Business"
+    assert_includes response.body, "Overview"
+    assert_not_includes response.body, "Action Candidates"
+    assert_not_includes response.body, "Auto Revision"
+    assert_not_includes response.body, "New Business"
+    assert_not_includes response.body, "Auto Build"
+    assert_not_includes response.body, "Revenue"
+    assert_not_includes response.body, "Learning"
+    assert_not_includes response.body, "Dashboard"
     assert_not_includes response.body, "Pipeline E2E"
     assert_not_includes response.body, "Execution Profiles"
     assert_includes response.body, "現在位置"
-    assert_select "a[href='#{owner_auto_revision_loop_path}']", text: /Auto Revision/
-    assert_select "a[href='#{owner_new_business_pipeline_path}']", text: /New Business/
+    assert_select "a[href='#{admin_serp_settings_path}']", text: /SERP/
+    assert_select "a[href='#{owner_auto_revision_loop_path}']", text: /Overview/
   end
 
   test "system mode uses purpose sidebar and breadcrumb" do
-    get dashboard_url
+    get aicoo_daily_runs_url
 
     assert_response :success
     assert_includes response.body, "AICOO"
@@ -61,7 +63,7 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes response.body, "CEO MODE"
-    assert_includes response.body, "Businesses"
+    assert_includes response.body, "Business"
     assert_includes response.body, "Google連携"
     assert_includes response.body, "現在位置"
   end
@@ -73,7 +75,7 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select ".aicoo-sidebar-group.active .aicoo-sidebar-category strong", text: "CEO MODE"
-    assert_select ".aicoo-sidebar-child.active strong", text: "Businesses"
+    assert_select ".aicoo-sidebar-child.active strong", text: "Business"
     assert_select ".purpose-context-bar", text: /改善案/
     assert_includes response.body, "この事業へ戻る"
   end
@@ -91,7 +93,7 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, "この事業へ戻る"
   end
 
-  test "auto revision task pages keep auto revision context" do
+  test "auto revision task pages stay inside the reduced ceo shell" do
     action_candidate = ActionCandidate.create!(
       business: businesses(:suelog),
       title: "自動改修サイドバー確認",
@@ -108,8 +110,9 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select ".aicoo-sidebar-group.active .aicoo-sidebar-category strong", text: "CEO MODE"
-    assert_select ".aicoo-sidebar-child.active strong", text: "Auto Revision"
-    assert_not_select ".aicoo-sidebar-child.active strong", text: "Businesses"
+    assert_select ".aicoo-sidebar-child strong", text: "Overview"
+    assert_not_select ".aicoo-sidebar-child strong", text: "Auto Revision"
+    assert_not_select ".aicoo-sidebar-child strong", text: "Auto Build"
   end
 
   test "business revenue detail pages keep business context" do
@@ -124,7 +127,7 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select ".aicoo-sidebar-group.active .aicoo-sidebar-category strong", text: "CEO MODE"
-    assert_select ".aicoo-sidebar-child.active strong", text: "Businesses"
+    assert_select ".aicoo-sidebar-child.active strong", text: "Business"
     assert_select ".purpose-context-bar", text: /売上/
     assert_includes response.body, "この事業へ戻る"
   end

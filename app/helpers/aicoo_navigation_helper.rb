@@ -1,7 +1,7 @@
 module AicooNavigationHelper
   def aicoo_ceo_mode?
     request.path.match?(%r{\A/(owner|actions|businesses|action_candidates|auto_revision_tasks|revenue_events|action_results)}) ||
-      request.path.start_with?("/admin/auto_build_tasks", "/admin/codex_submissions")
+      request.path.start_with?("/admin/serp_settings")
   end
 
   def aicoo_mode_label
@@ -113,13 +113,9 @@ module AicooNavigationHelper
     return :ceo_businesses if aicoo_context_business && aicoo_business_context_path?
     return :ceo_home if path.match?(%r{\A/owner(?:/dashboard)?\z})
     return :ceo_today if path.start_with?("/owner/focus", "/actions/")
+    return :ceo_serp if path.start_with?("/admin/serp_settings")
     return :ceo_businesses if path.start_with?("/businesses")
-    return :ceo_action_candidates if path.start_with?("/action_candidates")
-    return :ceo_auto_revision if path.start_with?("/owner/auto_revision_loop", "/auto_revision_tasks", "/admin/codex_submissions")
-    return :ceo_new_business if path.start_with?("/owner/new_business_pipeline")
-    return :ceo_auto_build if path.start_with?("/admin/auto_build_tasks")
-    return :ceo_revenue if path.start_with?("/revenue_events")
-    return :ceo_learning if path.start_with?("/action_results", "/owner/learning_report")
+    return :ceo_overview if path.start_with?("/owner/auto_revision_loop", "/owner/new_business_pipeline", "/action_candidates", "/auto_revision_tasks", "/revenue_events", "/action_results")
 
     :ceo_home
   end
@@ -250,20 +246,16 @@ module AicooNavigationHelper
           %r{\A/businesses},
           %r{\A/action_candidates},
           %r{\A/auto_revision_tasks},
-          %r{\A/admin/(auto_build_tasks|codex_submissions)},
+          %r{\A/admin/serp_settings},
           %r{\A/revenue_events},
           %r{\A/action_results}
         ],
         children: [
-          { key: :ceo_home, label: "Home", description: "CEO MODEホーム", path: owner_dashboard_path, matchers: [ %r{\A/owner(?:/dashboard)?\z} ] },
-          { key: :ceo_businesses, label: "Businesses", description: "事業を見る", path: businesses_path, matchers: [ %r{\A/businesses} ] },
+          { key: :ceo_home, label: "Home", description: "全体入口", path: owner_dashboard_path, matchers: [ %r{\A/owner(?:/dashboard)?\z} ] },
           { key: :ceo_today, label: "Today", description: "今日やる仕事", path: owner_focus_path, matchers: [ %r{\A/owner/focus}, %r{\A/actions/} ] },
-          { key: :ceo_action_candidates, label: "Action Candidates", description: "改善案", path: action_candidates_path, matchers: [ %r{\A/action_candidates} ] },
-          { key: :ceo_auto_revision, label: "Auto Revision", description: "自動改修とCodex送信", path: owner_auto_revision_loop_path, matchers: [ %r{\A/owner/auto_revision_loop}, %r{\A/auto_revision_tasks}, %r{\A/admin/codex_submissions} ] },
-          { key: :ceo_new_business, label: "New Business", description: "新規事業候補とLP作成", path: owner_new_business_pipeline_path, matchers: [ %r{\A/owner/new_business_pipeline} ] },
-          { key: :ceo_auto_build, label: "Auto Build", description: "MVP自動Build", path: admin_auto_build_tasks_path, matchers: [ %r{\A/admin/auto_build_tasks} ] },
-          { key: :ceo_revenue, label: "Revenue", description: "売上履歴", path: revenue_events_path, matchers: [ %r{\A/revenue_events} ] },
-          { key: :ceo_learning, label: "Learning", description: "実行結果と学習", path: action_results_path, matchers: [ %r{\A/action_results}, %r{\A/owner/learning_report} ] }
+          { key: :ceo_serp, label: "SERP", description: "新規事業探索", path: admin_serp_settings_path, matchers: [ %r{\A/admin/serp_settings} ] },
+          { key: :ceo_businesses, label: "Business", description: "事業一覧", path: businesses_path, matchers: [ %r{\A/businesses} ] },
+          { key: :ceo_overview, label: "Overview", description: "自動改修ループ", path: owner_auto_revision_loop_path, matchers: [ %r{\A/owner/(auto_revision_loop|new_business_pipeline)}, %r{\A/action_candidates}, %r{\A/auto_revision_tasks}, %r{\A/revenue_events}, %r{\A/action_results} ] }
         ]
       }
     ]

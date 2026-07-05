@@ -43,13 +43,15 @@
         <% end %>
       </nav>
 
-      <div class="aicoo-header-tools">
-        <%= form_with url: action_candidates_path, method: :get, class: "aicoo-global-search", data: { turbo: false } do |form| %>
-          <%= form.search_field :q, placeholder: "Search", aria: { label: "Search" } %>
-        <% end %>
-        <%= link_to "Notifications", owner_tasks_path, class: "aicoo-notification-chip" %>
-        <span class="aicoo-profile-chip">Profile</span>
-      </div>
+      <% unless aicoo_ceo_mode? %>
+        <div class="aicoo-header-tools">
+          <%= form_with url: action_candidates_path, method: :get, class: "aicoo-global-search", data: { turbo: false } do |form| %>
+            <%= form.search_field :q, placeholder: "Search", aria: { label: "Search" } %>
+          <% end %>
+          <%= link_to "Notifications", owner_tasks_path, class: "aicoo-notification-chip" %>
+          <span class="aicoo-profile-chip">Profile</span>
+        </div>
+      <% end %>
     </header>
 
     <div class="aicoo-shell <%= aicoo_ceo_mode? ? "aicoo-shell-ceo" : "aicoo-shell-system" %>">
