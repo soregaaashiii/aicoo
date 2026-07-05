@@ -145,6 +145,37 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "修正完了 / ActionResult登録"
   end
 
+  test "show renders analyzer evidence in Japanese" do
+    @action_candidate.update_columns(
+      generation_source: "business_analyzer",
+      metadata: @action_candidate.metadata.to_h.merge(
+        "evidence" => {
+          "source" => [ "gsc", "ga4" ],
+          "issue_type" => "seo_low_ctr_titles",
+          "query" => "梅田 喫煙 居酒屋",
+          "page_path" => "/umeda-smoking-izakaya",
+          "current_value" => 0.005,
+          "benchmark_value" => 0.03,
+          "target_amount" => 5,
+          "target_unit" => "件",
+          "expected_effect" => "+120クリック/月",
+          "reason" => "平均順位5位以内にもかかわらずCTRが0.5%です。"
+        }
+      )
+    )
+
+    get action_candidate_url(@action_candidate)
+
+    assert_response :success
+    assert_includes response.body, "Analyzer根拠"
+    assert_includes response.body, "GSC / GA4"
+    assert_includes response.body, "「梅田 喫煙 居酒屋」 / /umeda-smoking-izakaya"
+    assert_includes response.body, "0.5%"
+    assert_includes response.body, "3.0%"
+    assert_includes response.body, "5件"
+    assert_includes response.body, "+120クリック/月"
+  end
+
   test "show links to existing codex prompt draft" do
     draft = CodexPromptDraft.from_action_candidate(@action_candidate)
 

@@ -17,6 +17,12 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     candidate = result.created.find { |record| record.metadata.fetch("issue_key") == "seo_low_ctr_titles" }
     assert candidate
     assert_equal "business_analyzer", candidate.generation_source
+    assert_equal [ "gsc" ], candidate.metadata.dig("evidence", "source")
+    assert_equal "seo_low_ctr_titles", candidate.metadata.dig("evidence", "issue_type")
+    assert_equal "梅田 喫煙 居酒屋", candidate.metadata.dig("evidence", "query")
+    assert_equal 0.005, candidate.metadata.dig("evidence", "current_value")
+    assert_equal 0.03, candidate.metadata.dig("evidence", "benchmark_value")
+    assert candidate.metadata.dig("evidence", "target_amount").present?
     assert_match(/CTR0\.5%/, candidate.title)
     assert_match(/件書き換える/, candidate.title)
     assert_match(/何を:/, candidate.evaluation_reason)
@@ -26,6 +32,29 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     assert_includes candidate.execution_prompt, "ActionCandidate実行指示書"
     assert_includes candidate.execution_prompt, "現在 → 変更後"
     assert_equal "Aicoo::BusinessAnalyzers::SeoBusinessAnalyzer", candidate.metadata.fetch("analyzer")
+  end
+
+  test "seo analyzer skips issues that cannot provide evidence" do
+    analyzer = Aicoo::BusinessAnalyzers::SeoBusinessAnalyzer.new(business: @business, today: @today)
+    issue = Aicoo::BusinessAnalyzers::BaseAnalyzer::Issue.new(
+      key: "no_evidence",
+      title: "抽象的な改善を行う",
+      description: "根拠なし",
+      action_type: "seo_improvement",
+      quantity: nil,
+      unit: nil,
+      why: "根拠なし",
+      expected_effect: "未算出",
+      expected_value_yen: 1_000,
+      success_probability: 0.1,
+      strategic_value_score: 1,
+      risk_reduction_score: 1,
+      expected_hours: 1,
+      confidence_score: 1,
+      metadata: {}
+    )
+
+    refute analyzer.send(:evidence_present?, issue)
   end
 
   test "creates concrete conversion path task with amount and target pages" do

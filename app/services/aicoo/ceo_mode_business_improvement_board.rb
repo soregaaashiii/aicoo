@@ -24,7 +24,8 @@ module Aicoo
       :detail_path,
       :codex_path,
       :codex_method,
-      :defer_path
+      :defer_path,
+      :evidence_lines
     )
     BusinessCard = Data.define(
       :business,
@@ -74,8 +75,9 @@ module Aicoo
                      .where.not(action_type: "data_preparation")
                      .order(Arel.sql("final_score DESC NULLS LAST, expected_profit_yen DESC NULLS LAST"))
                      .limit(MAX_SOURCE_RECORDS)
-                     .filter_map do |candidate|
+        .filter_map do |candidate|
         next if candidate.business&.system_business?
+        next if abstract_seo_candidate?(candidate)
 
         build_candidate_improvement(candidate)
       end
@@ -86,8 +88,9 @@ module Aicoo
                       .active
                       .by_priority
                       .limit(MAX_SOURCE_RECORDS)
-                      .filter_map do |task|
+        .filter_map do |task|
         next if task.business&.system_business?
+        next if task.action_candidate && abstract_seo_candidate?(task.action_candidate)
 
         build_auto_revision_improvement(task)
       end
@@ -119,7 +122,8 @@ module Aicoo
         detail_path: action_candidate_path(candidate),
         codex_path: auto_revision_task ? export_codex_prompt_auto_revision_task_path(auto_revision_task) : generate_codex_prompt_draft_action_candidate_path(candidate),
         codex_method: auto_revision_task ? :get : :post,
-        defer_path: defer_owner_focus_path(task_key: "action_candidate:#{candidate.id}")
+        defer_path: defer_owner_focus_path(task_key: "action_candidate:#{candidate.id}"),
+        evidence_lines: evidence_lines_for(candidate)
       )
     end
 
@@ -147,7 +151,8 @@ module Aicoo
         detail_path: auto_revision_task_path(task),
         codex_path: export_codex_prompt_auto_revision_task_path(task),
         codex_method: :get,
-        defer_path: defer_owner_focus_path(task_key: "auto_revision_task:#{task.id}")
+        defer_path: defer_owner_focus_path(task_key: "auto_revision_task:#{task.id}"),
+        evidence_lines: candidate ? evidence_lines_for(candidate) : []
       )
     end
 
@@ -215,6 +220,14 @@ module Aicoo
       ]
     end
 
+    def abstract_seo_candidate?(candidate)
+      return false unless candidate.business&.business_type.in?(%w[seo_media content_media directory])
+      return false if Aicoo::ActionCandidateEvidencePresenter.new(candidate).concrete?
+
+      text = [ candidate.title, candidate.description, candidate.evaluation_reason ].join(" ")
+      text.match?(/CVを改善|UXを改善|CTAを改善|デザインを改善|サイト改善|導線改善|改善する|最適化する|強化する/)
+    end
+
     def reason_lines_for_candidate(candidate, category:)
       lines = []
       lines << "期待利益が#{yen(candidate.expected_profit_yen)}見込めます。" if candidate.expected_profit_yen.to_i.positive?
@@ -223,6 +236,13 @@ module Aicoo
       lines << "学習価値が#{yen(candidate.expected_learning_value_yen)}あり、今後の提案精度も上がります。" if candidate.expected_learning_value_yen.to_i.positive?
       lines << clean_reason(candidate.evaluation_reason) if candidate.evaluation_reason.present?
       lines.compact_blank.first(4)
+    end
+
+    def evidence_lines_for(candidate)
+      presenter = Aicoo::ActionCandidateEvidencePresenter.new(candidate)
+      return [] unless presenter.analyzer_evidence?
+
+      presenter.lines
     end
 
     def reason_lines_for_auto_revision(task, candidate:, category:)
@@ -268,7 +288,8 @@ module Aicoo
         "ai_reevaluation" => "AI再評価",
         "ai_insight" => "AI Insight",
         "learning_report" => "Learning",
-        "opportunity_discovery" => "Opportunity"
+        "opportunity_discovery" => "Opportunity",
+        "business_analyzer" => "Business Analyzer"
       }.fetch(source.to_s, source.to_s.presence || "改善候補")
     end
 

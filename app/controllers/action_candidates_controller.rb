@@ -27,6 +27,7 @@ class ActionCandidatesController < ApplicationController
     @action_execution = @action_candidate.action_execution
     @codex_prompt_draft = @action_candidate.codex_prompt_drafts.recent.first
     @execution_brief = Aicoo::ActionCandidateExecutionBrief.new(@action_candidate)
+    @evidence_presenter = Aicoo::ActionCandidateEvidencePresenter.new(@action_candidate)
   end
 
   # GET /action_candidates/new

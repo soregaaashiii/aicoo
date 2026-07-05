@@ -51,8 +51,11 @@ module Aicoo
           risk_reduction_score: 28,
           expected_hours: 1.5,
           metadata: {
+            "evidence_sources" => [ "gsc" ],
             "source_query" => query,
             "source_metric" => "gsc_ctr",
+            "current_value" => ctr.to_f,
+            "benchmark_value" => 0.03,
             "current_title" => "#{business.name}｜#{query}",
             "proposed_title" => "【#{Date.current.year}年版】#{query}｜#{business.name}",
             "current_meta_description" => "検索結果でクリック理由が弱い状態です。",
@@ -90,8 +93,11 @@ module Aicoo
           risk_reduction_score: 34,
           expected_hours: 2,
           metadata: {
+            "evidence_sources" => [ "serp", "gsc" ],
             "source_query" => query,
             "serp_analysis_id" => analysis.id,
+            "current_value" => analysis.competition_score.to_i,
+            "benchmark_value" => 55,
             "serp_top_results" => serp_rows(analysis),
             "serp_common_words" => serp_common_words(analysis),
             "recommended_slug" => slug,
@@ -128,7 +134,10 @@ module Aicoo
           risk_reduction_score: 32,
           expected_hours: 2,
           metadata: {
+            "evidence_sources" => [ "gsc", "ga4", "business_db" ],
             "source_metric" => "phone_map_affiliate_clicks",
+            "current_value" => recent_conversion_clicks,
+            "benchmark_value" => 1,
             "candidate_pages" => [ "店舗詳細ページ", "地図ページ", "記事内店舗カード" ],
             "current_cta" => "店舗カード内の電話・地図・予約/アフィリエイト導線が弱い、または未計測です。",
             "proposed_cta" => "電話する / 地図で見る / 予約・詳細を見る を店舗カード上部と本文末に表示し、クリックイベントを記録する。",
@@ -171,7 +180,10 @@ module Aicoo
           risk_reduction_score: 25,
           expected_hours: 1.5,
           metadata: {
+            "evidence_sources" => [ "ga4", "business_db" ],
             "source_metric" => "views_per_session",
+            "current_value" => recent_views_per_session.to_f,
+            "benchmark_value" => 1.3,
             "candidate_pages" => [ "流入上位記事", "エリア一覧ページ", "カテゴリ一覧ページ" ],
             "current_internal_links" => "関連記事・近隣エリア・店舗詳細へのリンクが不足しています。",
             "proposed_internal_links" => "大阪、梅田、難波、喫煙可能カフェ、喫煙可能居酒屋、店舗詳細への内部リンクを#{link_count}件追加する。",
@@ -202,7 +214,11 @@ module Aicoo
           risk_reduction_score: 24,
           expected_hours: keywords.size * 1.5,
           metadata: {
+            "evidence_sources" => [ "gsc", "serp", "business_db" ],
             "source_query" => keywords.first,
+            "target_genre" => "SEO記事",
+            "current_value" => recent_article_activity_count,
+            "benchmark_value" => keywords.size,
             "candidate_keywords" => keywords,
             "recommended_slug" => query_slug(keywords.first),
             "recommended_title" => "#{keywords.first}の探し方｜#{business.name}",
@@ -239,8 +255,11 @@ module Aicoo
           risk_reduction_score: 36,
           expected_hours: (add_count * 20 / 3600.0).round(2),
           metadata: {
+            "evidence_sources" => [ "business_db", "activity_log" ],
             "source_metric" => "shop_activity",
             "target_area" => area,
+            "current_value" => recent_shop_created_count,
+            "benchmark_value" => 80,
             "candidate_pages" => [ "#{area}エリア一覧", "#{area}喫煙可能店舗一覧", "店舗詳細ページ" ],
             "target_files" => [
               "app/models/shop.rb",
@@ -282,7 +301,10 @@ module Aicoo
           risk_reduction_score: 50,
           expected_hours: (target_count * 30 / 3600.0).round(2),
           metadata: {
+            "evidence_sources" => [ "business_db", "activity_log" ],
             "source_metric" => "smoking_verified_rate",
+            "current_value" => unverified_count,
+            "benchmark_value" => 0,
             "candidate_pages" => [ "店舗編集画面", "店舗詳細ページ", "エリア一覧ページ" ],
             "completion_criteria" => [
               "対象店舗#{target_count}件の喫煙情報が確認済みになっている",

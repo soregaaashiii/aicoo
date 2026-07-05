@@ -60,6 +60,11 @@ module Aicoo
       end
 
       def create_candidate(issue)
+        unless evidence_present?(issue)
+          skipped << "#{issue.key}: evidence_missing"
+          return
+        end
+
         if recent_duplicate?(issue)
           skipped << "#{issue.key}: duplicate"
           return
@@ -83,6 +88,10 @@ module Aicoo
           evaluation_reason: evaluation_reason(issue),
           execution_prompt: execution_prompt(issue)
         )
+        candidate.update_columns(
+          metadata: candidate.metadata.to_h.merge("evidence" => evidence_for(issue)),
+          updated_at: Time.current
+        )
         Aicoo::ActionCandidateInstructionStabilizer.call(candidate)
         candidate.reload
       end
@@ -97,6 +106,7 @@ module Aicoo
           "issue_unit" => issue.unit,
           "issue_why" => issue.why,
           "expected_effect" => issue.expected_effect,
+          "analyzer_evidence" => evidence_for(issue),
           "expected_minutes" => (issue.expected_hours.to_d * 60).round,
           "business_type_playbook" => business.business_type_playbook.call(
             title: issue.title,
@@ -116,6 +126,32 @@ module Aicoo
           "なぜ: #{issue.why}",
           "期待効果: #{issue.expected_effect}"
         ].join("\n")
+      end
+
+      def evidence_for(issue)
+        attrs = issue.metadata.to_h.deep_stringify_keys
+        {
+          "source" => Array(attrs["evidence_sources"].presence || attrs["data_sources"].presence || attrs["source"].presence || "business_db"),
+          "issue_type" => issue.key,
+          "query" => attrs["source_query"].presence,
+          "page_path" => attrs["page_path"].presence || Array(attrs["candidate_pages"]).find { |path| path.to_s.start_with?("/") },
+          "area" => attrs["target_area"].presence,
+          "genre" => attrs["target_genre"].presence,
+          "current_value" => attrs["current_value"].presence,
+          "benchmark_value" => attrs["benchmark_value"].presence,
+          "metric_before" => attrs["metric_before"].presence || attrs["current_value"].presence,
+          "target_amount" => issue.quantity,
+          "target_unit" => issue.unit,
+          "reason" => issue.why,
+          "expected_effect" => issue.expected_effect
+        }.compact
+      end
+
+      def evidence_present?(issue)
+        evidence = evidence_for(issue)
+        %w[target_amount query page_path area genre metric_before benchmark_value current_value].any? do |key|
+          evidence[key].present?
+        end
       end
 
       def execution_prompt(issue)

@@ -53,6 +53,16 @@
                       <li><%= line %></li>
                     <% end %>
                   </ul>
+                  <% if item.evidence_lines.any? %>
+                    <div class="aicoo-inline-panel">
+                      <strong>根拠データ</strong>
+                      <ul class="compact-list">
+                        <% item.evidence_lines.each do |line| %>
+                          <li><%= line %></li>
+                        <% end %>
+                      </ul>
+                    </div>
+                  <% end %>
                 </td>
                 <td><span class="pill"><%= item.category %></span></td>
                 <td class="number"><%= number_to_currency(item.expected_profit_yen, unit: "¥", precision: 0) %></td>

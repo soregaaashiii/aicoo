@@ -43,7 +43,7 @@ module Owner
       assert_includes response.body, "学習・履歴"
       assert_includes response.body, "Daily Run Health"
       assert_includes response.body, "改訂待ち"
-      assert_includes response.body, "承認待ち改訂"
+      assert_includes response.body, "Codex準備前"
       assert_includes response.body, "自動デプロイ可能"
       assert_includes response.body, "PR確認待ち"
       assert_includes response.body, "deploy確認待ち"
@@ -89,7 +89,7 @@ module Owner
       get owner_focus_url
 
       assert_response :success
-      assert_includes response.body, "承認待ち検索クエリが1件あります。"
+      assert_includes response.body, "追加待ち検索クエリが1件あります。"
       assert_includes response.body, "SERP取得に失敗したBusinessが1件あります。"
       assert_includes response.body, "今日SERPから1件の改善提案が生成されています。"
       assert_includes response.body, "SERP設定"
@@ -123,8 +123,8 @@ module Owner
       assert_includes response.body, "新規事業候補"
       assert_includes response.body, candidate.title
       assert_includes response.body, "LP検証へ進める"
-      assert_operator response.body.index("今日おすすめの事業改善 TOP10"), :<, response.body.index("新規事業候補")
-      assert_operator response.body.index("新規事業候補"), :<, response.body.index("Businessカード")
+      assert_operator response.body.index("<h2>今日おすすめの事業改善 TOP10</h2>"), :<, response.body.index("<h2>新規事業候補</h2>")
+      assert_operator response.body.index("<h2>新規事業候補</h2>"), :<, response.body.index("<h2>Businessカード</h2>")
     end
 
     test "orders improvements by expected profit before lower value candidates" do
@@ -147,18 +147,79 @@ module Owner
       assert_operator response.body.index(high.title), :<, response.body.index(low.title)
     end
 
+    test "shows analyzer evidence and hides abstract seo media candidates" do
+      concrete = create_candidate!(
+        title: "CTR0.5%の検索入口を5件書き換える",
+        immediate_value_yen: 60_000,
+        success_probability: 0.7,
+        expected_hours: 1,
+        generation_source: "business_analyzer"
+      )
+      concrete.update_columns(
+        metadata: concrete.metadata.to_h.merge(
+          "evidence" => {
+            "source" => [ "gsc" ],
+            "issue_type" => "seo_low_ctr_titles",
+            "query" => "梅田 喫煙 居酒屋",
+            "page_path" => "/umeda-smoking-izakaya",
+            "current_value" => 0.005,
+            "benchmark_value" => 0.03,
+            "target_amount" => 5,
+            "target_unit" => "件",
+            "expected_effect" => "+120クリック/月",
+            "reason" => "平均順位5位以内にもかかわらずCTRが低いため"
+          }
+        )
+      )
+      abstract = create_candidate!(
+        title: "CVを改善する",
+        description: "CTAとUXを改善します。",
+        immediate_value_yen: 999_999,
+        success_probability: 0.9,
+        expected_hours: 1,
+        generation_source: "ai_business"
+      )
+
+      get owner_focus_url
+
+      assert_response :success
+      assert_includes response.body, concrete.title
+      assert_includes response.body, "根拠データ"
+      assert_includes response.body, "根拠: GSC"
+      assert_includes response.body, "対象: 「梅田 喫煙 居酒屋」 / /umeda-smoking-izakaya"
+      assert_includes response.body, "現在: 0.5%"
+      assert_includes response.body, "目標: 3.0%"
+      assert_includes response.body, "実施量: 5件"
+      assert_not_includes response.body, abstract.title
+    end
+
     test "includes auto revision task as codex improvement" do
       candidate = create_candidate!(
-        title: "LPのCTAを改善する",
+        title: "流入上位10ページに店舗リンクを30件追加する",
         immediate_value_yen: 30_000,
         success_probability: 0.7,
         expected_hours: 1
       )
+      candidate.update_columns(
+        metadata: candidate.metadata.to_h.merge(
+          "evidence" => {
+            "source" => [ "ga4", "business_db" ],
+            "issue_type" => "seo_internal_links_shortage",
+            "page_path" => "/umeda-smoking-izakaya",
+            "current_value" => 1.1,
+            "benchmark_value" => 1.3,
+            "target_amount" => 30,
+            "target_unit" => "件",
+            "expected_effect" => "Views/Session +0.3",
+            "reason" => "回遊が弱いため"
+          }
+        )
+      )
       task = AutoRevisionTask.create!(
         business: candidate.business,
         action_candidate: candidate,
-        title: "LP CTAをCodexで改善する",
-        execution_prompt: "CTA文言を改善してください。",
+        title: "店舗リンク30件追加をCodexで実装する",
+        execution_prompt: "流入上位10ページに店舗リンクを30件追加してください。",
         status: "waiting_approval",
         risk_level: "low",
         priority_score: 10_000
@@ -169,7 +230,7 @@ module Owner
       assert_response :success
       assert_includes response.body, task.title
       assert_includes response.body, export_codex_prompt_auto_revision_task_path(task)
-      assert_includes response.body, "承認待ち改訂"
+      assert_includes response.body, "Codex準備前"
       assert_includes response.body, "1件"
     end
 

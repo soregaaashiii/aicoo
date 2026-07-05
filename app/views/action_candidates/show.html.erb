@@ -57,6 +57,51 @@
 
 <%= render @action_candidate %>
 
+<% if @evidence_presenter.analyzer_evidence? %>
+  <section class="dashboard-section" id="analyzer-evidence">
+    <div class="section-heading">
+      <div>
+        <h2>Analyzer根拠</h2>
+        <p>この候補を生成したBusiness Analyzerが見たデータです。</p>
+      </div>
+      <span class="pill">Business Analyzer</span>
+    </div>
+
+    <div class="metric-grid">
+      <div class="metric-card"><span>根拠</span><strong><%= @evidence_presenter.source_label %></strong></div>
+      <div class="metric-card"><span>対象</span><strong><%= @evidence_presenter.target_label %></strong></div>
+      <div class="metric-card"><span>現在</span><strong><%= @evidence_presenter.current_label %></strong></div>
+      <div class="metric-card"><span>目標</span><strong><%= @evidence_presenter.benchmark_label %></strong></div>
+      <div class="metric-card"><span>実施量</span><strong><%= @evidence_presenter.amount_label %></strong></div>
+      <div class="metric-card"><span>期待効果</span><strong><%= @evidence_presenter.expected_effect_label %></strong></div>
+    </div>
+
+    <div class="aicoo-card aicoo-card-compact">
+      <strong>理由</strong>
+      <p><%= @evidence_presenter.reason %></p>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>項目</th>
+            <th>内容</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @evidence_presenter.table_rows.each do |label, value| %>
+            <tr>
+              <td><strong><%= label %></strong></td>
+              <td class="wide-text"><%= value %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+<% end %>
+
 <section class="dashboard-section" id="execution-brief">
   <div class="section-heading">
     <div>
