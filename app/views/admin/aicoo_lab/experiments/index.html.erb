@@ -59,7 +59,7 @@
 <section class="dashboard-section">
   <div class="section-heading">
     <h2>次アクション</h2>
-    <p>迷ったらDashboardで、候補生成から採点までの次の詰まりを確認します。</p>
+    <p>迷ったらSystem Modeで、候補生成から採点までの次の詰まりを確認します。</p>
   </div>
   <div class="notice-panel">
     <strong>今の状態説明</strong>
@@ -70,7 +70,7 @@
     </ul>
   </div>
   <div class="actions compact-actions">
-    <%= link_to "操作盤", dashboard_path, class: "button" %>
+    <%= link_to "SYSTEM MODE", aicoo_daily_runs_path, class: "button" %>
     <%= button_to "候補を自動生成", generate_admin_aicoo_lab_candidates_path, method: :post, class: "button secondary" %>
     <%= link_to "候補を一括LP化", admin_aicoo_lab_candidates_path, class: "button secondary" %>
     <%= link_to "レビュー待ち", admin_aicoo_lab_review_queue_path, class: "button secondary" %>

@@ -22,7 +22,7 @@ Rails.application.routes.draw do
   post "lp/:published_slug/signup", to: "public_landing_pages#create_signup"
 
   get "owner", to: "owner/dashboard#show", as: :owner_dashboard
-  get "owner/dashboard", to: "owner/dashboard#show"
+  get "owner/dashboard", to: redirect("/owner")
   get "owner/focus", to: "owner/focus#show", as: :owner_focus
   get "owner/auto_revision_loop", to: "owner/auto_revision_loops#show", as: :owner_auto_revision_loop
   post "owner/auto_revision_loop/action_results", to: "owner/auto_revision_loops#create_action_result", as: :owner_auto_revision_loop_action_results
@@ -73,7 +73,7 @@ Rails.application.routes.draw do
   get "owner/approved_queue", to: "owner/approved_queue#index", as: :owner_approved_queue
   post "owner/approved_queue/queue_selected", to: "owner/approved_queue#queue_selected", as: :queue_selected_owner_approved_queue
   post "owner/approved_queue/queue_all", to: "owner/approved_queue#queue_all", as: :queue_all_owner_approved_queue
-  get "dashboard", to: "dashboard#show"
+  get "dashboard", to: redirect("/owner/focus")
   post "dashboard/generate_ai_top10", to: "dashboard#generate_ai_top10", as: :generate_ai_top10_dashboard
   post "dashboard/import_business_metrics_today", to: "dashboard#import_business_metrics_today", as: :import_business_metrics_today_dashboard
   post "dashboard/import_business_metrics_yesterday", to: "dashboard#import_business_metrics_yesterday", as: :import_business_metrics_yesterday_dashboard

@@ -35,7 +35,7 @@
         <%= link_to owner_focus_path, class: ["aicoo-mode-pill", ("active" if aicoo_ceo_mode?)] do %>
           CEO MODE<br><small>今日動く</small>
         <% end %>
-        <%= link_to dashboard_path, class: ["aicoo-mode-pill", ("active" unless aicoo_ceo_mode?)] do %>
+        <%= link_to aicoo_daily_runs_path, class: ["aicoo-mode-pill", ("active" unless aicoo_ceo_mode?)] do %>
           SYSTEM MODE<br><small>監視室</small>
         <% end %>
         <%= link_to businesses_path, class: "aicoo-header-link" do %>

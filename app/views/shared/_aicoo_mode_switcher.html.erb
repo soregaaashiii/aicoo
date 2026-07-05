@@ -7,12 +7,12 @@
   </div>
 
   <% if current_mode == "ceo" %>
-    <%= link_to dashboard_path, class: "aicoo-mode-link system-link" do %>
+    <%= link_to aicoo_daily_runs_path, class: "aicoo-mode-link system-link" do %>
       <strong>SYSTEM MODEへ</strong>
       <span>分析・運用・設定を見る</span>
     <% end %>
   <% else %>
-    <%= link_to owner_dashboard_path, class: "aicoo-mode-link ceo-link" do %>
+    <%= link_to owner_focus_path, class: "aicoo-mode-link ceo-link" do %>
       <strong>CEO MODEへ</strong>
       <span>今日やることへ戻る</span>
     <% end %>

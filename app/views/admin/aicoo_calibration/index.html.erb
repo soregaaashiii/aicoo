@@ -3,7 +3,7 @@
 <% header_actions = capture do %>
   <%= button_to "再計算", admin_aicoo_calibration_recalculate_path, method: :post, class: "button" %>
   <%= link_to "成績表", admin_aicoo_judge_path, class: "button secondary" %>
-  <%= link_to "操作盤", dashboard_path, class: "button secondary" %>
+  <%= link_to "SYSTEM MODE", aicoo_daily_runs_path, class: "button secondary" %>
 <% end %>
 
 <div class="aicoo-page">

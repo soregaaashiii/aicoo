@@ -69,9 +69,9 @@ module Aicoo
 
     def tabs
       [
-        Tab.new(key: "revenue", label: "収益優先", path: admin_aicoo_revenue_path(mode: "revenue"), active: mode == "revenue"),
-        Tab.new(key: "learning", label: "学習優先", path: admin_aicoo_revenue_path(mode: "learning"), active: mode == "learning"),
-        Tab.new(key: "balanced", label: "バランス", path: admin_aicoo_revenue_path(mode: "balanced"), active: mode == "balanced")
+        Tab.new(key: "revenue", label: "収益優先", path: owner_focus_path(mode: "revenue"), active: mode == "revenue"),
+        Tab.new(key: "learning", label: "学習優先", path: owner_focus_path(mode: "learning"), active: mode == "learning"),
+        Tab.new(key: "balanced", label: "バランス", path: owner_focus_path(mode: "balanced"), active: mode == "balanced")
       ]
     end
 

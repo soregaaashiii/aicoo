@@ -16,7 +16,7 @@
   <%= render "shared/aicoo_mode_switcher", current_mode: :ceo %>
 
   <nav class="aicoo-sub-tabs ceo-focus-tabs" aria-label="CEO mode navigation">
-    <%= link_to "今日やること", owner_dashboard_path, class: "aicoo-sub-tab#{' active' if request.path == owner_dashboard_path || request.path == '/owner/dashboard'}" %>
+    <%= link_to "今日やること", owner_focus_path, class: "aicoo-sub-tab#{' active' if request.path == owner_focus_path || request.path.start_with?('/actions/')}" %>
     <%= link_to "自動改修ループ", owner_auto_revision_loop_path, class: "aicoo-sub-tab#{' active' if request.path.start_with?('/owner/auto_revision_loop') || request.path.start_with?('/auto_revision_tasks')}" %>
     <%= link_to "新規事業作成", owner_new_business_pipeline_path, class: "aicoo-sub-tab#{' active' if request.path.start_with?('/owner/new_business_pipeline')}" %>
     <%= link_to "判断材料の推移", owner_evaluator_trends_path, class: "aicoo-sub-tab#{' active' if request.path.start_with?('/owner/evaluator_trends')}" %>

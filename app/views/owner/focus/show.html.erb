@@ -1,4 +1,4 @@
-<% content_for :title, "今日の事業改善" %>
+<% content_for :title, "Today" %>
 
 <% header_actions = capture do %>
   <%= link_to "詳細を見る", "#developer-mode", class: "button secondary" %>
@@ -6,64 +6,76 @@
 
 <div class="aicoo-page">
   <%= render "shared/aicoo_header",
-             title: "今日の事業改善",
-             description: "今日どの事業を改善すると一番利益が増えるかだけを判断します。",
+             title: "Today",
+             description: @today_board.description,
              active_main: :revenue,
              actions: header_actions %>
 
-  <% primary_item = @ceo_improvement_board.improvements.first %>
-  <section class="dashboard-section aicoo-decision-hero">
-    <% if primary_item %>
-      <div class="aicoo-decision-card">
-        <p><span class="pill"><%= primary_item.business.name %></span></p>
-        <h2><%= primary_item.title %></h2>
-        <p class="aicoo-decision-reason"><%= primary_item.reason_lines.first || "期待値が最も高い改善候補です。" %></p>
-        <div class="aicoo-decision-metrics">
-          <div><span>期待利益</span><strong><%= number_to_currency(primary_item.expected_profit_yen, unit: "¥", precision: 0) %></strong></div>
-          <div><span>予想時間</span><strong><%= primary_item.required_minutes.positive? ? "#{primary_item.required_minutes}分" : "-" %></strong></div>
-          <div><span>期待時給</span><strong><%= primary_item.expected_hourly_value_yen.positive? ? number_to_currency(primary_item.expected_hourly_value_yen, unit: "¥", precision: 0) : "-" %></strong></div>
-          <div><span>成功率</span><strong><%= number_to_percentage(primary_item.success_probability * 100, precision: 0) %></strong></div>
-        </div>
+  <nav class="aicoo-sub-tabs" aria-label="Today ranking mode">
+    <% @today_board.tabs.each do |tab| %>
+      <%= link_to tab.label,
+                  tab.path,
+                  class: "aicoo-sub-tab#{' active' if tab.active}",
+                  aria: (tab.active ? { current: "page" } : nil) %>
+    <% end %>
+  </nav>
 
-        <div class="aicoo-decision-metrics">
-          <div><span>対象</span><strong><%= primary_item.target_label.presence || "-" %></strong></div>
-          <div><span>実施量</span><strong><%= primary_item.amount_label.presence || "-" %></strong></div>
-          <div><span>実行方法</span><strong><%= primary_item.execution_mode_label.presence || "-" %></strong></div>
-          <div><span>Codex対象</span><strong><%= primary_item.codex_target_label %></strong></div>
-        </div>
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <div>
+        <h2>今日処理するAction</h2>
+        <p>自動改修の判断待ち、またはCodexでは実行できない作業だけを期待値順に表示します。</p>
+      </div>
+    </div>
 
-        <% if primary_item.evidence_lines.any? %>
-          <div class="aicoo-decision-subcard">
-            <strong>なぜやるのか</strong>
-            <ul class="compact-list">
-              <% primary_item.evidence_lines.first(3).each do |line| %>
-                <li><%= line %></li>
-              <% end %>
-            </ul>
-          </div>
-        <% end %>
-
-        <% if primary_item.execution_unit_lines.any? %>
-          <div class="aicoo-decision-subcard">
-            <strong>今日やる単位</strong>
-            <ol class="compact-list">
-              <% primary_item.execution_unit_lines.first(3).each do |line| %>
-                <li><%= line %></li>
-              <% end %>
-            </ol>
-          </div>
-        <% end %>
-
-        <div class="actions compact-actions">
-          <%= link_to "実行する", primary_item.detail_path, class: "button" %>
-          <%= button_to "却下する", primary_item.defer_path, method: :patch, class: "button secondary" %>
-          <%= link_to "詳細を見る", "#developer-mode", class: "button secondary" %>
-        </div>
+    <% if @today_board.items.any? %>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>順位</th>
+              <th>Business名</th>
+              <th>具体的な作業名</th>
+              <th>期待利益</th>
+              <th>想定時間</th>
+              <th>期待時給</th>
+              <th>成功率</th>
+              <th>実行方法</th>
+              <th>承認が必要か</th>
+              <th>Codex対象か</th>
+              <th>詳細を見る</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @today_board.items.each do |item| %>
+              <tr>
+                <td class="number"><%= item.rank %></td>
+                <td><%= item.business_name.presence || "-" %></td>
+                <td>
+                  <strong><%= item.concrete_task %></strong><br>
+                  <small>対象: <%= item.target %></small><br>
+                  <small>次: <%= item.owner_next_step %></small>
+                  <% if item.stopped_reason.present? %>
+                    <br><small>停止理由: <%= item.stopped_reason %></small>
+                  <% end %>
+                </td>
+                <td class="number"><%= number_to_currency(item.expected_value_yen, unit: "¥", precision: 0) %></td>
+                <td class="number"><%= number_with_precision(item.expected_hours, precision: 1, strip_insignificant_zeros: true) %>時間</td>
+                <td class="number"><%= number_to_currency(item.expected_hourly_value_yen, unit: "¥", precision: 0) %></td>
+                <td class="number"><%= number_to_percentage(item.success_probability.to_d * 100, precision: 1) %></td>
+                <td><span class="pill"><%= item.execution_mode_label %></span></td>
+                <td><%= item.approval_required ? "必要" : "不要" %></td>
+                <td><%= item.codex_target ? "はい" : "いいえ" %></td>
+                <td><%= link_to "詳細を見る", item.detail_url, class: "button secondary" %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
       </div>
     <% else %>
-      <div class="aicoo-decision-card">
-        <h2>今日すぐ実行すべき改善はありません。</h2>
-        <p class="aicoo-decision-reason">Daily Runで新しい候補が生成されると、ここに1件だけ表示します。</p>
+      <div class="aicoo-lab-help">
+        <strong>Todayに表示するActionはありません</strong>
+        <p>承認待ちで止まっている自動改修、またはCodexでは実行できない具体作業だけがここに表示されます。</p>
       </div>
     <% end %>
   </section>
@@ -243,7 +255,7 @@
           <h2>Business改善を止める重大障害</h2>
           <p>Google認証切れなど、改善判断そのものを止める障害だけ表示します。詳細復旧はSYSTEM MODEで行います。</p>
         </div>
-        <%= link_to "SYSTEM MODE", dashboard_path, class: "button secondary" %>
+        <%= link_to "SYSTEM MODE", aicoo_daily_runs_path, class: "button secondary" %>
       </div>
       <div class="table-wrap">
         <table>
@@ -276,7 +288,7 @@
         <h2>運用・実行管理</h2>
         <p>改修キュー、Codex送信、AI Resource、Daily Runなどは必要な時だけ開いて確認します。</p>
       </div>
-      <%= link_to "SYSTEM MODE", dashboard_path, class: "button secondary" %>
+      <%= link_to "SYSTEM MODE", aicoo_daily_runs_path, class: "button secondary" %>
     </div>
 
     <% traffic_status = @system_statuses&.fetch("traffic", nil) %>
@@ -388,7 +400,7 @@
       <summary><strong>学習・履歴</strong> <span class="muted">Learning詳細、実行履歴、SYSTEM MODEへの導線</span></summary>
       <div class="actions compact-actions">
         <%= link_to "実行履歴を見る", admin_execution_runs_path, class: "button secondary" %>
-        <%= link_to "SYSTEM MODEで確認", dashboard_path, class: "button secondary" %>
+        <%= link_to "SYSTEM MODEで確認", aicoo_daily_runs_path, class: "button secondary" %>
       </div>
     </details>
   </section>

@@ -17,7 +17,7 @@ module AicooNavigationHelper
   end
 
   def aicoo_mode_home_path
-    aicoo_ceo_mode? ? owner_focus_path : dashboard_path
+    aicoo_ceo_mode? ? owner_focus_path : aicoo_daily_runs_path
   end
 
   def aicoo_sidebar_items
@@ -120,7 +120,6 @@ module AicooNavigationHelper
     return :ceo_auto_build if path.start_with?("/admin/auto_build_tasks")
     return :ceo_revenue if path.start_with?("/revenue_events")
     return :ceo_learning if path.start_with?("/action_results", "/owner/learning_report")
-    return :ceo_dashboard if path.start_with?("/owner")
 
     :ceo_home
   end
@@ -264,8 +263,7 @@ module AicooNavigationHelper
           { key: :ceo_new_business, label: "New Business", description: "新規事業候補とLP作成", path: owner_new_business_pipeline_path, matchers: [ %r{\A/owner/new_business_pipeline} ] },
           { key: :ceo_auto_build, label: "Auto Build", description: "MVP自動Build", path: admin_auto_build_tasks_path, matchers: [ %r{\A/admin/auto_build_tasks} ] },
           { key: :ceo_revenue, label: "Revenue", description: "売上履歴", path: revenue_events_path, matchers: [ %r{\A/revenue_events} ] },
-          { key: :ceo_learning, label: "Learning", description: "実行結果と学習", path: action_results_path, matchers: [ %r{\A/action_results}, %r{\A/owner/learning_report} ] },
-          { key: :ceo_dashboard, label: "Dashboard", description: "CEOダッシュボード", path: owner_dashboard_path, matchers: [ %r{\A/owner(?:/dashboard)?\z} ] }
+          { key: :ceo_learning, label: "Learning", description: "実行結果と学習", path: action_results_path, matchers: [ %r{\A/action_results}, %r{\A/owner/learning_report} ] }
         ]
       }
     ]
@@ -277,9 +275,8 @@ module AicooNavigationHelper
         key: :system_mode,
         label: "SYSTEM MODE",
         description: "AICOOの運用・復旧",
-        path: dashboard_path,
+        path: aicoo_daily_runs_path,
         matchers: [
-          %r{\A/dashboard},
           %r{\A/aicoo_daily_runs},
           %r{\A/admin},
           %r{\A/judge},
