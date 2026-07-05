@@ -58,7 +58,7 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
       assert_match "pending_calibration_count=0", run.run_log
       assert_match "OwnerExecutionQueue created count=2", run.run_log
       assert_match "AnalysisCandidate created count=1", run.run_log
-      assert_match "AutoRevisionQueue skipped reason=disabled", run.run_log
+      assert_match "AutoRevisionQueue generated=0 skipped=0 high_risk=0", run.run_log
       assert_match "PipelineStuckDetector checked=", run.run_log
       assert_match "BusinessPlaybook updated count=2", run.run_log
       assert_no_match "SERP optional mode", run.run_log
@@ -91,10 +91,9 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
       assert_equal %w[skipped success], run.aicoo_daily_run_steps.distinct.pluck(:status).sort
       assert_equal %w[
         resource_aware_auto_build
-        auto_revision_queue
       ].sort, run.aicoo_daily_run_steps.skipped.pluck(:step_name).sort
       assert_equal "success", run.status
-      assert_equal 0, AutoRevisionQueueRun.count
+      assert_equal 1, AutoRevisionQueueRun.count
       assert_equal %i[analytics datahub import source_diff adjust_all generate insight evaluate activity_eval snapshot queue meta_snapshot calibration owner_queue analysis playbook traffic_channel], order
     end
   end

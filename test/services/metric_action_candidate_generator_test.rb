@@ -8,191 +8,95 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     DataSourceCostProfile.find_by!(source_key: "serp").update!(api_key: nil)
   end
 
-  test "creates reinforcement candidate when proxy score is rising" do
-    create_metric_series(default_clicks: 5, recent_clicks: 20)
+  test "seo media uses business analyzer instead of generic metric advice" do
+    create_metric_series(default_impressions: 10, recent_impressions: 1_000, default_clicks: 0, recent_clicks: 5)
 
     result = MetricActionCandidateGenerator.new(business: @business, today: @today).call
 
-    assert result.created.any? { |candidate| candidate.title.include?("伸びている代理指標を強化") }
-    candidate = result.created.find { |record| record.title.include?("伸びている代理指標を強化") }
-    assert_equal "ai_business", candidate.generation_source
-    assert_equal "proxy_growth_reinforce", candidate.metadata.fetch("metric_rule")
-    assert_equal "internal_only", candidate.metadata.fetch("data_mode")
-    assert_equal [ "serp" ], candidate.metadata.fetch("missing_sources")
-    assert_equal true, candidate.metadata.fetch("confidence_penalty")
-    assert_match(/metric_rule:proxy_growth_reinforce/, candidate.evaluation_reason)
-  end
-
-  test "creates improvement candidate when proxy score is falling" do
-    create_metric_series(default_clicks: 20, recent_clicks: 2)
-
-    result = MetricActionCandidateGenerator.new(business: @business, today: @today).call
-
-    assert result.created.any? { |candidate| candidate.title.include?("代理指標低下原因") }
-  end
-
-  test "creates ctr improvement candidate when impressions rise but clicks stall" do
-    create_metric_series(default_impressions: 10, recent_impressions: 100, default_clicks: 5, recent_clicks: 5)
-
-    result = MetricActionCandidateGenerator.new(business: @business, today: @today).call
-
-    assert result.created.any? { |candidate| candidate.title.include?("CTR改善") }
-    candidate = result.created.find { |record| record.title.include?("CTR改善") }
+    assert_not_empty result.created
+    candidate = result.created.find { |record| record.metadata.fetch("issue_key") == "seo_low_ctr_titles" }
+    assert candidate
+    assert_equal "business_analyzer", candidate.generation_source
+    assert_match(/CTR0\.5%/, candidate.title)
+    assert_match(/件書き換える/, candidate.title)
+    assert_match(/何を:/, candidate.evaluation_reason)
+    assert_match(/どれだけ:/, candidate.evaluation_reason)
+    assert_match(/なぜ:/, candidate.evaluation_reason)
+    assert_match(/期待効果:/, candidate.evaluation_reason)
     assert_includes candidate.execution_prompt, "ActionCandidate実行指示書"
     assert_includes candidate.execution_prompt, "現在 → 変更後"
-    assert candidate.metadata.dig("execution_instruction", "quality", "has_before_after")
-    assert candidate.metadata.dig("execution_instruction", "quality", "has_completion_criteria")
-    assert_not_empty candidate.metadata.dig("execution_instruction", "file_changes")
+    assert_equal "Aicoo::BusinessAnalyzers::SeoBusinessAnalyzer", candidate.metadata.fetch("analyzer")
   end
 
-  test "creates conversion path candidate when clicks exist but cv clicks are missing" do
-    create_metric_series(default_clicks: 5, recent_clicks: 10)
-
-    result = MetricActionCandidateGenerator.new(business: @business, today: @today).call
-
-    assert result.created.any? { |candidate| candidate.title.include?("CV導線") }
-  end
-
-  test "creates engagement improvement candidates from weak GA4 engagement" do
+  test "creates concrete conversion path task with amount and target pages" do
     create_metric_series(
       default_clicks: 5,
-      recent_clicks: 8,
-      default_sessions: 20,
-      recent_sessions: 20,
-      default_pageviews: 50,
-      recent_pageviews: 22,
-      default_engagement_time: 180,
-      recent_engagement_time: 45,
-      recent_bounce_rate: 0.82,
+      recent_clicks: 10,
+      default_pageviews: 100,
+      recent_pageviews: 250,
+      default_conversions: 0,
       recent_conversions: 0
     )
 
     result = MetricActionCandidateGenerator.new(business: @business, today: @today).call
+    candidate = result.created.find { |record| record.metadata.fetch("issue_key") == "seo_conversion_path_zero" }
 
-    assert result.created.any? { |candidate| candidate.metadata.fetch("metric_rule") == "engagement_time_improvement" }
-    assert result.created.any? { |candidate| candidate.metadata.fetch("metric_rule") == "engagement_navigation_improvement" }
-    assert result.created.any? { |candidate| candidate.metadata.fetch("metric_rule") == "engagement_exit_path_improvement" }
+    assert candidate
+    assert_match(/電話・地図・アフィリエイト導線を\d+ページに追加する/, candidate.title)
+    assert_equal "ui_improvement", candidate.action_type
+    assert_equal "phone_map_affiliate_clicks", candidate.metadata.fetch("source_metric")
+    assert_includes candidate.metadata.fetch("candidate_pages"), "店舗詳細ページ"
+    assert_includes candidate.metadata.fetch("completion_criteria").join("\n"), "phone_clicks"
   end
 
-  test "creates revenue expansion candidate when revenue exists" do
-    create_metric_series(default_clicks: 5, recent_clicks: 10)
-    @business.revenue_events.create!(occurred_on: @today - 1, event_type: "revenue", amount: 10_000)
-
-    result = MetricActionCandidateGenerator.new(business: @business, today: @today).call
-
-    assert result.created.any? { |candidate| candidate.title.include?("収益発生施策を横展開") }
-  end
-
-  test "creates pause or withdraw candidate when no revenue and proxy score is falling" do
-    create_metric_series(default_clicks: 20, recent_clicks: 1)
-
-    result = MetricActionCandidateGenerator.new(business: @business, today: @today).call
-
-    assert result.created.any? { |candidate| candidate.action_type == "withdraw" }
-  end
-
-  test "does not create duplicate candidate when similar one exists within 7 days" do
-    create_metric_series(default_impressions: 10, recent_impressions: 100, default_clicks: 5, recent_clicks: 5)
-    @business.action_candidates.create!(
-      title: "#{@business.name}のCTR改善を行う",
-      action_type: "seo_improvement",
-      generation_source: "ai_business",
-      evaluation_reason: "metric_rule:ctr_improvement",
-      created_at: @today.to_time
-    )
-
-    MetricActionCandidateGenerator.new(business: @business, today: @today).call
-
-    assert_equal 1, @business.action_candidates.where(title: "#{@business.name}のCTR改善を行う").count
-  end
-
-  test "creates low confidence candidates when metric data is under seven days" do
-    3.times do |offset|
-      @business.business_metric_dailies.create!(recorded_on: @today - offset, clicks: 10)
-    end
-
-    result = MetricActionCandidateGenerator.new(business: @business, today: @today).call
-
-    assert_not_empty result.created
-    assert result.created.any? { |candidate| candidate.metadata.fetch("comparison_strategy") == "recent_three_day_average" }
-    assert result.created.all? { |candidate| candidate.metadata.fetch("low_confidence") == true }
-  end
-
-  test "creates setup and baseline candidates with only one metric day" do
-    @business.business_metric_dailies.create!(recorded_on: @today, impressions: 10, clicks: 0, pageviews: 0, sessions: 0)
-
-    result = MetricActionCandidateGenerator.new(business: @business, today: @today).call
-
-    assert_not_empty result.created
-    assert result.created.any? { |candidate| candidate.metadata.fetch("metric_rule") == "early_gsc_click_zero" }
-    assert result.created.any? { |candidate| candidate.metadata.fetch("metric_rule") == "early_pv_zero" }
-    assert result.created.any? { |candidate| candidate.metadata.fetch("comparison_strategy") == "latest_vs_baseline" }
-  end
-
-  test "creates setup candidates when metric thresholds are missed" do
-    @business.action_candidates.delete_all
-    @business.revenue_events.delete_all
-    @business.business_metric_dailies.delete_all
+  test "creates concrete internal link task when navigation is weak" do
     create_metric_series(
-      default_clicks: 0,
-      recent_clicks: 0,
-      default_impressions: 0,
-      recent_impressions: 0,
-      default_sessions: 10,
-      recent_sessions: 10,
-      default_pageviews: 30,
-      recent_pageviews: 30,
-      default_engagement_time: 120,
-      recent_engagement_time: 120,
-      default_bounce_rate: 0.3,
-      recent_bounce_rate: 0.3,
-      default_conversions: 1,
-      recent_conversions: 1
+      default_sessions: 20,
+      recent_sessions: 20,
+      default_pageviews: 60,
+      recent_pageviews: 22,
+      default_clicks: 1,
+      recent_clicks: 3
     )
 
     result = MetricActionCandidateGenerator.new(business: @business, today: @today).call
+    candidate = result.created.find { |record| record.metadata.fetch("issue_key") == "seo_internal_links_shortage" }
 
-    assert_not_empty result.created
-    assert result.created.any? { |candidate| candidate.metadata.fetch("metric_rule") == "early_google_connection" }
-    assert result.created.any? { |candidate| candidate.metadata.fetch("metric_rule") == "early_serp_optional_setup" }
-    assert result.created.all? { |candidate| candidate.metadata.key?("comparison_strategy") }
+    assert candidate
+    assert_match(/内部リンクを\d+件追加する/, candidate.title)
+    assert_equal "seo_improvement", candidate.action_type
+    assert_match(/Views\/Session/, candidate.evaluation_reason)
   end
 
-  test "does not generate forbidden LP creation for seo media business" do
-    create_metric_series(default_clicks: 0, recent_clicks: 20)
+  test "creates concrete shop data task for shop-like seo media" do
+    create_metric_series(default_clicks: 0, recent_clicks: 0, default_impressions: 0, recent_impressions: 0)
 
     result = MetricActionCandidateGenerator.new(business: @business, today: @today).call
+    candidate = result.created.find { |record| record.metadata.fetch("issue_key") == "seo_shop_data_shortage" }
 
-    assert result.created.none? { |candidate| candidate.action_type == "build_lp" }
-    assert result.skipped.any? { |reason| reason.include?("Business TypeがSEOメディア") && reason.include?("対象外") }
+    assert candidate
+    assert_match(/エリアの掲載店舗を\d+件追加する/, candidate.title)
+    assert_equal "data_preparation", candidate.action_type
+    assert_equal "shop_activity", candidate.metadata.fetch("source_metric")
   end
 
-  test "stores business type playbook metadata on generated candidates" do
-    create_metric_series(default_impressions: 10, recent_impressions: 100, default_clicks: 5, recent_clicks: 5)
+  test "creates concrete content gap task from active serp queries" do
+    @business.serp_queries.create!(query: "梅田 喫煙 居酒屋", priority: 10)
+    @business.serp_queries.create!(query: "難波 喫煙 カフェ", priority: 20)
+    @business.serp_queries.create!(query: "大阪 喫煙可能 飲食店", priority: 30)
+    create_metric_series(default_impressions: 10, recent_impressions: 200, default_clicks: 0, recent_clicks: 3)
 
     result = MetricActionCandidateGenerator.new(business: @business, today: @today).call
-    candidate = result.created.find { |record| record.metadata.fetch("metric_rule") == "ctr_improvement" }
+    candidate = result.created.find { |record| record.metadata.fetch("issue_key") == "seo_content_gap_articles" }
 
-    assert_equal "seo_media", candidate.metadata.dig("business_type_playbook", "business_type")
-    assert_equal true, candidate.metadata.dig("business_type_playbook", "preferred")
-    assert_match(/SEOメディア/, candidate.evaluation_reason)
+    assert candidate
+    assert_match(/記事を3本追加する/, candidate.title)
+    assert_equal %w[梅田\ 喫煙\ 居酒屋 難波\ 喫煙\ カフェ 大阪\ 喫煙可能\ 飲食店], candidate.metadata.fetch("candidate_keywords")
   end
 
-  test "creates serp sourced candidates from saved serp analyses" do
-    DataSourceCostProfile.find_by!(source_key: "serp").update!(api_key: "configured")
-    @business.action_candidates.delete_all
+  test "creates serp-backed concrete rank opportunity" do
     keyword = "梅田 喫煙 カフェ"
-    @business.serp_analyses.create!(
-      keyword:,
-      analyzed_at: @today - 2,
-      search_engine: "google",
-      device: "desktop",
-      provider: "serper",
-      status: "success",
-      result_count: 5,
-      competition_score: 50
-    )
-    latest = @business.serp_analyses.create!(
+    analysis = @business.serp_analyses.create!(
       keyword:,
       analyzed_at: @today - 1,
       search_engine: "google",
@@ -202,20 +106,54 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
       result_count: 10,
       competition_score: 82
     )
-    latest.serp_results.create!(position: 1, title: "梅田 喫煙 カフェ 比較", url: "https://example.com/1", snippet: "大阪 梅田で喫煙可のカフェを比較")
-    latest.serp_results.create!(position: 2, title: "大阪 喫煙可能 飲食店", url: "https://example.com/2", snippet: "紙タバコと加熱式に対応した飲食店")
-    latest.serp_results.create!(position: 3, title: "難波 喫煙可 居酒屋", url: "https://example.com/3", snippet: "難波で喫煙可能な居酒屋を探せます")
+    analysis.serp_results.create!(position: 1, title: "梅田 喫煙 カフェ 比較", url: "https://example.com/1", snippet: "大阪 梅田で喫煙可のカフェを比較")
+    analysis.serp_results.create!(position: 2, title: "大阪 喫煙可能 飲食店", url: "https://example.com/2", snippet: "紙タバコと加熱式に対応した飲食店")
+    analysis.serp_results.create!(position: 3, title: "難波 喫煙可 居酒屋", url: "https://example.com/3", snippet: "難波で喫煙可能な居酒屋を探せます")
 
     result = MetricActionCandidateGenerator.new(business: @business, today: @today).call
-    serp_candidates = result.created.select { |candidate| candidate.generation_source == "serp" }
+    candidate = result.created.find { |record| record.metadata.fetch("issue_key") == "seo_rank_11_20_gap" }
 
-    assert_not_empty serp_candidates
-    assert serp_candidates.any? { |candidate| candidate.metadata.fetch("metric_rule") == "serp_rank_decline_risk" }
-    assert serp_candidates.any? { |candidate| candidate.metadata.fetch("metric_rule") == "serp_competition_rising" }
-    assert serp_candidates.any? { |candidate| candidate.metadata.fetch("metric_rule") == "serp_uncovered_keyword" }
-    assert serp_candidates.all? { |candidate| candidate.metadata.fetch("source") == "serp" }
-    assert serp_candidates.all? { |candidate| candidate.metadata.fetch("serp_analysis_id") == latest.id }
-    assert serp_candidates.all? { |candidate| candidate.metadata.fetch("serp_keyword") == keyword }
+    assert candidate
+    assert_match(/梅田 喫煙 カフェ/, candidate.title)
+    assert_equal analysis.id, candidate.metadata.fetch("serp_analysis_id")
+    assert_equal keyword, candidate.metadata.fetch("source_query")
+    assert_not_empty candidate.metadata.fetch("serp_top_results")
+  end
+
+  test "does not create duplicate analyzer candidate within seven days" do
+    create_metric_series(default_impressions: 10, recent_impressions: 1_000, default_clicks: 0, recent_clicks: 5)
+    @business.action_candidates.create!(
+      title: "CTR0.5%の検索入口を5件書き換える",
+      action_type: "seo_improvement",
+      generation_source: "business_analyzer",
+      evaluation_reason: "business_analyzer:seo_low_ctr_titles",
+      created_at: @today.to_time
+    )
+
+    result = MetricActionCandidateGenerator.new(business: @business, today: @today).call
+
+    assert result.skipped.any? { |reason| reason.include?("seo_low_ctr_titles: duplicate") }
+    assert_equal 1, @business.action_candidates.where("evaluation_reason LIKE ?", "%business_analyzer:seo_low_ctr_titles%").count
+  end
+
+  test "saas business still falls back to existing generic generator" do
+    business = businesses(:cards)
+    30.times do |offset|
+      date = @today - 29 + offset
+      recent = date >= @today - 6
+      business.business_metric_dailies.create!(
+        recorded_on: date,
+        impressions: recent ? 100 : 10,
+        clicks: 5,
+        sessions: 10,
+        pageviews: 10
+      )
+    end
+
+    result = MetricActionCandidateGenerator.new(business:, today: @today).call
+
+    assert_not_empty result.created
+    assert result.created.all? { |candidate| candidate.generation_source != "business_analyzer" }
   end
 
   private

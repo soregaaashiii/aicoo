@@ -59,6 +59,9 @@ class MetricActionCandidateGenerator
   def call
     return skipped_result("system/internal BusinessのためActionCandidate生成対象外です") if business.system_business?
 
+    analyzer_result = Aicoo::BusinessAnalyzers::Runner.call(business:, today:)
+    return analyzer_result if analyzer_result.handled? && analyzer_result.created_count.positive?
+
     specs = filter_specs_by_business_type(candidate_specs)
     return skipped_result(no_candidate_reason) if specs.empty?
 
