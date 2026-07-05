@@ -158,6 +158,15 @@ module Owner
       concrete.update_columns(
         metadata: concrete.metadata.to_h.merge(
           "seo_action_type" => "improve_ctr_title",
+          "execution_units" => [
+            {
+              "label" => "梅田 喫煙 居酒屋 のSEOタイトル/metaを1件改善",
+              "query" => "梅田 喫煙 居酒屋",
+              "target_amount" => 1,
+              "estimated_minutes" => 20,
+              "reason" => "高順位なのにCTRが低いため"
+            }
+          ],
           "evidence" => {
             "source" => [ "gsc" ],
             "issue_type" => "seo_low_ctr_titles",
@@ -187,6 +196,8 @@ module Owner
       assert_includes response.body, concrete.title
       assert_includes response.body, "根拠データ"
       assert_includes response.body, "作業カテゴリ: CTRタイトル改善"
+      assert_includes response.body, "今日やる単位"
+      assert_includes response.body, "1. 梅田 喫煙 居酒屋 のSEOタイトル/metaを1件改善（20分）"
       assert_includes response.body, "根拠: GSC"
       assert_includes response.body, "対象: 「梅田 喫煙 居酒屋」 / /umeda-smoking-izakaya"
       assert_includes response.body, "現在: 0.5%"
@@ -205,6 +216,15 @@ module Owner
       candidate.update_columns(
         metadata: candidate.metadata.to_h.merge(
           "seo_action_type" => "add_shop_links",
+          "execution_units" => [
+            {
+              "label" => "流入上位記事に店舗リンクを10件追加",
+              "page_path" => "流入上位記事",
+              "target_amount" => 10,
+              "estimated_minutes" => 40,
+              "reason" => "回遊が弱いため"
+            }
+          ],
           "evidence" => {
             "source" => [ "ga4", "business_db" ],
             "issue_type" => "seo_internal_links_shortage",
@@ -235,6 +255,36 @@ module Owner
       assert_includes response.body, export_codex_prompt_auto_revision_task_path(task)
       assert_includes response.body, "Codex準備前"
       assert_includes response.body, "1件"
+    end
+
+    test "warns when analyzer candidate has no execution units" do
+      candidate = create_candidate!(
+        title: "CTR0.5%の検索入口を5件書き換える",
+        immediate_value_yen: 50_000,
+        success_probability: 0.7,
+        expected_hours: 1,
+        generation_source: "business_analyzer"
+      )
+      candidate.update_columns(
+        metadata: candidate.metadata.to_h.merge(
+          "seo_action_type" => "improve_ctr_title",
+          "evidence" => {
+            "source" => [ "gsc" ],
+            "issue_type" => "seo_low_ctr_titles",
+            "query" => "梅田 喫煙 居酒屋",
+            "current_value" => 0.005,
+            "benchmark_value" => 0.03,
+            "target_amount" => 5,
+            "target_unit" => "件"
+          }
+        )
+      )
+
+      get owner_focus_url
+
+      assert_response :success
+      assert_includes response.body, candidate.title
+      assert_includes response.body, "今日やる単位が未生成です。"
     end
 
     test "shows codex submission waiting summary" do

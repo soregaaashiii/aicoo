@@ -23,6 +23,8 @@ module Aicoo
         ## 元の実行内容
         #{action_candidate.execution_prompt.presence || action_candidate.description.presence || action_candidate.title}
 
+        #{execution_units_markdown}
+
         #{execution_brief.prompt_markdown}
 
         ## Codex実装指示
@@ -46,6 +48,35 @@ module Aicoo
 
     def execution_brief
       @execution_brief ||= Aicoo::ActionCandidateExecutionBrief.new(action_candidate)
+    end
+
+    def execution_units_markdown
+      units = Aicoo::ActionCandidateEvidencePresenter.new(action_candidate).execution_units
+      return nil if units.blank?
+
+      <<~MARKDOWN.strip
+        ## 今日やる単位
+        #{units.map.with_index(1) { |unit, index| execution_unit_line(unit, index) }.join("\n")}
+
+        ## 手作業系タスクとして扱う場合
+        - 実行手順: 上の単位を上から順に実行し、完了した単位ごとにActionResultへ記録してください。
+        - 対象エリア: #{units.filter_map { |unit| unit["area"] }.uniq.join(" / ").presence || "未特定"}
+        - 対象ジャンル: #{units.filter_map { |unit| unit["genre"] }.uniq.join(" / ").presence || "未特定"}
+        - 目標件数: #{units.sum { |unit| unit["target_amount"].to_i }}件
+      MARKDOWN
+    end
+
+    def execution_unit_line(unit, index)
+      [
+        "#{index}. #{unit['label']}",
+        unit["area"].present? ? "対象エリア: #{unit['area']}" : nil,
+        unit["genre"].present? ? "対象ジャンル: #{unit['genre']}" : nil,
+        unit["page_path"].present? ? "対象ページ: #{unit['page_path']}" : nil,
+        unit["query"].present? ? "検索クエリ: #{unit['query']}" : nil,
+        unit["target_amount"].present? ? "目標: #{unit['target_amount']}件" : nil,
+        unit["estimated_minutes"].present? ? "想定時間: #{unit['estimated_minutes']}分" : nil,
+        unit["reason"].present? ? "理由: #{unit['reason']}" : nil
+      ].compact.join(" / ")
     end
   end
 end

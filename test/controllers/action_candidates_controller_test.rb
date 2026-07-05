@@ -150,6 +150,15 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
       generation_source: "business_analyzer",
       metadata: @action_candidate.metadata.to_h.merge(
         "seo_action_type" => "improve_ctr_title",
+        "execution_units" => [
+          {
+            "label" => "梅田 喫煙 居酒屋 のSEOタイトル/metaを1件改善",
+            "query" => "梅田 喫煙 居酒屋",
+            "target_amount" => 1,
+            "estimated_minutes" => 20,
+            "reason" => "高順位なのにCTRが低いため"
+          }
+        ],
         "evidence" => {
           "source" => [ "gsc", "ga4" ],
           "issue_type" => "seo_low_ctr_titles",
@@ -170,6 +179,9 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.body, "Analyzer根拠"
     assert_includes response.body, "CTRタイトル改善"
+    assert_includes response.body, "今日やる単位"
+    assert_includes response.body, "梅田 喫煙 居酒屋 のSEOタイトル/metaを1件改善"
+    assert_includes response.body, "20分"
     assert_includes response.body, "GSC / GA4"
     assert_includes response.body, "「梅田 喫煙 居酒屋」 / /umeda-smoking-izakaya"
     assert_includes response.body, "0.5%"

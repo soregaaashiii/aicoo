@@ -50,6 +50,26 @@ module Aicoo
       SEO_ACTION_TYPE_LABELS.fetch(seo_action_type.to_s, seo_action_type.to_s)
     end
 
+    def execution_units
+      Array(action_candidate.metadata.to_h["execution_units"]).map do |unit|
+        unit.to_h.deep_stringify_keys
+      end
+    end
+
+    def execution_units?
+      execution_units.any?
+    end
+
+    def execution_unit_lines(limit: 3)
+      execution_units.first(limit).map.with_index(1) do |unit, index|
+        "#{index}. #{unit['label']}（#{unit['estimated_minutes'].presence || '-'}分）"
+      end
+    end
+
+    def execution_units_warning?
+      analyzer_evidence? && seo_action_type? && execution_units.blank?
+    end
+
     def source_label
       sources = Array(evidence["source"]).compact_blank
       return "未特定" if sources.empty?
@@ -91,6 +111,7 @@ module Aicoo
     def lines
       [
         seo_action_type? ? "作業カテゴリ: #{seo_action_type_label}" : nil,
+        execution_units? ? "今日やる単位: #{execution_units.size}件" : nil,
         "根拠: #{source_label}",
         "対象: #{target_label}",
         "現在: #{current_label}",
@@ -103,6 +124,7 @@ module Aicoo
     def table_rows
       [
         seo_action_type? ? [ "作業カテゴリ", seo_action_type_label ] : nil,
+        execution_units? ? [ "今日やる単位", execution_unit_lines(limit: 5).join(" / ") ] : nil,
         [ "根拠データ", source_label ],
         [ "課題タイプ", evidence["issue_type"].presence || "-" ],
         [ "対象", target_label ],

@@ -63,6 +63,19 @@
                       </ul>
                     </div>
                   <% end %>
+                  <% if item.execution_unit_lines.any? %>
+                    <div class="aicoo-inline-panel">
+                      <strong>今日やる単位</strong>
+                      <ul class="compact-list">
+                        <% item.execution_unit_lines.each do |line| %>
+                          <li><%= line %></li>
+                        <% end %>
+                      </ul>
+                      <p class="muted">候補全体: <%= item.title %></p>
+                    </div>
+                  <% elsif item.execution_units_warning %>
+                    <div class="flash-message flash-warning">今日やる単位が未生成です。ActionCandidate詳細で候補全体を確認してください。</div>
+                  <% end %>
                 </td>
                 <td><span class="pill"><%= item.category %></span></td>
                 <td class="number"><%= number_to_currency(item.expected_profit_yen, unit: "¥", precision: 0) %></td>

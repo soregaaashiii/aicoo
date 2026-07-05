@@ -23,6 +23,34 @@ class AutoRevisionTaskTest < ActiveSupport::TestCase
     assert_equal "waiting_approval", task.status
   end
 
+  test "includes execution units in prompt from action candidate" do
+    candidate = action_candidates(:nagazakicho_article)
+    candidate.update!(execution_prompt: "SEOタイトルを改善してください。")
+    candidate.update_columns(
+      metadata: candidate.metadata.to_h.merge(
+        "seo_action_type" => "add_shop_links",
+        "execution_units" => [
+          {
+            "label" => "流入上位記事に店舗リンクを10件追加",
+            "area" => "梅田",
+            "genre" => "居酒屋",
+            "target_amount" => 10,
+            "estimated_minutes" => 40,
+            "reason" => "回遊が弱いため"
+          }
+        ]
+      )
+    )
+
+    task = AutoRevisionTask.from_action_candidate(candidate)
+
+    assert_includes task.execution_prompt, "## 今日やる単位"
+    assert_includes task.execution_prompt, "流入上位記事に店舗リンクを10件追加"
+    assert_includes task.execution_prompt, "対象エリア: 梅田"
+    assert_includes task.execution_prompt, "対象ジャンル: 居酒屋"
+    assert_includes task.execution_prompt, "目標件数: 10件"
+  end
+
   test "creates codex submission automatically when execution profile exists" do
     BusinessExecutionProfile.create!(
       business: businesses(:suelog),

@@ -26,7 +26,9 @@ module Aicoo
       :codex_method,
       :defer_path,
       :evidence_lines,
-      :seo_action_type_label
+      :seo_action_type_label,
+      :execution_unit_lines,
+      :execution_units_warning
     )
     BusinessCard = Data.define(
       :business,
@@ -125,7 +127,9 @@ module Aicoo
         codex_method: auto_revision_task ? :get : :post,
         defer_path: defer_owner_focus_path(task_key: "action_candidate:#{candidate.id}"),
         evidence_lines: evidence_lines_for(candidate),
-        seo_action_type_label: seo_action_type_label_for(candidate)
+        seo_action_type_label: seo_action_type_label_for(candidate),
+        execution_unit_lines: execution_unit_lines_for(candidate),
+        execution_units_warning: execution_units_warning_for(candidate)
       )
     end
 
@@ -155,7 +159,9 @@ module Aicoo
         codex_method: :get,
         defer_path: defer_owner_focus_path(task_key: "auto_revision_task:#{task.id}"),
         evidence_lines: candidate ? evidence_lines_for(candidate) : [],
-        seo_action_type_label: candidate ? seo_action_type_label_for(candidate) : nil
+        seo_action_type_label: candidate ? seo_action_type_label_for(candidate) : nil,
+        execution_unit_lines: candidate ? execution_unit_lines_for(candidate) : [],
+        execution_units_warning: candidate ? execution_units_warning_for(candidate) : false
       )
     end
 
@@ -251,6 +257,14 @@ module Aicoo
     def seo_action_type_label_for(candidate)
       presenter = Aicoo::ActionCandidateEvidencePresenter.new(candidate)
       presenter.seo_action_type? ? presenter.seo_action_type_label : nil
+    end
+
+    def execution_unit_lines_for(candidate)
+      Aicoo::ActionCandidateEvidencePresenter.new(candidate).execution_unit_lines(limit: 3)
+    end
+
+    def execution_units_warning_for(candidate)
+      Aicoo::ActionCandidateEvidencePresenter.new(candidate).execution_units_warning?
     end
 
     def seo_action_priority_bonus(row)
