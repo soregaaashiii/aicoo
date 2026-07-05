@@ -14,6 +14,7 @@ module Aicoo
 
         plan = Aicoo::ActionPlanner.call(opportunity, analyzer:, decision:)
         return unless plan.valid?
+        return unless concrete_action_valid?(plan)
 
         metadata = analyzer.candidate_metadata(issue, opportunity:).merge(
           "action_plan" => plan.to_metadata,
@@ -90,6 +91,8 @@ module Aicoo
       end
 
       def execution_prompt_for(plan)
+        return nil unless plan.execution_mode == "code_revision"
+
         <<~PROMPT.strip
           Action Planner 作業指示
 
@@ -102,6 +105,31 @@ module Aicoo
           - 上記手順が完了している
           - 実行結果をActionResultへ登録できるメモがある
         PROMPT
+      end
+
+      ABSTRACT_PATTERNS = [
+        /検索需要があるテーマ/,
+        /CVを改善/,
+        /CV改善\z/,
+        /SEO改善\z/,
+        /SEOを改善/,
+        /UXを改善/,
+        /CTAを改善/,
+        /デザインを改善/,
+        /サイト改善/,
+        /導線改善/,
+        /記事を増やす/,
+        /Analyzer/i
+      ].freeze
+
+      def concrete_action_valid?(plan)
+        text = plan.summary.to_s.strip
+        return false if text.blank?
+        return false if ABSTRACT_PATTERNS.any? { |pattern| text.match?(pattern) }
+        return false if plan.target.to_s.blank? || plan.target.to_s.include?("未特定")
+        return false if plan.execution_units.blank?
+
+        true
       end
     end
   end

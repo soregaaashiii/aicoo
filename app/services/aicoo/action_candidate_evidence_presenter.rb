@@ -135,7 +135,9 @@ module Aicoo
     end
 
     def summary
-      action_plan["summary"].presence || action_candidate.title
+      action_plan["summary"].presence ||
+        action_candidate.metadata.to_h["concrete_task"].presence ||
+        action_candidate.metadata.to_h.dig("decision", "selected", "concrete_task").presence
     end
 
     def owner_output

@@ -5,6 +5,8 @@ module Aicoo
     end
 
     def call
+      return non_code_execution_memo unless action_candidate.code_revision_execution_mode?
+
       <<~PROMPT
         # AICOO Action Execution 指示書
 
@@ -45,6 +47,47 @@ module Aicoo
     private
 
     attr_reader :action_candidate
+
+    def non_code_execution_memo
+      presenter = Aicoo::ActionCandidateEvidencePresenter.new(action_candidate)
+      plan = presenter.action_plan
+      steps = Array(plan["execution_steps"]).compact_blank
+      units = presenter.execution_units
+
+      <<~MEMO
+        # AICOO Action 作業メモ
+
+        ## 今日やること
+        #{plan["summary"].presence || action_candidate.metadata.to_h["concrete_task"].presence || action_candidate.title}
+
+        ## 実行方法
+        #{presenter.execution_mode_label}
+
+        ## 対象
+        #{plan["target"].presence || plan["target_url_or_identifier"].presence || presenter.target_label}
+
+        ## 理由
+        #{plan["goal"].presence || action_candidate.evaluation_reason.presence || action_candidate.description.presence || "-"}
+
+        #{non_code_units_markdown(units)}
+
+        ## 実行手順
+        #{(steps.presence || [ "作業を実行する", "結果を確認する", "ActionResultへ登録する" ]).map.with_index(1) { |step, index| "#{index}. #{step}" }.join("\n")}
+
+        ## 完了条件
+        - 作業が完了している
+        - 実行結果をActionResultへ登録できるメモがある
+      MEMO
+    end
+
+    def non_code_units_markdown(units)
+      return nil if units.blank?
+
+      <<~MARKDOWN.strip
+        ## 今日やる単位
+        #{units.map.with_index(1) { |unit, index| execution_unit_line(unit, index) }.join("\n")}
+      MARKDOWN
+    end
 
     def execution_brief
       @execution_brief ||= Aicoo::ActionCandidateExecutionBrief.new(action_candidate)

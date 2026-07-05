@@ -67,6 +67,42 @@ module Owner
       assert_not_includes today_section, "href=\"#{business_path(candidate.business)}\""
     end
 
+    test "does not show analyzer intermediate result without concrete task" do
+      ActionCandidate.create!(
+        business: businesses(:suelog),
+        title: "検索需要があるテーマの記事を1本追加する",
+        status: "approved",
+        action_type: "seo_article",
+        generation_source: "business_analyzer",
+        immediate_value_yen: 50_000,
+        expected_hours: 1,
+        success_probability: 0.7,
+        evaluation_reason: "Analyzer intermediate result",
+        metadata: {
+          "execution_mode" => "content_creation",
+          "action_plan" => {
+            "target" => "吸えログ 比較",
+            "execution_steps" => [ "記事を書く" ],
+            "execution_units" => [
+              {
+                "label" => "検索需要があるテーマの記事を1本追加する",
+                "target_amount" => 1,
+                "estimated_minutes" => 90
+              }
+            ]
+          }
+        }
+      )
+      concrete = create_today_candidate!(title: "「吸えログ 比較」向けの比較記事を1本作成する")
+
+      get owner_focus_url
+
+      assert_response :success
+      assert_includes response.body, concrete.title
+      assert_not_includes response.body, "検索需要があるテーマの記事を1本追加する"
+      assert_not_includes response.body, "Analyzer intermediate result"
+    end
+
     test "does not show dashboard in sidebar" do
       get owner_focus_url
 

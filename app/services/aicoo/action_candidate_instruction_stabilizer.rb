@@ -12,7 +12,7 @@ module Aicoo
       brief = Aicoo::ActionCandidateExecutionBrief.new(action_candidate)
       snapshot = build_snapshot(brief)
       action_candidate.update_columns(
-        execution_prompt: brief.prompt_markdown,
+        execution_prompt: action_candidate.code_revision_execution_mode? ? brief.prompt_markdown : nil,
         metadata: action_candidate.metadata.to_h.merge("execution_instruction" => snapshot),
         updated_at: Time.current
       )

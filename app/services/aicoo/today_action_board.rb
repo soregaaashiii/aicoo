@@ -12,13 +12,13 @@ module Aicoo
       /CVを改善/,
       /UXを改善/,
       /CTAを改善/,
+      /CV改善\z/,
+      /SEO改善\z/,
       /デザインを改善/,
       /サイト改善/,
       /導線改善/,
       /記事を増やす/,
-      /改善する\z/,
-      /最適化する\z/,
-      /強化する\z/
+      /Analyzer/i
     ].freeze
     UNSPECIFIED_VALUES = %w[未特定 unspecified unknown].freeze
 
@@ -165,13 +165,14 @@ module Aicoo
     def concrete_task_for(candidate, presenter, action_plan)
       action_plan["summary"].presence ||
         candidate.metadata.to_h["concrete_task"].presence ||
-        presenter.summary.presence ||
-        candidate.title
+        candidate.metadata.to_h.dig("decision", "selected", "concrete_task").presence
     end
 
     def target_for(presenter, action_plan)
       action_plan["target"].presence ||
         action_plan["target_url_or_identifier"].presence ||
+        presenter.action_plan["target"].presence ||
+        presenter.action_plan["target_url_or_identifier"].presence ||
         presenter.target_label.presence
     end
 

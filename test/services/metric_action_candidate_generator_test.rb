@@ -43,9 +43,11 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     assert_match(/今日やること:/, candidate.evaluation_reason)
     assert_match(/理由:/, candidate.evaluation_reason)
     assert_match(/期待効果:/, candidate.evaluation_reason)
-    assert_includes candidate.execution_prompt, "Action Planner 作業指示"
-    assert_includes candidate.execution_prompt, "実行手順:"
-    assert_no_match(/現在 → 変更後|Codexへ渡す修正文|After（AI生成）/, candidate.execution_prompt)
+    assert_nil candidate.execution_prompt
+    generated_memo = Aicoo::ExecutionPromptBuilder.new(candidate).call
+    assert_includes generated_memo, "AICOO Action 作業メモ"
+    assert_includes generated_memo, "## 実行手順"
+    assert_no_match(/Codex実装指示|変更ファイル|本文案|現在 → 変更後|Codexへ渡す修正文|After（AI生成）/, generated_memo)
     assert_equal "Aicoo::BusinessAnalyzers::GenericOpportunityAnalyzer", candidate.metadata.fetch("analyzer")
   end
 

@@ -3,7 +3,8 @@
   <dd><%= link_to action_candidate.business.name, action_candidate.business %></dd>
 
   <dt>行動タイトル</dt>
-  <dd><%= action_candidate.title %></dd>
+  <% presenter = Aicoo::ActionCandidateEvidencePresenter.new(action_candidate) %>
+  <dd><%= presenter.summary.presence || action_candidate.title %></dd>
 
   <dt>説明</dt>
   <dd><%= simple_format(action_candidate.description) %></dd>
@@ -68,6 +69,10 @@
   <dt id="evaluation_reason">評価理由</dt>
   <dd><%= simple_format(action_candidate.evaluation_reason) %></dd>
 
-  <dt id="execution_prompt">実行プロンプト</dt>
+  <% if action_candidate.code_revision_execution_mode? %>
+    <dt id="execution_prompt">Codex実行プロンプト</dt>
+  <% else %>
+    <dt id="execution_prompt">作業メモ</dt>
+  <% end %>
   <dd><%= simple_format(Aicoo::ExecutionPromptBuilder.new(action_candidate).call) %></dd>
 </dl>

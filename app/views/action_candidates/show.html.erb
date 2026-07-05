@@ -1,4 +1,5 @@
-<% content_for :title, @action_candidate.title %>
+<% display_action_title = @evidence_presenter.summary.presence || @action_candidate.title %>
+<% content_for :title, display_action_title %>
 
 <% workspace_return_params = @action_workspace ? { return_to: action_workspace_path(@action_candidate) } : {} %>
 <% today_return_params = @action_workspace ? { return_to: owner_focus_path } : {} %>
@@ -21,7 +22,7 @@
 
 <div class="aicoo-page">
   <%= render "shared/aicoo_header",
-             title: @action_candidate.title,
+             title: display_action_title,
              description: @action_workspace ? "Todayから開いた1つの仕事です。完了したらTodayへ戻ります。" : "今日やるかどうかだけを判断します。",
              mode: :ceo,
              active_main: :revenue,
@@ -37,7 +38,7 @@
 <section class="dashboard-section aicoo-decision-hero">
   <div class="aicoo-decision-card">
     <p><span class="pill"><%= @action_candidate.business.name %></span> <span class="pill"><%= @evidence_presenter.execution_mode_label %></span></p>
-    <h2><%= @action_candidate.title %></h2>
+    <h2><%= display_action_title %></h2>
     <p class="aicoo-decision-reason"><%= @evidence_presenter&.reason.presence || @action_candidate.evaluation_reason.presence || @action_candidate.description %></p>
 
     <div class="aicoo-decision-metrics">
