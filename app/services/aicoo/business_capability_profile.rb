@@ -38,6 +38,12 @@ module Aicoo
       :primary_assets,
       :content_assets,
       :manual_operation_assets,
+      :supply_assets,
+      :quality_assets,
+      :intent_keywords,
+      :revenue_fit_rules,
+      :work_cost_rules,
+      :query_classification_rules,
       :assets
     ) do
       def to_h
@@ -53,6 +59,12 @@ module Aicoo
           "primary_assets" => primary_assets,
           "content_assets" => content_assets,
           "manual_operation_assets" => manual_operation_assets,
+          "supply_assets" => supply_assets,
+          "quality_assets" => quality_assets,
+          "intent_keywords" => intent_keywords,
+          "revenue_fit_rules" => revenue_fit_rules,
+          "work_cost_rules" => work_cost_rules,
+          "query_classification_rules" => query_classification_rules,
           "assets" => assets.map(&:to_h)
         }
       end
@@ -80,6 +92,12 @@ module Aicoo
         primary_assets: explicit_array("primary_assets", default_primary_assets),
         content_assets: explicit_array("content_assets", default_content_assets),
         manual_operation_assets: explicit_array("manual_operation_assets", default_manual_operation_assets),
+        supply_assets: explicit_array("supply_assets", default_supply_assets),
+        quality_assets: explicit_array("quality_assets", default_quality_assets),
+        intent_keywords: explicit_hash("intent_keywords", default_intent_keywords),
+        revenue_fit_rules: explicit_hash("revenue_fit_rules", default_revenue_fit_rules),
+        work_cost_rules: explicit_hash("work_cost_rules", default_work_cost_rules),
+        query_classification_rules: explicit_hash("query_classification_rules", default_query_classification_rules),
         assets: asset_knowledge
       )
     end
@@ -96,6 +114,10 @@ module Aicoo
 
     def explicit_array(key, fallback)
       Array(explicit[key]).presence || fallback
+    end
+
+    def explicit_hash(key, fallback)
+      explicit[key].to_h.presence || fallback
     end
 
     def asset_knowledge
@@ -192,6 +214,72 @@ module Aicoo
       assets << "listing_data" if default_has_listings?
       assets << "customer_interview" if type.in?(%w[saas mvp landing_page])
       assets.presence || [ "owner_task" ]
+    end
+
+    def default_supply_assets
+      assets = []
+      assets << "listings" if default_has_listings?
+      assets << "articles" if default_has_articles?
+      assets << "area_pages" if default_has_area_pages?
+      assets << "category_pages" if default_has_category_pages?
+      assets << "landing_pages" if default_has_lp?
+      assets << "signup_flow" if default_has_signup?
+      assets << "checkout" if default_has_checkout?
+      assets.presence || default_primary_assets
+    end
+
+    def default_quality_assets
+      assets = []
+      assets << "verified_listings" if default_has_listings?
+      assets << "fresh_content" if default_has_articles?
+      assets << "measured_conversion_events"
+      assets << "internal_links" if default_has_articles? || default_has_lp?
+      assets.uniq
+    end
+
+    def default_intent_keywords
+      {
+        "high" => (%w[予約 購入 料金 問い合わせ 申し込み 比較 違い 空席 営業中 見積もり] + default_conversion_events).uniq,
+        "medium" => %w[おすすめ まとめ 導入 事例 使い方 選び方 ランキング],
+        "low" => %w[とは 口コミ レビュー 評判 インスタ instagram]
+      }
+    end
+
+    def default_revenue_fit_rules
+      {
+        "default" => 1.0,
+        "high_intent" => 1.45,
+        "medium_intent" => 1.15,
+        "low_intent" => 0.75,
+        "listings" => default_has_listings? ? 1.35 : 1.0,
+        "articles" => default_has_articles? ? 1.15 : 1.0,
+        "landing_pages" => default_has_lp? ? 1.25 : 1.0,
+        "checkout" => default_has_checkout? ? 1.7 : 1.0,
+        "signup" => default_has_signup? ? 1.5 : 1.0
+      }
+    end
+
+    def default_work_cost_rules
+      {
+        "title_meta" => 20,
+        "internal_links" => 35,
+        "cta" => 45,
+        "article" => 90,
+        "lp" => 120,
+        "supply_addition" => default_has_listings? ? 60 : 90,
+        "quality_verification" => default_has_listings? ? 45 : 60,
+        "measurement" => 45
+      }
+    end
+
+    def default_query_classification_rules
+      {
+        "comparison" => %w[比較 違い vs versus 料金],
+        "local" => %w[近く 周辺 エリア 駅 市 区 町],
+        "how_to" => %w[方法 使い方 やり方 とは],
+        "conversion" => default_intent_keywords["high"],
+        "noise" => %w[インスタ instagram twitter x 画像 無料素材]
+      }
     end
 
     def default_asset_knowledge

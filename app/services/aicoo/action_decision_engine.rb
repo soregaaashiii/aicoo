@@ -75,7 +75,7 @@ module Aicoo
       def cost_yen = selected&.cost_yen || 0
 
       def to_metadata
-        ranked = candidates.sort_by { |candidate| -candidate.score.to_d }
+        ranked = Aicoo::UniversalAnalysisEngine::StrategyRanker.call(candidates)
         {
           "selected" => selected&.to_metadata,
           "candidate_count" => candidates.size,
@@ -110,11 +110,12 @@ module Aicoo
 
     def call
       candidates = enumerate_candidates
+      ranked = Aicoo::UniversalAnalysisEngine::StrategyRanker.call(candidates)
       Decision.new(
         opportunity:,
         business_knowledge: profile,
         candidates:,
-        selected: candidates.max_by(&:score)
+        selected: ranked.first
       )
     end
 
@@ -127,15 +128,17 @@ module Aicoo
         next unless asset_applicable?(asset)
 
         actions_for(asset).filter_map { |action| build_candidate(asset, action) }
-      end.compact
+      end.compact.select { |candidate| concrete_task_allowed?(candidate.concrete_task) }
     end
 
     def asset_applicable?(asset)
       case pattern
-      when "demand_without_asset"
+      when "demand_without_asset", "demand_without_supply", "asset_missing"
         asset.can_create
-      when "high_impression_low_ctr", "rank_11_20_gap", "traffic_without_conversion",
-           "asset_without_traffic", "activity_gap", "data_quality_gap"
+      when "high_impression_low_ctr", "rank_11_20_gap", "near_win_position",
+           "traffic_without_conversion", "high_traffic_low_conversion", "funnel_drop",
+           "asset_without_traffic", "weak_existing_asset", "activity_gap", "data_quality_gap",
+           "supply_gap", "verification_gap", "engagement_signal"
         asset.can_update || asset.can_create
       else
         asset.can_update || asset.can_create
@@ -184,16 +187,20 @@ module Aicoo
 
     def actions_for(asset)
       case pattern
-      when "demand_without_asset"
+      when "demand_without_asset", "demand_without_supply", "asset_missing"
         demand_actions(asset)
       when "high_impression_low_ctr"
         ctr_actions(asset)
-      when "rank_11_20_gap"
+      when "rank_11_20_gap", "near_win_position"
         rank_gap_actions(asset)
-      when "traffic_without_conversion"
+      when "traffic_without_conversion", "high_traffic_low_conversion", "funnel_drop"
         conversion_actions(asset)
-      when "asset_without_traffic"
+      when "asset_without_traffic", "weak_existing_asset", "engagement_signal"
         asset_traffic_actions(asset)
+      when "supply_gap"
+        supply_gap_actions(asset)
+      when "verification_gap"
+        verification_gap_actions(asset)
       when "activity_gap"
         activity_gap_actions(asset)
       when "data_quality_gap"
@@ -268,6 +275,39 @@ module Aicoo
       else
         []
       end
+    end
+
+    def supply_gap_actions(asset)
+      case asset.asset_type
+      when "listings"
+        [ {
+          strategy_type: "supply_addition",
+          task: "#{plain_target}に関連する掲載データを20件追加する",
+          goal: "需要に対して不足している供給資産を増やす",
+          target_type: "listing_data",
+          execution_mode: "data_operation",
+          steps: %w[対象条件決定 データ収集 重複確認 登録 ActionResult登録],
+          required_resources: {}
+        } ]
+      when "articles", "area_pages", "category_pages"
+        demand_actions(asset)
+      else
+        []
+      end
+    end
+
+    def verification_gap_actions(asset)
+      return [] unless %w[listings owner_tasks].include?(asset.asset_type)
+
+      [ {
+        strategy_type: "quality_verification",
+        task: "#{plain_target}に関連する未確認データを15件確認する",
+        goal: "品質確認済み資産を増やしてCV意図の強い流入に応える",
+        target_type: "quality_asset",
+        execution_mode: "manual_operation",
+        steps: %w[対象一覧取得 情報確認 更新 ActionResult登録],
+        required_resources: {}
+      } ]
     end
 
     def ctr_actions(asset)
@@ -357,13 +397,22 @@ module Aicoo
     def asset_traffic_actions(asset)
       return [] unless %w[internal_links articles landing_pages comparison_pages area_pages category_pages].include?(asset.asset_type)
 
-      [ content_action(
-        strategy_type: "internal_link_addition",
-        task: "#{target_label}への流入導線を3件追加する",
-        goal: "作成済み資産に初回流入を作る",
-        target_type: "asset",
-        steps: %w[対象資産確認 リンク元選定 内部リンク追加 公開 クリック確認メモ作成]
-      ) ]
+      [
+        content_action(
+          strategy_type: "internal_link_addition",
+          task: "#{target_label}への内部リンクを3件追加する",
+          goal: "作成済み資産に流入と回遊を作る",
+          target_type: "asset",
+          steps: %w[対象資産確認 リンク元選定 内部リンク追加 公開 クリック確認メモ作成]
+        ),
+        content_action(
+          strategy_type: "intro_improvement",
+          task: "#{target_label}の冒頭に結論と関連導線を1件追加する",
+          goal: "流入後すぐに次の行動理由を提示する",
+          target_type: "asset",
+          steps: %w[対象資産確認 冒頭改善 関連導線追加 公開]
+        )
+      ]
     end
 
     def activity_gap_actions(asset)
@@ -530,6 +579,27 @@ module Aicoo
       else
         "code_revision"
       end
+    end
+
+    ABSTRACT_PATTERNS = [
+      /要具体化/,
+      /検索需要があるテーマ/,
+      /CVを改善/,
+      /CV改善\z/,
+      /SEO改善\z/,
+      /SEOを改善/,
+      /UXを改善/,
+      /CTAを改善/,
+      /デザインを改善/,
+      /サイト改善/,
+      /導線改善/,
+      /TODOを具体化/,
+      /記事を増やす/,
+      /Analyzer/i
+    ].freeze
+
+    def concrete_task_allowed?(text)
+      Aicoo::UniversalAnalysisEngine::ConcreteTodoBuilder.call(summary: text).valid?
     end
 
     def asset_label(asset)

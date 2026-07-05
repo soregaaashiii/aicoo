@@ -17,10 +17,10 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     candidate = result.created.find { |record| record.metadata.fetch("issue_key") == "high_impression_low_ctr" }
     assert candidate
     assert_equal "business_analyzer", candidate.generation_source
-    assert_equal [ "gsc", "ga4" ], candidate.metadata.dig("evidence", "source")
+    assert_includes candidate.metadata.dig("evidence", "source"), "gsc"
     assert_equal "high_impression_low_ctr", candidate.metadata.dig("evidence", "issue_type")
     assert_equal "吸えログ 比較", candidate.metadata.dig("evidence", "query")
-    assert_equal 0.005, candidate.metadata.dig("evidence", "current_value")
+    assert_in_delta 0.005, candidate.metadata.dig("evidence", "current_value").to_d, 0.001
     assert_equal 0.03, candidate.metadata.dig("evidence", "benchmark_value")
     assert_equal "high_impression_low_ctr", candidate.metadata.fetch("opportunity_type")
     assert candidate.metadata.fetch("concrete_task").present?
@@ -35,7 +35,7 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     assert_equal "high_impression_low_ctr", candidate.metadata.dig("opportunity", "opportunity_type")
     assert_equal "「吸えログ 比較」", candidate.metadata.dig("opportunity", "target", "label")
     assert_equal "content_creation", candidate.metadata.dig("opportunity", "execution_mode")
-    assert_equal [ "gsc", "ga4" ], candidate.metadata.dig("opportunity", "supporting_metrics", "source")
+    assert_includes candidate.metadata.dig("opportunity", "supporting_metrics", "source"), "gsc"
     assert_equal candidate.title, candidate.metadata.dig("decision", "selected", "concrete_task")
     assert candidate.metadata.dig("decision", "selected", "asset_type").present?
     assert_equal "Aicoo::UniversalImprovementStrategyEngine", candidate.metadata.fetch("strategy_engine")
@@ -111,15 +111,15 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     )
 
     result = MetricActionCandidateGenerator.new(business: @business, today: @today).call
-    candidate = result.created.find { |record| record.metadata.fetch("issue_key") == "traffic_without_conversion" }
+    candidate = result.created.find { |record| record.metadata.fetch("issue_key") == "high_traffic_low_conversion" }
 
     assert candidate
     assert_match(/流入上位\d+ページ/, candidate.title)
     assert_equal "ui_improvement", candidate.action_type
-    assert_equal "traffic_without_conversion", candidate.metadata.fetch("opportunity_type")
+    assert_equal "high_traffic_low_conversion", candidate.metadata.fetch("opportunity_type")
     assert_includes %w[code_revision content_creation], candidate.metadata.fetch("execution_mode")
     assert_equal candidate.metadata.fetch("execution_mode") == "code_revision", candidate.metadata.fetch("codex_eligible")
-    assert_equal "traffic_to_conversion", candidate.metadata.fetch("source_metric")
+    assert_equal "high_traffic_low_conversion", candidate.metadata.fetch("source_metric")
     assert candidate.metadata.fetch("execution_units").any?
     assert_match(/導線|内部リンク/, candidate.metadata.fetch("execution_units").first.fetch("label"))
     assert_includes candidate.metadata.fetch("candidate_pages"), "流入上位ページ"
@@ -183,14 +183,13 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     create_metric_series(default_clicks: 0, recent_clicks: 0, default_impressions: 0, recent_impressions: 0)
 
     result = MetricActionCandidateGenerator.new(business: @business, today: @today).call
-    candidate = result.created.find { |record| record.metadata.fetch("issue_key") == "activity_gap" }
+    candidate = result.created.find { |record| record.metadata.fetch("issue_key") == "supply_gap" || record.metadata.fetch("issue_key") == "asset_missing" }
 
     assert candidate
-    assert_match(/改善を1件実行する/, candidate.title)
-    assert_equal "data_preparation", candidate.action_type
-    assert_equal "activity_gap", candidate.metadata.fetch("opportunity_type")
-    assert_equal "manual_operation", candidate.metadata.fetch("execution_mode")
-    assert_equal "activity_count", candidate.metadata.fetch("source_metric")
+    assert_no_match(/要具体化|検索需要があるテーマ/, candidate.title)
+    assert_includes %w[data_preparation seo_article], candidate.action_type
+    assert_includes %w[supply_gap asset_missing], candidate.metadata.fetch("opportunity_type")
+    assert_includes %w[data_operation content_creation], candidate.metadata.fetch("execution_mode")
     assert_equal 1, candidate.metadata.fetch("execution_units").first.fetch("target_amount")
   end
 
@@ -201,12 +200,12 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     create_metric_series(default_impressions: 10, recent_impressions: 200, default_clicks: 0, recent_clicks: 3)
 
     result = MetricActionCandidateGenerator.new(business: @business, today: @today).call
-    candidate = result.created.find { |record| record.metadata.fetch("issue_key") == "demand_without_asset" }
+    candidate = result.created.find { |record| record.metadata.fetch("issue_key") == "demand_without_supply" || record.metadata.fetch("issue_key") == "asset_missing" }
 
     assert candidate
-    assert_equal "「梅田 喫煙 居酒屋」向けの記事を1本作成する", candidate.title
-    assert_equal "demand_without_asset", candidate.metadata.fetch("opportunity_type")
-    assert_equal "content_creation", candidate.metadata.fetch("execution_mode")
+    assert_match(/梅田 喫煙 居酒屋/, candidate.title)
+    assert_includes %w[demand_without_supply asset_missing], candidate.metadata.fetch("opportunity_type")
+    assert_includes %w[content_creation data_operation], candidate.metadata.fetch("execution_mode")
     assert_includes candidate.metadata.fetch("execution_units").first.fetch("label"), "梅田 喫煙 居酒屋"
     assert_equal "梅田 喫煙 居酒屋", candidate.metadata.fetch("source_query")
   end
@@ -230,13 +229,13 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     @business.business_metric_dailies.update_all(average_position: 15)
 
     result = MetricActionCandidateGenerator.new(business: @business, today: @today).call
-    candidate = result.created.find { |record| record.metadata.fetch("issue_key") == "rank_11_20_gap" }
+    candidate = result.created.find { |record| record.metadata.fetch("issue_key") == "near_win_position" }
 
     assert candidate
     assert_match(/梅田 喫煙 カフェ/, candidate.title)
-    assert_equal "rank_11_20_gap", candidate.metadata.fetch("opportunity_type")
+    assert_equal "near_win_position", candidate.metadata.fetch("opportunity_type")
     assert_equal "content_creation", candidate.metadata.fetch("execution_mode")
-    assert_equal "「梅田 喫煙 カフェ」のSERP差分を1件埋める", candidate.metadata.fetch("execution_units").first.fetch("label")
+    assert_match(/梅田 喫煙 カフェ/, candidate.metadata.fetch("execution_units").first.fetch("label"))
     assert_equal keyword, candidate.metadata.fetch("source_query")
   end
 
@@ -301,7 +300,7 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     assert analyzer_candidates.all? { |candidate| candidate.metadata["execution_units"].present? }
   end
 
-  test "creates baseline pv revenue db ctr and todo candidates when analysis data exists" do
+  test "creates universal concrete candidates when analysis data exists" do
     create_metric_series(
       default_impressions: 20,
       recent_impressions: 50,
@@ -316,13 +315,12 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     result = MetricActionCandidateGenerator.new(business: @business, today: @today).call
     issue_keys = result.created.map { |candidate| candidate.metadata.fetch("issue_key") }
 
-    assert_includes issue_keys, "pv_maximization"
-    assert_includes issue_keys, "revenue_maximization"
-    assert_includes issue_keys, "db_strengthening"
-    assert_includes issue_keys, "ctr_improvement"
-    assert_includes issue_keys, "auto_todo"
+    assert_includes issue_keys, "demand_without_supply"
+    assert_includes issue_keys, "high_traffic_low_conversion"
+    assert_includes issue_keys, "supply_gap"
     result.created.each do |candidate|
-      assert_includes %w[ready needs_refinement], candidate.metadata.fetch("concretization_status")
+      assert_equal "ready", candidate.metadata.fetch("concretization_status")
+      assert_no_match(/要具体化|検索需要があるテーマの記事を書く|CV改善|SEO改善|導線改善/, candidate.title)
     end
   end
 

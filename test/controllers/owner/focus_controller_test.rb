@@ -67,7 +67,7 @@ module Owner
       assert_not_includes today_section, "href=\"#{business_path(candidate.business)}\""
     end
 
-    test "shows incomplete analyzer result as needs refinement instead of hiding it" do
+    test "hides incomplete analyzer result from Today" do
       incomplete = ActionCandidate.create!(
         business: businesses(:suelog),
         title: "検索需要があるテーマの記事を1本追加する",
@@ -99,8 +99,9 @@ module Owner
 
       assert_response :success
       assert_includes response.body, concrete.title
-      assert_includes response.body, "要具体化: #{incomplete.title}"
-      assert_select "a[href='#{action_workspace_path(incomplete)}']", text: "詳細を見る"
+      assert_not_includes response.body, incomplete.title
+      assert_select "a[href='#{action_workspace_path(incomplete)}']", text: "詳細を見る", count: 0
+      assert_equal "abstract_concrete_task", incomplete.reload.metadata.fetch("today_exclusion_reason")
     end
 
     test "does not show dashboard in sidebar" do
@@ -120,7 +121,7 @@ module Owner
       assert_not_includes response.body, ">Action Candidates<"
     end
 
-    test "creates fallback Today item for data backed business with no visible candidate" do
+    test "does not create fallback Today item for data backed business with no visible candidate" do
       ActionCandidate.delete_all
       business = businesses(:suelog)
       business.business_metric_dailies.where(recorded_on: Date.current).delete_all
@@ -132,16 +133,13 @@ module Owner
         pageviews: 35
       )
 
-      assert_difference("ActionCandidate.where(business: business, generation_source: 'business_analyzer').count", 1) do
+      assert_no_difference("ActionCandidate.where(business: business, generation_source: 'business_analyzer').count") do
         get owner_focus_url
       end
 
       assert_response :success
-      assert_includes response.body, business.name
-      assert_includes response.body, "#{business.name}の分析データから次のTODOを1件具体化する"
-      fallback = business.action_candidates.order(:created_at).last
-      assert_equal true, fallback.metadata.fetch("today_fallback")
-      assert_equal "needs_refinement", fallback.metadata.fetch("concretization_status")
+      assert_not_includes response.body, "要具体化"
+      assert_not_includes response.body, "#{business.name}の分析データから次のTODOを1件具体化する"
     end
 
     test "stores exclusion reason when candidate is not eligible for Today" do

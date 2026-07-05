@@ -12,20 +12,22 @@ module Aicoo
       end
 
       def issues
-        [
+        universal_issues.presence || [
           data_quality_gap_issue,
           demand_without_asset_issue,
           high_impression_low_ctr_issue,
           rank_11_20_gap_issue,
           traffic_without_conversion_issue,
           asset_without_traffic_issue,
-          activity_gap_issue,
-          pv_maximization_issue,
-          revenue_maximization_issue,
-          db_strengthening_issue,
-          ctr_improvement_todo_issue,
-          auto_todo_issue
+          activity_gap_issue
         ].compact
+      end
+
+      def universal_issues
+        @universal_issues ||= begin
+          signals = Aicoo::UniversalAnalysisEngine::UniversalSignalExtractor.call(business:, today:)
+          Aicoo::UniversalAnalysisEngine::OpportunityPatternDetector.call(business:, signals:, today:)
+        end
       end
 
       def data_quality_gap_issue
@@ -595,10 +597,19 @@ module Aicoo
       def evidence_sources_for(pattern)
         {
           "demand_without_asset" => %w[gsc serp business_db],
+          "demand_without_supply" => %w[gsc serp business_db],
           "high_impression_low_ctr" => %w[gsc ga4],
           "rank_11_20_gap" => %w[gsc serp],
+          "near_win_position" => %w[gsc serp],
           "traffic_without_conversion" => %w[ga4 business_db],
+          "high_traffic_low_conversion" => %w[ga4 business_db],
+          "funnel_drop" => %w[ga4 business_db],
           "asset_without_traffic" => %w[ga4 activity_log],
+          "asset_missing" => %w[gsc serp business_db],
+          "weak_existing_asset" => %w[gsc ga4 activity_log],
+          "supply_gap" => %w[gsc business_db],
+          "verification_gap" => %w[business_db activity_log],
+          "engagement_signal" => %w[ga4 activity_log],
           "activity_gap" => %w[activity_log],
           "data_quality_gap" => %w[business_db]
         }.fetch(pattern, %w[business_db])

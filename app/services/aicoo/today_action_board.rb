@@ -17,6 +17,8 @@ module Aicoo
       /デザインを改善/,
       /サイト改善/,
       /導線改善/,
+      /TODOを具体化/,
+      /要具体化/,
       /記事を増やす/,
       /Analyzer/i
     ].freeze
@@ -89,7 +91,7 @@ module Aicoo
         .limit(1_000)
         .filter_map { |candidate| build_item(candidate) }
 
-      items + fallback_items_for_data_backed_businesses(items)
+      items
     end
 
     def build_item(candidate)
@@ -107,6 +109,25 @@ module Aicoo
       expected_value_yen = candidate.expected_profit_yen.to_i
       expected_hours = positive_decimal(candidate.expected_hours)
       success_probability = candidate.success_probability.to_d
+      concrete_task = concrete_task_for(candidate, presenter, action_plan)
+      target = target_for(presenter, action_plan)
+      owner_next_step = owner_next_step_for(presenter, action_plan, approval_task)
+
+      if concrete_task.blank?
+        mark_today_exclusion!(candidate, "missing_concrete_task")
+        return
+      end
+
+      if target.blank?
+        mark_today_exclusion!(candidate, "missing_target")
+        return
+      end
+
+      if owner_next_step.blank?
+        mark_today_exclusion!(candidate, "missing_owner_next_step")
+        return
+      end
+
       revenue_score = expected_hours.positive? ? (expected_value_yen.to_d / expected_hours * success_probability) : 0.to_d
       learning_score = learning_score_for(candidate)
       balanced_score = (revenue_score * 0.6) + (learning_score * 0.4)
@@ -118,8 +139,8 @@ module Aicoo
         source_type: approval_task ? "auto_revision_task" : "action_candidate",
         record: approval_task || candidate,
         business_name: candidate.business&.name.to_s,
-        concrete_task: concrete_task_for(candidate, presenter, action_plan),
-        target: target_for(presenter, action_plan),
+        concrete_task:,
+        target:,
         expected_value_yen:,
         expected_hours: expected_hours.to_f,
         expected_hourly_value_yen: expected_hours.positive? ? (expected_value_yen.to_d / expected_hours).round.to_i : 0,
@@ -128,7 +149,7 @@ module Aicoo
         execution_mode_label: presenter.execution_mode_label,
         approval_required: approval_task.present?,
         codex_target: execution_mode == "code_revision",
-        owner_next_step: owner_next_step_for(presenter, action_plan, approval_task),
+        owner_next_step:,
         detail_url: action_workspace_path(candidate),
         reason: presenter.reason,
         stopped_reason: stopped_reason_for(approval_task),
@@ -142,6 +163,9 @@ module Aicoo
     def today_exclusion_reason(candidate, execution_mode, approval_task)
       return "inactive_business" if candidate.business.blank? || candidate.business.resource_status == "archived"
       return "no_score" unless minimum_fields_present?(candidate, execution_mode)
+      return "fallback_action" if candidate.metadata.to_h["today_fallback"]
+      return "needs_refinement" if candidate.metadata.to_h["concretization_status"] == "needs_refinement"
+      return "abstract_concrete_task" unless concrete_text_allowed?(candidate)
 
       owner_work = OWNER_EXECUTION_MODES.include?(execution_mode)
       approval_waiting_code_revision = execution_mode == "code_revision" && approval_task.present?
@@ -165,8 +189,8 @@ module Aicoo
         candidate.metadata.to_h.dig("decision", "selected", "concrete_task").presence ||
         candidate.title.presence
 
-      return "要具体化" if text.blank?
-      return "要具体化: #{text}" if ABSTRACT_PATTERNS.any? { |pattern| text.match?(pattern) }
+      return nil if text.blank?
+      return nil if ABSTRACT_PATTERNS.any? { |pattern| text.match?(pattern) }
 
       text
     end
@@ -178,8 +202,8 @@ module Aicoo
         presenter.action_plan["target_url_or_identifier"].presence ||
         presenter.target_label.presence
 
-      return "要具体化" if target.to_s.strip.blank?
-      return "要具体化" if UNSPECIFIED_VALUES.include?(target.to_s.downcase) || target.to_s.include?("未特定")
+      return nil if target.to_s.strip.blank?
+      return nil if UNSPECIFIED_VALUES.include?(target.to_s.downcase) || target.to_s.include?("未特定")
 
       target
     end
@@ -190,8 +214,20 @@ module Aicoo
       Array(action_plan["execution_steps"]).compact_blank.first.presence ||
         action_plan["owner_next_step"].presence ||
         Array(action_plan["execution_units"]).compact_blank.first.to_h["label"].presence ||
-        presenter.execution_units.first.to_h["label"].presence ||
-        "要具体化: 対象と作業単位を確認する"
+        presenter.execution_units.first.to_h["label"].presence
+    end
+
+    def concrete_text_allowed?(candidate)
+      metadata = candidate.metadata.to_h
+      values = [
+        metadata.dig("action_plan", "summary"),
+        metadata["concrete_task"],
+        metadata.dig("decision", "selected", "concrete_task"),
+        candidate.title
+      ].compact_blank
+      return false if values.empty?
+
+      values.none? { |value| ABSTRACT_PATTERNS.any? { |pattern| value.to_s.match?(pattern) } }
     end
 
     def approval_required_task(candidate)
@@ -221,16 +257,6 @@ module Aicoo
       end
     end
 
-    def fallback_items_for_data_backed_businesses(items)
-      visible_business_ids = items.map { |item| item.record.business_id }.compact.to_set
-      today_visible_businesses.filter_map do |business|
-        next if visible_business_ids.include?(business.id)
-        next unless analysis_data_available_for?(business)
-
-        build_item(today_fallback_candidate_for(business))
-      end
-    end
-
     def include_missing_data_backed_businesses(items, ranked_items)
       ranked_business_ids = ranked_items.map { |item| item.record.business_id }.compact.to_set
       missing_items = items
@@ -240,65 +266,6 @@ module Aicoo
         .map { |business_items| business_items.max_by(&:score) }
 
       (ranked_items + missing_items).uniq { |item| "#{item.source_type}:#{item.record.id}" }
-    end
-
-    def today_fallback_candidate_for(business)
-      today_key = "today_fallback:#{Date.current.iso8601}"
-      existing = business.action_candidates
-        .active_for_ranking
-        .where(generation_source: "business_analyzer")
-        .where("evaluation_reason LIKE ?", "#{today_key}%")
-        .order(updated_at: :desc)
-        .first
-      return existing if existing
-
-      title = "#{business.name}の分析データから次のTODOを1件具体化する"
-      business.action_candidates.create!(
-        title:,
-        description: "GSC/GA4/DBデータがあるため、Today 0件を防ぐための汎用TODOです。",
-        action_type: "data_preparation",
-        generation_source: "business_analyzer",
-        status: "idea",
-        immediate_value_yen: 8_000,
-        expected_hours: 0.5,
-        success_probability: 0.5,
-        strategic_value_score: 35,
-        risk_reduction_score: 30,
-        confidence_score: 25,
-        data_confidence_score: 30,
-        evaluation_reason: "#{today_key}\nGSC/GA4/DB/SERP/Activityのいずれかにデータがあるため、候補0件で止めずTodayへ表示します。",
-        metadata: {
-          "execution_mode" => "manual_operation",
-          "concretization_status" => "needs_refinement",
-          "concretization_warnings" => [ "today_fallback" ],
-          "today_fallback" => true,
-          "today_fallback_on" => Date.current.iso8601,
-          "concrete_task" => title,
-          "target" => "要具体化",
-          "action_plan" => {
-            "summary" => title,
-            "target" => "要具体化",
-            "owner_next_step" => "要具体化: 対象と作業単位を確認する",
-            "execution_steps" => [ "対象データを確認する", "今日実行できる作業単位へ具体化する", "ActionResultへ登録する" ],
-            "execution_units" => [
-              {
-                "label" => title,
-                "target_amount" => 1,
-                "estimated_minutes" => 30,
-                "reason" => "データがあるBusinessをToday 0件で止めないため"
-              }
-            ]
-          },
-          "execution_units" => [
-            {
-              "label" => title,
-              "target_amount" => 1,
-              "estimated_minutes" => 30,
-              "reason" => "データがあるBusinessをToday 0件で止めないため"
-            }
-          ]
-        }
-      )
     end
 
     def today_visible_businesses
