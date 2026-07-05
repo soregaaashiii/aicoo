@@ -50,6 +50,7 @@ class ActionCandidate < ApplicationRecord
   before_save :apply_execution_feasibility_correction
   before_save :calculate_scores
   after_commit :sync_serp_query_counters, on: %i[create update]
+  after_commit :run_auto_revision_autopilot, on: %i[create update]
 
   validates :title, presence: true
   validates :action_type, inclusion: { in: ACTION_TYPES }, allow_blank: true
@@ -372,5 +373,11 @@ class ActionCandidate < ApplicationRecord
     )
   rescue StandardError => e
     Rails.logger.warn("[SERP] ActionCandidate##{id} serp query counter sync failed: #{e.class} #{e.message}")
+  end
+
+  def run_auto_revision_autopilot
+    Aicoo::AutoRevisionAutopilot.call(self, generated_by: "action_candidate_after_commit")
+  rescue StandardError => e
+    Rails.logger.warn("[ActionCandidate] auto revision autopilot failed candidate_id=#{id}: #{e.class}: #{e.message}")
   end
 end

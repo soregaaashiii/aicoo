@@ -10,7 +10,7 @@ module Aicoo
       errors = []
       warnings = []
 
-      errors << "Google接続が未設定です" unless google_connected?
+      warnings << "Google接続が未設定です。分析精度は下がりますが、Codex改修は継続します。" unless google_connected?
       errors << "Execution Profileが未設定です" unless execution_profile_configured?
       errors << "前回の自動改訂が失敗しています" if previous_failure?
       warnings << "Git cleanは実行時確認が必要です"

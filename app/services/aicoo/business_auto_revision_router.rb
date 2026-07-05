@@ -46,7 +46,7 @@ module Aicoo
 
       precheck = Aicoo::AutoRevisionPrecheck.new(business).call
       unless precheck.ok
-        task.update!(status: "waiting_approval")
+        task.update!(status: "failed", error_message: precheck.errors.join(" / "))
         log = create_log!(
           task:,
           risk_level:,
@@ -59,19 +59,45 @@ module Aicoo
       end
 
       task.approve! unless task.status == "ready_for_codex"
-      task.mark_sent_to_codex!
+      dispatch = Aicoo::AutoRevisionCodexIssueDispatcher.new.call(tasks: [ task ], limit: 1)
+      detail = dispatch.details.first.to_h
+
+      unless detail["status"].in?(%w[created already_created])
+        message = [
+          detail["reason"],
+          detail["message"],
+          Array(detail["reasons"]).join(" / ")
+        ].compact_blank.join(": ")
+        task.update!(status: "failed", error_message: message.presence || "GitHub Issue作成に失敗しました。")
+        log = create_log!(
+          task:,
+          risk_level:,
+          status: "failed",
+          message: task.error_message,
+          action: "github_issue_failed",
+          metadata: { "dispatch_detail" => detail, "precheck_warnings" => precheck.warnings }
+        )
+        return Result.new(task:, log:, action: "github_issue_failed")
+      end
+
       log = create_log!(
         task:,
         risk_level:,
         status: "sent_to_codex",
         started_at: Time.current,
-        message: "automatic: 低リスクのためCodex送信準備まで進めました。Deployは承認待ちです。",
+        message: "automatic: 低リスクのためGitHub Issue作成まで自動実行しました。Cloud Codex API連携は未実装のため、Issue上でCodex作業待ちです。",
         action: "sent_to_codex",
-        metadata: { "precheck_warnings" => precheck.warnings, "deploy_requires_approval" => true }
+        metadata: {
+          "precheck_warnings" => precheck.warnings,
+          "deploy_requires_approval" => true,
+          "github_issue_url" => detail["issue_url"],
+          "github_issue_number" => detail["issue_number"],
+          "cloud_codex_api_status" => "pending"
+        }
       )
       Result.new(task:, log:, action: "sent_to_codex")
     rescue ActiveRecord::RecordInvalid => e
-      task.update!(status: "waiting_approval") if task.persisted?
+      task.update!(status: "failed", error_message: e.record.errors.full_messages.to_sentence) if task.persisted?
       log = create_log!(
         task:,
         risk_level:,

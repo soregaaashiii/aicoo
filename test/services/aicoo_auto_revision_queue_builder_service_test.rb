@@ -3,9 +3,11 @@ require "test_helper"
 class AicooAutoRevisionQueueBuilderServiceTest < ActiveSupport::TestCase
   setup do
     AutoRevisionRunLog.delete_all
+    CodexSubmission.delete_all
     AutoRevisionTask.delete_all
     ActionCandidate.update_all(status: "done")
     Business.update_all(auto_revision_mode: "manual")
+    businesses(:suelog).business_execution_profile&.destroy!
   end
 
   test "manual mode creates draft proposal only" do
@@ -94,28 +96,37 @@ class AicooAutoRevisionQueueBuilderServiceTest < ActiveSupport::TestCase
     assert_equal 0, AutoRevisionTask.count
   end
 
-  test "automatic mode sends only low risk through precheck and stops on failed precheck" do
+  test "automatic mode fails with reason when execution profile is missing" do
     businesses(:suelog).update!(auto_revision_mode: "automatic")
     create_candidate(title: "SEOタイトル改善", execution_prompt: "SEOタイトルを改善してください。")
 
-    result = AicooAutoRevisionQueueBuilderService.new.call
+    assert_equal "failed", AutoRevisionTask.last.status
+    assert_equal "precheck_failed", AutoRevisionRunLog.last.status
+    assert_includes AutoRevisionRunLog.last.message, "Execution Profile"
+  end
 
-    assert_equal 1, result.created_count
-    assert_equal "waiting_approval", AutoRevisionTask.last.status
-    assert_equal "precheck_failed", result.logs.last.status
-    assert_includes result.logs.last.message, "Google接続"
+  test "automatic mode creates github issue for low risk candidate without owner action" do
+    businesses(:suelog).update!(auto_revision_mode: "automatic")
+    create_profile_without_candidate!
+
+    with_fake_github_issue_bridge do
+      create_candidate(title: "SEOタイトル改善", execution_prompt: "SEOタイトルを改善してください。")
+      task = AutoRevisionTask.last
+      assert_equal "sent_to_codex", task.status
+      assert_equal "sent_to_codex", AutoRevisionRunLog.last.status
+      assert_equal "sent_to_codex", AutoRevisionRunLog.last.metadata["action"]
+      assert_equal "https://github.com/example/suelog/issues/#{task.id}", task.codex_submission.github_issue_url
+      assert_includes AutoRevisionRunLog.last.message, "GitHub Issue作成まで自動実行"
+    end
   end
 
   test "automatic mode keeps medium risk waiting for approval" do
     businesses(:suelog).update!(auto_revision_mode: "automatic")
     create_candidate(title: "管理画面の集計を改善する", execution_prompt: "serviceとviewを改修してください。")
 
-    result = AicooAutoRevisionQueueBuilderService.new(allow_medium_risk: false).call
-
-    assert_equal 1, result.created_count
     assert_equal "waiting_approval", AutoRevisionTask.last.status
-    assert_equal "queued_for_approval", result.logs.last.status
-    assert_equal "approval_required_due_to_risk", result.logs.last.metadata["action"]
+    assert_equal "queued_for_approval", AutoRevisionRunLog.last.status
+    assert_equal "approval_required_due_to_risk", AutoRevisionRunLog.last.metadata["action"]
   end
 
   private
@@ -131,5 +142,55 @@ class AicooAutoRevisionQueueBuilderServiceTest < ActiveSupport::TestCase
       expected_hours: 1,
       execution_prompt:
     )
+  end
+
+  def create_profile_without_candidate!
+    businesses(:suelog).create_business_execution_profile!(
+      repository_name: "suelog",
+      repository_type: "rails",
+      repository_path: "/apps/suelog",
+      github_repository: "https://github.com/example/suelog",
+      test_command: "bin/rails test",
+      lint_command: "bin/rails zeitwerk:check",
+      deploy_command: "bin/deploy",
+      require_manual_approval: false,
+      codex_enabled: true,
+      codex_workspace_name: "AICOO",
+      codex_project_folder: "/workspace/suelog",
+      codex_repository_url: "https://github.com/example/suelog",
+      codex_base_branch: "main",
+      codex_working_branch_prefix: "aicoo/",
+      codex_auto_submit_enabled: true,
+      codex_risk_limit: "low"
+    )
+  end
+
+  def with_fake_github_issue_bridge
+    original_new = Aicoo::CodexGithubIssueBridge.method(:new)
+    Aicoo::CodexGithubIssueBridge.define_singleton_method(:new) do |submission|
+      fake_bridge = Object.new
+      fake_bridge.define_singleton_method(:call) do
+        issue_url = "https://github.com/example/suelog/issues/#{submission.auto_revision_task_id}"
+        submission.mark_submitted!(
+          payload: {
+            "github_issue_url" => issue_url,
+            "github_issue_number" => submission.auto_revision_task_id,
+            "codex_handoff_mode" => "github_issue"
+          }
+        )
+        Aicoo::CodexGithubIssueBridge::Result.new(
+          created: true,
+          issue_url:,
+          issue_number: submission.auto_revision_task_id,
+          message: "GitHub Issueを作成しました。",
+          payload: submission.response_payload
+        )
+      end
+      fake_bridge
+    end
+
+    yield
+  ensure
+    Aicoo::CodexGithubIssueBridge.define_singleton_method(:new) { |*args| original_new.call(*args) } if original_new
   end
 end

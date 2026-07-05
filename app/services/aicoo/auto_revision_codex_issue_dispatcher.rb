@@ -51,7 +51,7 @@ module Aicoo
     end
 
     def dispatch_task(task)
-      return detail_for(task, "skipped", "github_issue_already_created", issue_url: task.codex_submission.github_issue_url) if task.codex_submission&.github_issue_url.present?
+      return detail_for(task, "already_created", "github_issue_already_created", issue_url: task.codex_submission.github_issue_url) if task.codex_submission&.github_issue_url.present?
 
       submission_result = Aicoo::CodexSubmissionBuilder.new(task).call
       if submission_result.reasons.any? || !submission_result.submission

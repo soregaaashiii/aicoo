@@ -47,7 +47,7 @@ class AutoRevisionTask < ApplicationRecord
   after_commit :prepare_codex_submission, on: :create
 
   def self.from_action_candidate(action_candidate, generated_by: "owner")
-    active.find_by(action_candidate:) ||
+    where.not(status: "canceled").find_by(action_candidate:) ||
       create!(
         action_candidate:,
         business: action_candidate.business,

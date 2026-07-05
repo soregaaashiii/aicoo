@@ -3,6 +3,10 @@ require "test_helper"
 module Aicoo
   module Owner
     class AutoRevisionLoopBoardTest < ActiveSupport::TestCase
+      setup do
+        Business.update_all(auto_revision_mode: "manual")
+      end
+
       test "returns current state and next action for waiting approval task" do
         task = AutoRevisionTask.create!(
           action_candidate: action_candidates(:nagazakicho_article),

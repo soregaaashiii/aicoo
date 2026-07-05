@@ -40,6 +40,7 @@ module Aicoo
       end
 
       def call
+        Aicoo::AutoRevisionAutopilot.sweep(limit:)
         rows = (task_rows + candidate_rows)
           .uniq(&:key)
           .sort_by { |row| [ -row.priority_score.to_d, row.updated_at || Time.zone.at(0) ] }
@@ -105,6 +106,7 @@ module Aicoo
       end
 
       def row_for_candidate(candidate)
+        automatic = candidate.business&.automatic_auto_revision?
         Row.new(
           key: "action_candidate:#{candidate.id}",
           record: candidate,
@@ -115,15 +117,15 @@ module Aicoo
           expected_profit_yen: candidate.expected_profit_yen.to_i,
           expected_hourly_value_yen: candidate.expected_hourly_value_yen.to_i,
           priority_score: candidate.final_score.to_d,
-          current_state: "改修タスク化待ち",
+          current_state: automatic ? "自動改修処理待ち" : "改修タスク化待ち",
           progress_percent: 10,
           progress_label: "Candidate",
-          stuck_reason: "AutoRevisionTask未作成",
+          stuck_reason: automatic ? "自動改修ONです。次回表示またはDaily Runで自動処理します。" : "AutoRevisionTask未作成",
           bucket: :active,
-          next_action_label: "自動改修タスク化",
-          next_action_path: Rails.application.routes.url_helpers.create_task_owner_auto_revision_loop_candidate_path(candidate),
-          next_action_method: :post,
-          next_action_reason: "改善案はありますが、AutoRevisionTaskがまだありません。",
+          next_action_label: automatic ? "自動処理を待つ" : "改修開始",
+          next_action_path: automatic ? nil : Rails.application.routes.url_helpers.create_task_owner_auto_revision_loop_candidate_path(candidate),
+          next_action_method: automatic ? nil : :post,
+          next_action_reason: automatic ? "自動改修ONのBusinessなので、Owner操作なしでGitHub Issue作成まで進みます。" : "自動改修OFFのBusinessなので、Ownerが改修開始を押すまで進めません。",
           updated_at: candidate.updated_at,
           detail: detail_for_candidate(candidate)
         )
@@ -133,7 +135,7 @@ module Aicoo
         submission = task.codex_submission
         return "失敗" if submission&.workflow_status == "failed"
         return "PR作成済み" if submission&.pr_url.present?
-        return "Codex実行済み" if submission&.workflow_status == "codex_executed"
+        return "Codex作業待ち" if submission&.workflow_status == "codex_executed"
 
         case task.status
         when "draft", "waiting_approval" then "Codex準備前"
@@ -200,7 +202,7 @@ module Aicoo
         case state_for_task(task)
         when "Codex準備前" then "Codex Prompt準備待ち"
         when "Codex送信待ち" then "Codex用プロンプト未コピー"
-        when "Codex実行済み" then "GitHub Issue作成済み。PR URL登録待ち"
+        when "Codex作業待ち" then "GitHub Issue作成済み。Cloud Codex APIは未実装のためPR待ち"
         when "PR作成済み" then "PR確認または実装結果登録待ち"
         when "Codex作業待ち" then "Codex送信済み。実装開始記録待ち"
         when "Codex作業中" then task.auto_revision_executions.recent.first&.pull_request_url.present? ? "実装結果登録待ち" : "PR URL未登録"

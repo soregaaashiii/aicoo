@@ -131,6 +131,14 @@ class Business < ApplicationRecord
     auto_revision_mode == "automatic"
   end
 
+  def auto_revision_enabled?
+    automatic_auto_revision?
+  end
+
+  def auto_revision_enabled
+    auto_revision_enabled?
+  end
+
   def manual_auto_deploy?
     auto_deploy_mode == "manual"
   end
