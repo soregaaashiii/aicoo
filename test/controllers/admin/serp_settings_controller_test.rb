@@ -2,27 +2,24 @@ require "test_helper"
 
 module Admin
   class SerpSettingsControllerTest < ActionDispatch::IntegrationTest
-    test "shows serp settings and test search form" do
+    test "shows minimal serp new business discovery screen" do
       get admin_serp_settings_url
 
       assert_response :success
-      assert_includes response.body, "SERP設定"
-      assert_includes response.body, "新規事業候補"
-      assert_includes response.body, "SERP Summary"
-      assert_includes response.body, "全体設定"
+      assert_includes response.body, "SERP新規事業探索"
+      assert_includes response.body, "設定"
+      assert_includes response.body, "SERP走査"
+      assert_includes response.body, "今回の走査結果"
+      assert_includes response.body, "事業化した一覧"
       assert_includes response.body, "Provider"
-      assert_includes response.body, "SERP Optional Mode"
-      assert_includes response.body, "SERP依存step"
-      assert_includes response.body, "SERPなしで実行可能なstep"
-      assert_includes response.body, "serp_fetch"
-      assert_includes response.body, "action_candidate_generation"
-      assert_includes response.body, "Business設定"
-      assert_includes response.body, "検索クエリ管理"
-      assert_includes response.body, "実行状況"
-      assert_includes response.body, "市場分析結果"
-      assert_includes response.body, "Run履歴の確認は"
-      assert_includes response.body, "テスト検索"
-      assert_includes response.body, "SERP Adapterでテスト検索"
+      assert_includes response.body, "API Key"
+      assert_includes response.body, "検索件数"
+      assert_includes response.body, "対象Business"
+      assert_not_includes response.body, "SERP Optional Mode"
+      assert_not_includes response.body, "SERP依存step"
+      assert_not_includes response.body, "検索クエリ管理"
+      assert_not_includes response.body, "市場分析結果"
+      assert_not_includes response.body, "テスト検索"
       assert_not_includes response.body, "SERP Run履歴"
     end
 
@@ -49,11 +46,11 @@ module Admin
 
       assert_response :success
       assert_includes response.body, candidate.title
-      assert_includes response.body, "LP検証へ進める"
-      assert_includes response.body, "警備 AI"
+      assert_includes response.body, "事業化した一覧"
+      assert_includes response.body, "Businessを見る"
     end
 
-    test "shows saved serp analyses and latest error" do
+    test "does not show saved serp analysis details on minimal screen" do
       business = businesses(:suelog)
       success = business.serp_analyses.create!(
         keyword: "梅田 喫煙 カフェ",
@@ -79,12 +76,12 @@ module Admin
       get admin_serp_settings_url
 
       assert_response :success
-      assert_includes response.body, "市場分析結果"
-      assert_includes response.body, "保存済み分析"
-      assert_includes response.body, "保存済み結果"
-      assert_includes response.body, "梅田 喫煙 カフェ"
-      assert_includes response.body, "難波 喫煙 カフェ"
-      assert_includes response.body, "Rate limit"
+      assert_includes response.body, "SERP新規事業探索"
+      assert_not_includes response.body, "保存済み分析"
+      assert_not_includes response.body, "保存済み結果"
+      assert_not_includes response.body, "梅田 喫煙 カフェ"
+      assert_not_includes response.body, "難波 喫煙 カフェ"
+      assert_not_includes response.body, "Rate limit"
     end
 
     test "adds manual keywords without replacing existing keywords" do
@@ -311,11 +308,11 @@ module Admin
         post business_scan_admin_serp_settings_url(business)
       end
 
-      assert_redirected_to admin_serp_run_url(SerpRun.last)
+      assert_redirected_to admin_serp_settings_url(serp_run_id: SerpRun.last.id, business_id: business.id)
       assert_equal "吸えログのSERP取得が完了しました。1検索クエリ", flash[:notice]
     end
 
-    test "test search uses adapter and displays normalized result" do
+    test "test search runs adapter but minimal screen does not show raw result" do
       result = Aicoo::Serp::SearchResult.new(
         provider: "serper",
         type: "google_search",
@@ -355,8 +352,8 @@ module Admin
 
       assert_response :success
       assert_includes response.body, "SERPテスト検索が完了しました"
-      assert_includes response.body, "大阪の喫煙カフェ"
-      assert_includes response.body, "Provider非依存の共通形式"
+      assert_not_includes response.body, "大阪の喫煙カフェ"
+      assert_not_includes response.body, "Provider非依存の共通形式"
     end
 
     test "test search displays adapter error" do

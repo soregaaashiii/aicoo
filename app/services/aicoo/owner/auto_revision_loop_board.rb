@@ -136,6 +136,7 @@ module Aicoo
         return "失敗" if submission&.workflow_status == "failed"
         return "PR作成済み" if submission&.pr_url.present?
         return "Codex作業待ち" if submission&.workflow_status == "codex_executed"
+        return "Owner判断待ち" if task.owner_approval_required?
 
         case task.status
         when "draft", "waiting_approval" then "Codex準備前"
@@ -150,6 +151,8 @@ module Aicoo
 
       def next_action_for_task(task)
         routes = Rails.application.routes.url_helpers
+        return action("判断する", routes.approve_owner_auto_revision_loop_task_path(task), :patch, task.approval_required_reason) if task.owner_approval_required?
+
         case task.status
         when "draft", "waiting_approval"
           action("Codex Prompt準備", routes.approve_owner_auto_revision_loop_task_path(task), :patch, "旧形式の待機タスクをCodex用プロンプト確認へ進めます。")
@@ -186,6 +189,7 @@ module Aicoo
 
       def progress_for_task(task)
         case state_for_task(task)
+        when "Owner判断待ち" then { percent: 15, label: "Owner" }
         when "Codex準備前" then { percent: 20, label: "Prompt" }
         when "Codex送信待ち" then { percent: 40, label: "Prompt" }
         when "Codex作業待ち" then { percent: 55, label: "Codex" }
@@ -200,6 +204,7 @@ module Aicoo
 
       def stuck_reason_for_task(task)
         case state_for_task(task)
+        when "Owner判断待ち" then task.approval_required_reason
         when "Codex準備前" then "Codex Prompt準備待ち"
         when "Codex送信待ち" then "Codex用プロンプト未コピー"
         when "Codex作業待ち" then "GitHub Issue作成済み。Cloud Codex APIは未実装のためPR待ち"

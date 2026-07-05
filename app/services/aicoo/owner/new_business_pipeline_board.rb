@@ -79,7 +79,8 @@ module Aicoo
             action_types: NEW_BUSINESS_ACTION_TYPES,
             sources: %w[serp integrated_decision ai_business ai_cross_business]
           )
-          .where.not(status: %w[archived done])
+          .where.not(status: %w[archived rejected])
+          .where("status <> 'done' OR metadata -> 'auto_new_business_publication' ->> 'completed' = 'true'")
           .order(Arel.sql("final_score DESC NULLS LAST, expected_hourly_value_yen DESC NULLS LAST, expected_profit_yen DESC NULLS LAST, updated_at DESC"))
       end
 
@@ -122,6 +123,10 @@ module Aicoo
 
       def business_for(candidate)
         promotion = candidate.metadata.to_h["business_promotion"].to_h
+        publication = candidate.metadata.to_h["auto_new_business_publication"].to_h
+        publication_business = Business.find_by(id: publication["business_id"])
+        return publication_business if publication["completed"] && publication_business
+
         metadata_business = Business.find_by(id: promotion["business_id"])
         return metadata_business if promotion["promoted"] && metadata_business
         return candidate.business if candidate.status == "approved" && promotion["promoted"]

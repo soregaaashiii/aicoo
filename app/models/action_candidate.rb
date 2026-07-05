@@ -50,6 +50,7 @@ class ActionCandidate < ApplicationRecord
   before_save :apply_execution_feasibility_correction
   before_save :calculate_scores
   after_commit :sync_serp_query_counters, on: %i[create update]
+  after_commit :auto_publish_new_business_candidate, on: %i[create update]
   after_commit :run_auto_revision_autopilot, on: %i[create update]
 
   validates :title, presence: true
@@ -387,5 +388,15 @@ class ActionCandidate < ApplicationRecord
     Aicoo::AutoRevisionAutopilot.call(self, generated_by: "action_candidate_after_commit")
   rescue StandardError => e
     Rails.logger.warn("[ActionCandidate] auto revision autopilot failed candidate_id=#{id}: #{e.class}: #{e.message}")
+  end
+
+  def auto_publish_new_business_candidate
+    return unless Aicoo::ActionCandidateBusinessPromoter.new_business_candidate?(self)
+    return if status.in?(%w[rejected archived done])
+    return if metadata.to_h.dig("auto_new_business_publication", "completed")
+
+    Aicoo::Serp::AutoNewBusinessPublisher.call(candidates: [ self ], source: "action_candidate_auto_publish")
+  rescue StandardError => e
+    Rails.logger.warn("[ActionCandidate] auto new business publish skipped action_candidate_id=#{id}: #{e.class}: #{e.message}")
   end
 end

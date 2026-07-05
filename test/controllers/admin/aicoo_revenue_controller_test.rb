@@ -2,286 +2,202 @@ require "test_helper"
 
 module Admin
   class AicooRevenueControllerTest < ActionDispatch::IntegrationTest
-    test "shows revenue dashboard" do
-      create_candidate(title: "Dashboard revenue candidate")
-
-      get admin_aicoo_revenue_url
-
-      assert_response :success
-      assert_includes response.body, "今日やるべきこと"
-      assert_includes response.body, "今日使える時間と予算を入力すると"
-      assert_includes response.body, "今日使える時間"
-      assert_includes response.body, "収益優先度ランキング"
-      assert_includes response.body, "期待時給ランキング"
-      assert_includes response.body, "投資効率ランキング"
-      assert_includes response.body, "今日の結論"
-      assert_includes response.body, "この画面でやること"
-      assert_includes response.body, "Labとの違い"
-      assert_includes response.body, "実行予定にする"
-      assert_includes response.body, "aicoo-sub-tabs"
-      assert_includes response.body, "実行予定"
-      assert_includes response.body, "実行済み"
-      assert_includes response.body, "採点済み"
-      assert_includes response.body, "操作盤"
-      assert_includes response.body, "Dashboard revenue candidate"
-      assert_includes response.body, "攻め: 実行したら増える期待利益"
-      assert_includes response.body, "新規事業は学習量を最大化します"
-      assert_includes response.body, "詳細ランキングを見る"
-      assert_includes response.body, "合計期待価値"
-      assert_includes response.body, "放置アラート"
-    end
-
-    test "shows candidates and experiments" do
-      create_candidate(title: "Controller revenue candidate")
-      create_experiment(title: "Controller revenue experiment")
-      create_action_candidate(title: "Controller revenue action")
-
-      get admin_aicoo_revenue_url
-
-      assert_response :success
-      assert_includes response.body, "Controller revenue candidate"
-      assert_includes response.body, "Controller revenue experiment"
-      assert_includes response.body, "Controller revenue action"
-      assert_includes response.body, "candidate"
-      assert_includes response.body, "experiment"
-      assert_includes response.body, "行動候補"
-    end
-
-    test "filters by minutes and budget params" do
-      create_candidate(title: "Visible revenue row", estimated_work_minutes: 60, budget_yen: 0)
-      create_candidate(title: "Hidden by time row", estimated_work_minutes: 240, budget_yen: 0)
-      create_candidate(title: "Hidden by budget row", estimated_work_minutes: 60, budget_yen: 1_000)
-
-      get admin_aicoo_revenue_url, params: { available_minutes: 120, available_budget_yen: 500 }
-
-      assert_response :success
-      assert_includes response.body, "Visible revenue row"
-      assert_not_includes response.body, "Hidden by time row"
-      assert_not_includes response.body, "Hidden by budget row"
-    end
-
-    test "shows free cost for zero budget roi" do
-      create_candidate(title: "Zero budget revenue", budget_yen: 0)
-
-      get admin_aicoo_revenue_url
-
-      assert_response :success
-      assert_includes response.body, "Zero budget revenue"
-      assert_includes response.body, "費用なし"
-    end
-
-    test "filters by source" do
-      create_candidate(title: "Source lab candidate")
-      create_experiment(title: "Source lab experiment")
-      create_action_candidate(title: "Source action candidate")
-
-      get admin_aicoo_revenue_url, params: { source: "action_candidate" }
-
-      assert_response :success
-      assert_includes response.body, "Source action candidate"
-      assert_not_includes response.body, "Source lab candidate"
-      assert_not_includes response.body, "Source lab experiment"
-    end
-
-    test "today conclusion shows top candidate within constraints" do
-      create_candidate(
-        title: "Inbox top revenue action",
-        expected_90d_profit_yen: 100_000,
-        success_probability: 0.5,
-        neglect_loss_90d_yen: 20_000,
-        estimated_work_minutes: 60,
-        budget_yen: 0
-      )
-      create_candidate(
-        title: "Inbox hidden by budget",
-        expected_90d_profit_yen: 500_000,
-        success_probability: 0.9,
-        estimated_work_minutes: 60,
-        budget_yen: 10_000
+    test "shows Today as ranked action list with three modes" do
+      candidate = create_today_candidate(
+        title: "梅田の未確認店舗を30件確認済みにする",
+        execution_mode: "manual_operation",
+        immediate_value_yen: 20_000,
+        success_probability: 0.8,
+        expected_hours: 1.5
       )
 
-      get admin_aicoo_revenue_url, params: { available_minutes: 120, available_budget_yen: 0 }
-
-      assert_response :success
-      assert_includes response.body, "今日の結論"
-      assert_includes response.body, "今日はこの順番で実行してください"
-      assert_includes response.body, "Inbox top revenue action"
-      assert_not_includes response.body, "Inbox hidden by budget"
-      assert_includes response.body, "合計期待価値"
-      assert_includes response.body, "収益優先度"
-      assert_includes response.body, "開く"
-    end
-
-    test "detail rankings are collapsed and keep revenue order" do
-      create_candidate(title: "Revenue rank 1", expected_90d_profit_yen: 120_000, success_probability: 0.5, neglect_loss_90d_yen: 10_000)
-      create_candidate(title: "Revenue rank 2", expected_90d_profit_yen: 90_000, success_probability: 0.5, neglect_loss_90d_yen: 5_000)
-      create_candidate(title: "Revenue rank 3", expected_90d_profit_yen: 60_000, success_probability: 0.5, neglect_loss_90d_yen: 4_000)
-
       get admin_aicoo_revenue_url
 
       assert_response :success
-      assert_includes response.body, "<summary>詳細ランキングを見る</summary>"
-      ranking_section = response.body.match(/<h2>収益優先度ランキング<\/h2>.*?<h2>期待時給ランキング<\/h2>/m)[0]
-
-      assert_operator ranking_section.index("Revenue rank 1"), :<, ranking_section.index("Revenue rank 2")
-      assert_operator ranking_section.index("Revenue rank 2"), :<, ranking_section.index("Revenue rank 3")
-      assert_includes ranking_section, "攻め利益"
-      assert_includes ranking_section, "合計期待価値"
-      assert_includes ranking_section, "収益優先度"
+      assert_includes response.body, "Today"
+      assert_includes response.body, Aicoo::TodayActionBoard::DESCRIPTION
+      assert_includes response.body, "収益優先"
+      assert_includes response.body, "学習優先"
+      assert_includes response.body, "バランス"
+      assert_includes response.body, "今日処理するAction"
+      assert_includes response.body, "梅田の未確認店舗を30件確認済みにする"
+      assert_includes response.body, "手作業"
+      assert_includes response.body, action_workspace_path(candidate)
+      assert_not_includes response.body, "今日の結論"
+      assert_not_includes response.body, "今日使える時間"
+      assert_not_includes response.body, business_path(candidate.business)
     end
 
-    test "shows neglect alert panel and badges" do
-      candidate = create_candidate(
-        title: "Controller neglect alert",
-        neglect_loss_90d_yen: 15_000,
-        neglect_loss_reason: "放置による失注リスク"
+    test "does not show code revision that can run without owner approval" do
+      candidate = create_today_candidate(
+        title: "CTA表示文言を修正する",
+        execution_mode: "code_revision",
+        immediate_value_yen: 30_000,
+        success_probability: 0.8,
+        expected_hours: 1
       )
-      candidate.update_columns(updated_at: 20.days.ago)
-
-      get admin_aicoo_revenue_url
-
-      assert_response :success
-      assert_includes response.body, "放置損失が設定されていて、14日以上更新されていない候補です"
-      assert_includes response.body, "Controller neglect alert"
-      assert_includes response.body, "放置注意"
-      assert_includes response.body, "20日"
-      assert_includes response.body, "放置による失注リスク"
-    end
-
-    test "shows manual estimated and adopted neglect loss values" do
-      action = create_action_candidate(title: "Controller estimated neglect", immediate_value_yen: 100_000, success_probability: 0.5)
-      create_gsc_snapshot(action.business, clicks: 100, impressions: 1_000, position: 2, captured_at: 2.days.ago)
-      create_gsc_snapshot(action.business, clicks: 40, impressions: 800, position: 7, captured_at: 1.day.ago)
-
-      get admin_aicoo_revenue_url
-
-      assert_response :success
-      assert_includes response.body, "Controller estimated neglect"
-      assert_includes response.body, "手入力放置損失"
-      assert_includes response.body, "自動推定放置損失"
-      assert_includes response.body, "採用値"
-      assert_includes response.body, "auto_generated"
-      assert_includes response.body, "実績データから自動推定した放置損失"
-    end
-
-
-    test "shows today optimal plan within constraints" do
-      create_candidate(title: "Plan controller first", expected_90d_profit_yen: 120_000, success_probability: 0.5, estimated_work_minutes: 60, budget_yen: 0)
-      create_candidate(title: "Plan controller second", expected_90d_profit_yen: 80_000, success_probability: 0.5, estimated_work_minutes: 60, budget_yen: 300)
-      create_candidate(title: "Plan controller hidden by budget", expected_90d_profit_yen: 500_000, success_probability: 0.9, estimated_work_minutes: 60, budget_yen: 1_000)
-
-      get admin_aicoo_revenue_url, params: { available_minutes: 120, available_budget_yen: 300 }
-
-      assert_response :success
-      conclusion_section = response.body.match(/<h2>今日の結論<\/h2>.*?<strong>この画面でやること<\/strong>/m)[0]
-
-      assert_includes response.body, "今日はこの順番で実行してください"
-      assert_includes conclusion_section, "合計必要時間"
-      assert_includes conclusion_section, "合計期待価値"
-      assert_includes conclusion_section, "放置損失回避額"
-      assert_includes conclusion_section, "Plan controller first"
-      assert_includes conclusion_section, "Plan controller second"
-      assert_not_includes conclusion_section, "Plan controller hidden by budget"
-      assert_includes response.body, "収益優先度ランキング"
-    end
-
-    test "shows planned badge when revenue row is already planned" do
-      candidate = create_candidate(title: "Already planned revenue row")
-      AicooRevenueExecution.create!(
-        source_type: "candidate",
-        source_id: candidate.id,
+      AutoRevisionTask.create!(
+        action_candidate: candidate,
+        business: candidate.business,
         title: candidate.title,
-        expected_90d_profit_yen: candidate.expected_90d_profit_yen,
-        success_probability: candidate.success_probability,
-        revenue_total_value_yen: 12_500,
-        estimated_work_minutes: candidate.estimated_work_minutes,
-        budget_yen: candidate.budget_yen,
-        revenue_score: 10,
-        status: "planned"
+        status: "ready_for_codex",
+        risk_level: "low",
+        priority_score: 10
       )
 
       get admin_aicoo_revenue_url
 
       assert_response :success
-      assert_includes response.body, "Already planned revenue row"
-      assert_includes response.body, "実行予定済み"
+      assert_not_includes response.body, "CTA表示文言を修正する"
     end
 
-    test "shows empty optimal plan message" do
-      create_candidate(title: "Plan impossible", estimated_work_minutes: 60, budget_yen: 100)
+    test "shows code revision only when auto revision is waiting for owner judgment" do
+      candidate = create_today_candidate(
+        title: "認証まわりの改修を確認する",
+        execution_mode: "code_revision",
+        immediate_value_yen: 40_000,
+        success_probability: 0.5,
+        expected_hours: 2
+      )
+      AutoRevisionTask.create!(
+        action_candidate: candidate,
+        business: candidate.business,
+        title: candidate.title,
+        status: "waiting_approval",
+        risk_level: "high",
+        priority_score: 10
+      )
 
-      get admin_aicoo_revenue_url, params: { available_minutes: 30, available_budget_yen: 0 }
+      get admin_aicoo_revenue_url
 
       assert_response :success
-      assert_includes response.body, "今日の条件で実行できる候補はありません"
-      assert_includes response.body, "収益優先度ランキング"
+      assert_includes response.body, "認証まわりの改修を確認する"
+      assert_includes response.body, "Codex改修"
+      assert_includes response.body, "必要"
+      assert_includes response.body, "はい"
+      assert_includes response.body, "高リスク改修のためOwner判断が必要です。"
+      assert_includes response.body, action_workspace_path(candidate)
+    end
+
+    test "does not show unspecified target or missing execution units" do
+      create_today_candidate(
+        title: "対象未特定の作業",
+        execution_mode: "manual_operation",
+        target: "未特定",
+        execution_units: [ { "label" => "対象を確認する", "estimated_minutes" => 10 } ]
+      )
+      create_today_candidate(
+        title: "実行単位なしの作業",
+        execution_mode: "data_operation",
+        execution_units: []
+      )
+
+      get admin_aicoo_revenue_url
+
+      assert_response :success
+      assert_not_includes response.body, "対象未特定の作業"
+      assert_not_includes response.body, "実行単位なしの作業"
+    end
+
+    test "does not show abstract action" do
+      create_today_candidate(
+        title: "CVを改善する",
+        concrete_task: "CVを改善する",
+        execution_mode: "manual_operation"
+      )
+
+      get admin_aicoo_revenue_url
+
+      assert_response :success
+      assert_not_includes response.body, "CVを改善する"
+    end
+
+    test "learning mode ranks by learning values" do
+      revenue_first = create_today_candidate(
+        title: "収益が高い作業",
+        execution_mode: "manual_operation",
+        immediate_value_yen: 80_000,
+        success_probability: 0.8,
+        expected_hours: 1,
+        metadata_overrides: { "learning_value" => 10 }
+      )
+      learning_first = create_today_candidate(
+        title: "学習価値が高い作業",
+        execution_mode: "content_creation",
+        immediate_value_yen: 5_000,
+        success_probability: 0.3,
+        expected_hours: 1,
+        metadata_overrides: { "learning_value" => 500_000, "uncertainty_reduction" => 100_000 }
+      )
+
+      get admin_aicoo_revenue_url, params: { mode: "learning" }
+
+      assert_response :success
+      body = response.body
+      assert_operator body.index("学習価値が高い作業"), :<, body.index("収益が高い作業")
+      assert_includes body, action_workspace_path(learning_first)
+      assert_includes body, action_workspace_path(revenue_first)
+    end
+
+    test "empty state does not show business dashboard content" do
+      get admin_aicoo_revenue_url
+
+      assert_response :success
+      assert_includes response.body, "Todayに表示するActionはありません"
+      assert_not_includes response.body, "Business概要"
+      assert_not_includes response.body, "詳細ランキングを見る"
     end
 
     private
 
-    def create_candidate(attributes = {})
-      AicooLabExperimentCandidate.create!(
+    def create_today_candidate(attributes = {})
+      business = Business.create!(name: attributes.delete(:business_name) || "Today Test Business")
+      execution_mode = attributes.delete(:execution_mode) || "manual_operation"
+      target = attributes.delete(:target) || "梅田エリア / 未確認店舗30件"
+      concrete_task = attributes.delete(:concrete_task) || attributes[:title] || "梅田の未確認店舗を30件確認済みにする"
+      execution_units = attributes.delete(:execution_units)
+      execution_units = [
         {
-          title: "Revenue candidate",
-          description: "Revenue candidate description",
-          experiment_type: "lp",
-          market_category: "revenue market",
-          acquisition_channel: "seo",
-          expected_90d_profit_yen: 50_000,
-          success_probability: 0.25,
-          budget_yen: 0,
-          estimated_work_minutes: 60,
-          rationale: "Revenue rationale"
-        }.merge(attributes)
-      )
-    end
+          "label" => concrete_task,
+          "area" => "梅田",
+          "target_amount" => 30,
+          "estimated_minutes" => 90,
+          "reason" => "確認済み率が低いため"
+        }
+      ] if execution_units.nil?
+      metadata_overrides = attributes.delete(:metadata_overrides) || {}
+      action_plan = {
+        "summary" => concrete_task,
+        "target" => target,
+        "execution_mode" => execution_mode,
+        "owner_next_step" => execution_units.first.to_h["label"].presence || "作業を開始する",
+        "execution_steps" => [ "対象一覧取得", "作業実行", "ActionResult登録" ],
+        "execution_units" => execution_units
+      }
 
-    def create_experiment(attributes = {})
-      AicooLabExperiment.create!(
-        {
-          title: "Revenue experiment",
-          description: "Revenue experiment description",
-          experiment_type: "lp",
-          market_category: "revenue market",
-          acquisition_channel: "seo",
-          expected_90d_profit_yen: 50_000,
-          success_probability: 0.25,
-          budget_yen: 0,
-          estimated_work_minutes: 60
-        }.merge(attributes)
-      )
-    end
-
-    def create_action_candidate(attributes = {})
-      business = Business.create!(name: "Controller revenue business")
       ActionCandidate.create!(
         {
           business:,
-          title: "Revenue action candidate",
-          action_type: "seo_article",
+          title: concrete_task,
+          action_type: "seo_improvement",
           status: "idea",
-          immediate_value_yen: 80_000,
-          success_probability: 0.25,
-          expected_hours: 1,
-          cost_yen: 0
+          generation_source: "business_analyzer",
+          immediate_value_yen: 20_000,
+          success_probability: 0.8,
+          expected_hours: 1.5,
+          cost_yen: 0,
+          metadata: {
+            "execution_mode" => execution_mode,
+            "action_plan" => action_plan,
+            "execution_units" => execution_units,
+            "evidence" => {
+              "source" => [ "gsc", "business_db" ],
+              "area" => "梅田",
+              "target_amount" => 30,
+              "reason" => "根拠データに基づく作業"
+            }
+          }.merge(metadata_overrides)
         }.merge(attributes)
-      )
-    end
-
-    def create_gsc_snapshot(business, clicks:, impressions:, position:, captured_at:)
-      AicooDataSnapshot.create!(
-        source_type: "gsc",
-        source_id: AicooDataSnapshot.maximum(:source_id).to_i + 1,
-        captured_at:,
-        payload: {
-          business_id: business.id,
-          metrics: {
-            clicks:,
-            impressions:,
-            ctr: clicks.to_d / impressions.to_d,
-            position:
-          }
-        }
       )
     end
   end

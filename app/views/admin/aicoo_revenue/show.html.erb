@@ -1,212 +1,76 @@
-<% content_for :title, "今日やるべきこと" %>
+<% content_for :title, "Today" %>
 
 <div class="aicoo-page">
   <%= render "shared/aicoo_header",
-             title: "今日やるべきこと",
-             description: "今日使える時間と予算を入力すると、収益優先度の高い行動セットを提案します。良いものを実行予定に追加してください。",
+             title: "Today",
+             description: @today_board.description,
              active_main: :revenue %>
   <%= render "shared/aicoo_execution_tabs", active: :today %>
 
-<%= form_with url: admin_aicoo_revenue_path, method: :get, class: "filters" do |form| %>
-  <div class="field compact-field">
-    <%= form.label :available_minutes, "今日使える時間（分）" %>
-    <%= form.number_field :available_minutes, value: @result.available_minutes, min: 0 %>
-  </div>
-  <div class="field compact-field">
-    <%= form.label :available_budget_yen, "今日使える予算（円）" %>
-    <%= form.number_field :available_budget_yen, value: @result.available_budget_yen, min: 0 %>
-  </div>
-  <div class="field compact-field">
-    <%= form.label :source, "対象" %>
-    <%= form.select :source, options_for_select([
-      [ "すべて", "all" ],
-      [ "事業アイデア", "candidate" ],
-      [ "新規事業検証", "experiment" ],
-      [ "行動候補", "action_candidate" ]
-    ], @result.source) %>
-  </div>
-  <%= form.submit "更新", class: "button" %>
-<% end %>
+  <nav class="aicoo-sub-tabs" aria-label="Today ranking mode">
+    <% @today_board.tabs.each do |tab| %>
+      <%= link_to tab.label,
+                  tab.path,
+                  class: "aicoo-sub-tab#{' active' if tab.active}",
+                  aria: (tab.active ? { current: "page" } : nil) %>
+    <% end %>
+  </nav>
 
-<section class="dashboard-section">
-  <article class="revenue-card revenue-summary-card">
+  <section class="dashboard-section">
     <div class="section-heading">
-      <h2>今日の結論</h2>
-      <p>今日やるべきことを開いたら、まずここだけ見れば大丈夫です。</p>
+      <h2>今日処理するAction</h2>
+      <p>自動改修の判断待ち、またはCodexでは実行できない作業だけを表示します。</p>
     </div>
 
-    <% if @revenue_plan.selected_rows.any? %>
-      <h3>今日はこの順番で実行してください</h3>
-      <ol class="revenue-action-list">
-        <% @revenue_plan.selected_rows.first(3).each do |row| %>
-          <li>
-            <%= link_to row.title, row.url %>
-            <small><%= aicoo_revenue_source_label(row.source) %></small>
-            <%= aicoo_revenue_neglect_alert_badge(row) %>
-          </li>
-        <% end %>
-      </ol>
-
-      <div class="metric-grid">
-        <div class="metric-card"><span>合計期待価値</span><strong><%= aicoo_revenue_yen(@revenue_plan.total_revenue_value_yen) %></strong></div>
-        <div class="metric-card"><span>合計必要時間</span><strong><%= @revenue_plan.total_minutes %>分</strong></div>
-        <div class="metric-card"><span>合計必要予算</span><strong><%= aicoo_revenue_yen(@revenue_plan.total_budget_yen) %></strong></div>
-        <div class="metric-card"><span>放置損失回避額</span><strong><%= aicoo_revenue_yen(@revenue_plan.total_neglect_loss_90d_yen) %></strong></div>
-      </div>
-
+    <% if @today_board.items.any? %>
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>やること</th>
-              <th>攻め利益</th>
-              <th>成功確率</th>
-              <th>手入力放置損失</th>
-              <th>自動推定放置損失</th>
-              <th>採用値</th>
-              <th>合計期待価値</th>
-              <th>必要時間</th>
-              <th>必要予算</th>
-              <th>収益優先度</th>
-              <th>操作</th>
+              <th>順位</th>
+              <th>Business名</th>
+              <th>具体的な作業名</th>
+              <th>期待利益</th>
+              <th>想定時間</th>
+              <th>期待時給</th>
+              <th>成功率</th>
+              <th>実行方法</th>
+              <th>承認が必要か</th>
+              <th>Codex対象か</th>
+              <th>詳細を見る</th>
             </tr>
           </thead>
           <tbody>
-            <% @revenue_plan.selected_rows.each do |row| %>
+            <% @today_board.items.each do |item| %>
               <tr>
+                <td class="number"><%= item.rank %></td>
+                <td><%= item.business_name.presence || "-" %></td>
                 <td>
-                  <%= link_to row.title, row.url %><br>
-                  <small class="revenue-source"><%= aicoo_revenue_source_label(row.source) %></small>
-                </td>
-                <td class="number"><%= aicoo_revenue_yen(row.expected_90d_profit_yen) %></td>
-                <td class="number"><%= number_to_percentage(row.success_probability.to_d * 100, precision: 1) %></td>
-                <td class="number"><%= aicoo_revenue_yen(row.manual_neglect_loss_90d_yen) %></td>
-                <td class="number">
-                  <%= aicoo_revenue_yen(row.estimated_neglect_loss_90d_yen) %>
-                  <% if row.neglect_loss_auto_generated %>
-                    <br><small>auto_generated</small>
+                  <strong><%= item.concrete_task %></strong><br>
+                  <small>対象: <%= item.target %></small><br>
+                  <small>次: <%= item.owner_next_step %></small>
+                  <% if item.stopped_reason.present? %>
+                    <br><small>停止理由: <%= item.stopped_reason %></small>
                   <% end %>
                 </td>
-                <td class="number"><%= aicoo_revenue_yen(row.neglect_loss_90d_yen) %></td>
-                <td class="number"><%= aicoo_revenue_yen(row.revenue_total_value_yen) %></td>
-                <td class="number"><%= row.estimated_work_minutes %>分</td>
-                <td class="number"><%= aicoo_revenue_yen(row.budget_yen) %></td>
-                <td class="number"><%= aicoo_revenue_score(row.revenue_score) %></td>
-                <td class="aicoo-lab-table-action">
-                  <%= aicoo_revenue_plan_button(row, @result) %>
-                  <%= link_to "開く", row.url, class: "button secondary" %>
-                </td>
+                <td class="number"><%= number_to_currency(item.expected_value_yen, unit: "¥", precision: 0) %></td>
+                <td class="number"><%= number_with_precision(item.expected_hours, precision: 1, strip_insignificant_zeros: true) %>時間</td>
+                <td class="number"><%= number_to_currency(item.expected_hourly_value_yen, unit: "¥", precision: 0) %></td>
+                <td class="number"><%= number_to_percentage(item.success_probability.to_d * 100, precision: 1) %></td>
+                <td><span class="pill"><%= item.execution_mode_label %></span></td>
+                <td><%= item.approval_required ? "必要" : "不要" %></td>
+                <td><%= item.codex_target ? "はい" : "いいえ" %></td>
+                <td><%= link_to "詳細を見る", item.detail_url, class: "button secondary" %></td>
               </tr>
             <% end %>
           </tbody>
         </table>
       </div>
     <% else %>
-      <h3>今日の条件で実行できる候補はありません</h3>
-      <p>時間・予算条件を広げるか、候補を追加してください。</p>
+      <div class="aicoo-lab-help">
+        <strong>Todayに表示するActionはありません</strong>
+        <p>承認待ちで止まっている自動改修、またはCodexでは実行できない具体作業だけがここに表示されます。</p>
+      </div>
     <% end %>
-
-    <div class="actions compact-actions">
-      <%= link_to "実行ログを見る", admin_aicoo_revenue_executions_path, class: "button secondary" %>
-    </div>
-  </article>
-</section>
-
-<section class="dashboard-section">
-  <a class="revenue-card revenue-alert-card" href="#revenue-neglect-alerts">
-    <div>
-      <strong>放置アラート <%= @neglect_alerts.size %>件</strong>
-      <p>推定損失 <%= aicoo_revenue_yen(@neglect_alerts.sum { |row| row.neglect_loss_90d_yen.to_i }) %></p>
-    </div>
-    <span>一覧へ</span>
-  </a>
-</section>
-
-<section class="dashboard-section">
-  <div class="aicoo-lab-help">
-    <strong>この画面でやること</strong>
-    <p>攻め: 実行したら増える期待利益 / 守り: 放置すると失う見込み利益 / 合計期待価値: 攻め + 守り / 収益優先度: 合計期待価値 ÷ 時間・費用コスト</p>
-    <p>放置損失は手入力値を優先します。手入力が0円の場合は、実績データから自動推定した放置損失を補助値として採用します。</p>
-    <strong>Labとの違い</strong>
-    <p>新規事業は学習量を最大化します。今日やるべきことは収益期待値を最大化します。同じデータを見ていますが、目的関数が違うため順位が変わります。</p>
-  </div>
-</section>
-
-<section class="dashboard-section" id="revenue-neglect-alerts">
-  <div class="section-heading">
-    <h2>放置アラート</h2>
-    <p>放置損失が設定されていて、14日以上更新されていない候補です。守りの優先行動として扱います。</p>
-  </div>
-
-  <% if @neglect_alerts.any? %>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>やること</th>
-            <th>状態</th>
-            <th>未更新日数</th>
-            <th>放置損失</th>
-            <th>自動推定</th>
-            <th>放置理由</th>
-            <th>収益優先度</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          <% @neglect_alerts.each do |row| %>
-            <tr>
-              <td>
-                <%= aicoo_revenue_neglect_alert_badge(row) %>
-                <%= link_to row.title, row.url %><br>
-                <small class="revenue-source"><%= aicoo_revenue_source_label(row.source) %></small>
-              </td>
-              <td><%= row.status %></td>
-              <td class="number"><%= row.neglected_days %>日</td>
-              <td class="number"><%= aicoo_revenue_yen(row.neglect_loss_90d_yen) %></td>
-              <td class="number"><%= aicoo_revenue_yen(row.estimated_neglect_loss_90d_yen) %></td>
-              <td><%= row.neglect_loss_reason.presence || row.neglect_alert_reason %></td>
-              <td class="number"><%= aicoo_revenue_score(row.revenue_score) %></td>
-              <td><%= link_to "開く", row.url, class: "button secondary" %></td>
-            </tr>
-          <% end %>
-        </tbody>
-      </table>
-    </div>
-  <% else %>
-    <div class="aicoo-lab-help">
-      <p>現在、放置アラート対象はありません。</p>
-    </div>
-  <% end %>
-</section>
-
-<section class="dashboard-section">
-  <details class="revenue-card">
-    <summary>詳細ランキングを見る</summary>
-
-    <section class="dashboard-section">
-      <div class="section-heading">
-        <h2>収益優先度ランキング</h2>
-        <p>合計期待価値を、時間コストと予算で割った収益効率順です。時給単価: <%= aicoo_revenue_yen(@result.hourly_cost_yen) %></p>
-      </div>
-      <%= render "ranking_table", rows: @result.revenue_rankings, score_column: :revenue_score %>
-    </section>
-
-    <section class="dashboard-section">
-      <div class="section-heading">
-        <h2>期待時給ランキング</h2>
-        <p>合計期待価値を作業時間で割ったランキングです。</p>
-      </div>
-      <%= render "ranking_table", rows: @result.hourly_rankings, score_column: :expected_hourly_profit %>
-    </section>
-
-    <section class="dashboard-section">
-      <div class="section-heading">
-        <h2>投資効率ランキング</h2>
-        <p>合計期待価値を予算で割ったランキングです。予算が0の場合は費用なしと表示します。</p>
-      </div>
-      <%= render "ranking_table", rows: @result.roi_rankings, score_column: :roi_score %>
-    </section>
-  </details>
-</section>
+  </section>
 </div>

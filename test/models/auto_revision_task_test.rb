@@ -21,7 +21,8 @@ class AutoRevisionTaskTest < ActiveSupport::TestCase
     assert_equal candidate.reload.final_score.to_d, task.priority_score
     assert_equal candidate.action_type, task.metadata["action_type"]
     assert_equal "low", task.risk_level
-    assert_equal "waiting_approval", task.status
+    assert_equal "ready_for_codex", task.status
+    assert_not task.owner_approval_required?
   end
 
   test "includes execution units in prompt from action candidate" do
@@ -126,7 +127,45 @@ class AutoRevisionTaskTest < ActiveSupport::TestCase
 
     assert_equal "high", task.risk_level
     assert_equal "waiting_approval", task.status
+    assert_match(/Owner判断が必要/, task.approval_required_reason)
     assert_nil task.approved_at
+  end
+
+  test "reasonless low risk waiting approval is auto released to codex ready" do
+    candidate = action_candidates(:nagazakicho_article)
+    candidate.update!(execution_prompt: "表示文言を改善してください。")
+
+    task = AutoRevisionTask.create!(
+      business: candidate.business,
+      action_candidate: candidate,
+      title: "理由なし低リスク改修",
+      execution_prompt: "表示文言を改善してください。",
+      status: "waiting_approval",
+      risk_level: "low",
+      priority_score: 10
+    )
+
+    assert_equal "ready_for_codex", task.status
+    assert_not task.owner_approval_required?
+    assert_includes task.metadata.dig("owner_approval", "auto_released_reason"), "承認が必要な理由がない"
+  end
+
+  test "waiting approval keeps explicit owner approval reason" do
+    candidate = action_candidates(:nagazakicho_article)
+    task = AutoRevisionTask.create!(
+      business: candidate.business,
+      action_candidate: candidate,
+      title: "予算を使う改修",
+      execution_prompt: "広告費を使う導線を追加してください。",
+      status: "waiting_approval",
+      risk_level: "medium",
+      priority_score: 10,
+      metadata: { "approval_required_reason" => "新しいお金を使うためOwner判断が必要です。" }
+    )
+
+    assert_equal "waiting_approval", task.status
+    assert task.owner_approval_required?
+    assert_equal "新しいお金を使うためOwner判断が必要です。", task.approval_required_reason
   end
 
   test "low risk can be approved" do

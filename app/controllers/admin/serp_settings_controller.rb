@@ -34,16 +34,27 @@ module Admin
     end
 
     def run_now
-      result = Aicoo::Serp::Scheduler.run!(executed_by: "manual", force: ActiveModel::Type::Boolean.new.cast(params[:force]))
+      result =
+        if params[:business_id].present?
+          serp_run = Aicoo::Serp::RunExecutor.new(
+            executed_by: "manual",
+            target_businesses: [ find_business ],
+            force: ActiveModel::Type::Boolean.new.cast(params[:force])
+          ).call
+          Aicoo::Serp::Scheduler::Result.new(serp_run.status, nil, serp_run)
+        else
+          Aicoo::Serp::Scheduler.run!(executed_by: "manual", force: ActiveModel::Type::Boolean.new.cast(params[:force]))
+        end
+
       if result.serp_run
-        redirect_to admin_serp_run_path(result.serp_run),
-                    notice: "SERP Runを実行しました。status=#{result.serp_run.status} query=#{result.serp_run.query_count}"
+        redirect_to admin_serp_settings_path(serp_run_id: result.serp_run.id, business_id: params[:business_id]),
+                    notice: "SERP走査が完了しました。取得 #{result.serp_run.query_count}件 / 新規事業候補 #{result.serp_run.candidate_count}件"
       else
-        redirect_to admin_serp_settings_path(anchor: "serp-execution"),
-                    alert: "SERP Runは実行されませんでした: #{result.reason}"
+        redirect_to admin_serp_settings_path,
+                    alert: "SERP走査は実行されませんでした: #{result.reason}"
       end
     rescue StandardError => e
-      redirect_to admin_serp_settings_path(anchor: "serp-execution"), alert: "SERP Runに失敗しました: #{e.message}"
+      redirect_to admin_serp_settings_path, alert: "SERP走査に失敗しました: #{e.message}"
     end
 
     def run_selected_business
@@ -53,8 +64,8 @@ module Admin
         target_businesses: [ business ],
         ignore_limit: ActiveModel::Type::Boolean.new.cast(params[:ignore_limit])
       ).call
-      redirect_to admin_serp_run_path(serp_run),
-                  notice: "#{business.name}のSERP Runを実行しました。query=#{serp_run.query_count}"
+      redirect_to admin_serp_settings_path(serp_run_id: serp_run.id, business_id: business.id),
+                  notice: "#{business.name}のSERP走査が完了しました。取得 #{serp_run.query_count}件"
     rescue StandardError => e
       redirect_to admin_serp_settings_path(business_id: params[:business_id], anchor: "serp-business-detail"),
                   alert: "選択中BusinessのSERP実行に失敗しました: #{e.message}"
@@ -65,8 +76,8 @@ module Admin
         executed_by: "manual",
         ignore_limit: ActiveModel::Type::Boolean.new.cast(params[:ignore_limit])
       ).call
-      redirect_to admin_serp_run_path(serp_run),
-                  notice: "全BusinessのSERP Runを実行しました。query=#{serp_run.query_count}"
+      redirect_to admin_serp_settings_path(serp_run_id: serp_run.id),
+                  notice: "全BusinessのSERP走査が完了しました。取得 #{serp_run.query_count}件"
     rescue StandardError => e
       redirect_to admin_serp_settings_path(anchor: "serp-execution"),
                   alert: "全BusinessのSERP実行に失敗しました: #{e.message}"
@@ -138,10 +149,10 @@ module Admin
       business = find_business
       serp_run = Aicoo::Serp::RunExecutor.new(executed_by: "manual", target_businesses: [ business ]).call
       if serp_run.failure_count.positive?
-        redirect_to admin_serp_run_path(serp_run),
+        redirect_to admin_serp_settings_path(serp_run_id: serp_run.id, business_id: business.id),
                     alert: "#{business.name}のSERP取得で失敗があります。成功 #{serp_run.success_count}件 / 失敗 #{serp_run.failure_count}件"
       else
-        redirect_to admin_serp_run_path(serp_run),
+        redirect_to admin_serp_settings_path(serp_run_id: serp_run.id, business_id: business.id),
                     notice: "#{business.name}のSERP取得が完了しました。#{serp_run.query_count}検索クエリ"
       end
     rescue StandardError => e
@@ -249,6 +260,7 @@ module Admin
       @new_business_candidate_board = Aicoo::NewBusinessCandidateBoard.call(limit: 5)
       @serp_scheduler_settings = Aicoo::Serp::Scheduler.settings
       @latest_serp_run = SerpRun.recent.first
+      @current_serp_run = SerpRun.find_by(id: params[:serp_run_id]) || @latest_serp_run
       @api_key_configured = @serp_optional_mode.api_key_configured
       @selected_period = params[:period].presence_in(%w[today yesterday seven_days]) || "today"
       @recent_serp_analyses = SerpAnalysis.includes(:business, :serp_results).order(analyzed_at: :desc, created_at: :desc).limit(30)
@@ -294,6 +306,33 @@ module Admin
         language: "ja",
         limit: 10
       }
+      @current_run_candidates = current_run_candidates
+      @serp_businessized_businesses = serp_businessized_businesses
+    end
+
+    def current_run_candidates
+      return ActionCandidate.none unless @current_serp_run
+
+      ActionCandidate
+        .includes(:business)
+        .where("metadata ->> 'serp_run_id' = ?", @current_serp_run.id.to_s)
+        .where(
+          "department = :department OR metadata ->> 'candidate_kind' = :kind OR action_type IN (:action_types)",
+          department: "new_business",
+          kind: "new_business",
+          action_types: Aicoo::ActionCandidateBusinessPromoter::NEW_BUSINESS_ACTION_TYPES
+        )
+        .order(Arel.sql("final_score DESC NULLS LAST, expected_hourly_value_yen DESC NULLS LAST, created_at DESC"))
+    end
+
+    def serp_businessized_businesses
+      Business
+        .real_businesses
+        .where("source = :source OR metadata ->> 'auto_serp_business' = :true_value OR metadata ->> 'generation_source' = :source",
+               source: "serp",
+               true_value: "true")
+        .order(created_at: :desc)
+        .limit(20)
     end
 
     def test_search_params

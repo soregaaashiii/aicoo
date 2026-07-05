@@ -24,16 +24,17 @@ class AicooAutoRevisionQueueBuilderServiceTest < ActiveSupport::TestCase
     assert_equal "manual_proposal", result.logs.last.metadata["action"]
   end
 
-  test "approval mode creates approval waiting task" do
+  test "approval mode auto releases task when owner judgment reason is absent" do
     businesses(:suelog).update!(auto_revision_mode: "approval")
     candidate = create_candidate(title: "SEOタイトルを改善する", execution_prompt: "SEOタイトルを改善してください。")
 
     result = AicooAutoRevisionQueueBuilderService.new.call
 
     assert_equal 1, result.created_count
-    assert_equal "waiting_approval", AutoRevisionTask.last.status
-    assert_equal "queued_for_approval", result.logs.last.status
-    assert_equal "approval_required", result.logs.last.metadata["action"]
+    assert_equal "ready_for_codex", AutoRevisionTask.last.status
+    assert_equal "pending", result.logs.last.status
+    assert_equal "auto_released_no_owner_approval_reason", result.logs.last.metadata["action"]
+    assert_not AutoRevisionTask.last.owner_approval_required?
   end
 
   test "excludes candidate without execution prompt" do
@@ -138,13 +139,14 @@ class AicooAutoRevisionQueueBuilderServiceTest < ActiveSupport::TestCase
     end
   end
 
-  test "automatic mode keeps medium risk waiting for approval" do
+  test "automatic mode keeps owner-only decision waiting with reason" do
     businesses(:suelog).update!(auto_revision_mode: "automatic")
-    create_candidate(title: "管理画面の集計を改善する", execution_prompt: "serviceとviewを改修してください。")
+    create_candidate(title: "広告費の予算を増やす", execution_prompt: "広告費の予算を増やしてください。")
 
     assert_equal "waiting_approval", AutoRevisionTask.last.status
     assert_equal "queued_for_approval", AutoRevisionRunLog.last.status
     assert_equal "approval_required_due_to_risk", AutoRevisionRunLog.last.metadata["action"]
+    assert_includes AutoRevisionTask.last.approval_required_reason, "お金"
   end
 
   private

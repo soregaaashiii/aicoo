@@ -44,6 +44,7 @@ class AutoRevisionTask < ApplicationRecord
 
   before_validation :set_defaults
   before_validation :copy_execution_profile_defaults
+  before_validation :normalize_owner_approval_gate
   after_commit :prepare_codex_submission, on: :create
 
   def self.from_action_candidate(action_candidate, generated_by: "owner")
@@ -202,6 +203,15 @@ class AutoRevisionTask < ApplicationRecord
 
   def high_risk?
     risk_level == "high"
+  end
+
+  def approval_required_reason
+    metadata.to_h["approval_required_reason"].presence ||
+      metadata.to_h.dig("owner_approval", "reason").presence
+  end
+
+  def owner_approval_required?
+    status.in?(%w[draft waiting_approval approved]) && approval_required_reason.present?
   end
 
   def codex_prompt
@@ -474,6 +484,84 @@ class AutoRevisionTask < ApplicationRecord
     self.priority_score = 0 if priority_score.blank?
     self.generated_by = "aicoo" if generated_by.blank?
     self.metadata = {} if metadata.blank?
+  end
+
+  def normalize_owner_approval_gate
+    return unless status.in?(%w[waiting_approval approved])
+
+    current_metadata = metadata.to_h
+    reason = current_metadata["approval_required_reason"].presence ||
+      current_metadata.dig("owner_approval", "reason").presence ||
+      inferred_owner_approval_reason
+
+    if reason.present?
+      self.metadata = current_metadata.merge(
+        "approval_required_reason" => reason,
+        "owner_approval" => current_metadata["owner_approval"].to_h.merge(
+          "required" => true,
+          "reason" => reason,
+          "reason_code" => owner_approval_reason_code(reason),
+          "recorded_at" => current_metadata.dig("owner_approval", "recorded_at").presence || Time.current.iso8601
+        )
+      )
+      return
+    end
+
+    self.status = "ready_for_codex"
+    self.approved_at ||= Time.current
+    self.metadata = current_metadata.merge(
+      "owner_approval" => current_metadata["owner_approval"].to_h.merge(
+        "required" => false,
+        "reason" => nil,
+        "auto_released_reason" => "承認が必要な理由がないため自動でCodex準備へ進めました。",
+        "auto_released_at" => Time.current.iso8601
+      )
+    )
+  end
+
+  def inferred_owner_approval_reason
+    text = owner_approval_signal_text
+
+    return "本番破壊的変更の可能性があるためOwner判断が必要です。" if text.match?(/db:drop|db:reset|drop database|destroy_all|delete_all|破壊/)
+    return "新しいお金または既存予算超過が発生する可能性があるためOwner判断が必要です。" if text.match?(/課金|広告費|予算|支払い|費用|cost|billing/)
+    return "法的リスクまたは規約リスクがあるためOwner判断が必要です。" if text.match?(/法務|法律|規約|legal|privacy|個人情報/)
+    return "ブランド変更を含む可能性があるためOwner判断が必要です。" if text.match?(/ブランド|brand|サービス名|ロゴ/)
+    return "サービス方針変更を含む可能性があるためOwner判断が必要です。" if text.match?(/方針|pivot|価格変更|料金変更|撤退|統合/)
+    return "高リスク改修のためOwner判断が必要です。" if high_risk?
+
+    nil
+  end
+
+  def owner_approval_signal_text
+    [
+      title,
+      changed_files,
+      metadata.to_h["evaluation_reason"],
+      metadata.to_h["action_type"],
+      action_candidate&.title,
+      action_candidate&.description,
+      action_candidate&.action_type,
+      action_candidate&.evaluation_reason
+    ].compact.join(" ").downcase
+  end
+
+  def owner_approval_reason_code(reason)
+    case reason
+    when /お金|予算|費用|課金/
+      "money_or_budget"
+    when /方針|価格|料金|撤退|統合/
+      "strategy_change"
+    when /破壊|db:drop|db:reset/
+      "destructive_production_change"
+    when /法的|法務|規約|個人情報/
+      "legal_risk"
+    when /ブランド|ロゴ/
+      "brand_change"
+    when /高リスク/
+      "high_risk"
+    else
+      "owner_only_decision"
+    end
   end
 
   def copy_execution_profile_defaults

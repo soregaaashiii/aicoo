@@ -212,7 +212,11 @@ module Aicoo
           )
           landing_page = Aicoo::Owner::NewBusinessLandingPageBuilder.new(record).call
           landing_page.publish! unless landing_page.publicly_visible?
-          record.update!(status: "approved", approved_at: Time.current, approved_by: operator)
+          record.update!(
+            status: "done",
+            approved_at: record.approved_at || Time.current,
+            approved_by: record.approved_by.presence || operator
+          )
         end
 
         return operation(

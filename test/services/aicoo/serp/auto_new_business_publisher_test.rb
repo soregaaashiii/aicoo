@@ -24,11 +24,19 @@ class Aicoo::Serp::AutoNewBusinessPublisherTest < ActiveSupport::TestCase
       }
     )
 
-    assert_difference -> { Business.real_businesses.count }, 1 do
-      assert_difference -> { AicooLabLandingPage.publicly_available.count }, 1 do
+    candidate.reload
+    assert_equal "done", candidate.status
+    assert_equal "請求前チェックリスト", candidate.business.name
+    assert candidate.business.launched?
+    assert_equal "lp_validation", candidate.business.lifecycle_stage
+    assert candidate.business.aicoo_lab_landing_pages.publicly_available.exists?
+    assert_equal true, candidate.metadata.dig("auto_new_business_publication", "completed")
+
+    assert_no_difference -> { Business.real_businesses.count } do
+      assert_no_difference -> { AicooLabLandingPage.publicly_available.count } do
         result = Aicoo::Serp::AutoNewBusinessPublisher.call(candidates: [ candidate ])
-        assert_equal 1, result.business_created_count
-        assert_equal 1, result.lp_published_count
+        assert_equal 0, result.business_created_count
+        assert_equal 0, result.lp_published_count
         assert_equal 0, result.failed_count
       end
     end

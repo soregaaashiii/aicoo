@@ -71,10 +71,10 @@ module Aicoo
         success_probability: 0.4
       )
 
-      assert_difference("Business.real_businesses.count", 1) do
+      assert_no_difference("Business.real_businesses.count") do
         result = ApprovalService.approve(candidate, operator: "owner", source: "test")
 
-        assert_match(/Businessを作成しました/, result.message)
+        assert_match(/既存Businessに紐付けました/, result.message)
       end
 
       business = Business.real_businesses.find_by!(name: "SERP承認済み復旧Business")
@@ -100,17 +100,17 @@ module Aicoo
         success_probability: 0.5
       )
 
-      assert_difference("Business.real_businesses.count", 1) do
+      assert_no_difference("Business.real_businesses.count") do
         assert_no_difference("AutoRevisionTask.count") do
           result = ApprovalService.approve(candidate, operator: "owner", source: "test")
 
           assert_equal "請求前チェックリスト", result.redirect_record.name
-          assert_match(/Businessを作成しました/, result.message)
+          assert_match(/既存Businessに紐付けました/, result.message)
         end
       end
 
       business = Business.real_businesses.find_by!(name: "請求前チェックリスト")
-      assert_equal "approved", candidate.reload.status
+      assert_equal "done", candidate.reload.status
       assert_equal business, candidate.business
       assert_equal "serp", business.source
       assert_equal "automatic", business.auto_revision_mode

@@ -360,6 +360,12 @@
         <div class="metric-card"><span>Codex準備前</span><strong><%= @auto_revision_execution_summary&.waiting_approval_count.to_i %>件</strong></div>
         <div class="metric-card"><span>PR待ち</span><strong><%= @auto_revision_execution_summary&.pr_review_waiting_count.to_i %>件</strong></div>
       </div>
+      <div class="metric-grid aicoo-owner-secondary">
+        <div class="metric-card"><span>Owner判断件数</span><strong><%= @approval_kpi_summary.owner_decision_count %>件</strong><small>理想: <%= @approval_kpi_summary.ideal_pending_approval_range %></small></div>
+        <div class="metric-card"><span>理由なし承認</span><strong><%= @approval_kpi_summary.reasonless_approval_count %>件</strong><small>理想: <%= @approval_kpi_summary.ideal_reasonless_approval_count %>件</small></div>
+        <div class="metric-card"><span>自動実行率</span><strong><%= @approval_kpi_summary.auto_execution_rate %>%</strong><small>理想: <%= @approval_kpi_summary.ideal_auto_execution_rate %></small></div>
+        <div class="metric-card"><span>承認待ち</span><strong><%= @approval_kpi_summary.pending_approval_count %>件</strong><small>理由があるものだけ</small></div>
+      </div>
       <div class="actions compact-actions">
         <%= link_to "Codex送信待ちを見る", admin_aicoo_executor_path(codex_filter: "waiting"), class: "button" %>
         <%= link_to "Codex手動送信一覧", admin_codex_submissions_path(status: "ready"), class: "button secondary" %>

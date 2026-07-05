@@ -119,7 +119,7 @@ module Aicoo
         end
 
         base = base.where.not(status: %w[rejected archived done])
-                   .where(generation_source: %w[serp integrated_decision])
+                   .where(generation_source: Aicoo::ActionCandidateBusinessPromoter::NEW_BUSINESS_SOURCES)
                    .where(
                      "department = :department OR metadata ->> 'candidate_kind' = :candidate_kind OR action_type IN (:action_types)",
                      department: "new_business",

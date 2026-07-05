@@ -136,7 +136,8 @@ module Owner
       assert_response :success
       assert_includes response.body, "新規事業候補"
       assert_includes response.body, candidate.title
-      assert_includes response.body, "LP検証へ進める"
+      assert_includes response.body, "事業/LP作成済み"
+      assert_includes response.body, "done"
       assert_operator response.body.index("<h2>今日おすすめの事業改善 TOP10</h2>"), :<, response.body.index("<h2>新規事業候補</h2>")
       assert_operator response.body.index("<h2>新規事業候補</h2>"), :<, response.body.index("<h2>Businessカード</h2>")
     end

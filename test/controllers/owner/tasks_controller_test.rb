@@ -31,7 +31,7 @@ module Owner
       assert_includes response.body, "優先度"
       assert_includes response.body, "種別"
       assert_includes response.body, "重要タスクがあります。今日中に確認してください。"
-      assert_includes response.body, "承認"
+      assert_includes response.body, "改修開始"
       assert_includes response.body, "却下"
       assert_includes response.body, "詳細を見る"
     end
@@ -53,7 +53,7 @@ module Owner
 
       assert_response :success
       assert_includes response.body, "seo_article"
-      assert_includes response.body, "評価式承認"
+      assert_includes response.body, "評価式反映"
     end
 
     test "shows daily run quick actions" do
@@ -147,7 +147,7 @@ module Owner
       get owner_tasks_url
 
       assert_response :success
-      assert_includes response.body, "今すぐ確認が必要なタスクはありません。承認・却下・再実行済みの内容は下の「直近処理済み」で確認できます。"
+      assert_includes response.body, "今すぐ確認が必要なタスクはありません。開始・却下・再実行済みの内容は下の「直近処理済み」で確認できます。"
     end
 
     private

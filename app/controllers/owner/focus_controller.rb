@@ -8,6 +8,7 @@ module Owner
         Aicoo::SystemStatusResolver.call(key)
       end
       @auto_revision_execution_summary = Aicoo::AutoRevisionExecutionSummary.new.call
+      @approval_kpi_summary = Aicoo::ApprovalKpiSummary.new.call
       @codex_submission_summary = Aicoo::CodexSubmissionSummary.new.call
       @auto_build_summary = Aicoo::ResourceAwareAutoBuildSummary.new.call
       @new_business_candidate_board = Aicoo::NewBusinessCandidateBoard.call(limit: 3)
