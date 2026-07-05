@@ -22,6 +22,11 @@ module Owner
     def create_task
       candidate = ActionCandidate.find(params.expect(:id))
       task = AutoRevisionTask.from_action_candidate(candidate, generated_by: "owner_auto_revision_loop")
+      unless task
+        redirect_to owner_auto_revision_loop_path(selected: "action_candidate:#{candidate.id}", anchor: "selected-task"),
+                    alert: "この候補は#{candidate.execution_mode}のためCodex改修タスクにはしません。Owner Homeで実行単位を確認してください。"
+        return
+      end
       redirect_to owner_auto_revision_loop_path(selected: "auto_revision_task:#{task.id}", anchor: "selected-task"),
                   notice: "自動改修タスクを作成しました。"
     rescue ActiveRecord::RecordInvalid => e

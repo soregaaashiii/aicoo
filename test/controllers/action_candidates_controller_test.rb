@@ -150,6 +150,7 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
       generation_source: "business_analyzer",
       metadata: @action_candidate.metadata.to_h.merge(
         "seo_action_type" => "improve_ctr_title",
+        "execution_mode" => "content_creation",
         "execution_units" => [
           {
             "label" => "梅田 喫煙 居酒屋 のSEOタイトル/metaを1件改善",
@@ -179,6 +180,7 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.body, "Analyzer根拠"
     assert_includes response.body, "CTRタイトル改善"
+    assert_includes response.body, "記事作成"
     assert_includes response.body, "今日やる単位"
     assert_includes response.body, "梅田 喫煙 居酒屋 のSEOタイトル/metaを1件改善"
     assert_includes response.body, "20分"
@@ -188,6 +190,20 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "3.0%"
     assert_includes response.body, "5件"
     assert_includes response.body, "+120クリック/月"
+    assert_not_includes response.body, "Codex用プロンプト生成"
+  end
+
+  test "does not generate codex prompt draft for non code revision candidate" do
+    @action_candidate.update_columns(
+      metadata: @action_candidate.metadata.to_h.merge("execution_mode" => "data_operation")
+    )
+
+    assert_no_difference("CodexPromptDraft.count") do
+      post generate_codex_prompt_draft_action_candidate_url(@action_candidate)
+    end
+
+    assert_redirected_to action_candidate_url(@action_candidate)
+    assert_includes flash[:alert], "Codex改修にはしません"
   end
 
   test "show links to existing codex prompt draft" do
@@ -313,6 +329,29 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
     assert_equal @action_candidate, ApprovalLog.last.approvable
     assert_equal "approve", ApprovalLog.last.action
     assert_equal "approved", ApprovalLog.last.common_new_status
+  end
+
+  test "approving non code candidate does not create auto revision task" do
+    @action_candidate.update!(
+      status: "idea",
+      title: "大阪エリアの掲載店舗を80件追加する"
+    )
+    @action_candidate.update_columns(
+      metadata: @action_candidate.metadata.to_h.merge(
+        "execution_mode" => "data_operation",
+        "seo_action_type" => "add_listings"
+      )
+    )
+
+    assert_no_difference("AutoRevisionTask.count") do
+      assert_difference("AicooExecutorTask.count", 1) do
+        patch approve_action_candidate_url(@action_candidate)
+      end
+    end
+
+    assert_redirected_to action_candidate_url(@action_candidate)
+    assert_equal "approved", @action_candidate.reload.status
+    assert_includes flash[:notice], "Codex改修タスクは作成しません"
   end
 
   test "approving new business candidate creates visible business and reassigns candidate" do

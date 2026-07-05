@@ -85,10 +85,12 @@
                 <td><%= item.source_label %></td>
                 <td class="actions compact-actions">
                   <%= link_to "詳細", item.detail_path, class: "button secondary" %>
-                  <% if item.codex_method == :post %>
-                    <%= button_to "Codex用プロンプト作成", item.codex_path, method: :post, class: "button secondary" %>
-                  <% else %>
-                    <%= link_to "Codex用プロンプト確認", item.codex_path, class: "button secondary" %>
+                  <% if item.codex_path.present? %>
+                    <% if item.codex_method == :post %>
+                      <%= button_to "Codex用プロンプト作成", item.codex_path, method: :post, class: "button secondary" %>
+                    <% else %>
+                      <%= link_to "Codex用プロンプト確認", item.codex_path, class: "button secondary" %>
+                    <% end %>
                   <% end %>
                   <%= button_to "後で", item.defer_path, method: :patch, class: "button secondary" %>
                 </td>

@@ -25,7 +25,12 @@ module AicooExecutor
           next
         end
 
-        tasks << AutoRevisionTask.from_action_candidate(action_candidate, generated_by: "approved_candidate_queuer")
+        task = AutoRevisionTask.from_action_candidate(action_candidate, generated_by: "approved_candidate_queuer")
+        if task
+          tasks << task
+        else
+          skipped_reasons["Codex対象外の実行方法"] += 1
+        end
       end
 
       Result.new(

@@ -98,6 +98,7 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     assert_match(/電話・地図・アフィリエイト導線を\d+ページに追加する/, candidate.title)
     assert_equal "ui_improvement", candidate.action_type
     assert_equal "add_shop_links", candidate.metadata.fetch("seo_action_type")
+    assert_equal "code_revision", candidate.metadata.fetch("execution_mode")
     assert_equal "phone_map_affiliate_clicks", candidate.metadata.fetch("source_metric")
     assert candidate.metadata.fetch("execution_units").any?
     assert_includes candidate.metadata.fetch("execution_units").first.fetch("label"), "店舗詳細ページ"
@@ -122,6 +123,7 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     assert_match(/内部リンクを\d+件追加する/, candidate.title)
     assert_equal "seo_improvement", candidate.action_type
     assert_equal "add_shop_links", candidate.metadata.fetch("seo_action_type")
+    assert_equal "code_revision", candidate.metadata.fetch("execution_mode")
     assert_match(/Views\/Session/, candidate.evaluation_reason)
   end
 
@@ -135,6 +137,7 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     assert_match(/エリアの掲載店舗を\d+件追加する/, candidate.title)
     assert_equal "data_preparation", candidate.action_type
     assert_equal "add_listings", candidate.metadata.fetch("seo_action_type")
+    assert_equal "data_operation", candidate.metadata.fetch("execution_mode")
     assert_equal "shop_activity", candidate.metadata.fetch("source_metric")
     assert_match(/エリアの掲載店舗を/, candidate.title)
     assert_match(/居酒屋を20件追加/, candidate.metadata.fetch("execution_units").first.fetch("label"))
@@ -153,6 +156,7 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     assert candidate
     assert_match(/記事を3本追加する/, candidate.title)
     assert_equal "create_area_article", candidate.metadata.fetch("seo_action_type")
+    assert_equal "content_creation", candidate.metadata.fetch("execution_mode")
     assert_equal "「梅田 喫煙 居酒屋」の記事を1本作成", candidate.metadata.fetch("execution_units").first.fetch("label")
     assert_equal %w[梅田\ 喫煙\ 居酒屋 難波\ 喫煙\ カフェ 大阪\ 喫煙可能\ 飲食店], candidate.metadata.fetch("candidate_keywords")
   end
@@ -179,6 +183,7 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     assert candidate
     assert_match(/梅田 喫煙 カフェ/, candidate.title)
     assert_equal "respond_to_serp_gap", candidate.metadata.fetch("seo_action_type")
+    assert_equal "content_creation", candidate.metadata.fetch("execution_mode")
     assert_equal "「梅田 喫煙 カフェ」のSERP差分を1件埋める", candidate.metadata.fetch("execution_units").first.fetch("label")
     assert_equal analysis.id, candidate.metadata.fetch("serp_analysis_id")
     assert_equal keyword, candidate.metadata.fetch("source_query")

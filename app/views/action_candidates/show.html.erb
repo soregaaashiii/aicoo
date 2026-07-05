@@ -157,10 +157,12 @@
       <% @execution_brief.open_links.each do |link| %>
         <%= link_to link[:label], link[:url], class: "button secondary", target: "_blank", rel: "noopener" %>
       <% end %>
-      <% if @codex_prompt_draft %>
-        <%= link_to "Codex用プロンプト確認", owner_codex_prompt_draft_path(@codex_prompt_draft), class: "button" %>
-      <% else %>
-        <%= button_to "Codex用プロンプト生成", generate_codex_prompt_draft_action_candidate_path(@action_candidate), method: :post, class: "button" %>
+      <% if @action_candidate.code_revision_execution_mode? %>
+        <% if @codex_prompt_draft %>
+          <%= link_to "Codex用プロンプト確認", owner_codex_prompt_draft_path(@codex_prompt_draft), class: "button" %>
+        <% else %>
+          <%= button_to "Codex用プロンプト生成", generate_codex_prompt_draft_action_candidate_path(@action_candidate), method: :post, class: "button" %>
+        <% end %>
       <% end %>
       <%= link_to "修正完了 / ActionResult登録", new_action_result_path(action_result: { action_candidate_id: @action_candidate.id }), class: "button secondary" %>
     </div>

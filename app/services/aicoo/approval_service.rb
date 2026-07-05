@@ -238,7 +238,7 @@ module Aicoo
           promotion_result = Aicoo::ActionCandidateBusinessPromoter.new(record).call
           auto_revision_task = AutoRevisionTask.active.find_by(action_candidate: record) ||
                                AutoRevisionTask.from_action_candidate(record, generated_by: "approval_service_recovery")
-          auto_revision_task.approve! if auto_revision_task.status.in?(%w[draft waiting_approval])
+          auto_revision_task&.approve! if auto_revision_task&.status&.in?(%w[draft waiting_approval])
           promotion_message = [
             "すでに準備完了です。既存のAutoRevisionTaskへ紐付けました。",
             promotion_result&.message
@@ -247,6 +247,20 @@ module Aicoo
           auto_revision_task = record.approve!(approved_by: operator)
           promotion_message = record.business_promotion_result&.message
         end
+      end
+
+      unless auto_revision_task
+        return operation(
+          [
+            promotion_message,
+            "ActionCandidate『#{record.title}』は#{record.execution_mode}の実行タスクとして準備しました。Codex改修タスクは作成しません。"
+          ].compact.join(" "),
+          metadata: {
+            execution_mode: record.execution_mode,
+            business_id: record.reload.business_id
+          },
+          redirect_record: record
+        )
       end
 
       operation(

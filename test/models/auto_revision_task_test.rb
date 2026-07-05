@@ -51,6 +51,33 @@ class AutoRevisionTaskTest < ActiveSupport::TestCase
     assert_includes task.execution_prompt, "目標件数: 10件"
   end
 
+  test "does not create task for manual operation candidate" do
+    candidate = action_candidates(:nagazakicho_article)
+    candidate.update_columns(metadata: candidate.metadata.to_h.merge("execution_mode" => "manual_operation"))
+
+    assert_no_difference("AutoRevisionTask.count") do
+      assert_nil AutoRevisionTask.from_action_candidate(candidate)
+    end
+  end
+
+  test "does not create task for content creation candidate" do
+    candidate = action_candidates(:nagazakicho_article)
+    candidate.update_columns(metadata: candidate.metadata.to_h.merge("execution_mode" => "content_creation"))
+
+    assert_no_difference("AutoRevisionTask.count") do
+      assert_nil AutoRevisionTask.from_action_candidate(candidate)
+    end
+  end
+
+  test "does not create task for data operation candidate" do
+    candidate = action_candidates(:nagazakicho_article)
+    candidate.update_columns(metadata: candidate.metadata.to_h.merge("execution_mode" => "data_operation"))
+
+    assert_no_difference("AutoRevisionTask.count") do
+      assert_nil AutoRevisionTask.from_action_candidate(candidate)
+    end
+  end
+
   test "creates codex submission automatically when execution profile exists" do
     BusinessExecutionProfile.create!(
       business: businesses(:suelog),

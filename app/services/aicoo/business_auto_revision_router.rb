@@ -9,6 +9,8 @@ module Aicoo
     end
 
     def call
+      return log_non_code_revision unless action_candidate.code_revision_execution_mode?
+
       task = AutoRevisionTask.from_action_candidate(action_candidate, generated_by:)
       risk_level = task.risk_level
 
@@ -27,6 +29,21 @@ module Aicoo
     private
 
     attr_reader :action_candidate, :business, :generated_by
+
+    def log_non_code_revision
+      log = create_log!(
+        task: nil,
+        risk_level: "low",
+        status: "pending",
+        message: "execution_mode=#{action_candidate.execution_mode}: Codexへ投げない実行タスクとして扱います。",
+        action: "non_code_revision",
+        metadata: {
+          "execution_mode" => action_candidate.execution_mode,
+          "seo_action_type" => action_candidate.metadata.to_h["seo_action_type"]
+        }
+      )
+      Result.new(task: nil, log:, action: "non_code_revision")
+    end
 
     def log_manual(task, risk_level)
       task.update!(status: "draft") unless task.status == "draft"

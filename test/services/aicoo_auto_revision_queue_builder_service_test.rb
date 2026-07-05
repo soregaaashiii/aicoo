@@ -54,6 +54,24 @@ class AicooAutoRevisionQueueBuilderServiceTest < ActiveSupport::TestCase
     end
   end
 
+  test "skips non code revision candidates" do
+    candidate = create_candidate(title: "大阪エリアの掲載店舗を80件追加する", execution_prompt: "大阪エリアの店舗を追加してください。")
+    candidate.update_columns(
+      metadata: candidate.metadata.to_h.merge(
+        "execution_mode" => "data_operation",
+        "seo_action_type" => "add_listings"
+      )
+    )
+
+    assert_no_difference("AutoRevisionTask.count") do
+      result = AicooAutoRevisionQueueBuilderService.new.call
+
+      assert_equal 0, result.created_count
+      assert_equal 1, result.skipped_count
+      assert_equal "non_code_revision:data_operation", result.skipped_reasons.first["reason"]
+    end
+  end
+
   test "high risk candidates are reported and kept for manual proposal" do
     candidate = create_candidate(
       title: "DB migrationで認証credentialを変更する",

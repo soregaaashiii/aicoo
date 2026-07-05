@@ -85,6 +85,14 @@ class ActionCandidate < ApplicationRecord
     action_type == "data_preparation"
   end
 
+  def execution_mode
+    metadata.to_h["execution_mode"].presence || "code_revision"
+  end
+
+  def code_revision_execution_mode?
+    execution_mode == "code_revision"
+  end
+
   def unfinished_executor_task
     return unless data_preparation? || generation_source == "ai_insight"
 
@@ -98,7 +106,7 @@ class ActionCandidate < ApplicationRecord
       ensure_action_execution!
       AicooExecutor::TaskBuilder.from_action_candidate(self)
       task = AutoRevisionTask.from_action_candidate(self, generated_by: "action_candidate_approval")
-      task.approve! if task.status.in?(%w[draft waiting_approval])
+      task&.approve! if task&.status&.in?(%w[draft waiting_approval])
       task
     end
   end

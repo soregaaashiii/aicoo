@@ -136,6 +136,12 @@ class ActionCandidatesController < ApplicationController
   end
 
   def generate_codex_prompt_draft
+    unless @action_candidate.code_revision_execution_mode?
+      redirect_to @action_candidate,
+                  alert: "この候補は#{@action_candidate.execution_mode}のためCodex改修にはしません。実行単位に沿ってOwner/外注/管理画面で進めてください。"
+      return
+    end
+
     draft = CodexPromptDraft.from_action_candidate(@action_candidate)
     redirect_to owner_codex_prompt_draft_path(draft), notice: "Codex Prompt Draftを生成しました。"
   end

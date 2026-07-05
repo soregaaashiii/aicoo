@@ -52,7 +52,18 @@ class AicooAutoRevisionQueueBuilderService
       high_risk_candidates << candidate if risk_level == "high"
 
       route = Aicoo::BusinessAutoRevisionRouter.new(candidate, generated_by: "auto_queue").call
-      created_tasks << route.task
+      if route.task
+        created_tasks << route.task
+      else
+        skipped_count += 1
+        skipped_reasons << {
+          "candidate_id" => candidate.id,
+          "business_id" => candidate.business_id,
+          "title" => candidate.title,
+          "final_score" => candidate.final_score.to_s,
+          "reason" => "non_code_revision:#{candidate.execution_mode}"
+        }
+      end
       logs << route.log
     end
 
@@ -66,6 +77,7 @@ class AicooAutoRevisionQueueBuilderService
   def skip_candidate_reason(candidate)
     return "below_minimum_final_score" if candidate.final_score.to_d < minimum_final_score
     return "active_auto_revision_task_exists" if candidate.auto_revision_tasks.any? { |task| AutoRevisionTask::ACTIVE_STATUSES.include?(task.status) }
+    return "non_code_revision:#{candidate.execution_mode}" unless candidate.code_revision_execution_mode?
     return "execution_instruction_missing_file_changes" if candidate.metadata.to_h.dig("execution_instruction", "quality", "has_file_changes") == false
     return "execution_instruction_missing_completion_criteria" if candidate.metadata.to_h.dig("execution_instruction", "quality", "has_completion_criteria") == false
 

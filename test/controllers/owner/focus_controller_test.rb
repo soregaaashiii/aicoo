@@ -158,6 +158,7 @@ module Owner
       concrete.update_columns(
         metadata: concrete.metadata.to_h.merge(
           "seo_action_type" => "improve_ctr_title",
+          "execution_mode" => "content_creation",
           "execution_units" => [
             {
               "label" => "梅田 喫煙 居酒屋 のSEOタイトル/metaを1件改善",
@@ -196,6 +197,7 @@ module Owner
       assert_includes response.body, concrete.title
       assert_includes response.body, "根拠データ"
       assert_includes response.body, "作業カテゴリ: CTRタイトル改善"
+      assert_includes response.body, "実行方法: 記事作成"
       assert_includes response.body, "今日やる単位"
       assert_includes response.body, "1. 梅田 喫煙 居酒屋 のSEOタイトル/metaを1件改善（20分）"
       assert_includes response.body, "根拠: GSC"
@@ -204,6 +206,7 @@ module Owner
       assert_includes response.body, "目標: 3.0%"
       assert_includes response.body, "実施量: 5件"
       assert_not_includes response.body, abstract.title
+      assert_not_includes response.body, "Codex用プロンプト作成"
     end
 
     test "includes auto revision task as codex improvement" do

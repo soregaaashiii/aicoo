@@ -96,7 +96,8 @@ module Aicoo
         candidate.reload.update_columns(
           metadata: candidate.metadata.to_h.merge(
             "evidence" => evidence_for(issue),
-            "execution_units" => execution_units_for(issue)
+            "execution_units" => execution_units_for(issue),
+            "execution_mode" => execution_mode_for(issue)
           ),
           updated_at: Time.current
         )
@@ -115,6 +116,7 @@ module Aicoo
           "expected_effect" => issue.expected_effect,
           "analyzer_evidence" => evidence_for(issue),
           "execution_units" => execution_units_for(issue),
+          "execution_mode" => execution_mode_for(issue),
           "expected_minutes" => (issue.expected_hours.to_d * 60).round,
           "business_type_playbook" => business.business_type_playbook.call(
             title: issue.title,
@@ -174,6 +176,19 @@ module Aicoo
         else
           []
         end
+      end
+
+      def execution_mode_for(issue)
+        action_type = issue.metadata.to_h.deep_stringify_keys["seo_action_type"].to_s
+        {
+          "add_listings" => "data_operation",
+          "verify_listings" => "manual_operation",
+          "create_area_article" => "content_creation",
+          "create_genre_article" => "content_creation",
+          "add_shop_links" => "code_revision",
+          "improve_ctr_title" => "content_creation",
+          "respond_to_serp_gap" => "content_creation"
+        }.fetch(action_type, "code_revision")
       end
 
       def evidence_present?(issue)

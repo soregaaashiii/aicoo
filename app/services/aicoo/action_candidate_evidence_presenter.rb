@@ -16,6 +16,12 @@ module Aicoo
       "improve_ctr_title" => "CTRタイトル改善",
       "respond_to_serp_gap" => "SERP差分対応"
     }.freeze
+    EXECUTION_MODE_LABELS = {
+      "code_revision" => "Codex改修",
+      "manual_operation" => "手作業",
+      "content_creation" => "記事作成",
+      "data_operation" => "データ作業"
+    }.freeze
 
     def initialize(action_candidate)
       @action_candidate = action_candidate
@@ -70,6 +76,14 @@ module Aicoo
       analyzer_evidence? && seo_action_type? && execution_units.blank?
     end
 
+    def execution_mode
+      action_candidate.execution_mode
+    end
+
+    def execution_mode_label
+      EXECUTION_MODE_LABELS.fetch(execution_mode.to_s, execution_mode.to_s.presence || "Codex改修")
+    end
+
     def source_label
       sources = Array(evidence["source"]).compact_blank
       return "未特定" if sources.empty?
@@ -111,6 +125,7 @@ module Aicoo
     def lines
       [
         seo_action_type? ? "作業カテゴリ: #{seo_action_type_label}" : nil,
+        "実行方法: #{execution_mode_label}",
         execution_units? ? "今日やる単位: #{execution_units.size}件" : nil,
         "根拠: #{source_label}",
         "対象: #{target_label}",
@@ -124,6 +139,7 @@ module Aicoo
     def table_rows
       [
         seo_action_type? ? [ "作業カテゴリ", seo_action_type_label ] : nil,
+        [ "実行方法", execution_mode_label ],
         execution_units? ? [ "今日やる単位", execution_unit_lines(limit: 5).join(" / ") ] : nil,
         [ "根拠データ", source_label ],
         [ "課題タイプ", evidence["issue_type"].presence || "-" ],

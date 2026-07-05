@@ -107,6 +107,11 @@ module Aicoo
       required_minutes = minutes_for(candidate.expected_hours)
       learning_value = candidate.expected_learning_value_yen.to_i
       auto_revision_task = candidate.auto_revision_tasks.active.by_priority.first
+      codex_path = if auto_revision_task
+        export_codex_prompt_auto_revision_task_path(auto_revision_task)
+      elsif candidate.code_revision_execution_mode?
+        generate_codex_prompt_draft_action_candidate_path(candidate)
+      end
 
       Improvement.new(
         key: "action_candidate:#{candidate.id}",
@@ -123,7 +128,7 @@ module Aicoo
         source_label: source_label(candidate.generation_source),
         reason_lines: reason_lines_for_candidate(candidate, category:),
         detail_path: action_candidate_path(candidate),
-        codex_path: auto_revision_task ? export_codex_prompt_auto_revision_task_path(auto_revision_task) : generate_codex_prompt_draft_action_candidate_path(candidate),
+        codex_path:,
         codex_method: auto_revision_task ? :get : :post,
         defer_path: defer_owner_focus_path(task_key: "action_candidate:#{candidate.id}"),
         evidence_lines: evidence_lines_for(candidate),
