@@ -9,7 +9,7 @@ module Aicoo
       def call
         business = opportunity.business
         issue = opportunity.source_issue
-        decision = Aicoo::ActionDecisionEngine.call(opportunity)
+        decision = Aicoo::UniversalImprovementStrategyEngine.call(opportunity)
         return unless decision.valid?
 
         plan = Aicoo::ActionPlanner.call(opportunity, analyzer:, decision:)
@@ -19,6 +19,8 @@ module Aicoo
         metadata = analyzer.candidate_metadata(issue, opportunity:).merge(
           "action_plan" => plan.to_metadata,
           "decision" => decision.to_metadata,
+          "strategy_engine" => "Aicoo::UniversalImprovementStrategyEngine",
+          "strategy_ranking" => decision.to_metadata["strategy_ranking"],
           "business_knowledge" => decision.business_knowledge.to_h,
           "concrete_task" => decision.concrete_task,
           "target" => decision.target,
@@ -52,6 +54,8 @@ module Aicoo
           metadata: candidate.metadata.to_h.merge(
             "action_plan" => plan.to_metadata,
             "decision" => decision.to_metadata,
+            "strategy_engine" => "Aicoo::UniversalImprovementStrategyEngine",
+            "strategy_ranking" => decision.to_metadata["strategy_ranking"],
             "business_knowledge" => decision.business_knowledge.to_h,
             "opportunity" => opportunity.to_metadata,
             "evidence" => analyzer.evidence_for(issue),

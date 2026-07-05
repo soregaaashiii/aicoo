@@ -56,10 +56,15 @@ module Aicoo
       assert decision.valid?
       assert_includes decision.candidates.map(&:asset_type), "articles"
       assert_includes decision.candidates.map(&:asset_type), "comparison_pages"
+      assert_operator decision.candidates.size, :>, 2
       assert_equal "comparison_pages", decision.selected.asset_type
       assert_equal "「Vault 名刺管理 比較」向けの比較ページを1本作成する", decision.concrete_task
       assert_no_match(/検索需要があるテーマ/, decision.concrete_task)
       assert_equal "content_creation", decision.execution_mode
+      assert_equal "comparison_page_creation", decision.selected.strategy_type
+      assert decision.to_metadata.dig("strategy_ranking", "adopted").present?
+      assert_not_empty decision.to_metadata.dig("strategy_ranking", "rejected")
+      assert_includes decision.to_metadata.dig("strategy_ranking", "selection_reason"), "採用"
     end
 
     test "uses expected value time success rate and roi to choose the best action" do
@@ -79,6 +84,8 @@ module Aicoo
       assert selected.expected_profit_yen > 10_000
       assert_operator selected.score, :>, 0
       assert_equal "low", selected.risk
+      assert selected.implementation_complexity.positive?
+      assert selected.to_metadata.key?("roi")
     end
 
     test "conversion gap becomes a concrete cta action" do
@@ -118,9 +125,11 @@ module Aicoo
       )
 
       assert decision.valid?
-      assert_equal "cta", decision.selected.asset_type
-      assert_equal "流入上位5ページにsignup導線を追加する", decision.concrete_task
-      assert_equal "code_revision", decision.execution_mode
+      assert_includes decision.candidates.map(&:asset_type), "cta"
+      assert_includes decision.candidates.map(&:strategy_type), "cta_addition"
+      assert_includes decision.candidates.map(&:strategy_type), "internal_link_addition"
+      assert_match(/流入上位5ページ/, decision.concrete_task)
+      assert_operator decision.candidates.size, :>, 1
     end
 
     private

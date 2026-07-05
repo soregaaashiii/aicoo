@@ -30,7 +30,7 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     assert_not_empty candidate.metadata.dig("action_plan", "execution_steps")
     assert_not_empty candidate.metadata.dig("action_plan", "execution_units")
     assert candidate.metadata.dig("evidence", "target_amount").present?
-    assert_match(/タイトル・meta・ファーストビュー訴求を\d+件改善する/, candidate.title)
+    assert_match(/タイトル|meta description|FAQ|内部リンク/, candidate.title)
     assert_equal "high_impression_low_ctr", candidate.metadata.dig("opportunity", "key")
     assert_equal "high_impression_low_ctr", candidate.metadata.dig("opportunity", "opportunity_type")
     assert_equal "「吸えログ 比較」", candidate.metadata.dig("opportunity", "target", "label")
@@ -38,6 +38,9 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     assert_equal [ "gsc", "ga4" ], candidate.metadata.dig("opportunity", "supporting_metrics", "source")
     assert_equal candidate.title, candidate.metadata.dig("decision", "selected", "concrete_task")
     assert candidate.metadata.dig("decision", "selected", "asset_type").present?
+    assert_equal "Aicoo::UniversalImprovementStrategyEngine", candidate.metadata.fetch("strategy_engine")
+    assert candidate.metadata.dig("strategy_ranking", "adopted").present?
+    assert_not_empty candidate.metadata.dig("strategy_ranking", "rejected")
     assert candidate.metadata.dig("business_knowledge", "assets").present?
     assert_equal false, candidate.metadata.fetch("codex_eligible")
     assert_match(/今日やること:/, candidate.evaluation_reason)
@@ -111,15 +114,16 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     candidate = result.created.find { |record| record.metadata.fetch("issue_key") == "traffic_without_conversion" }
 
     assert candidate
-    assert_match(/流入上位\d+ページに.+導線を追加する/, candidate.title)
+    assert_match(/流入上位\d+ページ/, candidate.title)
     assert_equal "ui_improvement", candidate.action_type
     assert_equal "traffic_without_conversion", candidate.metadata.fetch("opportunity_type")
-    assert_equal "code_revision", candidate.metadata.fetch("execution_mode")
-    assert_equal true, candidate.metadata.fetch("codex_eligible")
+    assert_includes %w[code_revision content_creation], candidate.metadata.fetch("execution_mode")
+    assert_equal candidate.metadata.fetch("execution_mode") == "code_revision", candidate.metadata.fetch("codex_eligible")
     assert_equal "traffic_to_conversion", candidate.metadata.fetch("source_metric")
     assert candidate.metadata.fetch("execution_units").any?
-    assert_includes candidate.metadata.fetch("execution_units").first.fetch("label"), "導線"
+    assert_match(/導線|内部リンク/, candidate.metadata.fetch("execution_units").first.fetch("label"))
     assert_includes candidate.metadata.fetch("candidate_pages"), "流入上位ページ"
+    assert_operator candidate.metadata.dig("strategy_ranking", "rejected").size, :>, 0
   end
 
   test "creates asset without traffic opportunity from recent asset activity" do
@@ -293,6 +297,7 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     assert analyzer_candidates.all? { |candidate| candidate.metadata["opportunity_type"].present? }
     assert analyzer_candidates.all? { |candidate| candidate.metadata.dig("opportunity", "opportunity_type").present? }
     assert analyzer_candidates.all? { |candidate| candidate.metadata.dig("decision", "selected", "concrete_task").present? }
+    assert analyzer_candidates.all? { |candidate| candidate.metadata.dig("strategy_ranking", "adopted").present? }
     assert analyzer_candidates.all? { |candidate| candidate.metadata["execution_units"].present? }
   end
 

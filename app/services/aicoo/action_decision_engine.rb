@@ -2,6 +2,7 @@ module Aicoo
   class ActionDecisionEngine
     Candidate = Data.define(
       :action_key,
+      :strategy_type,
       :asset_type,
       :concrete_task,
       :goal,
@@ -16,6 +17,8 @@ module Aicoo
       :learning_value,
       :cost_yen,
       :risk,
+      :implementation_complexity,
+      :roi,
       :score,
       :reason,
       :execution_steps,
@@ -26,6 +29,7 @@ module Aicoo
       def to_metadata
         {
           "action_key" => action_key,
+          "strategy_type" => strategy_type,
           "asset_type" => asset_type,
           "concrete_task" => concrete_task,
           "goal" => goal,
@@ -40,6 +44,8 @@ module Aicoo
           "learning_value" => learning_value.to_i,
           "cost_yen" => cost_yen.to_i,
           "risk" => risk,
+          "implementation_complexity" => implementation_complexity.to_i,
+          "roi" => roi.to_d.to_s,
           "score" => score.to_d.to_s,
           "reason" => reason,
           "execution_steps" => execution_steps,
@@ -69,12 +75,27 @@ module Aicoo
       def cost_yen = selected&.cost_yen || 0
 
       def to_metadata
+        ranked = candidates.sort_by { |candidate| -candidate.score.to_d }
         {
           "selected" => selected&.to_metadata,
           "candidate_count" => candidates.size,
-          "candidates" => candidates.map(&:to_metadata),
+          "candidates" => ranked.map.with_index(1) { |candidate, index| candidate.to_metadata.merge("rank" => index) },
+          "strategy_ranking" => {
+            "adopted" => selected&.to_metadata,
+            "rejected" => ranked.reject { |candidate| candidate == selected }.map(&:to_metadata),
+            "selection_reason" => selection_reason_for(ranked)
+          },
           "business_knowledge" => business_knowledge.to_h
         }.compact
+      end
+
+      def selection_reason_for(ranked)
+        return nil unless selected
+
+        runner_up = ranked.find { |candidate| candidate != selected }
+        return "#{selected.concrete_task} は比較対象内で期待値が最も高いため採用しました。" unless runner_up
+
+        "#{selected.concrete_task} を採用。#{runner_up.concrete_task}（期待利益#{runner_up.expected_profit_yen.to_i}円）より、期待利益/工数/成功率を含む総合スコアが高いため。"
       end
     end
 
@@ -102,11 +123,11 @@ module Aicoo
     attr_reader :opportunity, :profile
 
     def enumerate_candidates
-      profile.assets.filter_map do |asset|
+      profile.assets.flat_map do |asset|
         next unless asset_applicable?(asset)
 
-        build_candidate(asset)
-      end
+        actions_for(asset).filter_map { |action| build_candidate(asset, action) }
+      end.compact
     end
 
     def asset_applicable?(asset)
@@ -121,21 +142,21 @@ module Aicoo
       end
     end
 
-    def build_candidate(asset)
-      action = action_for(asset)
-      return if action.blank?
-
+    def build_candidate(asset, action)
       hours = candidate_hours(asset, action)
       profit = candidate_profit(asset)
       success = candidate_success(asset)
       learning = learning_value_for(asset)
       cost = asset.cost_yen.to_i
       risk = risk_for(asset)
+      complexity = implementation_complexity_for(asset, action)
+      roi = cost.positive? ? (profit.to_d / cost.to_d).round(2) : 0.to_d
       score = ((profit.to_d / [ hours.to_d, 0.1.to_d ].max) * success.to_d * risk_multiplier(risk)) +
-        (learning.to_d * 0.4) - cost
+        (learning.to_d * 0.4) - cost - complexity
 
       Candidate.new(
-        action_key: "#{pattern}:#{asset.asset_type}",
+        action_key: "#{pattern}:#{asset.asset_type}:#{action.fetch(:strategy_type)}",
+        strategy_type: action.fetch(:strategy_type),
         asset_type: asset.asset_type,
         concrete_task: action.fetch(:task),
         goal: action.fetch(:goal),
@@ -150,6 +171,8 @@ module Aicoo
         learning_value: learning,
         cost_yen: cost,
         risk:,
+        implementation_complexity: complexity,
+        roi:,
         score:,
         reason: opportunity.reason,
         execution_steps: action.fetch(:steps),
@@ -159,152 +182,233 @@ module Aicoo
       )
     end
 
-    def action_for(asset)
+    def actions_for(asset)
       case pattern
       when "demand_without_asset"
-        demand_action(asset)
+        demand_actions(asset)
       when "high_impression_low_ctr"
-        ctr_action(asset)
+        ctr_actions(asset)
       when "rank_11_20_gap"
-        rank_gap_action(asset)
+        rank_gap_actions(asset)
       when "traffic_without_conversion"
-        conversion_action(asset)
+        conversion_actions(asset)
       when "asset_without_traffic"
-        asset_traffic_action(asset)
+        asset_traffic_actions(asset)
       when "activity_gap"
-        activity_gap_action(asset)
+        activity_gap_actions(asset)
       when "data_quality_gap"
-        data_quality_action(asset)
+        data_quality_actions(asset)
       else
-        generic_action(asset)
+        generic_actions(asset)
       end
     end
 
-    def demand_action(asset)
+    def demand_actions(asset)
       case asset.asset_type
       when "articles"
-        content_action(
+        [ content_action(
+          strategy_type: "article_creation",
           task: "「#{plain_target}」向けの記事を1本作成する",
           goal: "需要がある検索テーマに対応する記事入口を作る",
           target_type: "article",
           steps: %w[タイトル決定 記事構成作成 記事作成 内部リンク追加 公開]
-        )
+        ) ]
       when "comparison_pages"
-        return unless comparison_intent?
+        return [] unless comparison_intent?
 
-        content_action(
+        [ content_action(
+          strategy_type: "comparison_page_creation",
           task: "「#{plain_target}」向けの比較ページを1本作成する",
           goal: "比較検討中のユーザーに対応する受け皿を作る",
           target_type: "comparison_page",
           steps: %w[比較軸決定 ページ構成作成 比較表追加 内部リンク追加 公開]
-        )
+        ) ]
       when "landing_pages"
-        code_action(
+        [ code_action(
+          strategy_type: "landing_page_creation",
           task: "「#{plain_target}」向けLPを1本作成する",
           goal: "需要があるテーマに対応するLPを作る",
           target_type: "landing_page",
           steps: %w[LP構成決定 ファーストビュー作成 CTA追加 公開 計測確認]
-        )
+        ) ]
       when "faq"
-        content_action(
+        [ content_action(
+          strategy_type: "faq_creation",
           task: "「#{plain_target}」に対応するFAQを追加する",
           goal: "需要がある疑問に短い回答資産を作る",
           target_type: "faq",
           steps: %w[質問選定 回答案作成 関連ページへ追加 公開]
-        )
+        ) ]
       when "area_pages", "category_pages"
-        content_action(
+        [ content_action(
+          strategy_type: "category_entry_creation",
           task: "「#{plain_target}」に対応するカテゴリ入口を1件作成する",
           goal: "需要テーマへ遷移できる分類入口を作る",
           target_type: asset.asset_type.singularize,
           steps: %w[分類名決定 対象資産整理 ページ作成 内部リンク追加 公開]
-        )
+        ) ]
+      when "internal_links"
+        [ content_action(
+          strategy_type: "internal_link_addition",
+          task: "「#{plain_target}」への内部リンクを3件追加する",
+          goal: "既存資産から需要テーマへの導線を作る",
+          target_type: "internal_links",
+          steps: %w[リンク元選定 アンカーテキスト決定 内部リンク追加 公開]
+        ) ]
+      when "listings"
+        [ {
+          strategy_type: "data_addition",
+          task: "#{plain_target}に関連する掲載データを20件追加する",
+          goal: "需要テーマに対応するデータ量を増やす",
+          target_type: "listing_data",
+          execution_mode: "data_operation",
+          steps: %w[対象条件決定 データ収集 重複確認 登録 ActionResult登録],
+          required_resources: {}
+        } ]
+      else
+        []
       end
     end
 
-    def ctr_action(asset)
-      return unless %w[articles landing_pages comparison_pages area_pages category_pages].include?(asset.asset_type)
+    def ctr_actions(asset)
+      return [] unless %w[articles landing_pages comparison_pages area_pages category_pages faq cta internal_links].include?(asset.asset_type)
 
-      content_action(
-        task: "#{target_label}のタイトル・meta・ファーストビュー訴求を#{target_amount}件改善する",
-        goal: "表示回数がある入口のクリック理由を明確にする",
-        target_type: "traffic_entry",
-        steps: %w[対象ページ確認 検索クエリ確認 タイトル修正 meta修正 公開]
-      )
+      [
+        content_action(
+          strategy_type: "title_improvement",
+          task: "#{target_label}のタイトルを#{target_amount}件改善する",
+          goal: "表示回数がある入口のクリック理由をタイトルで明確にする",
+          target_type: "traffic_entry",
+          steps: %w[対象ページ確認 検索クエリ確認 タイトル修正 公開]
+        ),
+        content_action(
+          strategy_type: "meta_improvement",
+          task: "#{target_label}のmeta descriptionを#{target_amount}件改善する",
+          goal: "検索結果での補足訴求を強めてCTRを上げる",
+          target_type: "traffic_entry",
+          steps: %w[対象ページ確認 検索意図確認 meta修正 公開]
+        ),
+        content_action(
+          strategy_type: "faq_addition",
+          task: "#{target_label}にFAQを#{[ target_amount.to_i, 3 ].max}件追加する",
+          goal: "検索意図に対応する回答を増やしてクリック後の満足度を上げる",
+          target_type: "faq",
+          steps: %w[質問選定 回答案作成 FAQ追加 公開]
+        ),
+        content_action(
+          strategy_type: "internal_link_addition",
+          task: "#{target_label}へ内部リンクを#{[ target_amount.to_i, 5 ].max}件追加する",
+          goal: "関連資産から対象入口の評価と流入を補強する",
+          target_type: "internal_links",
+          steps: %w[リンク元選定 アンカーテキスト決定 内部リンク追加 公開]
+        )
+      ]
     end
 
-    def rank_gap_action(asset)
-      return unless %w[articles comparison_pages faq internal_links area_pages category_pages].include?(asset.asset_type)
+    def rank_gap_actions(asset)
+      return [] unless %w[articles comparison_pages faq internal_links area_pages category_pages].include?(asset.asset_type)
 
-      content_action(
-        task: "#{target_label}のSERP差分を1件埋める",
-        goal: "順位11〜20位の入口に不足要素を追加する",
-        target_type: "page_or_query",
-        steps: %w[不足要素確認 FAQまたは比較要素追加 内部リンク追加 公開 順位確認メモ作成]
-      )
+      [
+        content_action(
+          strategy_type: "serp_gap_response",
+          task: "#{target_label}のSERP差分を1件埋める",
+          goal: "順位11〜20位の入口に不足要素を追加する",
+          target_type: "page_or_query",
+          steps: %w[不足要素確認 FAQまたは比較要素追加 内部リンク追加 公開 順位確認メモ作成]
+        ),
+        content_action(
+          strategy_type: "comparison_element_addition",
+          task: "#{target_label}に比較要素を1件追加する",
+          goal: "競合上位にある比較要素を補って上位化余地を作る",
+          target_type: "comparison_element",
+          steps: %w[競合要素確認 比較軸選定 比較要素追加 公開]
+        ),
+        content_action(
+          strategy_type: "guide_article_addition",
+          task: "「#{plain_target}」向けのガイド記事を1本作成する",
+          goal: "順位差分を補う関連入口を作る",
+          target_type: "article",
+          steps: %w[ガイド構成決定 記事作成 内部リンク追加 公開]
+        )
+      ]
     end
 
-    def conversion_action(asset)
-      return unless %w[cta internal_links signup checkout pricing landing_pages listings].include?(asset.asset_type)
+    def conversion_actions(asset)
+      return [] unless %w[cta internal_links signup checkout pricing landing_pages listings].include?(asset.asset_type)
 
-      code_action(
-        task: "流入上位#{target_amount}ページに#{conversion_label}導線を追加する",
-        goal: "流入をCVに近い行動へつなげる",
-        target_type: "conversion_path",
-        steps: %w[対象ページ選定 CTA位置決定 CTA追加 イベント計測確認 ActionResult登録]
-      )
+      [
+        code_action(
+          strategy_type: "cta_addition",
+          task: "流入上位#{target_amount}ページに#{conversion_label}導線を追加する",
+          goal: "流入をCVに近い行動へつなげる",
+          target_type: "conversion_path",
+          steps: %w[対象ページ選定 CTA位置決定 CTA追加 イベント計測確認 ActionResult登録]
+        ),
+        content_action(
+          strategy_type: "internal_link_addition",
+          task: "流入上位#{target_amount}ページからCV近接ページへ内部リンクを追加する",
+          goal: "既存流入からCVに近いページへの回遊を作る",
+          target_type: "internal_links",
+          steps: %w[流入上位ページ確認 リンク先選定 内部リンク追加 公開]
+        )
+      ]
     end
 
-    def asset_traffic_action(asset)
-      return unless %w[internal_links articles landing_pages comparison_pages area_pages category_pages].include?(asset.asset_type)
+    def asset_traffic_actions(asset)
+      return [] unless %w[internal_links articles landing_pages comparison_pages area_pages category_pages].include?(asset.asset_type)
 
-      content_action(
+      [ content_action(
+        strategy_type: "internal_link_addition",
         task: "#{target_label}への流入導線を3件追加する",
         goal: "作成済み資産に初回流入を作る",
         target_type: "asset",
         steps: %w[対象資産確認 リンク元選定 内部リンク追加 公開 クリック確認メモ作成]
-      )
+      ) ]
     end
 
-    def activity_gap_action(asset)
-      return if asset.asset_type.in?(%w[signup checkout pricing]) && !asset.can_update
+    def activity_gap_actions(asset)
+      return [] if asset.asset_type.in?(%w[signup checkout pricing]) && !asset.can_update
 
-      {
+      [ {
+        strategy_type: "small_improvement",
         task: "#{asset_label(asset)}の改善を1件実行する",
         goal: "止まっている改善サイクルを再開する",
         target_type: "operation",
         execution_mode: "manual_operation",
         steps: %w[対象選定 小さな改善実行 Activity記録 ActionResult登録],
         required_resources: {}
-      }
+      } ]
     end
 
-    def data_quality_action(asset)
-      return unless %w[cta signup checkout landing_pages pricing owner_tasks].include?(asset.asset_type)
+    def data_quality_actions(asset)
+      return [] unless %w[cta signup checkout landing_pages pricing owner_tasks].include?(asset.asset_type)
 
-      code_action(
+      [ code_action(
+        strategy_type: "measurement_check",
         task: "#{asset_label(asset)}の計測設定を確認する",
         goal: "成果判断に必要なデータを揃える",
         target_type: "measurement",
         steps: %w[不足項目確認 設定確認 テスト取得 エラー記録 次Action作成]
-      )
+      ) ]
     end
 
-    def generic_action(asset)
-      return unless asset.can_update || asset.can_create
+    def generic_actions(asset)
+      return [] unless asset.can_update || asset.can_create
 
-      {
+      [ {
+        strategy_type: "generic_improvement",
         task: "#{target_label}に対して#{asset_label(asset)}の改善を1件実行する",
         goal: "検出された改善機会を実行可能な作業に変える",
         target_type: "task",
         execution_mode: execution_mode_for_asset(asset),
         steps: %w[対象確認 作業実行 結果確認 ActionResult登録],
         required_resources: {}
-      }
+      } ]
     end
 
-    def content_action(task:, goal:, target_type:, steps:)
+    def content_action(strategy_type:, task:, goal:, target_type:, steps:)
       {
+        strategy_type:,
         task:,
         goal:,
         target_type:,
@@ -314,8 +418,9 @@ module Aicoo
       }
     end
 
-    def code_action(task:, goal:, target_type:, steps:)
+    def code_action(strategy_type:, task:, goal:, target_type:, steps:)
       {
+        strategy_type:,
         task:,
         goal:,
         target_type:,
@@ -401,6 +506,17 @@ module Aicoo
 
     def risk_multiplier(risk)
       { "low" => 1.0.to_d, "medium" => 0.85.to_d, "high" => 0.6.to_d }.fetch(risk, 0.8.to_d)
+    end
+
+    def implementation_complexity_for(asset, action)
+      base = (asset.estimated_minutes.to_i / 15).clamp(1, 20)
+      mode_penalty = {
+        "manual_operation" => 2,
+        "content_creation" => 3,
+        "data_operation" => 4,
+        "code_revision" => 5
+      }.fetch(action.fetch(:execution_mode), 3)
+      base + mode_penalty
     end
 
     def execution_mode_for_asset(asset)
