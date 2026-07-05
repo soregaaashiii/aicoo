@@ -120,6 +120,59 @@ module Owner
       assert_not_includes response.body, ">Action Candidates<"
     end
 
+    test "creates fallback Today item for data backed business with no visible candidate" do
+      ActionCandidate.delete_all
+      business = businesses(:suelog)
+      business.business_metric_dailies.where(recorded_on: Date.current).delete_all
+      business.business_metric_dailies.create!(
+        recorded_on: Date.current,
+        impressions: 120,
+        clicks: 4,
+        sessions: 20,
+        pageviews: 35
+      )
+
+      assert_difference("ActionCandidate.where(business: business, generation_source: 'business_analyzer').count", 1) do
+        get owner_focus_url
+      end
+
+      assert_response :success
+      assert_includes response.body, business.name
+      assert_includes response.body, "#{business.name}の分析データから次のTODOを1件具体化する"
+      fallback = business.action_candidates.order(:created_at).last
+      assert_equal true, fallback.metadata.fetch("today_fallback")
+      assert_equal "needs_refinement", fallback.metadata.fetch("concretization_status")
+    end
+
+    test "stores exclusion reason when candidate is not eligible for Today" do
+      candidate = ActionCandidate.create!(
+        business: businesses(:suelog),
+        title: "自動で実行できるコード改修",
+        status: "idea",
+        action_type: "ui_improvement",
+        generation_source: "business_analyzer",
+        immediate_value_yen: 20_000,
+        expected_hours: 1,
+        success_probability: 0.5,
+        evaluation_reason: "Codexで自動実行できるためTodayには出さない",
+        metadata: {
+          "execution_mode" => "code_revision",
+          "concrete_task" => "流入上位ページにCTAを追加する",
+          "action_plan" => {
+            "summary" => "流入上位ページにCTAを追加する",
+            "target" => "流入上位ページ",
+            "execution_steps" => [ "CTAを追加する" ],
+            "execution_units" => [ { "label" => "CTAを追加する" } ]
+          }
+        }
+      )
+
+      get owner_focus_url
+
+      assert_response :success
+      assert_equal "code_revision_auto_executable", candidate.reload.metadata.fetch("today_exclusion_reason")
+    end
+
     private
 
     def create_today_candidate!(attributes = {})

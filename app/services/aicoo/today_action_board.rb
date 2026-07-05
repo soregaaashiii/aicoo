@@ -55,10 +55,16 @@ module Aicoo
     end
 
     def call
-      ranked_items = candidate_items
+      items = candidate_items
+      ranked_items = items
         .sort_by { |item| [ -item.score.to_d, -item.expected_value_yen.to_i, item.business_name.to_s ] }
         .first(limit)
+
+      ranked_items = include_missing_data_backed_businesses(items, ranked_items)
         .map.with_index(1) { |item, index| item.with(rank: index) }
+
+      mark_filtered_items!(items, ranked_items)
+      log_business_diagnostics!(items, ranked_items)
 
       Board.new(mode:, tabs:, items: ranked_items, description: DESCRIPTION)
     end
@@ -76,12 +82,14 @@ module Aicoo
     end
 
     def candidate_items
-      ActionCandidate
+      items = ActionCandidate
         .active_for_ranking
         .includes(:business, :auto_revision_tasks)
         .order(updated_at: :desc)
-        .limit(250)
+        .limit(1_000)
         .filter_map { |candidate| build_item(candidate) }
+
+      items + fallback_items_for_data_backed_businesses(items)
     end
 
     def build_item(candidate)
@@ -90,7 +98,11 @@ module Aicoo
       execution_mode = presenter.execution_mode.to_s
       approval_task = approval_required_task(candidate)
 
-      return unless today_eligible?(candidate, presenter, action_plan, execution_mode, approval_task)
+      exclusion_reason = today_exclusion_reason(candidate, execution_mode, approval_task)
+      if exclusion_reason
+        mark_today_exclusion!(candidate, exclusion_reason)
+        return
+      end
 
       expected_value_yen = candidate.expected_profit_yen.to_i
       expected_hours = positive_decimal(candidate.expected_hours)
@@ -100,6 +112,7 @@ module Aicoo
       balanced_score = (revenue_score * 0.6) + (learning_score * 0.4)
       selected_score = score_for(revenue_score:, learning_score:, balanced_score:)
 
+      mark_today_included!(candidate)
       Item.new(
         rank: nil,
         source_type: approval_task ? "auto_revision_task" : "action_candidate",
@@ -126,13 +139,17 @@ module Aicoo
       )
     end
 
-    def today_eligible?(candidate, presenter, action_plan, execution_mode, approval_task)
-      return false unless minimum_fields_present?(candidate, execution_mode)
+    def today_exclusion_reason(candidate, execution_mode, approval_task)
+      return "inactive_business" if candidate.business.blank? || candidate.business.resource_status == "archived"
+      return "no_score" unless minimum_fields_present?(candidate, execution_mode)
 
       owner_work = OWNER_EXECUTION_MODES.include?(execution_mode)
       approval_waiting_code_revision = execution_mode == "code_revision" && approval_task.present?
 
-      owner_work || approval_waiting_code_revision
+      return nil if owner_work || approval_waiting_code_revision
+      return "code_revision_auto_executable" if execution_mode == "code_revision"
+
+      "unsupported_execution_mode"
     end
 
     def minimum_fields_present?(candidate, execution_mode)
@@ -202,6 +219,203 @@ module Aicoo
       else
         "自動改修が#{task.status}で停止中"
       end
+    end
+
+    def fallback_items_for_data_backed_businesses(items)
+      visible_business_ids = items.map { |item| item.record.business_id }.compact.to_set
+      today_visible_businesses.filter_map do |business|
+        next if visible_business_ids.include?(business.id)
+        next unless analysis_data_available_for?(business)
+
+        build_item(today_fallback_candidate_for(business))
+      end
+    end
+
+    def include_missing_data_backed_businesses(items, ranked_items)
+      ranked_business_ids = ranked_items.map { |item| item.record.business_id }.compact.to_set
+      missing_items = items
+        .select { |item| analysis_data_available_for?(item.record.business) && ranked_business_ids.exclude?(item.record.business_id) }
+        .group_by { |item| item.record.business_id }
+        .values
+        .map { |business_items| business_items.max_by(&:score) }
+
+      (ranked_items + missing_items).uniq { |item| "#{item.source_type}:#{item.record.id}" }
+    end
+
+    def today_fallback_candidate_for(business)
+      today_key = "today_fallback:#{Date.current.iso8601}"
+      existing = business.action_candidates
+        .active_for_ranking
+        .where(generation_source: "business_analyzer")
+        .where("evaluation_reason LIKE ?", "#{today_key}%")
+        .order(updated_at: :desc)
+        .first
+      return existing if existing
+
+      title = "#{business.name}の分析データから次のTODOを1件具体化する"
+      business.action_candidates.create!(
+        title:,
+        description: "GSC/GA4/DBデータがあるため、Today 0件を防ぐための汎用TODOです。",
+        action_type: "data_preparation",
+        generation_source: "business_analyzer",
+        status: "idea",
+        immediate_value_yen: 8_000,
+        expected_hours: 0.5,
+        success_probability: 0.5,
+        strategic_value_score: 35,
+        risk_reduction_score: 30,
+        confidence_score: 25,
+        data_confidence_score: 30,
+        evaluation_reason: "#{today_key}\nGSC/GA4/DB/SERP/Activityのいずれかにデータがあるため、候補0件で止めずTodayへ表示します。",
+        metadata: {
+          "execution_mode" => "manual_operation",
+          "concretization_status" => "needs_refinement",
+          "concretization_warnings" => [ "today_fallback" ],
+          "today_fallback" => true,
+          "today_fallback_on" => Date.current.iso8601,
+          "concrete_task" => title,
+          "target" => "要具体化",
+          "action_plan" => {
+            "summary" => title,
+            "target" => "要具体化",
+            "owner_next_step" => "要具体化: 対象と作業単位を確認する",
+            "execution_steps" => [ "対象データを確認する", "今日実行できる作業単位へ具体化する", "ActionResultへ登録する" ],
+            "execution_units" => [
+              {
+                "label" => title,
+                "target_amount" => 1,
+                "estimated_minutes" => 30,
+                "reason" => "データがあるBusinessをToday 0件で止めないため"
+              }
+            ]
+          },
+          "execution_units" => [
+            {
+              "label" => title,
+              "target_amount" => 1,
+              "estimated_minutes" => 30,
+              "reason" => "データがあるBusinessをToday 0件で止めないため"
+            }
+          ]
+        }
+      )
+    end
+
+    def today_visible_businesses
+      Business.real_businesses.where(resource_status: nil)
+        .or(Business.real_businesses.where(resource_status: %w[active watch paused]))
+    end
+
+    def analysis_data_available_for?(business)
+      return false unless business
+
+      today = Date.current
+      business.business_metric_dailies.where(recorded_on: (today - 29)..today).exists? ||
+        business.business_activity_logs.where(occurred_at: 30.days.ago..Time.current).exists? ||
+        business.serp_queries.exists? ||
+        business.serp_analyses.exists?
+    end
+
+    def mark_today_exclusion!(candidate, reason)
+      metadata = candidate.metadata.to_h
+      return if metadata["today_exclusion_reason"] == reason
+
+      candidate.update_columns(
+        metadata: metadata.merge(
+          "today_exclusion_reason" => reason,
+          "today_exclusion_checked_at" => Time.current.iso8601,
+          "today_mode" => mode
+        ),
+        updated_at: Time.current
+      )
+    end
+
+    def mark_today_included!(candidate)
+      metadata = candidate.metadata.to_h
+      return if metadata["today_exclusion_reason"].blank? && metadata["today_included_at"].present?
+
+      candidate.update_columns(
+        metadata: metadata.except("today_exclusion_reason").merge(
+          "today_included_at" => Time.current.iso8601,
+          "today_mode" => mode
+        ),
+        updated_at: Time.current
+      )
+    end
+
+    def mark_filtered_items!(items, ranked_items)
+      ranked_ids = ranked_items.map { |item| item.record.id }.to_set
+      items.each do |item|
+        next if ranked_ids.include?(item.record.id)
+
+        mark_today_exclusion!(item.record, "filtered_by_tab")
+      end
+    end
+
+    def log_business_diagnostics!(items, ranked_items)
+      grouped_items = items.group_by { |item| item.record.business_id }
+      ranked_grouped_items = ranked_items.group_by { |item| item.record.business_id }
+
+      Business.real_businesses.find_each do |business|
+        active_candidates = business.action_candidates.active_for_ranking.limit(250).to_a
+        business_items = grouped_items[business.id] || []
+        ranked_business_items = ranked_grouped_items[business.id] || []
+        diagnostics = {
+          event: "today_business_diagnostics",
+          mode:,
+          business_id: business.id,
+          business_name: business.name,
+          business_type: business.business_type,
+          active: business.resource_status,
+          gsc_candidate_count: gsc_candidate_count_for(business, active_candidates),
+          ga4_candidate_count: ga4_candidate_count_for(business, active_candidates),
+          opportunity_count: opportunity_count_for(active_candidates),
+          strategy_count: strategy_count_for(active_candidates),
+          action_candidate_count: active_candidates.size,
+          today_candidate_count: ranked_business_items.size,
+          revenue_score: business_items.map(&:revenue_score).compact.max,
+          learning_score: business_items.map(&:learning_score).compact.max,
+          balanced_score: business_items.map(&:balanced_score).compact.max,
+          execution_mode: active_candidates.map { |candidate| candidate.metadata.to_h["execution_mode"].presence || candidate.execution_mode }.compact.uniq,
+          status: active_candidates.map(&:status).compact.uniq,
+          generation_source: active_candidates.map(&:generation_source).compact.uniq,
+          exclusion_reason: active_candidates.map { |candidate| candidate.metadata.to_h["today_exclusion_reason"] }.compact.uniq
+        }
+        Rails.logger.info(diagnostics.to_json)
+      end
+    end
+
+    def gsc_candidate_count_for(business, candidates)
+      metric_count = business.business_metric_dailies.where("impressions > 0 OR clicks > 0").count
+      candidate_count = candidates.count { |candidate| candidate_metadata_sources(candidate).include?("gsc") }
+      metric_count + candidate_count
+    end
+
+    def ga4_candidate_count_for(business, candidates)
+      metric_count = business.business_metric_dailies.where("sessions > 0 OR pageviews > 0").count
+      candidate_count = candidates.count { |candidate| candidate_metadata_sources(candidate).include?("ga4") }
+      metric_count + candidate_count
+    end
+
+    def opportunity_count_for(candidates)
+      candidates.count { |candidate| candidate.metadata.to_h["opportunity"].present? || candidate.metadata.to_h["opportunity_type"].present? }
+    end
+
+    def strategy_count_for(candidates)
+      candidates.sum do |candidate|
+        metadata = candidate.metadata.to_h
+        metadata.dig("decision", "candidate_count").to_i.presence ||
+          Array(metadata.dig("strategy_ranking", "rejected")).size + (metadata.dig("strategy_ranking", "adopted").present? ? 1 : 0)
+      end
+    end
+
+    def candidate_metadata_sources(candidate)
+      metadata = candidate.metadata.to_h
+      [
+        metadata.dig("evidence", "source"),
+        metadata["evidence_sources"],
+        metadata.dig("opportunity", "supporting_metrics", "source")
+      ].flatten.compact.map(&:to_s)
     end
 
     def learning_score_for(candidate)
