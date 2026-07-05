@@ -12,7 +12,7 @@ module Aicoo
         candidate = business.action_candidates.create!(
           title: issue.title,
           description: issue.description,
-          action_type: issue.action_type,
+          action_type: action_type,
           immediate_value_yen: opportunity.expected_value_yen,
           success_probability: opportunity.success_probability,
           strategic_value_score: issue.strategic_value_score,
@@ -43,6 +43,17 @@ module Aicoo
       private
 
       attr_reader :opportunity, :analyzer
+
+      def action_type
+        value = opportunity.source_issue.action_type.to_s
+        return value if ActionCandidate::ACTION_TYPES.include?(value)
+
+        {
+          "lp_improvement" => "ui_improvement",
+          "asset_creation" => "build_lp",
+          "operations" => "data_preparation"
+        }.fetch(value, "other")
+      end
     end
   end
 end

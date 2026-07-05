@@ -101,6 +101,15 @@ module Aicoo
           "issue_why" => issue.why,
           "opportunity" => opportunity&.to_metadata,
           "opportunity_type" => opportunity&.opportunity_type || opportunity_type_for(issue),
+          "action_title" => issue.title,
+          "target" => opportunity&.target || opportunity_target_for(issue, supporting_metrics_for(issue)),
+          "target_type" => issue.metadata.to_h.deep_stringify_keys["target_type"].presence,
+          "target_url_or_identifier" => issue.metadata.to_h.deep_stringify_keys["target_url_or_identifier"].presence ||
+            issue.metadata.to_h.deep_stringify_keys["target_identifier"].presence,
+          "concrete_task" => issue.metadata.to_h.deep_stringify_keys["concrete_task"].presence || issue.title,
+          "target_amount" => issue.quantity,
+          "supporting_metrics" => opportunity&.supporting_metrics || supporting_metrics_for(issue),
+          "codex_eligible" => (opportunity&.execution_mode || execution_mode_for(issue)) == "code_revision",
           "expected_effect" => issue.expected_effect,
           "analyzer_evidence" => evidence_for(issue),
           "execution_units" => execution_units_for(issue),
@@ -149,7 +158,7 @@ module Aicoo
 
       def execution_units_for(issue)
         attrs = issue.metadata.to_h.deep_stringify_keys
-        action_type = attrs["seo_action_type"].to_s
+        action_type = attrs["seo_action_type"].presence || attrs["opportunity_type"].to_s
         case action_type
         when "add_listings"
           listing_units(issue, attrs)
@@ -163,13 +172,25 @@ module Aicoo
           ctr_title_units(issue, attrs)
         when "respond_to_serp_gap"
           serp_gap_units(issue, attrs)
+        when "demand_without_asset"
+          demand_without_asset_units(issue, attrs)
+        when "high_impression_low_ctr"
+          ctr_title_units(issue, attrs)
+        when "rank_11_20_gap"
+          serp_gap_units(issue, attrs)
+        when "traffic_without_conversion"
+          conversion_path_units(issue, attrs)
+        when "asset_without_traffic"
+          asset_traffic_units(issue, attrs)
+        when "activity_gap", "data_quality_gap"
+          operation_units(issue, attrs)
         else
           []
         end
       end
 
       def execution_mode_for(issue)
-        action_type = issue.metadata.to_h.deep_stringify_keys["seo_action_type"].to_s
+        action_type = issue.metadata.to_h.deep_stringify_keys.then { |attrs| attrs["seo_action_type"].presence || attrs["opportunity_type"].to_s }
         {
           "add_listings" => "data_operation",
           "verify_listings" => "manual_operation",
@@ -180,7 +201,14 @@ module Aicoo
           "improve_shop_page" => "code_revision",
           "improve_cv_path" => "code_revision",
           "improve_ctr_title" => "content_creation",
-          "respond_to_serp_gap" => "content_creation"
+          "respond_to_serp_gap" => "content_creation",
+          "demand_without_asset" => "content_creation",
+          "high_impression_low_ctr" => "content_creation",
+          "rank_11_20_gap" => "content_creation",
+          "traffic_without_conversion" => "code_revision",
+          "asset_without_traffic" => "content_creation",
+          "activity_gap" => "manual_operation",
+          "data_quality_gap" => "code_revision"
         }.fetch(action_type, "code_revision")
       end
 
@@ -194,7 +222,8 @@ module Aicoo
       def seo_action_type_present?(issue)
         return true unless business.business_type.in?(Aicoo::BusinessAnalyzers::SeoBusinessAnalyzer::SEO_MEDIA_TYPES)
 
-        issue.metadata.to_h.deep_stringify_keys["seo_action_type"].present?
+        attrs = issue.metadata.to_h.deep_stringify_keys
+        attrs["seo_action_type"].present? || attrs["opportunity_type"].present?
       end
 
       def execution_prompt(issue, opportunity: nil)
@@ -306,7 +335,7 @@ module Aicoo
             area: page.to_s.include?("ページ") ? area : page,
             target_amount: amount,
             estimated_minutes: amount * 1,
-            reason: "喫煙情報の信頼性を上げ、店舗詳細CVRと地図クリックを改善するため"
+            reason: "掲載情報の信頼性を上げ、詳細ページのCVRと主要導線クリックを改善するため"
           )
         end
       end
@@ -365,6 +394,56 @@ module Aicoo
           target_amount: 1,
           estimated_minutes: 120,
           reason: "競合上位にあり自サイトに不足している比較表・FAQ・内部リンクを補うため"
+        ) ]
+      end
+
+      def demand_without_asset_units(issue, attrs)
+        target = attrs["target_identifier"].presence || attrs["source_query"].presence || issue.title
+        [ unit_hash(
+          label: issue.title,
+          query: attrs["source_query"].presence,
+          target_amount: issue.quantity,
+          estimated_minutes: (issue.expected_hours.to_d * 60).round,
+          reason: "需要がある一方で対応資産が不足しているため",
+          target_type: attrs["target_type"].presence,
+          target_identifier: target
+        ) ]
+      end
+
+      def conversion_path_units(issue, attrs)
+        target = attrs["target_identifier"].presence || "流入上位ページ"
+        [ unit_hash(
+          label: issue.title,
+          page_path: target.to_s.start_with?("/") ? target : nil,
+          target_amount: issue.quantity,
+          estimated_minutes: (issue.expected_hours.to_d * 60).round,
+          reason: "流入に対してCVイベントが少ないため",
+          target_type: attrs["target_type"].presence,
+          target_identifier: target
+        ) ]
+      end
+
+      def asset_traffic_units(issue, attrs)
+        target = attrs["target_identifier"].presence || "作成済み資産"
+        [ unit_hash(
+          label: issue.title,
+          target_amount: issue.quantity,
+          estimated_minutes: (issue.expected_hours.to_d * 60).round,
+          reason: "作成済み資産に流入がないため",
+          target_type: attrs["target_type"].presence,
+          target_identifier: target
+        ) ]
+      end
+
+      def operation_units(issue, attrs)
+        target = attrs["target_identifier"].presence || issue.title
+        [ unit_hash(
+          label: issue.title,
+          target_amount: issue.quantity,
+          estimated_minutes: (issue.expected_hours.to_d * 60).round,
+          reason: issue.why,
+          target_type: attrs["target_type"].presence,
+          target_identifier: target
         ) ]
       end
 
