@@ -127,7 +127,6 @@ module Aicoo
 
     def lines
       [
-        seo_action_type? ? "作業カテゴリ: #{seo_action_type_label}" : nil,
         "実行方法: #{execution_mode_label}",
         execution_units? ? "今日やる単位: #{execution_units.size}件" : nil,
         "根拠: #{source_label}",

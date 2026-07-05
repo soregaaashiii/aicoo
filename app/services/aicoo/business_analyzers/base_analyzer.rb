@@ -33,8 +33,9 @@ module Aicoo
         return empty_result(handled: false) unless handled_business_type?
 
         detected_issues = issues.compact
-        created = detected_issues.filter_map { |issue| create_candidate(issue) }
-        duplicate_count = detected_issues.size - created.size
+        opportunities = detected_issues.filter_map { |issue| opportunity_from_issue(issue) }
+        created = opportunities.filter_map { |opportunity| create_candidate(opportunity) }
+        duplicate_count = opportunities.size - created.size
         duplicate_count.times { skipped << "直近7日以内に同じAnalyzer課題があるため作成しませんでした" }
 
         Result.new(
@@ -43,23 +44,14 @@ module Aicoo
           created:,
           skipped:,
           issues: detected_issues,
+          opportunities:,
           handled: true
         )
       end
 
-      private
-
       attr_reader :business, :today, :skipped
 
-      def handled_business_type?
-        false
-      end
-
-      def issues
-        []
-      end
-
-      def create_candidate(issue)
+      def opportunity_from_issue(issue)
         unless evidence_present?(issue)
           skipped << "#{issue.key}: evidence_missing"
           return
@@ -69,42 +61,36 @@ module Aicoo
           return
         end
 
+        metrics = supporting_metrics_for(issue)
+        Aicoo::OpportunityEngine::Opportunity.new(
+          key: issue.key,
+          business:,
+          source_analyzer: self.class.name,
+          opportunity_type: opportunity_type_for(issue),
+          target: opportunity_target_for(issue, metrics),
+          reason: issue.why,
+          expected_value_yen: issue.expected_value_yen,
+          expected_hours: issue.expected_hours,
+          success_probability: issue.success_probability,
+          confidence: issue.confidence_score,
+          execution_mode: execution_mode_for(issue),
+          required_resources: required_resources_for(issue),
+          supporting_metrics: metrics,
+          source_issue: issue
+        )
+      end
+
+      def create_candidate(opportunity)
+        issue = opportunity.source_issue
         if recent_duplicate?(issue)
           skipped << "#{issue.key}: duplicate"
           return
         end
 
-        candidate = business.action_candidates.create!(
-          title: issue.title,
-          description: issue.description,
-          action_type: issue.action_type,
-          immediate_value_yen: issue.expected_value_yen,
-          success_probability: issue.success_probability,
-          strategic_value_score: issue.strategic_value_score,
-          risk_reduction_score: issue.risk_reduction_score,
-          confidence_score: issue.confidence_score,
-          data_confidence_score: issue.confidence_score,
-          expected_hours: issue.expected_hours,
-          cost_yen: 0,
-          status: "idea",
-          generation_source: "business_analyzer",
-          metadata: candidate_metadata(issue),
-          evaluation_reason: evaluation_reason(issue),
-          execution_prompt: execution_prompt(issue)
-        )
-        Aicoo::ActionCandidateInstructionStabilizer.call(candidate)
-        candidate.reload.update_columns(
-          metadata: candidate.metadata.to_h.merge(
-            "evidence" => evidence_for(issue),
-            "execution_units" => execution_units_for(issue),
-            "execution_mode" => execution_mode_for(issue)
-          ),
-          updated_at: Time.current
-        )
-        candidate.reload
+        Aicoo::OpportunityEngine::ActionCandidateConverter.new(opportunity, analyzer: self).call
       end
 
-      def candidate_metadata(issue)
+      def candidate_metadata(issue, opportunity: nil)
         issue.metadata.to_h.deep_stringify_keys.merge(
           "source" => "business_analyzer",
           "analyzer" => self.class.name,
@@ -113,10 +99,12 @@ module Aicoo
           "issue_quantity" => issue.quantity,
           "issue_unit" => issue.unit,
           "issue_why" => issue.why,
+          "opportunity" => opportunity&.to_metadata,
+          "opportunity_type" => opportunity&.opportunity_type || opportunity_type_for(issue),
           "expected_effect" => issue.expected_effect,
           "analyzer_evidence" => evidence_for(issue),
           "execution_units" => execution_units_for(issue),
-          "execution_mode" => execution_mode_for(issue),
+          "execution_mode" => opportunity&.execution_mode || execution_mode_for(issue),
           "expected_minutes" => (issue.expected_hours.to_d * 60).round,
           "business_type_playbook" => business.business_type_playbook.call(
             title: issue.title,
@@ -125,14 +113,16 @@ module Aicoo
             evaluation_reason: issue.why,
             execution_prompt: issue.expected_effect
           ).metadata
-        )
+        ).compact
       end
 
-      def evaluation_reason(issue)
+      def evaluation_reason(issue, opportunity: nil)
         [
           "business_analyzer:#{issue.key}",
-          "何を: #{issue.title}",
-          "どれだけ: #{issue.quantity}#{issue.unit}",
+          "opportunity:#{opportunity&.key || issue.key}",
+          "次にやること: #{issue.title}",
+          "対象: #{opportunity&.target.to_h['label'].presence || issue.title}",
+          "実施量: #{issue.quantity}#{issue.unit}",
           "なぜ: #{issue.why}",
           "期待効果: #{issue.expected_effect}"
         ].join("\n")
@@ -205,6 +195,82 @@ module Aicoo
         return true unless business.business_type.in?(Aicoo::BusinessAnalyzers::SeoBusinessAnalyzer::SEO_MEDIA_TYPES)
 
         issue.metadata.to_h.deep_stringify_keys["seo_action_type"].present?
+      end
+
+      def execution_prompt(issue, opportunity: nil)
+        target = opportunity&.target.to_h["label"].presence || issue.title
+        <<~PROMPT.strip
+          Opportunityに対して、実行方法だけを具体化してください。
+
+          次にやること:
+          #{issue.title}
+
+          対象:
+          #{target}
+
+          実施量:
+          #{issue.quantity}#{issue.unit}
+
+          なぜ:
+          #{issue.why}
+
+          期待効果:
+          #{issue.expected_effect}
+
+          注意:
+          課題の再発見や一般論の提案はしないでください。上記Opportunityを実行する手順、変更対象、完成条件だけを書いてください。
+        PROMPT
+      end
+
+      private
+
+      def handled_business_type?
+        false
+      end
+
+      def issues
+        []
+      end
+
+      def opportunity_type_for(issue)
+        attrs = issue.metadata.to_h.deep_stringify_keys
+        attrs["opportunity_type"].presence || attrs["seo_action_type"].presence || issue.action_type
+      end
+
+      def opportunity_target_for(issue, metrics)
+        {
+          "label" => [
+            metrics["query"].presence && "「#{metrics['query']}」",
+            metrics["page_path"],
+            metrics["area"].presence && "#{metrics['area']}エリア",
+            metrics["genre"]
+          ].compact_blank.join(" / ").presence || issue.title,
+          "query" => metrics["query"],
+          "page_path" => metrics["page_path"],
+          "area" => metrics["area"],
+          "genre" => metrics["genre"],
+          "amount" => issue.quantity,
+          "unit" => issue.unit
+        }.compact
+      end
+
+      def supporting_metrics_for(issue)
+        attrs = issue.metadata.to_h.deep_stringify_keys
+        evidence_for(issue).merge(
+          "source_metric" => attrs["source_metric"],
+          "expected_effect" => issue.expected_effect,
+          "candidate_pages" => attrs["candidate_pages"],
+          "candidate_keywords" => attrs["candidate_keywords"],
+          "serp_analysis_id" => attrs["serp_analysis_id"]
+        ).compact
+      end
+
+      def required_resources_for(issue)
+        {
+          "execution_units" => execution_units_for(issue),
+          "estimated_minutes" => (issue.expected_hours.to_d * 60).round,
+          "execution_mode" => execution_mode_for(issue)
+        }
       end
 
       def listing_units(issue, attrs)
@@ -310,34 +376,13 @@ module Aicoo
         attributes.compact.transform_keys(&:to_s)
       end
 
-      def execution_prompt(issue)
-        <<~PROMPT.strip
-          Analyzerが検出した課題に対して、実行方法だけを具体化してください。
-
-          何を:
-          #{issue.title}
-
-          どれだけ:
-          #{issue.quantity}#{issue.unit}
-
-          なぜ:
-          #{issue.why}
-
-          期待効果:
-          #{issue.expected_effect}
-
-          注意:
-          課題の再発見や一般論の提案はしないでください。上記の課題を実行する手順、変更対象、完成条件だけを書いてください。
-        PROMPT
-      end
-
       def recent_duplicate?(issue)
         business.action_candidates
                 .where(created_at: duplicate_window_start..)
                 .where(
                   "title = ? OR evaluation_reason LIKE ?",
                   issue.title,
-                  "%business_analyzer:#{ActiveRecord::Base.sanitize_sql_like(issue.key)}%"
+                  "%#{ActiveRecord::Base.sanitize_sql_like(issue.key)}%"
                 )
                 .exists?
       end
@@ -353,6 +398,7 @@ module Aicoo
           created: [],
           skipped: [],
           issues: [],
+          opportunities: [],
           handled:
         )
       end

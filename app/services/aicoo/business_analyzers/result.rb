@@ -1,6 +1,6 @@
 module Aicoo
   module BusinessAnalyzers
-    Result = Data.define(:business, :analyzer, :created, :skipped, :issues, :handled) do
+    Result = Data.define(:business, :analyzer, :created, :skipped, :issues, :opportunities, :handled) do
       def created_count
         created.size
       end
@@ -22,6 +22,7 @@ module Aicoo
           "created_count" => created_count,
           "skipped_count" => skipped_count,
           "issue_count" => issues.size,
+          "opportunity_count" => opportunities.size,
           "skipped_reasons" => skipped
         }
       end

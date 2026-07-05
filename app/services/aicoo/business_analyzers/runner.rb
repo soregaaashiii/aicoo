@@ -38,6 +38,7 @@ module Aicoo
           created: [],
           skipped: [],
           issues: [],
+          opportunities: [],
           handled: false
         )
       end

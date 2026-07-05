@@ -210,10 +210,8 @@ module Owner
       assert_response :success
       assert_includes response.body, concrete.title
       assert_includes response.body, "根拠データ"
-      assert_includes response.body, "作業カテゴリ: CTRタイトル改善"
       assert_includes response.body, "実行方法: 記事作成"
       assert_includes response.body, "Codex対象"
-      assert_includes response.body, "これは記事作成タスクなので、Codexではなく記事作成AIまたはOwnerが実行します。"
       assert_includes response.body, "今日やる単位"
       assert_includes response.body, "1. 梅田 喫煙 居酒屋 のSEOタイトル/metaを1件改善（20分）"
       assert_includes response.body, "根拠: GSC"

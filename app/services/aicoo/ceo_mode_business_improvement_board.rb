@@ -366,7 +366,7 @@ module Aicoo
         "ai_insight" => "AI Insight",
         "learning_report" => "Learning",
         "opportunity_discovery" => "Opportunity",
-        "business_analyzer" => "Business Analyzer"
+        "business_analyzer" => "Opportunity"
       }.fetch(source.to_s, source.to_s.presence || "改善候補")
     end
 

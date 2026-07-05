@@ -26,8 +26,14 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     assert candidate.metadata.dig("evidence", "target_amount").present?
     assert_match(/CTR0\.5%/, candidate.title)
     assert_match(/件書き換える/, candidate.title)
-    assert_match(/何を:/, candidate.evaluation_reason)
-    assert_match(/どれだけ:/, candidate.evaluation_reason)
+    assert_equal "seo_low_ctr_titles", candidate.metadata.dig("opportunity", "key")
+    assert_equal "improve_ctr_title", candidate.metadata.dig("opportunity", "opportunity_type")
+    assert_equal "「梅田 喫煙 居酒屋」", candidate.metadata.dig("opportunity", "target", "label")
+    assert_equal "content_creation", candidate.metadata.dig("opportunity", "execution_mode")
+    assert_equal [ "gsc" ], candidate.metadata.dig("opportunity", "supporting_metrics", "source")
+    assert_match(/次にやること:/, candidate.evaluation_reason)
+    assert_match(/対象:/, candidate.evaluation_reason)
+    assert_match(/実施量:/, candidate.evaluation_reason)
     assert_match(/なぜ:/, candidate.evaluation_reason)
     assert_match(/期待効果:/, candidate.evaluation_reason)
     assert_includes candidate.execution_prompt, "ActionCandidate 記事計画"

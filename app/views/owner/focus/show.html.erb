@@ -15,7 +15,7 @@
   <section class="dashboard-section aicoo-decision-hero">
     <% if primary_item %>
       <div class="aicoo-decision-card">
-        <p><span class="pill"><%= primary_item.business.name %></span> <span class="pill"><%= primary_item.category %></span></p>
+        <p><span class="pill"><%= primary_item.business.name %></span></p>
         <h2><%= primary_item.title %></h2>
         <p class="aicoo-decision-reason"><%= primary_item.reason_lines.first || "期待値が最も高い改善候補です。" %></p>
         <div class="aicoo-decision-metrics">
@@ -30,11 +30,6 @@
           <div><span>実施量</span><strong><%= primary_item.amount_label.presence || "-" %></strong></div>
           <div><span>実行方法</span><strong><%= primary_item.execution_mode_label.presence || "-" %></strong></div>
           <div><span>Codex対象</span><strong><%= primary_item.codex_target_label %></strong></div>
-        </div>
-
-        <div class="aicoo-decision-subcard">
-          <strong>Codex判定</strong>
-          <p><%= primary_item.codex_target_reason %></p>
         </div>
 
         <% if primary_item.evidence_lines.any? %>
