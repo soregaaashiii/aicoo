@@ -105,14 +105,14 @@ module Aicoo
     end
 
     def build_candidate_improvement(candidate)
-      title = human_title(candidate.title)
+      presenter = Aicoo::ActionCandidateEvidencePresenter.new(candidate)
+      title = human_title(presenter.summary)
       category = category_for(candidate.action_type, candidate.title)
       expected_profit = candidate.expected_profit_yen.to_i
       success_probability = candidate.success_probability.presence || DEFAULT_SUCCESS_PROBABILITY
       required_minutes = minutes_for(candidate.expected_hours)
       learning_value = candidate.expected_learning_value_yen.to_i
       auto_revision_task = candidate.auto_revision_tasks.active.by_priority.first
-      presenter = Aicoo::ActionCandidateEvidencePresenter.new(candidate)
       codex_path = if auto_revision_task
         export_codex_prompt_auto_revision_task_path(auto_revision_task)
       elsif candidate.code_revision_execution_mode?
@@ -132,7 +132,7 @@ module Aicoo
         learning_value_yen: learning_value,
         roi: candidate.roi,
         source_label: source_label(candidate.generation_source),
-        reason_lines: reason_lines_for_candidate(candidate, category:),
+        reason_lines: reason_lines_for_candidate(candidate, category:, presenter:),
         detail_path: action_workspace_path(candidate),
         codex_path:,
         codex_method: auto_revision_task ? :get : :post,
@@ -258,7 +258,12 @@ module Aicoo
       text.match?(/検索需要があるテーマ|CVを改善|UXを改善|CTAを改善|デザインを改善|サイト改善|導線改善|記事を増やす|改善する|最適化する|強化する/)
     end
 
-    def reason_lines_for_candidate(candidate, category:)
+    def reason_lines_for_candidate(candidate, category:, presenter: Aicoo::ActionCandidateEvidencePresenter.new(candidate))
+      if presenter.owner_output.present?
+        output_lines = presenter.owner_output.lines.map(&:strip).compact_blank
+        return output_lines.reject { |line| line.in?(%w[今日やること: 理由: 期待効果:]) }.first(4)
+      end
+
       lines = []
       lines << "期待利益が#{yen(candidate.expected_profit_yen)}見込めます。" if candidate.expected_profit_yen.to_i.positive?
       lines << "成功率は#{percentage(candidate.success_probability)}です。" if candidate.success_probability.to_d.positive?

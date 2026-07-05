@@ -274,7 +274,7 @@ module Owner
       assert_includes response.body, "1件"
     end
 
-    test "warns when analyzer candidate has no execution units" do
+    test "shows action planner output for analyzer candidates" do
       candidate = create_candidate!(
         title: "CTR0.5%の検索入口を5件書き換える",
         immediate_value_yen: 50_000,
@@ -285,6 +285,19 @@ module Owner
       candidate.update_columns(
         metadata: candidate.metadata.to_h.merge(
           "seo_action_type" => "improve_ctr_title",
+          "action_plan" => {
+            "summary" => "梅田 喫煙 居酒屋のCTRを5件改善する",
+            "owner_output" => "今日やること:\n梅田 喫煙 居酒屋のCTRを5件改善する\n\n理由:\nCTRが低いため",
+            "execution_mode" => "content_creation",
+            "execution_units" => [
+              {
+                "label" => "梅田 喫煙 居酒屋 のSEOタイトル/metaを1件改善",
+                "target_amount" => 1,
+                "estimated_minutes" => 20,
+                "reason" => "高順位なのにCTRが低いため"
+              }
+            ]
+          },
           "evidence" => {
             "source" => [ "gsc" ],
             "issue_type" => "seo_low_ctr_titles",
@@ -300,8 +313,9 @@ module Owner
       get owner_focus_url
 
       assert_response :success
-      assert_includes response.body, candidate.title
-      assert_includes response.body, "今日やる単位が未生成です。"
+      assert_includes response.body, "梅田 喫煙 居酒屋のCTRを5件改善する"
+      assert_includes response.body, "1. 梅田 喫煙 居酒屋 のSEOタイトル/metaを1件改善（20分）"
+      assert_not_includes response.body, "今日やる単位が未生成です。"
     end
 
     test "shows codex submission waiting summary" do

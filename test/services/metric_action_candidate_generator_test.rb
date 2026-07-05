@@ -24,22 +24,24 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     assert_equal 0.03, candidate.metadata.dig("evidence", "benchmark_value")
     assert_equal "high_impression_low_ctr", candidate.metadata.fetch("opportunity_type")
     assert candidate.metadata.fetch("concrete_task").present?
+    assert_equal candidate.title, candidate.metadata.dig("action_plan", "summary")
+    assert_includes candidate.metadata.dig("action_plan", "owner_output"), "今日やること:"
+    assert_includes candidate.metadata.dig("action_plan", "owner_output"), candidate.title
+    assert_not_empty candidate.metadata.dig("action_plan", "execution_steps")
+    assert_not_empty candidate.metadata.dig("action_plan", "execution_units")
     assert candidate.metadata.dig("evidence", "target_amount").present?
-    assert_match(/CTRを\d+件改善する/, candidate.title)
+    assert_match(/タイトル・meta・ファーストビュー訴求を\d+件改善する/, candidate.title)
     assert_equal "high_impression_low_ctr", candidate.metadata.dig("opportunity", "key")
     assert_equal "high_impression_low_ctr", candidate.metadata.dig("opportunity", "opportunity_type")
     assert_equal "「吸えログ 比較」", candidate.metadata.dig("opportunity", "target", "label")
     assert_equal "content_creation", candidate.metadata.dig("opportunity", "execution_mode")
     assert_equal [ "gsc", "ga4" ], candidate.metadata.dig("opportunity", "supporting_metrics", "source")
     assert_equal false, candidate.metadata.fetch("codex_eligible")
-    assert_match(/次にやること:/, candidate.evaluation_reason)
-    assert_match(/対象:/, candidate.evaluation_reason)
-    assert_match(/実施量:/, candidate.evaluation_reason)
-    assert_match(/なぜ:/, candidate.evaluation_reason)
+    assert_match(/今日やること:/, candidate.evaluation_reason)
+    assert_match(/理由:/, candidate.evaluation_reason)
     assert_match(/期待効果:/, candidate.evaluation_reason)
-    assert_includes candidate.execution_prompt, "ActionCandidate 記事計画"
-    assert_includes candidate.execution_prompt, "記事タイプ"
-    assert_includes candidate.execution_prompt, "検索意図"
+    assert_includes candidate.execution_prompt, "Action Planner 作業指示"
+    assert_includes candidate.execution_prompt, "実行手順:"
     assert_no_match(/現在 → 変更後|Codexへ渡す修正文|After（AI生成）/, candidate.execution_prompt)
     assert_equal "Aicoo::BusinessAnalyzers::GenericOpportunityAnalyzer", candidate.metadata.fetch("analyzer")
   end
@@ -140,7 +142,7 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     candidate = result.created.find { |record| record.metadata.fetch("issue_key") == "asset_without_traffic" }
 
     assert candidate
-    assert_match(/流入導線を3件追加する/, candidate.title)
+    assert_match(/導線を3件追加する/, candidate.title)
     assert_equal "seo_improvement", candidate.action_type
     assert_equal "asset_without_traffic", candidate.metadata.fetch("opportunity_type")
     assert_equal "content_creation", candidate.metadata.fetch("execution_mode")
@@ -175,7 +177,7 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     candidate = result.created.find { |record| record.metadata.fetch("issue_key") == "activity_gap" }
 
     assert candidate
-    assert_match(/改善作業を1件実行する/, candidate.title)
+    assert_match(/改善を1件実行する/, candidate.title)
     assert_equal "data_preparation", candidate.action_type
     assert_equal "activity_gap", candidate.metadata.fetch("opportunity_type")
     assert_equal "manual_operation", candidate.metadata.fetch("execution_mode")

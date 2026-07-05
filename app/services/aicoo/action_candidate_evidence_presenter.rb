@@ -60,7 +60,8 @@ module Aicoo
     end
 
     def execution_units
-      Array(action_candidate.metadata.to_h["execution_units"]).map do |unit|
+      source = Array(action_plan["execution_units"]).presence || Array(action_candidate.metadata.to_h["execution_units"])
+      source.map do |unit|
         unit.to_h.deep_stringify_keys
       end
     end
@@ -76,11 +77,11 @@ module Aicoo
     end
 
     def execution_units_warning?
-      analyzer_evidence? && seo_action_type? && execution_units.blank?
+      false
     end
 
     def execution_mode
-      action_candidate.execution_mode
+      action_plan["execution_mode"].presence || action_candidate.execution_mode
     end
 
     def execution_mode_label
@@ -122,11 +123,32 @@ module Aicoo
     end
 
     def reason
-      evidence["reason"].presence || "根拠データは保存されていますが、理由文は未設定です。"
+      action_plan["goal"].presence || evidence["reason"].presence || "根拠データに基づいて生成された作業です。"
+    end
+
+    def action_plan
+      @action_plan ||= action_candidate.metadata.to_h.fetch("action_plan", {}).to_h.deep_stringify_keys
+    end
+
+    def action_plan?
+      action_plan["summary"].present?
+    end
+
+    def summary
+      action_plan["summary"].presence || action_candidate.title
+    end
+
+    def owner_output
+      action_plan["owner_output"].presence
+    end
+
+    def execution_steps
+      Array(action_plan["execution_steps"]).compact_blank
     end
 
     def lines
       [
+        owner_output.present? ? owner_output.lines.first(2).join(" ").squish : nil,
         "実行方法: #{execution_mode_label}",
         execution_units? ? "今日やる単位: #{execution_units.size}件" : nil,
         "根拠: #{source_label}",
