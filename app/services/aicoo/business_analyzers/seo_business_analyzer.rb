@@ -51,6 +51,7 @@ module Aicoo
           risk_reduction_score: 28,
           expected_hours: 1.5,
           metadata: {
+            "seo_action_type" => "improve_ctr_title",
             "evidence_sources" => [ "gsc" ],
             "source_query" => query,
             "source_metric" => "gsc_ctr",
@@ -93,6 +94,7 @@ module Aicoo
           risk_reduction_score: 34,
           expected_hours: 2,
           metadata: {
+            "seo_action_type" => "respond_to_serp_gap",
             "evidence_sources" => [ "serp", "gsc" ],
             "source_query" => query,
             "serp_analysis_id" => analysis.id,
@@ -134,6 +136,7 @@ module Aicoo
           risk_reduction_score: 32,
           expected_hours: 2,
           metadata: {
+            "seo_action_type" => "add_shop_links",
             "evidence_sources" => [ "gsc", "ga4", "business_db" ],
             "source_metric" => "phone_map_affiliate_clicks",
             "current_value" => recent_conversion_clicks,
@@ -180,6 +183,7 @@ module Aicoo
           risk_reduction_score: 25,
           expected_hours: 1.5,
           metadata: {
+            "seo_action_type" => "add_shop_links",
             "evidence_sources" => [ "ga4", "business_db" ],
             "source_metric" => "views_per_session",
             "current_value" => recent_views_per_session.to_f,
@@ -214,6 +218,7 @@ module Aicoo
           risk_reduction_score: 24,
           expected_hours: keywords.size * 1.5,
           metadata: {
+            "seo_action_type" => article_seo_action_type(keywords.first),
             "evidence_sources" => [ "gsc", "serp", "business_db" ],
             "source_query" => keywords.first,
             "target_genre" => "SEO記事",
@@ -255,6 +260,7 @@ module Aicoo
           risk_reduction_score: 36,
           expected_hours: (add_count * 20 / 3600.0).round(2),
           metadata: {
+            "seo_action_type" => "add_listings",
             "evidence_sources" => [ "business_db", "activity_log" ],
             "source_metric" => "shop_activity",
             "target_area" => area,
@@ -301,6 +307,7 @@ module Aicoo
           risk_reduction_score: 50,
           expected_hours: (target_count * 30 / 3600.0).round(2),
           metadata: {
+            "seo_action_type" => "verify_listings",
             "evidence_sources" => [ "business_db", "activity_log" ],
             "source_metric" => "smoking_verified_rate",
             "current_value" => unverified_count,
@@ -458,6 +465,10 @@ module Aicoo
         return "福島" if text.include?("福島")
 
         "大阪"
+      end
+
+      def article_seo_action_type(keyword)
+        keyword.to_s.match?(/大阪|梅田|難波|福島|天王寺|心斎橋|新宿|渋谷|池袋|銀座|駅|エリア/) ? "create_area_article" : "create_genre_article"
       end
 
       def candidate_pages_for_seo

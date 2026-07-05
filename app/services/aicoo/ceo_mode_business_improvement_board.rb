@@ -25,7 +25,8 @@ module Aicoo
       :codex_path,
       :codex_method,
       :defer_path,
-      :evidence_lines
+      :evidence_lines,
+      :seo_action_type_label
     )
     BusinessCard = Data.define(
       :business,
@@ -123,7 +124,8 @@ module Aicoo
         codex_path: auto_revision_task ? export_codex_prompt_auto_revision_task_path(auto_revision_task) : generate_codex_prompt_draft_action_candidate_path(candidate),
         codex_method: auto_revision_task ? :get : :post,
         defer_path: defer_owner_focus_path(task_key: "action_candidate:#{candidate.id}"),
-        evidence_lines: evidence_lines_for(candidate)
+        evidence_lines: evidence_lines_for(candidate),
+        seo_action_type_label: seo_action_type_label_for(candidate)
       )
     end
 
@@ -152,7 +154,8 @@ module Aicoo
         codex_path: export_codex_prompt_auto_revision_task_path(task),
         codex_method: :get,
         defer_path: defer_owner_focus_path(task_key: "auto_revision_task:#{task.id}"),
-        evidence_lines: candidate ? evidence_lines_for(candidate) : []
+        evidence_lines: candidate ? evidence_lines_for(candidate) : [],
+        seo_action_type_label: candidate ? seo_action_type_label_for(candidate) : nil
       )
     end
 
@@ -210,7 +213,7 @@ module Aicoo
 
     def ranking_key(row)
       [
-        -row.expected_profit_yen.to_i,
+        -(row.expected_profit_yen.to_i + seo_action_priority_bonus(row)),
         -(row.roi || 0).to_d,
         -row.success_probability.to_d,
         row.required_minutes.to_i.zero? ? 999_999 : row.required_minutes.to_i,
@@ -243,6 +246,23 @@ module Aicoo
       return [] unless presenter.analyzer_evidence?
 
       presenter.lines
+    end
+
+    def seo_action_type_label_for(candidate)
+      presenter = Aicoo::ActionCandidateEvidencePresenter.new(candidate)
+      presenter.seo_action_type? ? presenter.seo_action_type_label : nil
+    end
+
+    def seo_action_priority_bonus(row)
+      {
+        "CTRタイトル改善" => 7_000,
+        "掲載店舗追加" => 6_000,
+        "確認済み追加" => 5_000,
+        "店舗リンク追加" => 4_000,
+        "エリア記事作成" => 3_000,
+        "ジャンル記事作成" => 2_000,
+        "SERP差分対応" => 1_000
+      }.fetch(row.seo_action_type_label.to_s, 0)
     end
 
     def reason_lines_for_auto_revision(task, candidate:, category:)

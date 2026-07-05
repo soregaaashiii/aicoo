@@ -157,6 +157,7 @@ module Owner
       )
       concrete.update_columns(
         metadata: concrete.metadata.to_h.merge(
+          "seo_action_type" => "improve_ctr_title",
           "evidence" => {
             "source" => [ "gsc" ],
             "issue_type" => "seo_low_ctr_titles",
@@ -185,6 +186,7 @@ module Owner
       assert_response :success
       assert_includes response.body, concrete.title
       assert_includes response.body, "根拠データ"
+      assert_includes response.body, "作業カテゴリ: CTRタイトル改善"
       assert_includes response.body, "根拠: GSC"
       assert_includes response.body, "対象: 「梅田 喫煙 居酒屋」 / /umeda-smoking-izakaya"
       assert_includes response.body, "現在: 0.5%"
@@ -202,6 +204,7 @@ module Owner
       )
       candidate.update_columns(
         metadata: candidate.metadata.to_h.merge(
+          "seo_action_type" => "add_shop_links",
           "evidence" => {
             "source" => [ "ga4", "business_db" ],
             "issue_type" => "seo_internal_links_shortage",

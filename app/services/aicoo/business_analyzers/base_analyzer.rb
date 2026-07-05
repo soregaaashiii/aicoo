@@ -64,6 +64,10 @@ module Aicoo
           skipped << "#{issue.key}: evidence_missing"
           return
         end
+        unless seo_action_type_present?(issue)
+          skipped << "#{issue.key}: seo_action_type_missing"
+          return
+        end
 
         if recent_duplicate?(issue)
           skipped << "#{issue.key}: duplicate"
@@ -152,6 +156,12 @@ module Aicoo
         %w[target_amount query page_path area genre metric_before benchmark_value current_value].any? do |key|
           evidence[key].present?
         end
+      end
+
+      def seo_action_type_present?(issue)
+        return true unless business.business_type.in?(Aicoo::BusinessAnalyzers::SeoBusinessAnalyzer::SEO_MEDIA_TYPES)
+
+        issue.metadata.to_h.deep_stringify_keys["seo_action_type"].present?
       end
 
       def execution_prompt(issue)

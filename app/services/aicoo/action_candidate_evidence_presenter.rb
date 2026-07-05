@@ -7,6 +7,15 @@ module Aicoo
       "serp" => "SERP",
       "activity_log" => "Activity Log"
     }.freeze
+    SEO_ACTION_TYPE_LABELS = {
+      "add_listings" => "掲載店舗追加",
+      "verify_listings" => "確認済み追加",
+      "create_area_article" => "エリア記事作成",
+      "create_genre_article" => "ジャンル記事作成",
+      "add_shop_links" => "店舗リンク追加",
+      "improve_ctr_title" => "CTRタイトル改善",
+      "respond_to_serp_gap" => "SERP差分対応"
+    }.freeze
 
     def initialize(action_candidate)
       @action_candidate = action_candidate
@@ -27,6 +36,18 @@ module Aicoo
         evidence["benchmark_value"],
         evidence["current_value"]
       ].any?(&:present?)
+    end
+
+    def seo_action_type
+      action_candidate.metadata.to_h["seo_action_type"].presence
+    end
+
+    def seo_action_type?
+      seo_action_type.present?
+    end
+
+    def seo_action_type_label
+      SEO_ACTION_TYPE_LABELS.fetch(seo_action_type.to_s, seo_action_type.to_s)
     end
 
     def source_label
@@ -69,17 +90,19 @@ module Aicoo
 
     def lines
       [
+        seo_action_type? ? "作業カテゴリ: #{seo_action_type_label}" : nil,
         "根拠: #{source_label}",
         "対象: #{target_label}",
         "現在: #{current_label}",
         "目標: #{benchmark_label}",
         "実施量: #{amount_label}",
         "期待効果: #{expected_effect_label}"
-      ]
+      ].compact
     end
 
     def table_rows
       [
+        seo_action_type? ? [ "作業カテゴリ", seo_action_type_label ] : nil,
         [ "根拠データ", source_label ],
         [ "課題タイプ", evidence["issue_type"].presence || "-" ],
         [ "対象", target_label ],
@@ -88,7 +111,7 @@ module Aicoo
         [ "実施量", amount_label ],
         [ "期待効果", expected_effect_label ],
         [ "理由", reason ]
-      ]
+      ].compact
     end
 
     private

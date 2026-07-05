@@ -22,6 +22,7 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     assert_equal "梅田 喫煙 居酒屋", candidate.metadata.dig("evidence", "query")
     assert_equal 0.005, candidate.metadata.dig("evidence", "current_value")
     assert_equal 0.03, candidate.metadata.dig("evidence", "benchmark_value")
+    assert_equal "improve_ctr_title", candidate.metadata.fetch("seo_action_type")
     assert candidate.metadata.dig("evidence", "target_amount").present?
     assert_match(/CTR0\.5%/, candidate.title)
     assert_match(/件書き換える/, candidate.title)
@@ -57,6 +58,29 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     refute analyzer.send(:evidence_present?, issue)
   end
 
+  test "seo analyzer requires seo action type for seo media candidates" do
+    analyzer = Aicoo::BusinessAnalyzers::SeoBusinessAnalyzer.new(business: @business, today: @today)
+    issue = Aicoo::BusinessAnalyzers::BaseAnalyzer::Issue.new(
+      key: "missing_seo_action_type",
+      title: "梅田の記事を3本追加する",
+      description: "根拠はあるが作業カテゴリなし",
+      action_type: "seo_article",
+      quantity: 3,
+      unit: "本",
+      why: "検索需要があるため",
+      expected_effect: "+60クリック/月",
+      expected_value_yen: 10_000,
+      success_probability: 0.3,
+      strategic_value_score: 40,
+      risk_reduction_score: 20,
+      expected_hours: 2,
+      confidence_score: 40,
+      metadata: { "source_query" => "梅田 喫煙 居酒屋" }
+    )
+
+    refute analyzer.send(:seo_action_type_present?, issue)
+  end
+
   test "creates concrete conversion path task with amount and target pages" do
     create_metric_series(
       default_clicks: 5,
@@ -73,6 +97,7 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     assert candidate
     assert_match(/電話・地図・アフィリエイト導線を\d+ページに追加する/, candidate.title)
     assert_equal "ui_improvement", candidate.action_type
+    assert_equal "add_shop_links", candidate.metadata.fetch("seo_action_type")
     assert_equal "phone_map_affiliate_clicks", candidate.metadata.fetch("source_metric")
     assert_includes candidate.metadata.fetch("candidate_pages"), "店舗詳細ページ"
     assert_includes candidate.metadata.fetch("completion_criteria").join("\n"), "phone_clicks"
@@ -94,6 +119,7 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     assert candidate
     assert_match(/内部リンクを\d+件追加する/, candidate.title)
     assert_equal "seo_improvement", candidate.action_type
+    assert_equal "add_shop_links", candidate.metadata.fetch("seo_action_type")
     assert_match(/Views\/Session/, candidate.evaluation_reason)
   end
 
@@ -106,6 +132,7 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     assert candidate
     assert_match(/エリアの掲載店舗を\d+件追加する/, candidate.title)
     assert_equal "data_preparation", candidate.action_type
+    assert_equal "add_listings", candidate.metadata.fetch("seo_action_type")
     assert_equal "shop_activity", candidate.metadata.fetch("source_metric")
   end
 
@@ -120,6 +147,7 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
 
     assert candidate
     assert_match(/記事を3本追加する/, candidate.title)
+    assert_equal "create_area_article", candidate.metadata.fetch("seo_action_type")
     assert_equal %w[梅田\ 喫煙\ 居酒屋 難波\ 喫煙\ カフェ 大阪\ 喫煙可能\ 飲食店], candidate.metadata.fetch("candidate_keywords")
   end
 
@@ -144,6 +172,7 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
 
     assert candidate
     assert_match(/梅田 喫煙 カフェ/, candidate.title)
+    assert_equal "respond_to_serp_gap", candidate.metadata.fetch("seo_action_type")
     assert_equal analysis.id, candidate.metadata.fetch("serp_analysis_id")
     assert_equal keyword, candidate.metadata.fetch("source_query")
     assert_not_empty candidate.metadata.fetch("serp_top_results")
@@ -183,6 +212,26 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
 
     assert_not_empty result.created
     assert result.created.all? { |candidate| candidate.generation_source != "business_analyzer" }
+  end
+
+  test "seo media business analyzer candidates always include seo action type" do
+    @business.serp_queries.create!(query: "梅田 喫煙 居酒屋", priority: 10)
+    create_metric_series(
+      default_impressions: 10,
+      recent_impressions: 1_000,
+      default_clicks: 0,
+      recent_clicks: 5,
+      default_pageviews: 100,
+      recent_pageviews: 250,
+      default_conversions: 0,
+      recent_conversions: 0
+    )
+
+    result = MetricActionCandidateGenerator.new(business: @business, today: @today).call
+    analyzer_candidates = result.created.select { |candidate| candidate.generation_source == "business_analyzer" }
+
+    assert_not_empty analyzer_candidates
+    assert analyzer_candidates.all? { |candidate| candidate.metadata["seo_action_type"].present? }
   end
 
   private
