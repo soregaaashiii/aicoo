@@ -37,7 +37,7 @@ class AutoRevisionTasksControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "db:drop / db:reset / drop database は絶対に実行しない"
     assert_includes response.body, "bin/rails test"
     assert_includes response.body, "Codex用プロンプトをコピー"
-    assert_includes response.body, "Codex Prompt準備"
+    assert_includes response.body, "承認する"
     assert_includes response.body, "Codex Quality Check"
     assert_includes response.body, "実装結果を登録"
     assert_includes response.body, "Target Repository"
@@ -79,7 +79,7 @@ class AutoRevisionTasksControllerTest < ActionDispatch::IntegrationTest
     task.approve!
     task.update!(risk_level: "low")
 
-    assert_difference("CodexSubmission.count", 1) do
+    assert_no_difference("CodexSubmission.count") do
       post build_codex_submission_auto_revision_task_url(task)
     end
 

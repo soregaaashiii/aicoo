@@ -16,7 +16,6 @@
       <p class="aicoo-header-description"><%= description %></p>
     </div>
     <div class="aicoo-page-actions">
-      <%= link_to "CEOダッシュボードへ戻る", owner_dashboard_path, class: "button" %>
       <% if local_assigns[:actions].present? %>
         <%= actions %>
       <% end %>

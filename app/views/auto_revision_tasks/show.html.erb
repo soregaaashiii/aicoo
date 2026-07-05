@@ -1,45 +1,68 @@
 <% content_for :title, @auto_revision_task.title %>
 
 <% header_actions = capture do %>
-  <%= link_to "一覧", auto_revision_tasks_path, class: "button secondary" %>
-  <%= link_to "Codex Queue", codex_queue_auto_revision_tasks_path, class: "button secondary" %>
-  <%= link_to "ActionCandidate", @auto_revision_task.action_candidate, class: "button secondary" %>
-  <%= link_to "外部commitを取り込む",
-              new_admin_external_commit_import_path(
-                business_id: @auto_revision_task.business_id,
-                action_candidate_id: @auto_revision_task.action_candidate_id,
-                auto_revision_task_id: @auto_revision_task.id,
-                repository: @auto_revision_task.execution_profile&.github_repository
-              ),
-              class: "button secondary" %>
   <% if %w[draft waiting_approval].include?(@auto_revision_task.status) %>
-    <%= button_to "Codex Prompt準備", approve_auto_revision_task_path(@auto_revision_task), method: :patch, class: "button", data: { turbo_confirm: "#{@auto_revision_task.risk_level} riskの旧形式タスクをCodex準備へ進めますか？" } %>
+    <%= button_to "承認する", approve_auto_revision_task_path(@auto_revision_task), method: :patch, class: "button" %>
+  <% elsif @auto_revision_task.status == "failed" && @auto_revision_task.risk_level != "high" %>
+    <%= button_to "実行する", retry_execution_auto_revision_task_path(@auto_revision_task), method: :patch, class: "button" %>
+  <% elsif @auto_revision_task.successful_result? %>
+    <%= link_to "実行する", new_action_result_path(action_result: { action_candidate_id: @auto_revision_task.action_candidate_id }), class: "button" %>
   <% end %>
-  <% if %w[approved ready_for_codex].include?(@auto_revision_task.status) && @auto_revision_task.risk_level != "high" %>
-    <%= button_to "実行キューへ追加", enqueue_auto_revision_task_path(@auto_revision_task), method: :patch, class: "button" %>
+  <% unless %w[canceled completed succeeded partial_succeeded].include?(@auto_revision_task.status) %>
+    <%= button_to "却下する", cancel_auto_revision_task_path(@auto_revision_task), method: :patch, class: "button secondary" %>
   <% end %>
-  <% if @auto_revision_task.status == "failed" && @auto_revision_task.risk_level != "high" %>
-    <%= button_to "再実行", retry_execution_auto_revision_task_path(@auto_revision_task), method: :patch, class: "button secondary" %>
-  <% end %>
-  <% if %w[queued ready_for_codex].include?(@auto_revision_task.status) %>
-    <%= button_to "手動送信済みにする", mark_sent_to_codex_auto_revision_task_path(@auto_revision_task), method: :patch, class: "button" %>
-  <% elsif @auto_revision_task.status == "sent_to_codex" %>
-    <%= button_to "実装開始", start_implementation_auto_revision_task_path(@auto_revision_task), method: :patch, class: "button" %>
-  <% end %>
-  <%= button_to "Codex手動送信用として準備", build_codex_submission_auto_revision_task_path(@auto_revision_task), method: :post, class: "button secondary" %>
+  <%= link_to "詳細を見る", "#developer-mode", class: "button secondary" %>
 <% end %>
 
 <div class="aicoo-page">
   <%= render "shared/aicoo_header",
              title: @auto_revision_task.title,
-             description: "Codexへ渡す前の改修タスクです。まだ自動実行はしません。",
+             description: "この改修を進めるかだけを判断します。",
+             mode: :ceo,
              active_main: :dashboard,
              actions: header_actions %>
-  <%= render "shared/purpose_context_bar",
-             business: @auto_revision_task.business,
-             section_label: "自動改修履歴",
-             detail_label: "自動改修詳細",
-             list_path: auto_revision_tasks_path %>
+
+  <% stop_reason =
+       case @auto_revision_task.status
+       when "draft", "waiting_approval" then "Ownerの判断待ちです。"
+       when "approved", "ready_for_codex" then "Codex投入準備が必要です。"
+       when "queued" then "Codex投入待ちです。"
+       when "sent_to_codex", "running" then "外部実装の完了待ちです。"
+       when "failed" then @auto_revision_task.error_message.presence || "前回の実行に失敗しています。"
+       when "completed", "succeeded", "partial_succeeded" then "実装結果の登録または学習待ちです。"
+       else "現在状態を確認してください。"
+       end %>
+
+  <section class="dashboard-section aicoo-decision-hero">
+    <div class="aicoo-decision-card">
+      <p><span class="pill"><%= @auto_revision_task.business.name %></span> <span class="pill">risk: <%= @auto_revision_task.risk_level %></span></p>
+      <h2><%= @auto_revision_task.title %></h2>
+      <p class="aicoo-decision-reason"><%= stop_reason %></p>
+      <div class="aicoo-decision-metrics">
+        <div><span>状態</span><strong><%= @auto_revision_task.status %></strong></div>
+        <div><span>優先度</span><strong><%= number_with_precision(@auto_revision_task.priority_score, precision: 1) %></strong></div>
+        <div><span>Repository</span><strong><%= @auto_revision_task.target_repository_display %></strong></div>
+        <div><span>Codex</span><strong><%= @auto_revision_task.codex_submission ? @auto_revision_task.codex_submission.workflow_status_label : "未作成" %></strong></div>
+      </div>
+      <div class="actions compact-actions">
+        <% if %w[draft waiting_approval].include?(@auto_revision_task.status) %>
+          <%= button_to "承認する", approve_auto_revision_task_path(@auto_revision_task), method: :patch, class: "button" %>
+        <% elsif @auto_revision_task.status == "failed" && @auto_revision_task.risk_level != "high" %>
+          <%= button_to "実行する", retry_execution_auto_revision_task_path(@auto_revision_task), method: :patch, class: "button" %>
+        <% elsif @auto_revision_task.successful_result? %>
+          <%= link_to "実行する", new_action_result_path(action_result: { action_candidate_id: @auto_revision_task.action_candidate_id }), class: "button" %>
+        <% else %>
+          <%= link_to "詳細を見る", "#developer-mode", class: "button secondary" %>
+        <% end %>
+        <% unless %w[canceled completed succeeded partial_succeeded].include?(@auto_revision_task.status) %>
+          <%= button_to "却下する", cancel_auto_revision_task_path(@auto_revision_task), method: :patch, class: "button secondary" %>
+        <% end %>
+      </div>
+    </div>
+  </section>
+
+  <details class="aicoo-developer-mode" id="developer-mode">
+    <summary>Developer Mode</summary>
 
   <section class="dashboard-section">
     <div class="metric-grid">
@@ -486,4 +509,5 @@
       <dd><%= simple_format(@auto_revision_task.codex_output.presence || "-") %></dd>
     </dl>
   </section>
+  </details>
 </div>

@@ -1,61 +1,72 @@
 <% content_for :title, @action_candidate.title %>
 
 <% header_actions = capture do %>
-    <%= button_to "AIで再評価", reevaluate_ai_action_candidate_path(@action_candidate), method: :post, class: "button" %>
-    <% if @action_candidate.code_revision_execution_mode? %>
-      <% if (auto_revision_task = @action_candidate.auto_revision_tasks.active.first) %>
-        <%= link_to "自動改修タスクを見る", auto_revision_task, class: "button secondary" %>
-      <% else %>
-        <%= button_to "自動改修タスク化", auto_revision_tasks_path(action_candidate_id: @action_candidate.id), method: :post, class: "button secondary" %>
-      <% end %>
-      <% if @codex_prompt_draft %>
-        <%= link_to "Codex Promptを見る", owner_codex_prompt_draft_path(@codex_prompt_draft), class: "button secondary" %>
-      <% else %>
-        <%= button_to "Codex Promptを生成", generate_codex_prompt_draft_action_candidate_path(@action_candidate), method: :post, class: "button secondary" %>
-      <% end %>
-    <% end %>
-    <% if @action_candidate.data_preparation? || @action_candidate.generation_source == "ai_insight" %>
-      <% executor_task = @action_candidate.unfinished_executor_task %>
-      <% if executor_task %>
-        <%= link_to "Executor送信済み", admin_aicoo_executor_task_path(executor_task), class: "button secondary" %>
-      <% else %>
-        <%= button_to "Executorへ送る", send_to_executor_action_candidate_path(@action_candidate), method: :post, class: "button" %>
-      <% end %>
-    <% end %>
-    <% if @action_candidate.action_result %>
-      <%= link_to "実行結果を見る", @action_candidate.action_result, class: "button secondary" %>
-    <% else %>
-      <%= link_to "実行結果を記録", new_action_result_path(action_result: { action_candidate_id: @action_candidate.id }), class: "button secondary" %>
-    <% end %>
-    <%= link_to "外部commitを取り込む",
-                new_admin_external_commit_import_path(
-                  business_id: @action_candidate.business_id,
-                  action_candidate_id: @action_candidate.id
-                ),
-                class: "button secondary" %>
-    <%= link_to "実行差分を記録", new_action_execution_log_path(action_candidate_id: @action_candidate.id), class: "button secondary" %>
-    <%= link_to "売上/費用を登録", new_revenue_event_path(revenue_event: { action_candidate_id: @action_candidate.id }), class: "button secondary" %>
-    <% if @action_candidate.status == "approved" %>
-      <%= link_to "改訂待ち一覧", auto_revision_tasks_path(status: "waiting_approval"), class: "button secondary" %>
-    <% end %>
-    <% if @action_execution %>
-      <%= link_to "実行管理へ", @action_execution, class: "button" %>
-    <% end %>
-    <%= link_to "Edit", edit_action_candidate_path(@action_candidate), class: "button secondary" %>
+  <% if !%w[approved created running completed done rejected archived].include?(@action_candidate.status) %>
+    <%= button_to "承認する", approve_action_candidate_path(@action_candidate), method: :patch, class: "button" %>
+  <% elsif @action_candidate.action_result.blank? %>
+    <%= link_to "実行する", new_action_result_path(action_result: { action_candidate_id: @action_candidate.id }), class: "button" %>
+  <% end %>
+  <% unless %w[rejected archived completed done].include?(@action_candidate.status) %>
+    <%= button_to "却下する", reject_action_candidate_path(@action_candidate), method: :patch, class: "button danger" %>
+  <% end %>
+  <%= link_to "詳細を見る", "#developer-mode", class: "button secondary" %>
 <% end %>
 
 <div class="aicoo-page">
   <%= render "shared/aicoo_header",
              title: @action_candidate.title,
-             description: "行動単位の期待値・分散込みスコアを確認します。",
+             description: "今日やるかどうかだけを判断します。",
+             mode: :ceo,
              active_main: :revenue,
              actions: header_actions %>
-  <%= render "shared/purpose_context_bar",
-             business: @action_candidate.business,
-             section_label: "改善案",
-             detail_label: "改善案詳細",
-             list_path: action_candidates_path %>
   <%= render "shared/aicoo_execution_tabs", active: :today %>
+
+<section class="dashboard-section aicoo-decision-hero">
+  <div class="aicoo-decision-card">
+    <p><span class="pill"><%= @action_candidate.business.name %></span> <span class="pill"><%= @evidence_presenter.execution_mode_label %></span></p>
+    <h2><%= @action_candidate.title %></h2>
+    <p class="aicoo-decision-reason"><%= @evidence_presenter&.reason.presence || @action_candidate.evaluation_reason.presence || @action_candidate.description %></p>
+
+    <div class="aicoo-decision-metrics">
+      <div><span>期待利益</span><strong><%= number_to_currency(@action_candidate.expected_profit_yen, unit: "¥", precision: 0) %></strong></div>
+      <div><span>成功率</span><strong><%= number_to_percentage(@action_candidate.success_probability.to_d * 100, precision: 0) %></strong></div>
+      <div><span>予想時間</span><strong><%= @action_candidate.expected_hours.present? ? "#{@action_candidate.expected_hours.to_f.round(1)}h" : "-" %></strong></div>
+      <div><span>期待時給</span><strong><%= @action_candidate.expected_hourly_value_yen.present? ? number_to_currency(@action_candidate.expected_hourly_value_yen, unit: "¥", precision: 0) : "-" %></strong></div>
+    </div>
+
+    <% if @evidence_presenter&.execution_units? %>
+      <div class="aicoo-decision-subcard">
+        <strong>今日やる単位</strong>
+        <ol class="compact-list">
+          <% @evidence_presenter.execution_units.first(3).each do |unit| %>
+            <li><%= unit["label"] %><%= unit["estimated_minutes"].present? ? "（#{unit['estimated_minutes']}分）" : "" %></li>
+          <% end %>
+        </ol>
+      </div>
+    <% elsif @evidence_presenter&.target_label.present? %>
+      <div class="aicoo-decision-subcard">
+        <strong>対象</strong>
+        <p><%= @evidence_presenter.target_label %></p>
+      </div>
+    <% end %>
+
+    <div class="actions compact-actions">
+      <% if !%w[approved created running completed done rejected archived].include?(@action_candidate.status) %>
+        <%= button_to "承認する", approve_action_candidate_path(@action_candidate), method: :patch, class: "button" %>
+      <% elsif @action_candidate.action_result.blank? %>
+        <%= link_to "実行する", new_action_result_path(action_result: { action_candidate_id: @action_candidate.id }), class: "button" %>
+      <% else %>
+        <%= link_to "詳細を見る", "#developer-mode", class: "button secondary" %>
+      <% end %>
+      <% unless %w[rejected archived completed done].include?(@action_candidate.status) %>
+        <%= button_to "却下する", reject_action_candidate_path(@action_candidate), method: :patch, class: "button secondary" %>
+      <% end %>
+    </div>
+  </div>
+</section>
+
+<details class="aicoo-developer-mode" id="developer-mode">
+  <summary>Developer Mode</summary>
 
 <%= render @action_candidate %>
 
@@ -730,4 +741,5 @@
   <%= link_to "行動候補一覧に戻る", action_candidates_path, class: "button secondary" %>
   <%= button_to "Destroy", @action_candidate, method: :delete, class: "danger" %>
 </div>
+</details>
 </div>

@@ -133,8 +133,8 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Judge補正スコア履歴"
     assert_includes response.body, "Judge補正で順位低下"
     assert_includes response.body, "部門"
-    assert_includes response.body, "自動改修タスク化"
-    assert_includes response.body, "Codex Promptを生成"
+    assert_includes response.body, "承認する"
+    assert_includes response.body, "Developer Mode"
     assert_includes response.body, "実行指示書"
     assert_includes response.body, "現在"
     assert_includes response.body, "変更後"
@@ -212,7 +212,7 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
     get action_candidate_url(@action_candidate)
 
     assert_response :success
-    assert_includes response.body, "Codex Promptを見る"
+    assert_includes response.body, "Codex用プロンプト確認"
     assert_includes response.body, owner_codex_prompt_draft_path(draft)
   end
 
@@ -233,13 +233,14 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, "Executorへ送る"
   end
 
-  test "data preparation action candidate shows direct executor button" do
+  test "data preparation action candidate hides direct executor button in CEO UI" do
     action_candidate = create_data_preparation_candidate
 
     get action_candidate_url(action_candidate)
 
     assert_response :success
-    assert_includes response.body, "Executorへ送る"
+    assert_not_includes response.body, "Executorへ送る"
+    assert_includes response.body, "承認する"
   end
 
   test "sends data preparation action candidate to executor" do

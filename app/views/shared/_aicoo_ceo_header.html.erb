@@ -7,7 +7,6 @@
       <p class="aicoo-header-description"><%= description %></p>
     </div>
     <div class="aicoo-page-actions">
-      <%= link_to "詳細分析を見る", dashboard_path, class: "button secondary" %>
       <% if local_assigns[:actions].present? %>
         <%= actions %>
       <% end %>

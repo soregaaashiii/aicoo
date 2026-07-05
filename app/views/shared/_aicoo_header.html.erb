@@ -1,4 +1,5 @@
-<% if request.path.start_with?("/owner") %>
+<% header_mode = local_assigns[:mode].presence || (request.path.start_with?("/owner") ? :ceo : :system) %>
+<% if header_mode.to_sym == :ceo %>
   <%= render "shared/aicoo_ceo_header",
              title: local_assigns.fetch(:title),
              description: local_assigns.fetch(:description),
