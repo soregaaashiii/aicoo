@@ -187,6 +187,7 @@ module Aicoo
         clicks = row[:clicks].to_i
         ctr_percent = row[:ctr_percent].to_f
         position = row[:position].to_f
+        gsc_landing_page_present = row[:landing_page].present?
         raw_landing_page = row[:landing_page].presence || infer_landing_page(area:, local_area:, genre:, theme:)
         target_url = owned_target_url_for(raw_landing_page, area:, local_area:, genre:, theme:)
         return unless target_url.owner_page?
@@ -195,6 +196,7 @@ module Aicoo
         shops_count = shop_count_for(area:, local_area:, genre:)
         confirmed_count = confirmed_shop_count_for(area:, local_area:, genre:)
         articles = article_relevance_for(query:, area:, local_area:, genre:, theme:)
+        page_match = page_match_for(query:, raw_landing_page:, gsc_landing_page_present:, target_url:, articles:)
         articles_count = articles[:count]
         supply_score = [ shops_count + (confirmed_count * 2) + (articles_count * 20), 5 ].max
         revenue_fit = REVENUE_FIT.fetch(genre, 1.0) * cv_intent_multiplier(cv_intent)
@@ -238,6 +240,10 @@ module Aicoo
           target_url: landing_page,
           target_url_type: target_url.target_url_type,
           external_reference_urls: [ target_url.reference_url ].compact,
+          page_exists: page_match[:page_exists],
+          matched_page: page_match[:matched_page],
+          recommended_slug: page_match[:recommended_slug],
+          creation_type: page_match[:creation_type],
           shops_count:, confirmed_count:, articles_count:,
           article_relevance_count: articles[:count],
           article_relevance_score: articles[:best_score],
@@ -328,6 +334,10 @@ module Aicoo
           "target_url" => item[:target_url],
           "target_url_type" => item[:target_url_type],
           "external_reference_urls" => item[:external_reference_urls],
+          "page_exists" => item[:page_exists],
+          "matched_page" => item[:matched_page],
+          "recommended_slug" => item[:recommended_slug],
+          "creation_type" => item[:creation_type],
           "shops_count" => item[:shops_count],
           "confirmed_count" => item[:confirmed_count],
           "articles_count" => item[:articles_count],
@@ -400,6 +410,7 @@ module Aicoo
         [
           "suelog_site_insights:#{item[:recommended_action]}",
           "query=#{item[:query]}",
+          "ページ判定=#{item[:page_exists] ? '既存改善' : '新規作成'} / matched_page=#{item[:matched_page].presence || 'なし'} / recommended_slug=#{item[:recommended_slug].presence || '-'}",
           "表示=#{item[:impressions]} / クリック=#{item[:clicks]} / CTR=#{item[:ctr_percent]}% / 順位=#{item[:position]}",
           "対象=#{item[:area] || '未判定'} / #{item[:local_area] || '広域'} / #{item[:genre] || '未判定'} / CV意図=#{item[:cv_intent]}",
           "供給=DB店舗#{item[:shops_count]} / 確認済み#{item[:confirmed_count]} / 記事#{item[:articles_count]}",
@@ -424,6 +435,8 @@ module Aicoo
       end
 
       def concrete_task_for(item)
+        return "「#{item[:query]}」向けの記事を1本作成する" unless item[:page_exists]
+
         case item[:recommended_action]
         when "CTR改善優先"
           "#{item[:query]}のSEOタイトル/meta descriptionを改善する"
@@ -445,6 +458,8 @@ module Aicoo
       end
 
       def todo_lines_for(item)
+        return new_page_todo_lines_for(item) unless item[:page_exists]
+
         lines = []
         case item[:strategy]
         when "既存記事改善"
@@ -490,6 +505,8 @@ module Aicoo
       end
 
       def action_type_for(item)
+        return "seo_article" unless item[:page_exists]
+
         case item[:recommended_action]
         when "店舗追加優先" then "data_preparation"
         when "内部リンク・導線改善" then "ui_improvement"
@@ -499,6 +516,8 @@ module Aicoo
       end
 
       def execution_mode_for(item)
+        return "content_creation" unless item[:page_exists]
+
         case item[:recommended_action]
         when "店舗追加優先" then "data_operation"
         when "CTR改善優先", "あと少し改善優先", "記事追加優先" then "content_creation"
@@ -774,6 +793,66 @@ module Aicoo
       def article_path_for(log)
         slug = log.metadata.to_h["slug"].presence || log.after_snapshot.to_h["slug"].presence || log.resource_id
         slug.to_s.start_with?("/") ? slug.to_s : "/articles/#{slug}"
+      end
+
+      def page_match_for(query:, raw_landing_page:, gsc_landing_page_present:, target_url:, articles:)
+        owned_raw = Aicoo::BusinessOwnedUrlPolicy.call(business:, url: raw_landing_page)
+        if gsc_landing_page_present && raw_landing_page.present? && owned_raw.owner_page? && owned_raw.reference_url.blank? && !generic_home_page?(owned_raw.url, query)
+          return {
+            page_exists: true,
+            matched_page: target_url.url,
+            recommended_slug: nil,
+            creation_type: "existing_improvement"
+          }
+        end
+
+        if articles[:best_score].to_i >= 70 && articles[:best_path].present?
+          return {
+            page_exists: true,
+            matched_page: articles[:best_path],
+            recommended_slug: nil,
+            creation_type: "existing_improvement"
+          }
+        end
+
+        {
+          page_exists: false,
+          matched_page: nil,
+          recommended_slug: recommended_slug_for(query),
+          creation_type: new_asset_type_for(query)
+        }
+      end
+
+      def recommended_slug_for(query)
+        normalized = query.to_s.downcase
+        return "suelog-comparison" if normalized.include?(business.name.to_s.downcase) && query.to_s.include?("比較")
+
+        parameterized = query.to_s.parameterize
+        parameterized.presence || "article-#{Digest::SHA1.hexdigest(query.to_s).first(10)}"
+      end
+
+      def generic_home_page?(url, query)
+        path = URI.parse(url.to_s).path.presence || "/"
+        path == "/" && query.to_s.squish != business.name.to_s.squish
+      rescue URI::InvalidURIError
+        false
+      end
+
+      def new_asset_type_for(query)
+        text = query.to_s
+        return "new_landing_page" if text.match?(/料金|価格|問い合わせ|登録|申し込み/)
+        return "new_category" if detect_area(text).present? || detect_genre(text).present?
+
+        "new_article"
+      end
+
+      def new_page_todo_lines_for(item)
+        [
+          "新規作成: #{item[:creation_type]} / slug=#{item[:recommended_slug]}",
+          "検索意図「#{item[:query]}」に対応するタイトル・構成を決める",
+          "既存の#{business.name}ページから内部リンクを追加する",
+          "公開後、ActionResult登録用にURLと狙いKWをメモする"
+        ]
       end
 
       def owned_target_url_for(raw_url, area:, local_area:, genre:, theme:)

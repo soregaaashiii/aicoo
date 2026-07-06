@@ -169,6 +169,75 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     assert_no_match(/s\.tabelog\.com/, candidate.execution_prompt.to_s)
   end
 
+  test "suelog site insights creates new article when matching page does not exist" do
+    @business.update!(project_key: "suelog", repository_name: "suelog")
+    data_source = @business.data_sources.create!(source_type: "gsc", name: "Google Search Console")
+    csv = CSV.generate(headers: true) do |rows|
+      rows << %w[query clicks impressions ctr position page]
+      rows << [
+        "吸えログ 比較",
+        3,
+        240,
+        "0.012",
+        8,
+        "https://suelog.jp/"
+      ]
+    end
+    data_source.data_imports.create!(
+      filename: "gsc_missing_page.csv",
+      content_type: "text/csv",
+      row_count: 1,
+      processed_text: csv,
+      imported_at: @today.to_time
+    )
+
+    result = Aicoo::Suelog::SiteInsightsAdapter.new(business: @business, today: @today).call
+    candidate = result.created.first
+
+    assert candidate
+    assert_equal "seo_article", candidate.action_type
+    assert_equal false, candidate.metadata["page_exists"]
+    assert_nil candidate.metadata["matched_page"]
+    assert_equal "suelog-comparison", candidate.metadata["recommended_slug"]
+    assert_equal "new_article", candidate.metadata["creation_type"]
+    assert_includes candidate.title, "記事を1本作成"
+    assert_includes candidate.evaluation_reason, "ページ判定=新規作成"
+  end
+
+  test "suelog site insights improves existing owner page when matching page exists" do
+    @business.update!(project_key: "suelog", repository_name: "suelog")
+    data_source = @business.data_sources.create!(source_type: "gsc", name: "Google Search Console")
+    csv = CSV.generate(headers: true) do |rows|
+      rows << %w[query clicks impressions ctr position page]
+      rows << [
+        "梅田 喫煙 居酒屋",
+        3,
+        240,
+        "0.012",
+        8,
+        "https://suelog.jp/articles/umeda-smoking-izakaya"
+      ]
+    end
+    data_source.data_imports.create!(
+      filename: "gsc_existing_page.csv",
+      content_type: "text/csv",
+      row_count: 1,
+      processed_text: csv,
+      imported_at: @today.to_time
+    )
+
+    result = Aicoo::Suelog::SiteInsightsAdapter.new(business: @business, today: @today).call
+    candidate = result.created.first
+
+    assert candidate
+    assert_equal "seo_improvement", candidate.action_type
+    assert_equal true, candidate.metadata["page_exists"]
+    assert_equal "https://suelog.jp/articles/umeda-smoking-izakaya", candidate.metadata["matched_page"]
+    assert_nil candidate.metadata["recommended_slug"]
+    assert_equal "existing_improvement", candidate.metadata["creation_type"]
+    assert_includes candidate.evaluation_reason, "ページ判定=既存改善"
+  end
+
   test "seo analyzer skips issues that cannot provide evidence" do
     analyzer = Aicoo::BusinessAnalyzers::SeoBusinessAnalyzer.new(business: @business, today: @today)
     issue = Aicoo::BusinessAnalyzers::BaseAnalyzer::Issue.new(

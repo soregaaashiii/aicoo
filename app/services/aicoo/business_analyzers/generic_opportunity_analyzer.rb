@@ -104,12 +104,13 @@ module Aicoo
         return unless recent_ctr < LOW_CTR_THRESHOLD
 
         query = demand_query.presence || "流入上位検索入口"
+        page_match = page_match_for(query)
         amount = [ (recent_impressions / 500.0).ceil, 3 ].max.clamp(1, 8)
         issue(
           key: "high_impression_low_ctr",
-          title: "#{query}のCTRを#{amount}件改善する",
-          description: "表示回数はありますがCTRが低く、検索結果またはファーストビューでクリック理由が弱い状態です。",
-          action_type: "seo_improvement",
+          title: page_match[:page_exists] ? "#{query}のCTRを#{amount}件改善する" : "「#{query}」向けの記事を1本作成する",
+          description: page_match[:page_exists] ? "表示回数はありますがCTRが低く、検索結果またはファーストビューでクリック理由が弱い状態です。" : "#{query} の検索需要がありますが、対応ページが見つかりません。",
+          action_type: page_match[:page_exists] ? "seo_improvement" : "seo_article",
           quantity: amount,
           unit: "件",
           why: "直近7日のimpressions=#{recent_impressions}, clicks=#{recent_clicks}, CTR=#{percent(recent_ctr)}です。",
@@ -127,7 +128,8 @@ module Aicoo
             current_value: recent_ctr.to_f,
             benchmark_value: 0.03,
             source_metric: "ctr",
-            concrete_task: "#{query}のタイトル・meta・ファーストビュー訴求を#{amount}件改善する"
+            concrete_task: page_match[:page_exists] ? "#{query}のタイトル・meta・ファーストビュー訴求を#{amount}件改善する" : "「#{query}」向けの記事を1本作成する",
+            required_resources: page_match
           )
         )
       end
@@ -137,11 +139,12 @@ module Aicoo
         return unless position >= 11 && position <= 20
 
         query = demand_query.presence || "順位11〜20位の検索入口"
+        page_match = page_match_for(query)
         issue(
           key: "rank_11_20_gap",
-          title: "#{query}の不足要素を1ページで補強する",
-          description: "検索順位が11〜20位にあり、少量の補強で上位化の余地があります。",
-          action_type: "seo_improvement",
+          title: page_match[:page_exists] ? "#{query}の不足要素を1ページで補強する" : "「#{query}」向けの記事を1本作成する",
+          description: page_match[:page_exists] ? "検索順位が11〜20位にあり、少量の補強で上位化の余地があります。" : "#{query} の検索需要がありますが、対応ページが見つかりません。",
+          action_type: page_match[:page_exists] ? "seo_improvement" : "seo_article",
           quantity: 1,
           unit: "ページ",
           why: "平均順位が#{position.round(1)}位で、内部リンク・FAQ・比較要素の補強余地があります。",
@@ -159,7 +162,8 @@ module Aicoo
             current_value: position.to_f,
             benchmark_value: 10,
             source_metric: "average_position",
-            concrete_task: "#{query}にFAQ・比較要素・内部リンクを追加する"
+            concrete_task: page_match[:page_exists] ? "#{query}にFAQ・比較要素・内部リンクを追加する" : "「#{query}」向けの記事を1本作成する",
+            required_resources: page_match
           )
         )
       end
@@ -419,6 +423,7 @@ module Aicoo
       end
 
       def common_metadata(pattern, target_type:, target_identifier:, current_value:, benchmark_value:, source_metric:, concrete_task:, query: nil, required_resources: {})
+        page_match = page_match_for(query.presence || target_identifier)
         {
           "opportunity_type" => pattern,
           "target_type" => target_type,
@@ -432,6 +437,10 @@ module Aicoo
           "evidence_sources" => evidence_sources_for(pattern),
           "business_capabilities" => capability.to_h,
           "required_resources" => required_resources,
+          "page_exists" => page_match[:page_exists],
+          "matched_page" => page_match[:matched_page],
+          "recommended_slug" => page_match[:recommended_slug],
+          "creation_type" => page_match[:creation_type],
           "codex_eligible" => codex_eligible_for(pattern),
           "candidate_pages" => candidate_pages_for(target_identifier)
         }.compact
@@ -553,6 +562,53 @@ module Aicoo
                 .where(resource_type: asset_resource_types, occurred_at: 180.days.ago..Time.current)
                 .where("title ILIKE ? OR diff_summary ILIKE ?", "%#{normalized}%", "%#{normalized}%")
                 .exists?
+      end
+
+      def page_match_for(query)
+        normalized = query.to_s.downcase
+        return { page_exists: false, matched_page: nil, recommended_slug: nil, creation_type: "unknown" } if normalized.blank?
+
+        log = business.business_activity_logs
+                      .where(resource_type: asset_resource_types, occurred_at: 180.days.ago..Time.current)
+                      .where("title ILIKE ? OR diff_summary ILIKE ?", "%#{normalized}%", "%#{normalized}%")
+                      .order(occurred_at: :desc, created_at: :desc)
+                      .first
+        if log
+          return {
+            page_exists: true,
+            matched_page: activity_page_path(log),
+            recommended_slug: nil,
+            creation_type: "existing_improvement"
+          }
+        end
+
+        {
+          page_exists: false,
+          matched_page: nil,
+          recommended_slug: recommended_slug_for(query),
+          creation_type: creation_type_for_missing_page
+        }
+      end
+
+      def activity_page_path(log)
+        slug = log.metadata.to_h["slug"].presence || log.after_snapshot.to_h["slug"].presence || log.resource_id
+        return "/" if slug.blank?
+        return slug.to_s if slug.to_s.start_with?("/")
+        return "/articles/#{slug}" if log.resource_type == "Article"
+
+        "/#{slug}"
+      end
+
+      def recommended_slug_for(query)
+        parameterized = query.to_s.parameterize
+        parameterized.presence || "article-#{Digest::SHA1.hexdigest(query.to_s).first(10)}"
+      end
+
+      def creation_type_for_missing_page
+        return "new_article" if capability.has_articles
+        return "new_landing_page" if capability.has_lp
+
+        "new_category"
       end
 
       def task_for_missing_asset(query)

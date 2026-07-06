@@ -66,6 +66,9 @@ module Aicoo
         ## 対象
         #{non_code_target_label(plan, presenter)}
 
+        ## 作業種別
+        #{page_work_type_label}
+
         ## 理由
         #{plan["goal"].presence || action_candidate.evaluation_reason.presence || action_candidate.description.presence || "-"}
 
@@ -114,6 +117,13 @@ module Aicoo
       return raw unless raw.to_s.match?(/\Ahttps?:\/\//i) || raw.to_s.start_with?("/")
 
       Aicoo::BusinessOwnedUrlPolicy.call(business: action_candidate.business, url: raw).url.presence || raw
+    end
+
+    def page_work_type_label
+      return "新規作成" if action_candidate.metadata.to_h["page_exists"] == false
+      return "既存改善" if action_candidate.metadata.to_h["page_exists"] == true
+
+      "未判定"
     end
 
     def execution_unit_line(unit, index)
