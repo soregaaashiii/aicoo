@@ -96,7 +96,6 @@ class MetricActionCandidateGenerator
       low_navigation_spec,
       high_exit_path_spec,
       low_scroll_spec,
-      serp_specs,
       revenue_spec,
       zero_revenue_spec
     ].flatten.compact
@@ -634,7 +633,7 @@ class MetricActionCandidateGenerator
       expected_hours: spec.expected_hours,
       cost_yen: 0,
       status: "idea",
-      generation_source: serp_spec?(spec) ? "serp" : "ai_business",
+      generation_source: "ai_business",
       metadata: candidate_metadata(spec),
       evaluation_reason: "metric_rule:#{spec.key}\n#{spec.evaluation_reason}",
       execution_prompt: spec.execution_prompt
@@ -678,7 +677,6 @@ class MetricActionCandidateGenerator
       "confidence_note" => confidence_note,
       "business_type_playbook" => business_type_playbook.call(spec_attributes(spec)).metadata
     }
-    metadata = metadata.merge(serp_metadata) if serp_spec?(spec)
     return metadata unless Aicoo::Serp::OptionalMode.call.missing_key?
 
     metadata.merge(

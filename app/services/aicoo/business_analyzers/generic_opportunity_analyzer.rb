@@ -532,15 +532,11 @@ module Aicoo
 
       def analysis_data_available?
         recent30_metrics.any? ||
-          recent_activity_count.positive? ||
-          business.serp_queries.exists? ||
-          business.serp_analyses.exists?
+          recent_activity_count.positive?
       end
 
       def demand_query
-        @demand_query ||= business.serp_queries.enabled.by_priority.limit(1).pick(:query).presence ||
-          business.serp_analyses.successful.order(analyzed_at: :desc, created_at: :desc).pick(:keyword).presence ||
-          gsc_like_query
+        @demand_query ||= gsc_like_query
       end
 
       def gsc_like_query

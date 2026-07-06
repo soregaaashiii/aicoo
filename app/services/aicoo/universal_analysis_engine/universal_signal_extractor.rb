@@ -1,6 +1,8 @@
 module Aicoo
   module UniversalAnalysisEngine
     class UniversalSignalExtractor
+      require "csv"
+
       def self.call(...)
         new(...).call
       end
@@ -40,11 +42,10 @@ module Aicoo
       end
 
       def queries
-        enabled_queries = business.serp_queries.enabled.by_priority.limit(limit).pluck(:query)
-        analysis_queries = business.serp_analyses.successful.order(analyzed_at: :desc, created_at: :desc).limit(limit).pluck(:keyword)
+        gsc_queries = latest_gsc_imports.flat_map { |data_import| queries_from_gsc_import(data_import) }
         metric_queries = impressions.positive? ? [ [ business.name, "比較" ].compact_blank.join(" ") ] : []
 
-        (enabled_queries + analysis_queries + metric_queries).compact_blank.uniq.first(limit)
+        (gsc_queries + metric_queries).compact_blank.uniq.first(limit)
       end
 
       def build_signal(query: nil, page_path: nil, target_label:, target_type:, source:)
@@ -190,12 +191,7 @@ module Aicoo
       end
 
       def latest_page_for(query)
-        SerpResult.joins(:serp_analysis)
-          .where(serp_analyses: { business_id: business.id, keyword: query })
-          .where.not(url: [ nil, "" ])
-          .order(position: :asc, created_at: :desc)
-          .limit(1)
-          .pick(:url)
+        latest_gsc_imports.lazy.filter_map { |data_import| page_from_gsc_import(data_import, query) }.first
       end
 
       def query_target_type(query)
@@ -215,10 +211,60 @@ module Aicoo
 
       def evidence_sources(source)
         case source
-        when "query" then %w[gsc serp business_db]
+        when "query" then %w[gsc business_db]
         when "ga4_aggregate" then %w[ga4 business_db]
         else %w[business_db activity]
         end
+      end
+
+      def latest_gsc_imports
+        @latest_gsc_imports ||= business.data_sources
+          .where(source_type: "gsc")
+          .includes(:data_imports)
+          .flat_map { |source| source.data_imports.recent.limit(3).to_a }
+          .sort_by { |data_import| [ data_import.imported_at || Time.zone.at(0), data_import.created_at || Time.zone.at(0) ] }
+          .reverse
+          .first(3)
+      end
+
+      def queries_from_gsc_import(data_import)
+        rows_from_gsc_import(data_import).filter_map { |row| row[:query] }
+      end
+
+      def page_from_gsc_import(data_import, query)
+        rows_from_gsc_import(data_import).find { |row| row[:query] == query }&.dig(:page)
+      end
+
+      def rows_from_gsc_import(data_import)
+        rows = rows_from_gsc_processed_text(data_import.processed_text)
+        rows.presence || rows_from_gsc_raw_text(data_import.raw_text)
+      end
+
+      def rows_from_gsc_processed_text(processed_text)
+        return [] if processed_text.blank?
+
+        CSV.parse(processed_text, headers: true).filter_map do |row|
+          query = row["query"].presence || row["検索クエリ"].presence || row["keyword"].presence
+          next if query.blank?
+
+          { query:, page: row["page"].presence || row["ページ"].presence || row["url"].presence }
+        end
+      rescue CSV::MalformedCSVError
+        []
+      end
+
+      def rows_from_gsc_raw_text(raw_text)
+        return [] if raw_text.blank?
+
+        parsed = JSON.parse(raw_text)
+        Array(parsed["rows"]).filter_map do |row|
+          query = Array(row["keys"]).first.presence || row["query"].presence
+          next if query.blank?
+
+          { query:, page: row["page"].presence || row["url"].presence }
+        end
+      rescue JSON::ParserError
+        []
       end
     end
   end

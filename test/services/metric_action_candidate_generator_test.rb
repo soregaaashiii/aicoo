@@ -1,4 +1,5 @@
 require "test_helper"
+require "csv"
 
 class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
   setup do
@@ -70,9 +71,8 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
       "天満 焼鳥 喫煙可",
       "福島 喫煙 デート"
     ]
-    queries.each_with_index do |query, index|
-      @business.serp_queries.create!(query:, priority: index + 1)
-    end
+    create_gsc_import(queries)
+    @business.serp_queries.create!(query: "SERPだけの参考キーワード", priority: 1)
     BusinessActivityLog.record!(
       business: @business,
       attributes: {
@@ -113,6 +113,8 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     assert_operator result.created.size, :>=, 10
     assert result.created.all? { |candidate| candidate.metadata["suelog_site_insights"] }
     assert result.created.all? { |candidate| candidate.metadata["query"].present? }
+    assert result.created.none? { |candidate| candidate.metadata["query"] == "SERPだけの参考キーワード" }
+    assert result.created.none? { |candidate| Array(candidate.metadata.dig("evidence", "source")).include?("serp") }
     assert result.created.all? { |candidate| candidate.metadata["expected_score"].present? }
     assert result.created.all? { |candidate| candidate.metadata["roi_score"].present? }
     assert result.created.all? { |candidate| candidate.metadata["work_cost"].present? }
@@ -120,6 +122,16 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     assert result.created.all? { |candidate| candidate.metadata["action_plan"].to_h["execution_steps"].present? }
     assert result.created.all? { |candidate| candidate.metadata["concrete_task"].present? }
     assert result.created.none? { |candidate| candidate.title.match?(/検索需要があるテーマ|SEO改善|CV改善|導線改善|要具体化/) }
+  end
+
+  test "suelog site insights adapter does not generate from serp alone" do
+    @business.update!(project_key: "suelog", repository_name: "suelog")
+    @business.serp_queries.create!(query: "梅田 喫煙 居酒屋", priority: 1)
+
+    result = MetricActionCandidateGenerator.new(business: @business, today: @today).call
+
+    assert result.created.none? { |candidate| candidate.metadata["suelog_site_insights"] }
+    assert result.created.none? { |candidate| candidate.generation_source == "serp" }
   end
 
   test "seo analyzer skips issues that cannot provide evidence" do
@@ -261,24 +273,18 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     assert_equal 1, candidate.metadata.fetch("execution_units").first.fetch("target_amount")
   end
 
-  test "creates concrete content gap task from active serp queries" do
+  test "does not create concrete content gap task from active serp queries alone" do
     @business.serp_queries.create!(query: "梅田 喫煙 居酒屋", priority: 10)
     @business.serp_queries.create!(query: "難波 喫煙 カフェ", priority: 20)
     @business.serp_queries.create!(query: "大阪 喫煙可能 飲食店", priority: 30)
-    create_metric_series(default_impressions: 10, recent_impressions: 200, default_clicks: 0, recent_clicks: 3)
 
     result = MetricActionCandidateGenerator.new(business: @business, today: @today).call
-    candidate = result.created.find { |record| record.metadata.fetch("issue_key") == "demand_without_supply" || record.metadata.fetch("issue_key") == "asset_missing" }
 
-    assert candidate
-    assert_match(/梅田 喫煙 居酒屋/, candidate.title)
-    assert_includes %w[demand_without_supply asset_missing], candidate.metadata.fetch("opportunity_type")
-    assert_includes %w[content_creation data_operation], candidate.metadata.fetch("execution_mode")
-    assert_includes candidate.metadata.fetch("execution_units").first.fetch("label"), "梅田 喫煙 居酒屋"
-    assert_equal "梅田 喫煙 居酒屋", candidate.metadata.fetch("source_query")
+    assert result.created.none? { |candidate| candidate.generation_source == "serp" }
+    assert result.created.none? { |candidate| candidate.metadata["source_query"] == "梅田 喫煙 居酒屋" }
   end
 
-  test "creates serp-backed concrete rank opportunity" do
+  test "does not create serp-backed concrete rank opportunity" do
     keyword = "梅田 喫煙 カフェ"
     analysis = @business.serp_analyses.create!(
       keyword:,
@@ -293,18 +299,11 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     analysis.serp_results.create!(position: 1, title: "梅田 喫煙 カフェ 比較", url: "https://example.com/1", snippet: "大阪 梅田で喫煙可のカフェを比較")
     analysis.serp_results.create!(position: 2, title: "大阪 喫煙可能 飲食店", url: "https://example.com/2", snippet: "紙タバコと加熱式に対応した飲食店")
     analysis.serp_results.create!(position: 3, title: "難波 喫煙可 居酒屋", url: "https://example.com/3", snippet: "難波で喫煙可能な居酒屋を探せます")
-    create_metric_series(default_impressions: 100, recent_impressions: 100, default_clicks: 5, recent_clicks: 5)
-    @business.business_metric_dailies.update_all(average_position: 15)
 
     result = MetricActionCandidateGenerator.new(business: @business, today: @today).call
-    candidate = result.created.find { |record| record.metadata.fetch("issue_key") == "near_win_position" }
 
-    assert candidate
-    assert_match(/梅田 喫煙 カフェ/, candidate.title)
-    assert_equal "near_win_position", candidate.metadata.fetch("opportunity_type")
-    assert_equal "content_creation", candidate.metadata.fetch("execution_mode")
-    assert_match(/梅田 喫煙 カフェ/, candidate.metadata.fetch("execution_units").first.fetch("label"))
-    assert_equal keyword, candidate.metadata.fetch("source_query")
+    assert result.created.none? { |candidate| candidate.generation_source == "serp" }
+    assert result.created.none? { |candidate| candidate.metadata["source_query"] == keyword || candidate.metadata["serp_keyword"] == keyword }
   end
 
   test "does not create duplicate analyzer candidate within seven days" do
@@ -421,5 +420,29 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
         conversions: recent ? recent_conversions : default_conversions
       )
     end
+  end
+
+  def create_gsc_import(queries)
+    data_source = @business.data_sources.create!(source_type: "gsc", name: "Google Search Console")
+    csv = CSV.generate(headers: true) do |rows|
+      rows << %w[query clicks impressions ctr position page]
+      queries.each_with_index do |query, index|
+        rows << [
+          query,
+          4 + index,
+          200 + (index * 30),
+          "0.01",
+          8 + (index % 8),
+          "/articles/#{query.parameterize}"
+        ]
+      end
+    end
+    data_source.data_imports.create!(
+      filename: "gsc_queries.csv",
+      content_type: "text/csv",
+      row_count: queries.size,
+      processed_text: csv,
+      imported_at: @today.to_time
+    )
   end
 end

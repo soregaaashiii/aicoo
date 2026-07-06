@@ -464,9 +464,7 @@ module Aicoo
       end
 
       def content_keywords
-        explicit = business.serp_queries.enabled.order(priority: :asc).limit(3).pluck(:query)
-        explicit = [ latest_serp_analysis&.keyword ].compact_blank if explicit.blank?
-        explicit.presence || DEFAULT_AREA_KEYWORDS
+        DEFAULT_AREA_KEYWORDS
       end
 
       def primary_query

@@ -278,9 +278,7 @@ module Aicoo
 
       today = Date.current
       business.business_metric_dailies.where(recorded_on: (today - 29)..today).exists? ||
-        business.business_activity_logs.where(occurred_at: 30.days.ago..Time.current).exists? ||
-        business.serp_queries.exists? ||
-        business.serp_analyses.exists?
+        business.business_activity_logs.where(occurred_at: 30.days.ago..Time.current).exists?
     end
 
     def mark_today_exclusion!(candidate, reason)

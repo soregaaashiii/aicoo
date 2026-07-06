@@ -1,6 +1,8 @@
 module Aicoo
   module Suelog
     class SiteInsightsAdapter
+      require "csv"
+
       Result = Data.define(:created, :skipped) do
         def created_count = created.size
         def skipped_count = skipped.size
@@ -132,35 +134,13 @@ module Aicoo
 
       def query_rows
         rows = []
-        rows.concat(serp_query_rows)
-        rows.concat(serp_analysis_rows)
+        rows.concat(gsc_query_rows)
         rows.concat(metric_query_rows)
         rows.compact_blank.uniq { |row| row[:query] }
       end
 
-      def serp_query_rows
-        business.serp_queries.enabled.by_priority.limit(100).map do |query|
-          {
-            query: query.query,
-            impressions: estimated_impressions,
-            clicks: estimated_clicks,
-            ctr_percent: estimated_ctr_percent,
-            position: estimated_position
-          }
-        end
-      end
-
-      def serp_analysis_rows
-        business.serp_analyses.successful.order(analyzed_at: :desc, created_at: :desc).limit(100).map do |analysis|
-          {
-            query: analysis.keyword,
-            impressions: estimated_impressions,
-            clicks: estimated_clicks,
-            ctr_percent: estimated_ctr_percent,
-            position: estimated_position,
-            landing_page: top_serp_url_for(analysis)
-          }
-        end
+      def gsc_query_rows
+        latest_gsc_imports.flat_map { |data_import| rows_from_gsc_import(data_import) }
       end
 
       def metric_query_rows
@@ -180,7 +160,8 @@ module Aicoo
             impressions: [ recent_impressions / base_queries.size, 10 ].max,
             clicks: [ recent_clicks / base_queries.size, 0 ].max,
             ctr_percent: recent_ctr_percent,
-            position: recent_position
+            position: recent_position,
+            source: "business_metric_daily_fallback"
           }
         end
       end
@@ -264,7 +245,8 @@ module Aicoo
           strategy_reason: strategy_reason_for(strategy:, position:, ctr_percent:, article_relevance_score: articles[:best_score], local_area:, theme:),
           ga4_views: ga4_data[:views].to_i,
           ga4_active_users: ga4_data[:active_users].to_i,
-          ga4_engagement_seconds: ga4_data[:engagement_seconds].to_f.round(1)
+          ga4_engagement_seconds: ga4_data[:engagement_seconds].to_f.round(1),
+          serp_reference: serp_reference_for(query)
         }
         item[:next_move_type] = next_move_type_for(item)
         item[:next_move_score] = next_move_score_for(item).round(1)
@@ -340,6 +322,14 @@ module Aicoo
           "ga4_views" => item[:ga4_views],
           "ga4_active_users" => item[:ga4_active_users],
           "ga4_engagement_seconds" => item[:ga4_engagement_seconds],
+          "serp_reference" => item[:serp_reference],
+          "analysis_priority" => {
+            "gsc" => 5,
+            "ga4" => 5,
+            "business_db" => 4,
+            "action_result_learning" => 2,
+            "serp" => 1
+          },
           "concrete_task" => item[:concrete_task],
           "execution_mode" => execution_mode_for(item),
           "candidate_quality" => "high",
@@ -822,13 +812,100 @@ module Aicoo
         (values.sum / values.size).round(1)
       end
 
-      def estimated_impressions = [ recent_impressions / [ business.serp_queries.enabled.count, 1 ].max, 30 ].max
-      def estimated_clicks = [ recent_clicks / [ business.serp_queries.enabled.count, 1 ].max, 0 ].max
-      def estimated_ctr_percent = recent_ctr_percent
-      def estimated_position = recent_position
+      def latest_gsc_imports
+        @latest_gsc_imports ||= business.data_sources
+          .where(source_type: "gsc")
+          .includes(:data_imports)
+          .flat_map { |source| source.data_imports.recent.limit(3).to_a }
+          .sort_by { |data_import| [ data_import.imported_at || Time.zone.at(0), data_import.created_at || Time.zone.at(0) ] }
+          .reverse
+          .first(3)
+      end
 
-      def top_serp_url_for(analysis)
-        analysis.serp_results.order(position: :asc).limit(1).pick(:url)
+      def rows_from_gsc_import(data_import)
+        rows = rows_from_gsc_processed_text(data_import.processed_text)
+        rows = rows_from_gsc_raw_text(data_import.raw_text) if rows.empty?
+        rows
+      end
+
+      def rows_from_gsc_processed_text(processed_text)
+        return [] if processed_text.blank?
+
+        CSV.parse(processed_text, headers: true).filter_map do |row|
+          query = value_from_row(row, "query", "検索クエリ", "keyword")
+          next if query.blank?
+
+          {
+            query:,
+            impressions: numeric_value(value_from_row(row, "impressions", "表示回数")),
+            clicks: numeric_value(value_from_row(row, "clicks", "クリック数")),
+            ctr_percent: ctr_percent_value(value_from_row(row, "ctr", "CTR")),
+            position: numeric_value(value_from_row(row, "position", "掲載順位", "平均掲載順位")),
+            landing_page: value_from_row(row, "page", "ページ", "url"),
+            source: "gsc_data_import"
+          }
+        end
+      rescue CSV::MalformedCSVError
+        []
+      end
+
+      def rows_from_gsc_raw_text(raw_text)
+        return [] if raw_text.blank?
+
+        parsed = JSON.parse(raw_text)
+        Array(parsed["rows"]).filter_map do |row|
+          query = Array(row["keys"]).first.presence || row["query"].presence
+          next if query.blank?
+
+          impressions = numeric_value(row["impressions"])
+          clicks = numeric_value(row["clicks"])
+          {
+            query:,
+            impressions:,
+            clicks:,
+            ctr_percent: ctr_percent_value(row["ctr"]),
+            position: numeric_value(row["position"]),
+            source: "gsc_raw_import"
+          }
+        end
+      rescue JSON::ParserError
+        []
+      end
+
+      def value_from_row(row, *keys)
+        keys.lazy.map { |key| row[key] || row[key.to_s] || row[key.to_sym] }.find(&:present?)
+      end
+
+      def numeric_value(value)
+        value.to_s.delete(",").to_d
+      end
+
+      def ctr_percent_value(value)
+        numeric = numeric_value(value)
+        numeric <= 1 ? (numeric * 100) : numeric
+      end
+
+      def serp_reference_for(query)
+        analysis = business.serp_analyses
+          .successful
+          .where(keyword: query)
+          .order(analyzed_at: :desc, created_at: :desc)
+          .first
+        return nil unless analysis
+
+        {
+          "role" => "reference_only",
+          "keyword" => analysis.keyword,
+          "analysis_id" => analysis.id,
+          "top_results" => analysis.serp_results.order(position: :asc).limit(5).map do |result|
+            {
+              "position" => result.position,
+              "title" => result.title,
+              "url" => result.url,
+              "snippet" => result.snippet
+            }.compact
+          end
+        }
       end
     end
   end
