@@ -25,6 +25,47 @@ class ActionCandidateTest < ActiveSupport::TestCase
     assert action_candidate.metadata.dig("strategic_learning", "strategic_score").present?
   end
 
+  test "moves external target urls to competitor references for business improvements" do
+    business = businesses(:suelog)
+    business.update!(project_key: "suelog", repository_name: "suelog")
+
+    action_candidate = ActionCandidate.create!(
+      business:,
+      title: "吸えログ 比較の不足要素を吸えログへ取り入れる",
+      action_type: "seo_improvement",
+      generation_source: "business_analyzer",
+      immediate_value_yen: 18_000,
+      success_probability: 0.4,
+      expected_hours: 1.5,
+      metadata: {
+        "target_url" => "https://it-trend.jp/log_management/article/84-0008",
+        "action_plan" => {
+          "target" => "https://it-trend.jp/log_management/article/84-0008",
+          "summary" => "吸えログ 比較の比較表とFAQを吸えログへ追加する"
+        },
+        "evidence" => {
+          "page_path" => "https://it-trend.jp/log_management/article/84-0008",
+          "query" => "吸えログ 比較"
+        },
+        "serp_top_results" => [
+          { "title" => "ログ管理システム比較", "url" => "https://it-trend.jp/log_management/article/84-0008" }
+        ],
+        "serp_common_structure" => [ "比較表", "FAQ" ],
+        "missing_elements" => [ "検索条件リンク" ]
+      }
+    )
+
+    metadata = action_candidate.reload.metadata
+    assert_equal "https://suelog.jp/", metadata["target_url"]
+    assert_equal "https://suelog.jp/", metadata.dig("action_plan", "target")
+    assert_equal "https://suelog.jp/", metadata.dig("evidence", "page_path")
+    assert_equal "owner_page", metadata["target_url_type"]
+    assert_includes metadata["competitor_urls"], "https://it-trend.jp/log_management/article/84-0008"
+    assert_includes metadata["competitor_features"], "比較表"
+    assert_includes metadata["missing_features"], "検索条件リンク"
+    assert_equal "external_url_moved_to_competitor_urls", metadata["invalid_target_url_reason"]
+  end
+
   test "strategic philosophy changes final score" do
     setting = AicooSetting.current
     setting.update!(

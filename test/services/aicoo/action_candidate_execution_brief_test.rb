@@ -93,16 +93,24 @@ module Aicoo
         expected_hours: 1,
         success_probability: 0.4,
         metadata: {
-          "target_url" => "https://s.tabelog.com/rstLst/cond13-00-01/",
-          "source_query" => "吸えログ 喫煙可能な飲食店検索サービス"
+          "target_url" => "https://it-trend.jp/log_management/article/84-0008",
+          "source_query" => "吸えログ 比較",
+          "competitor_urls" => [ "https://it-trend.jp/log_management/article/84-0008" ],
+          "competitor_features" => [ "比較表", "FAQ" ],
+          "missing_features" => [ "検索条件リンク" ],
+          "improvement_reason" => "競合の比較表とFAQを吸えログへ取り入れる"
         }
       )
 
       brief = ActionCandidateExecutionBrief.new(candidate)
 
       assert_equal "https://suelog.jp/", brief.target[:url]
-      assert_empty brief.open_links.select { |link| link[:url].to_s.include?("s.tabelog.com") }
-      assert_no_match(/対象URL: https:\/\/s\.tabelog\.com|URL: https:\/\/s\.tabelog\.com/, brief.prompt_markdown)
+      assert_includes candidate.reload.metadata["competitor_urls"], "https://it-trend.jp/log_management/article/84-0008"
+      assert_empty brief.open_links.select { |link| link[:url].to_s.include?("it-trend.jp") }
+      assert_no_match(/- URL: https:\/\/it-trend\.jp/, brief.prompt_markdown)
+      assert_includes brief.prompt_markdown, "参考競合"
+      assert_includes brief.prompt_markdown, "https://it-trend.jp/log_management/article/84-0008"
+      assert_includes brief.prompt_markdown, "競合の比較表とFAQを吸えログへ取り入れる"
     end
 
     test "does not use serp results for existing business improvement when policy disallows external sources" do

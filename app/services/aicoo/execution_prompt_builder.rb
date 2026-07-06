@@ -64,7 +64,7 @@ module Aicoo
         #{presenter.execution_mode_label}
 
         ## 対象
-        #{plan["target"].presence || plan["target_url_or_identifier"].presence || presenter.target_label}
+        #{non_code_target_label(plan, presenter)}
 
         ## 理由
         #{plan["goal"].presence || action_candidate.evaluation_reason.presence || action_candidate.description.presence || "-"}
@@ -107,6 +107,13 @@ module Aicoo
         - 対象ジャンル: #{units.filter_map { |unit| unit["genre"] }.uniq.join(" / ").presence || "未特定"}
         - 目標件数: #{units.sum { |unit| unit["target_amount"].to_i }}件
       MARKDOWN
+    end
+
+    def non_code_target_label(plan, presenter)
+      raw = plan["target"].presence || plan["target_url_or_identifier"].presence || presenter.target_label
+      return raw unless raw.to_s.match?(/\Ahttps?:\/\//i) || raw.to_s.start_with?("/")
+
+      Aicoo::BusinessOwnedUrlPolicy.call(business: action_candidate.business, url: raw).url.presence || raw
     end
 
     def execution_unit_line(unit, index)

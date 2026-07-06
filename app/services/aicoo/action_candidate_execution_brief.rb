@@ -238,6 +238,8 @@ module Aicoo
         - 新規/既存: #{page_change_type}
         - 候補ページ: #{target[:candidate_pages].presence&.join(", ") || "未特定"}
 
+        #{competitor_reference_markdown}
+
         #{new_article_creation? ? new_article_prompt_section : nil}
 
         ## ① 検索クエリ
@@ -322,6 +324,8 @@ module Aicoo
         - 期待順位: #{expected_effects[:rank]}
         - 期待利益: #{expected_effects[:profit]}
 
+        #{competitor_reference_markdown}
+
         ## 推奨構成
         #{plan[:recommended_sections].map { |section| "- #{section}" }.join("\n")}
 
@@ -359,6 +363,30 @@ module Aicoo
 
     def metadata
       @metadata ||= action_candidate.metadata.to_h
+    end
+
+    def competitor_reference_markdown
+      return nil if competitor_urls.blank? && competitor_features.blank? && reference_missing_features.blank?
+
+      <<~MARKDOWN.strip
+        ## 参考競合
+        - 参考URL: #{competitor_urls.presence&.join(", ") || "未取得"}
+        - 競合の良い点: #{competitor_features.presence&.join(", ") || "未取得"}
+        - 自社に取り入れる不足要素: #{reference_missing_features.presence&.join(", ") || "未取得"}
+        - 改善理由: #{metadata["improvement_reason"].presence || "競合は改善対象ではなく、自社ページ改善の参考情報として扱います。"}
+      MARKDOWN
+    end
+
+    def competitor_urls
+      Array(metadata["competitor_urls"]).compact_blank
+    end
+
+    def competitor_features
+      Array(metadata["competitor_features"]).compact_blank
+    end
+
+    def reference_missing_features
+      Array(metadata["missing_features"]).compact_blank
     end
 
     def expansion

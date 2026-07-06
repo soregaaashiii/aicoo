@@ -18,7 +18,7 @@ module Aicoo
         concretization_warnings = concretization_warnings_for(plan)
         concretization_status = concretization_warnings.empty? ? "ready" : "needs_refinement"
 
-        metadata = analyzer.candidate_metadata(issue, opportunity:).merge(
+        metadata = sanitize_metadata(analyzer.candidate_metadata(issue, opportunity:).merge(
           "action_plan" => plan.to_metadata,
           "decision" => decision.to_metadata,
           "strategy_engine" => "Aicoo::UniversalImprovementStrategyEngine",
@@ -33,7 +33,7 @@ module Aicoo
           "concretization_status" => concretization_status,
           "concretization_warnings" => concretization_warnings,
           "codex_eligible" => decision.execution_mode == "code_revision"
-        )
+        ))
 
         candidate = business.action_candidates.create!(
           title: plan.summary,
@@ -55,7 +55,7 @@ module Aicoo
         )
         Aicoo::ActionCandidateInstructionStabilizer.call(candidate)
         candidate.reload.update_columns(
-          metadata: candidate.metadata.to_h.merge(
+          metadata: sanitize_metadata(candidate.metadata.to_h.merge(
             "action_plan" => plan.to_metadata,
             "decision" => decision.to_metadata,
             "strategy_engine" => "Aicoo::UniversalImprovementStrategyEngine",
@@ -70,7 +70,7 @@ module Aicoo
             "concretization_status" => concretization_status,
             "concretization_warnings" => concretization_warnings,
             "codex_eligible" => plan.execution_mode == "code_revision"
-          ),
+          )),
           execution_prompt: execution_prompt_for(plan),
           updated_at: Time.current
         )
@@ -80,6 +80,10 @@ module Aicoo
       private
 
       attr_reader :opportunity, :analyzer
+
+      def sanitize_metadata(metadata)
+        Aicoo::ActionCandidateTargetSanitizer.call(business: opportunity.business, metadata:)
+      end
 
       def action_type
         value = opportunity.source_issue.action_type.to_s

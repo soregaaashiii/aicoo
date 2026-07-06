@@ -243,7 +243,10 @@ module Aicoo
     end
 
     def target_page
-      @target_page ||= Aicoo::ActionTargetUrlResolver.call(raw_target_page, require_known_route: true)
+      @target_page ||= begin
+        resolved = Aicoo::ActionTargetUrlResolver.call(raw_target_page, require_known_route: true)
+        resolved.present? ? Aicoo::BusinessOwnedUrlPolicy.call(business: action_candidate.business, url: resolved).url : nil
+      end
     end
 
     def raw_target_page

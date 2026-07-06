@@ -236,7 +236,10 @@ module Aicoo
     end
 
     def execution_guide_target_url(expansion)
-      Aicoo::ActionTargetUrlResolver.call(expansion["target_url"], require_known_route: true)
+      resolved = Aicoo::ActionTargetUrlResolver.call(expansion["target_url"], require_known_route: true)
+      return nil if resolved.blank?
+
+      Aicoo::BusinessOwnedUrlPolicy.call(business: action_candidate.business, url: resolved).url
     end
 
     def execution_guide_target_label(expansion)

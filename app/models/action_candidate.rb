@@ -47,6 +47,7 @@ class ActionCandidate < ApplicationRecord
   end
 
   before_validation :set_defaults
+  before_validation :sanitize_owned_target_urls
   before_save :apply_execution_feasibility_correction
   before_save :calculate_scores
   after_commit :sync_serp_query_counters, on: %i[create update]
@@ -182,10 +183,12 @@ class ActionCandidate < ApplicationRecord
     apply_meta_evaluation
     apply_evidence
     apply_action_expansion
+    sanitize_owned_target_urls
     apply_strategic_learning
     apply_practicality_filter
     apply_business_playbook
     apply_business_type_playbook
+    sanitize_owned_target_urls
   end
 
   def calculate_expected_hourly_value
@@ -236,6 +239,12 @@ class ActionCandidate < ApplicationRecord
 
   def apply_execution_feasibility_correction
     AicooExecutionFeasibilityCorrectionService.new(self).apply!
+  end
+
+  def sanitize_owned_target_urls
+    return unless business
+
+    self.metadata = Aicoo::ActionCandidateTargetSanitizer.call(business:, metadata:)
   end
 
   def apply_meta_evaluation
