@@ -59,6 +59,9 @@ class MetricActionCandidateGenerator
   def call
     return skipped_result("system/internal BusinessのためActionCandidate生成対象外です") if business.system_business?
 
+    suelog_result = suelog_site_insights_result
+    return suelog_result if suelog_result&.created_count.to_i.positive?
+
     analyzer_result = Aicoo::BusinessAnalyzers::Runner.call(business:, today:)
     return analyzer_result if analyzer_result.handled? && analyzer_result.created_count.positive?
 
@@ -74,6 +77,12 @@ class MetricActionCandidateGenerator
   private
 
   attr_reader :business, :today
+
+  def suelog_site_insights_result
+    return unless Aicoo::Suelog::SiteInsightsAdapter.target?(business)
+
+    Aicoo::Suelog::SiteInsightsAdapter.call(business:, today:)
+  end
 
   def candidate_specs
     [

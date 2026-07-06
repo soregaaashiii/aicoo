@@ -51,7 +51,7 @@ module Aicoo
       :score
     )
 
-    def initialize(mode: nil, limit: 10)
+    def initialize(mode: nil, limit: 200)
       @mode = MODES.include?(mode.to_s) ? mode.to_s : "revenue"
       @limit = limit
     end
@@ -59,7 +59,7 @@ module Aicoo
     def call
       items = candidate_items
       ranked_items = items
-        .sort_by { |item| [ -item.score.to_d, -item.expected_value_yen.to_i, item.business_name.to_s ] }
+        .sort_by { |item| [ -item.expected_value_yen.to_i, -item.score.to_d, item.business_name.to_s ] }
         .first(limit)
 
       ranked_items = include_missing_data_backed_businesses(items, ranked_items)

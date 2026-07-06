@@ -54,6 +54,74 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     assert_equal "Aicoo::BusinessAnalyzers::GenericOpportunityAnalyzer", candidate.metadata.fetch("analyzer")
   end
 
+  test "suelog site insights adapter creates many concrete ranked todos" do
+    @business.update!(project_key: "suelog", repository_name: "suelog")
+    queries = [
+      "梅田 喫煙 居酒屋",
+      "梅田 喫煙 カフェ",
+      "難波 喫煙 居酒屋",
+      "東通り 居酒屋 喫煙可",
+      "曽根崎 バー 喫煙可能",
+      "北新地 個室 喫煙",
+      "堂山 深夜 喫煙 居酒屋",
+      "心斎橋 喫煙 バー",
+      "西中島 喫煙 焼肉",
+      "本町 喫煙 カフェ",
+      "天満 焼鳥 喫煙可",
+      "福島 喫煙 デート"
+    ]
+    queries.each_with_index do |query, index|
+      @business.serp_queries.create!(query:, priority: index + 1)
+    end
+    BusinessActivityLog.record!(
+      business: @business,
+      attributes: {
+        source_app: "suelog",
+        activity_type: "shop_created",
+        title: "梅田 居酒屋 喫煙可 店舗登録",
+        resource_type: "Shop",
+        resource_id: "shop-1",
+        occurred_at: @today.to_time
+      }
+    )
+    BusinessActivityLog.record!(
+      business: @business,
+      attributes: {
+        source_app: "suelog",
+        activity_type: "article_created",
+        title: "梅田で喫煙できる居酒屋まとめ",
+        resource_type: "Article",
+        resource_id: "umeda-smoking-izakaya",
+        metadata: { slug: "umeda-smoking-izakaya" },
+        occurred_at: @today.to_time
+      }
+    )
+    create_metric_series(
+      default_impressions: 200,
+      recent_impressions: 1_200,
+      default_clicks: 4,
+      recent_clicks: 12,
+      default_pageviews: 80,
+      recent_pageviews: 220,
+      default_conversions: 0,
+      recent_conversions: 0
+    )
+    @business.business_metric_dailies.update_all(average_position: 12)
+
+    result = MetricActionCandidateGenerator.new(business: @business, today: @today).call
+
+    assert_operator result.created.size, :>=, 10
+    assert result.created.all? { |candidate| candidate.metadata["suelog_site_insights"] }
+    assert result.created.all? { |candidate| candidate.metadata["query"].present? }
+    assert result.created.all? { |candidate| candidate.metadata["expected_score"].present? }
+    assert result.created.all? { |candidate| candidate.metadata["roi_score"].present? }
+    assert result.created.all? { |candidate| candidate.metadata["work_cost"].present? }
+    assert result.created.all? { |candidate| candidate.metadata["recommended_action"].present? }
+    assert result.created.all? { |candidate| candidate.metadata["action_plan"].to_h["execution_steps"].present? }
+    assert result.created.all? { |candidate| candidate.metadata["concrete_task"].present? }
+    assert result.created.none? { |candidate| candidate.title.match?(/検索需要があるテーマ|SEO改善|CV改善|導線改善|要具体化/) }
+  end
+
   test "seo analyzer skips issues that cannot provide evidence" do
     analyzer = Aicoo::BusinessAnalyzers::SeoBusinessAnalyzer.new(business: @business, today: @today)
     issue = Aicoo::BusinessAnalyzers::BaseAnalyzer::Issue.new(

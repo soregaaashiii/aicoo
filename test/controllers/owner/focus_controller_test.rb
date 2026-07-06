@@ -171,7 +171,60 @@ module Owner
       assert_equal "code_revision_auto_executable", candidate.reload.metadata.fetch("today_exclusion_reason")
     end
 
+    test "shows multiple suelog site insight candidates ordered by expected value" do
+      high = create_today_candidate!(
+        title: "梅田の居酒屋店舗を20件追加する",
+        immediate_value_yen: 120_000,
+        expected_hours: 5,
+        success_probability: 0.55,
+        metadata: suelog_metadata("梅田の居酒屋店舗を20件追加する", expected_score: 900)
+      )
+      middle = create_today_candidate!(
+        title: "東通り 居酒屋 喫煙可のtitle/metaを改善する",
+        immediate_value_yen: 80_000,
+        expected_hours: 1.2,
+        success_probability: 0.36,
+        metadata: suelog_metadata("東通り 居酒屋 喫煙可のtitle/metaを改善する", expected_score: 650)
+      )
+      low = create_today_candidate!(
+        title: "梅田で喫煙できるバーまとめ記事を作成する",
+        immediate_value_yen: 30_000,
+        expected_hours: 3,
+        success_probability: 0.34,
+        metadata: suelog_metadata("梅田で喫煙できるバーまとめ記事を作成する", expected_score: 300)
+      )
+
+      get owner_focus_url
+
+      assert_response :success
+      assert_includes response.body, high.title
+      assert_includes response.body, middle.title
+      assert_includes response.body, low.title
+      assert_operator response.body.index(high.title), :<, response.body.index(middle.title)
+      assert_operator response.body.index(middle.title), :<, response.body.index(low.title)
+    end
+
     private
+
+    def suelog_metadata(title, expected_score:)
+      {
+        "suelog_site_insights" => true,
+        "execution_mode" => "data_operation",
+        "concrete_task" => title,
+        "expected_score" => expected_score,
+        "roi_score" => expected_score / 2,
+        "work_cost" => 5,
+        "recommended_action" => "店舗追加優先",
+        "action_plan" => {
+          "summary" => title,
+          "target" => "梅田 / 居酒屋",
+          "owner_next_step" => title,
+          "execution_steps" => [ title ],
+          "execution_units" => [ { "label" => title, "target_amount" => 20 } ]
+        },
+        "execution_units" => [ { "label" => title, "target_amount" => 20 } ]
+      }
+    end
 
     def create_today_candidate!(attributes = {})
       title = attributes.fetch(:title, "梅田の未確認店舗を30件確認済みにする")
