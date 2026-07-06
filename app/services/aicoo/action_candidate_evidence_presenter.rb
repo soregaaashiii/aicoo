@@ -172,6 +172,17 @@ module Aicoo
 
     def table_rows
       [
+        article_candidate? ? [ "記事候補", "新規記事候補" ] : nil,
+        article_candidate? ? [ "検索クエリ", article_candidate["search_query"] ] : nil,
+        article_candidate? ? [ "検索意図", article_candidate["search_intent"] ] : nil,
+        article_candidate? ? [ "タイトル候補", article_candidate["recommended_title"] ] : nil,
+        article_candidate? ? [ "推奨URL", article_candidate["recommended_url"] ] : nil,
+        article_candidate? ? [ "記事概要", article_candidate["article_summary"] ] : nil,
+        article_candidate? ? [ "記事を書く理由", article_candidate["article_reason"] ] : nil,
+        article_candidate? ? [ "記事構成案", Array(article_candidate["article_outline"]).join(" / ") ] : nil,
+        article_candidate? ? [ "必要データ", Array(article_candidate["required_data"]).join(" / ") ] : nil,
+        article_candidate? ? [ "期待PV", article_candidate["expected_pv"] ] : nil,
+        article_candidate? ? [ "期待CTR改善", article_candidate["expected_ctr_lift"] ] : nil,
         seo_action_type? ? [ "作業カテゴリ", seo_action_type_label ] : nil,
         [ "実行方法", execution_mode_label ],
         execution_units? ? [ "今日やる単位", execution_unit_lines(limit: 5).join(" / ") ] : nil,
@@ -192,6 +203,14 @@ module Aicoo
 
     def evidence
       @evidence ||= action_candidate.metadata.to_h.fetch("evidence", {}).to_h
+    end
+
+    def article_candidate?
+      article_candidate.present? || action_candidate.action_type == "new_article_candidate"
+    end
+
+    def article_candidate
+      @article_candidate ||= action_candidate.metadata.to_h.fetch("article_candidate", {}).to_h.deep_stringify_keys
     end
 
     def metric_label(value)

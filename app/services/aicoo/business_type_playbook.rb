@@ -19,7 +19,7 @@ module Aicoo
     ].freeze
     GENERIC_PLAYBOOK = lambda do |preferred_actions, preferred_labels|
       {
-        allowed_actions: GENERIC_ACTION_TYPES + %w[seo_article seo_improvement build_lp build_mvp feature_development],
+        allowed_actions: GENERIC_ACTION_TYPES + %w[seo_article seo_improvement new_article_candidate build_lp build_mvp feature_development],
         allowed_labels: %w[改善 収益改善 導線改善 計測改善 学習改善],
         preferred_actions:,
         preferred_labels:,
@@ -48,6 +48,7 @@ module Aicoo
         allowed_actions: %w[
           seo_article
           seo_improvement
+          new_article_candidate
           serp_research
           market_research
           ui_improvement
@@ -72,7 +73,7 @@ module Aicoo
           口コミ導線
           カテゴリ改善
         ],
-        preferred_actions: %w[seo_article seo_improvement],
+        preferred_actions: %w[new_article_candidate seo_article seo_improvement],
         preferred_labels: %w[SEO改善 コンテンツ追加],
         forbidden_actions: %w[build_lp build_mvp feature_development],
         forbidden_labels: %w[公開LP作成 SaaS機能追加 無関係な価格変更],

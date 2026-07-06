@@ -31,9 +31,9 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     assert_not_empty candidate.metadata.dig("action_plan", "execution_steps")
     assert_not_empty candidate.metadata.dig("action_plan", "execution_units")
     assert candidate.metadata.dig("evidence", "target_amount").present?
-    assert_match(/検索意図|対応ページ要件/, candidate.title)
-    assert_equal "search_intent_analysis", candidate.metadata.fetch("work_type")
-    assert_equal "opportunity_validation", candidate.action_type
+    assert_match(/新規記事候補/, candidate.title)
+    assert_equal "new_article_candidate", candidate.metadata.fetch("work_type")
+    assert_equal "new_article_candidate", candidate.action_type
     assert_equal "high_impression_low_ctr", candidate.metadata.dig("opportunity", "key")
     assert_equal "high_impression_low_ctr", candidate.metadata.dig("opportunity", "opportunity_type")
     assert_equal "「吸えログ 比較」", candidate.metadata.dig("opportunity", "target", "label")
@@ -171,7 +171,7 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     assert_no_match(/s\.tabelog\.com/, candidate.execution_prompt.to_s)
   end
 
-  test "suelog site insights creates search intent analysis when query is ambiguous and matching page does not exist" do
+  test "suelog site insights creates new article candidate when matching page does not exist" do
     @business.update!(project_key: "suelog", repository_name: "suelog")
     data_source = @business.data_sources.create!(source_type: "gsc", name: "Google Search Console")
     csv = CSV.generate(headers: true) do |rows|
@@ -197,18 +197,26 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     candidate = result.created.first
 
     assert candidate
-    assert_equal "opportunity_validation", candidate.action_type
+    assert_equal "new_article_candidate", candidate.action_type
+    assert_equal "proposal", candidate.status
     assert_equal false, candidate.metadata["page_exists"]
     assert_nil candidate.metadata["matched_page"]
-    assert_equal "suelog-comparison", candidate.metadata["recommended_slug"]
-    assert_equal "search_intent_analysis", candidate.metadata["creation_type"]
-    assert_equal "search_intent_analysis", candidate.metadata["work_type"]
-    assert_includes candidate.title, "検索意図"
-    assert_includes candidate.execution_prompt, "既存改善・新規記事・新規LP・新規カテゴリのどれにするか判断する"
+    assert_equal "suelog-vs-tabelog", candidate.metadata["recommended_slug"]
+    assert_equal "new_article", candidate.metadata["creation_type"]
+    assert_equal "new_article", candidate.metadata["work_type"]
+    assert_includes candidate.title, "新規記事候補"
+    assert_nil candidate.execution_prompt
+    assert_equal "吸えログ 比較", candidate.metadata["search_query"]
+    assert_equal "比較したい", candidate.metadata["search_intent"]
+    assert_equal "吸えログと食べログを比較｜喫煙できる飲食店を探すならどっち？", candidate.metadata["recommended_title"]
+    assert_equal "suelog-vs-tabelog", candidate.metadata["recommended_url_slug"]
+    assert_includes candidate.metadata["article_summary"], "喫煙可能店舗検索"
+    assert_includes candidate.metadata["article_candidate"]["article_outline"].join(" "), "食べログとの違い"
+    assert_includes candidate.metadata["required_data"], "比較対象"
     assert_no_match(/title\/meta改善|SEOタイトル\/meta descriptionを改善/, candidate.title)
     assert_no_match(/title\/meta改善|SEOタイトル\/meta descriptionを改善/, candidate.execution_prompt.to_s)
     assert_includes candidate.evaluation_reason, "ページ判定=新規作成"
-    assert_includes candidate.evaluation_reason, "作業種別=search_intent_analysis"
+    assert_includes candidate.evaluation_reason, "作業種別=new_article"
   end
 
   test "suelog site insights improves existing owner page when matching page exists" do

@@ -37,7 +37,11 @@
 
 <section class="dashboard-section aicoo-decision-hero">
   <div class="aicoo-decision-card">
-    <p><span class="pill"><%= @action_candidate.business.name %></span> <span class="pill"><%= @evidence_presenter.execution_mode_label %></span></p>
+    <p>
+      <span class="pill"><%= @action_candidate.business.name %></span>
+      <span class="pill"><%= action_candidate_type_label(@action_candidate) %></span>
+      <span class="pill"><%= @evidence_presenter.execution_mode_label %></span>
+    </p>
     <h2><%= display_action_title %></h2>
     <p class="aicoo-decision-reason"><%= @evidence_presenter&.reason.presence || @action_candidate.evaluation_reason.presence || @action_candidate.description %></p>
 

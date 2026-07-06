@@ -30,6 +30,16 @@ module Aicoo
           "target_url_or_identifier" => decision.target_url_or_identifier,
           "execution_mode" => decision.execution_mode,
           "work_type" => work_type_for(issue, decision),
+          "article_candidate" => article_candidate_metadata_for(issue, decision),
+          "search_query" => article_candidate_metadata_for(issue, decision)&.fetch("search_query", nil),
+          "search_intent" => article_candidate_metadata_for(issue, decision)&.fetch("search_intent", nil),
+          "recommended_title" => article_candidate_metadata_for(issue, decision)&.fetch("recommended_title", nil),
+          "recommended_url_slug" => article_candidate_metadata_for(issue, decision)&.fetch("recommended_url_slug", nil),
+          "article_summary" => article_candidate_metadata_for(issue, decision)&.fetch("article_summary", nil),
+          "article_reason" => article_candidate_metadata_for(issue, decision)&.fetch("article_reason", nil),
+          "expected_pv" => article_candidate_metadata_for(issue, decision)&.fetch("expected_pv", nil),
+          "expected_ctr_lift" => article_candidate_metadata_for(issue, decision)&.fetch("expected_ctr_lift", nil),
+          "required_data" => article_candidate_metadata_for(issue, decision)&.fetch("required_data", nil),
           "execution_units" => decision.execution_units,
           "concretization_status" => concretization_status,
           "concretization_warnings" => concretization_warnings,
@@ -48,7 +58,7 @@ module Aicoo
           data_confidence_score: opportunity.confidence,
           expected_hours: decision.expected_hours,
           cost_yen: decision.cost_yen,
-          status: "idea",
+          status: status_for(issue, decision),
           generation_source: "business_analyzer",
           metadata:,
           evaluation_reason: evaluation_reason_for(plan),
@@ -68,6 +78,7 @@ module Aicoo
             "execution_units" => plan.execution_units,
             "execution_mode" => plan.execution_mode,
             "work_type" => work_type_for(issue, decision),
+            "article_candidate" => article_candidate_metadata_for(issue, decision),
             "concrete_task" => plan.summary,
             "concretization_status" => concretization_status,
             "concretization_warnings" => concretization_warnings,
@@ -88,6 +99,7 @@ module Aicoo
       end
 
       def action_type_for(issue, decision)
+        return "new_article_candidate" if decision.selected&.strategy_type == "new_article_candidate"
         return "opportunity_validation" if decision.selected&.strategy_type == "search_intent_analysis"
         return "data_preparation" if decision.selected&.strategy_type == "data_shortage"
 
@@ -106,6 +118,18 @@ module Aicoo
         attrs["work_type"].presence ||
           attrs["creation_type"].presence ||
           decision.selected&.strategy_type.presence
+      end
+
+      def status_for(issue, decision)
+        action_type_for(issue, decision) == "new_article_candidate" ? "proposal" : "idea"
+      end
+
+      def article_candidate_metadata_for(_issue, decision)
+        selected = decision.selected
+        return unless selected&.strategy_type == "new_article_candidate"
+
+        selected.required_resources.to_h.deep_stringify_keys["article_candidate"].presence ||
+          selected.supporting_metrics.to_h.deep_stringify_keys["article_candidate"].presence
       end
 
       def evaluation_reason_for(plan)

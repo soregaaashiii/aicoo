@@ -466,18 +466,22 @@ module Aicoo
 
     def new_article_creation?
       branded_search_page_needed? ||
+        action_candidate.action_type == "new_article_candidate" ||
         action_candidate.action_type == "seo_article" ||
         expansion["expansion_type"] == "content_area_expansion"
     end
 
     def recommended_slug
-      metadata["recommended_slug"].presence ||
+      metadata["recommended_url_slug"].presence ||
+        metadata.dig("article_candidate", "recommended_url_slug").presence ||
+        metadata["recommended_slug"].presence ||
         expansion["recommended_slug"].presence ||
-        (branded_search_page_needed? && suelog_business? ? "suelog-comparison" : fallback_article_slug)
+        (branded_search_page_needed? && suelog_business? ? "suelog-vs-tabelog" : fallback_article_slug)
     end
 
     def recommended_article_title
       metadata["recommended_title"].presence ||
+        metadata.dig("article_candidate", "recommended_title").presence ||
         expansion["recommended_title"].presence ||
         (branded_search_page_needed? && suelog_business? ? "吸えログとは？食べログ・Googleマップ・Rettyとの違い" : proposed_h1)
     end

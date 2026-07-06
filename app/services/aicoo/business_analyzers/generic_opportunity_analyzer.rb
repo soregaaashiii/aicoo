@@ -611,20 +611,22 @@ module Aicoo
       end
 
       def creation_type_for_missing_page(query)
-        return "search_intent_analysis" if ambiguous_search_intent?(query)
+        return "data_shortage" if query.to_s.squish.blank?
+        return "new_article" if new_article_candidate_query?(query)
         return "new_article" if capability.has_articles
         return "new_lp" if capability.has_lp
 
         "new_category"
       end
 
-      def ambiguous_search_intent?(query)
+      def new_article_candidate_query?(query)
         text = query.to_s.squish
         normalized = text.downcase
         business_name = business.name.to_s.downcase
         branded_query = business_name.present? && normalized.include?(business_name)
+        return true if branded_query && text.match?(/比較|とは|違い|評判|口コミ|おすすめ|使い方|サービス/)
 
-        branded_query && text.match?(/比較|とは|違い|評判|口コミ|おすすめ|使い方|サービス/)
+        capability.has_articles
       end
 
       def search_task_for(query:, page_match:, amount:)
@@ -659,10 +661,10 @@ module Aicoo
           }
         else
           {
-            title: "「#{query}」向けの記事を1本作成する",
-            description: "#{query} の検索需要がありますが、対応ページが見つかりません。",
-            action_type: "seo_article",
-            concrete_task: "「#{query}」向けの記事を1本作成する"
+            title: "「#{query}」向けの新規記事候補を作成する",
+            description: "#{query} の検索需要がありますが、対応ページが見つかりません。記事企画として提案します。",
+            action_type: "new_article_candidate",
+            concrete_task: "「#{query}」向けの新規記事候補を作成する"
           }
         end
       end
@@ -670,9 +672,9 @@ module Aicoo
       def task_for_missing_asset(query)
         if capability.has_articles
           {
-            title: "「#{query}」向けの記事を1本作成する",
+            title: "「#{query}」向けの新規記事候補を作成する",
             asset_label: "記事",
-            action_type: "seo_article",
+            action_type: "new_article_candidate",
             target_type: "article",
             unit: "本",
             hours: 1.5

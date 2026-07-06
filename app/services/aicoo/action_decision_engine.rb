@@ -124,6 +124,7 @@ module Aicoo
     attr_reader :opportunity, :profile
 
     def enumerate_candidates
+      return [ new_article_candidate ] if new_article_candidate_required?
       return [ search_intent_analysis_candidate ] if search_intent_analysis_required?
       return [ data_shortage_candidate ] if source_work_type == "data_shortage"
 
@@ -132,6 +133,52 @@ module Aicoo
 
         actions_for(asset).filter_map { |action| build_candidate(asset, action) }
       end.compact.select { |candidate| concrete_task_allowed?(candidate.concrete_task) }
+    end
+
+    def new_article_candidate
+      article = article_candidate_metadata
+      task = "「#{plain_target}」向けの新規記事候補を作成する"
+      Candidate.new(
+        action_key: "#{pattern}:new_article_candidate",
+        strategy_type: "new_article_candidate",
+        asset_type: "articles",
+        concrete_task: task,
+        goal: "検索需要はあるが対応ページが存在しないため、記事企画として提案する",
+        target: target_label,
+        target_type: "article",
+        target_url_or_identifier: article.fetch("recommended_url"),
+        execution_mode: "content_creation",
+        expected_profit_yen: opportunity.expected_value_yen,
+        expected_hours: [ opportunity.expected_hours.to_d, 1.0.to_d ].max,
+        success_probability: opportunity.success_probability,
+        historical_success_rate: 0.45,
+        learning_value: 55,
+        cost_yen: 0,
+        risk: "low",
+        implementation_complexity: 3,
+        roi: 0.to_d,
+        score: opportunity.expected_value_yen.to_d + 55,
+        reason: opportunity.reason,
+        execution_steps: [
+          "記事企画を確認する: #{article.fetch('recommended_title')}",
+          "推奨URLを確認する: #{article.fetch('recommended_url')}",
+          "必要データを揃える: #{article.fetch('required_data').join(' / ')}",
+          "記事作成を進める場合だけ承認し、承認後にCodex Promptを生成する"
+        ],
+        execution_units: [ {
+          "label" => task,
+          "query" => plain_target,
+          "target_amount" => 1,
+          "estimated_minutes" => 30,
+          "reason" => opportunity.reason,
+          "target_type" => "article",
+          "target_identifier" => article.fetch("recommended_url")
+        } ],
+        required_resources: source_metadata.slice("work_type", "page_exists", "matched_page", "recommended_slug", "creation_type").merge(
+          "article_candidate" => article
+        ),
+        supporting_metrics: opportunity.supporting_metrics.to_h.deep_stringify_keys.merge("article_candidate" => article)
+      )
     end
 
     def search_intent_analysis_candidate
@@ -596,11 +643,62 @@ module Aicoo
         opportunity.required_resources.to_h.deep_stringify_keys["creation_type"].presence
     end
 
+    def new_article_candidate_required?
+      return true if opportunity.source_issue.action_type.to_s == "new_article_candidate"
+      return false unless pattern.in?(%w[demand_without_supply demand_without_asset high_impression_low_ctr])
+      return true if source_work_type == "new_article"
+      return true if branded_article_query?
+
+      false
+    end
+
+    def branded_article_query?
+      name = opportunity.business.name.to_s
+      name.present? && plain_target.match?(/#{Regexp.escape(name)}.*(比較|とは|違い|評判|口コミ|おすすめ|使い方|サービス)/)
+    end
+
+    def article_candidate_metadata
+      explicit = source_metadata["article_candidate"].to_h
+      return explicit if explicit["recommended_title"].present?
+
+      slug = source_metadata["recommended_slug"].presence || plain_target.parameterize.presence || "article-#{Digest::SHA1.hexdigest(plain_target).first(10)}"
+      {
+        "search_query" => plain_target,
+        "search_intent" => search_intent_for_article_candidate,
+        "recommended_title" => "「#{plain_target}」で探す人向けの記事",
+        "recommended_url_slug" => slug,
+        "recommended_url" => "/articles/#{slug}",
+        "article_summary" => "検索クエリ「#{plain_target}」の意図に対応する受け皿記事を企画する。",
+        "article_reason" => opportunity.reason,
+        "article_outline" => [
+          "H1 「#{plain_target}」で探す人向けの記事",
+          "H2 検索している人の悩み",
+          "H2 解決できること",
+          "H2 比較・判断材料",
+          "H2 よくある質問",
+          "H2 次に見るページ"
+        ],
+        "required_data" => %w[比較対象 必要画像 内部リンク先 確認事項],
+        "expected_pv" => [ (opportunity.supporting_metrics.to_h["impressions"].to_i * 0.08).round, 20 ].max,
+        "expected_ctr_lift" => "未算出",
+        "expected_profit_yen" => opportunity.expected_value_yen.to_i,
+        "priority" => opportunity.expected_value_yen.to_i
+      }
+    end
+
+    def search_intent_for_article_candidate
+      return "比較したい" if plain_target.match?(/比較|違い|vs|VS/)
+      return "評判や口コミを確認したい" if plain_target.match?(/評判|口コミ|レビュー/)
+      return "サービス内容を知りたい" if plain_target.match?(/とは|使い方|サービス/)
+
+      "知りたい"
+    end
+
     def search_intent_analysis_required?
       return true if source_work_type == "search_intent_analysis"
       return true if opportunity.source_issue.action_type.to_s == "opportunity_validation"
 
-      plain_target.match?(/#{Regexp.escape(opportunity.business.name.to_s)}.*(比較|とは|違い|評判|口コミ|おすすめ|使い方|サービス)/)
+      false
     end
 
     def target_label

@@ -287,7 +287,7 @@ module Aicoo
           description: "#{item[:query]} / #{item[:recommended_action]} / ROI #{item[:roi_score]}",
           action_type: action_type_for(item),
           generation_source: "business_analyzer",
-          status: "idea",
+          status: status_for(item),
           immediate_value_yen: expected_value_yen_for(item),
           expected_hours: item[:work_cost],
           success_probability: success_probability_for(item),
@@ -340,6 +340,18 @@ module Aicoo
           "recommended_slug" => item[:recommended_slug],
           "creation_type" => item[:creation_type],
           "work_type" => item[:work_type],
+          "article_candidate" => article_candidate_metadata_for(item),
+          "search_query" => article_candidate_metadata_for(item)&.fetch("search_query", nil),
+          "search_intent" => article_candidate_metadata_for(item)&.fetch("search_intent", nil),
+          "recommended_title" => article_candidate_metadata_for(item)&.fetch("recommended_title", nil),
+          "recommended_url_slug" => article_candidate_metadata_for(item)&.fetch("recommended_url_slug", nil),
+          "article_summary" => article_candidate_metadata_for(item)&.fetch("article_summary", nil),
+          "article_reason" => article_candidate_metadata_for(item)&.fetch("article_reason", nil),
+          "expected_pv" => article_candidate_metadata_for(item)&.fetch("expected_pv", nil),
+          "expected_ctr_lift" => article_candidate_metadata_for(item)&.fetch("expected_ctr_lift", nil),
+          "expected_profit_yen" => expected_value_yen_for(item),
+          "priority" => item[:next_move_score],
+          "required_data" => article_candidate_metadata_for(item)&.fetch("required_data", nil),
           "shops_count" => item[:shops_count],
           "confirmed_count" => item[:confirmed_count],
           "articles_count" => item[:articles_count],
@@ -423,6 +435,8 @@ module Aicoo
       end
 
       def execution_prompt_for(item)
+        return nil if action_type_for(item) == "new_article_candidate"
+
         <<~TEXT.strip
           AICOO Action 作業メモ
 
@@ -446,7 +460,7 @@ module Aicoo
         when "data_shortage"
           return "「#{item[:query]}」の改善判断に必要なGSC/GA4/内部データを確認する"
         when "new_article"
-          return "「#{item[:query]}」向けの記事を1本作成する"
+          return "「#{item[:query]}」向けの新規記事候補を作成する"
         when "new_lp"
           return "「#{item[:query]}」向けのLPを1ページ作成する"
         when "new_category"
@@ -528,7 +542,8 @@ module Aicoo
         when "search_intent_analysis" then return "opportunity_validation"
         when "competitor_analysis" then return "market_research"
         when "data_shortage" then return "data_preparation"
-        when "new_article", "new_category" then return "seo_article"
+        when "new_article" then return "new_article_candidate"
+        when "new_category" then return "seo_article"
         when "new_lp" then return "build_lp"
         end
 
@@ -553,6 +568,10 @@ module Aicoo
         when "内部リンク・導線改善" then "code_revision"
         else "manual_operation"
         end
+      end
+
+      def status_for(item)
+        action_type_for(item) == "new_article_candidate" ? "proposal" : "idea"
       end
 
       def expected_value_yen_for(item)
@@ -859,7 +878,7 @@ module Aicoo
 
       def recommended_slug_for(query)
         normalized = query.to_s.downcase
-        return "suelog-comparison" if normalized.include?(business.name.to_s.downcase) && query.to_s.include?("比較")
+        return "suelog-vs-tabelog" if normalized.include?(business.name.to_s.downcase) && query.to_s.include?("比較")
 
         parameterized = query.to_s.parameterize
         parameterized.presence || "article-#{Digest::SHA1.hexdigest(query.to_s).first(10)}"
@@ -873,6 +892,7 @@ module Aicoo
       end
 
       def missing_page_work_type_for(query)
+        return "new_article" if new_article_candidate_query?(query)
         return "search_intent_analysis" if ambiguous_search_intent?(query)
 
         text = query.to_s
@@ -880,6 +900,16 @@ module Aicoo
         return "new_category" if detect_area(text).present? || detect_genre(text).present?
 
         "new_article"
+      end
+
+      def new_article_candidate_query?(query)
+        text = query.to_s.squish
+        normalized = text.downcase
+        business_name = business.name.to_s.downcase
+        branded_query = business_name.present? && normalized.include?(business_name)
+        return true if branded_query && text.match?(/比較|とは|違い|評判|口コミ|おすすめ|使い方|サービス/)
+
+        detect_area(text).present? || detect_local_area(text).present? || detect_genre(text).present? || detect_theme(query: text).present?
       end
 
       def ambiguous_search_intent?(query)
@@ -897,12 +927,117 @@ module Aicoo
       end
 
       def new_page_todo_lines_for(item)
+        return new_article_candidate_todo_lines_for(item) if item[:work_type] == "new_article"
+
         [
           "新規作成: #{item[:work_type]} / slug=#{item[:recommended_slug]}",
           "検索意図「#{item[:query]}」に対応するタイトル・構成を決める",
           "既存の#{business.name}ページから内部リンクを追加する",
           "公開後、ActionResult登録用にURLと狙いKWをメモする"
         ]
+      end
+
+      def new_article_candidate_todo_lines_for(item)
+        article = article_candidate_metadata_for(item)
+        [
+          "記事企画を確認する: #{article.fetch('recommended_title')}",
+          "推奨URLを確認する: /articles/#{article.fetch('recommended_url_slug')}",
+          "必要データを揃える: #{article.fetch('required_data').join(' / ')}",
+          "記事作成を進める場合だけ承認し、承認後にCodex Promptを生成する"
+        ]
+      end
+
+      def article_candidate_metadata_for(item)
+        return unless item[:work_type] == "new_article"
+
+        {
+          "search_query" => item[:query],
+          "search_intent" => search_intent_for(item),
+          "recommended_title" => recommended_article_title_for(item),
+          "recommended_url_slug" => item[:recommended_slug],
+          "recommended_url" => "/articles/#{item[:recommended_slug]}",
+          "article_summary" => article_summary_for(item),
+          "article_reason" => article_reason_for(item),
+          "article_outline" => article_outline_for(item),
+          "required_data" => required_article_data_for(item),
+          "expected_pv" => expected_pv_for(item),
+          "expected_ctr_lift" => expected_ctr_lift_for(item),
+          "expected_profit_yen" => expected_value_yen_for(item),
+          "priority" => item[:next_move_score]
+        }
+      end
+
+      def search_intent_for(item)
+        query = item[:query].to_s
+        return "比較したい" if query.match?(/比較|違い|vs|VS/)
+        return "評判や口コミを確認したい" if query.match?(/評判|口コミ|レビュー/)
+        return "サービス内容を知りたい" if query.match?(/とは|使い方|サービス/)
+        return "喫煙できる店を探したい" if item[:area].present? || item[:genre].present? || item[:theme].present?
+
+        "検索意図を確認したい"
+      end
+
+      def recommended_article_title_for(item)
+        query = item[:query].to_s
+        if query.include?(business.name.to_s) && query.include?("比較")
+          return "#{business.name}と食べログを比較｜喫煙できる飲食店を探すならどっち？"
+        end
+
+        "「#{query}」で探す人向けの#{business.name}活用ガイド"
+      end
+
+      def article_summary_for(item)
+        if item[:query].to_s.include?(business.name.to_s) && item[:query].to_s.include?("比較")
+          return "#{business.name}と主要グルメサイトを比較し、喫煙可能店舗検索という観点で違いを解説する。"
+        end
+
+        "検索クエリ「#{item[:query]}」の意図に合わせて、#{business.name}内で探せる条件・使い方・関連ページへの導線を整理する。"
+      end
+
+      def article_reason_for(item)
+        "GSCで検索需要がありますが、対応ページが存在しないため。表示#{item[:impressions]}・CTR#{item[:ctr_percent]}%・順位#{item[:position]}を改善する受け皿が必要です。"
+      end
+
+      def article_outline_for(item)
+        if item[:query].to_s.include?(business.name.to_s) && item[:query].to_s.include?("比較")
+          return [
+            "H1 #{business.name}と食べログを徹底比較",
+            "H2 #{business.name}とは",
+            "H2 食べログとの違い",
+            "H2 喫煙可能店舗検索で比較",
+            "H2 メリット・デメリット",
+            "H2 どんな人におすすめか"
+          ]
+        end
+
+        [
+          "H1 #{recommended_article_title_for(item)}",
+          "H2 検索している人の悩み",
+          "H2 #{business.name}で確認できること",
+          "H2 関連する条件・エリア",
+          "H2 よくある質問",
+          "H2 次に見るページ"
+        ]
+      end
+
+      def required_article_data_for(item)
+        [
+          "比較対象",
+          item[:area].present? ? "#{item[:area]}の関連店舗数" : "必要店舗数",
+          "必要画像",
+          "内部リンク先",
+          "確認事項"
+        ].compact
+      end
+
+      def expected_pv_for(item)
+        [ (item[:impressions].to_i * 0.08).round, 20 ].max
+      end
+
+      def expected_ctr_lift_for(item)
+        current = item[:ctr_percent].to_f
+        target = current < 3 ? 3.0 : (current + 0.8)
+        "#{current.round(1)}% -> #{target.round(1)}%"
       end
 
       def search_intent_analysis_todo_lines_for(item)

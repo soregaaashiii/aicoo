@@ -145,7 +145,7 @@ module AicooExecutor
     end
 
     def seo_content?
-      source_action_type == "seo_article" ||
+      source_action_type.in?(%w[seo_article new_article_candidate]) ||
         source_experiment_type == "seo" ||
         searchable_text.match?(/seo|記事|コンテンツ/)
     end
@@ -234,7 +234,8 @@ module AicooExecutor
         purpose: "SEO記事を作成または改善し、検索意図に合う流入導線を増やす。",
         scope: [
           "対象タスク: #{source_title}",
-          "記事作成/改善、SEOタイトル、meta description、見出し、内部リンク、CTAを扱う。"
+          "記事作成/改善、SEOタイトル、meta description、見出し、内部リンク、CTAを扱う。",
+          article_candidate_scope
         ],
         protected_items: [
           "既存記事を壊さないこと。",
@@ -242,6 +243,7 @@ module AicooExecutor
           "根拠のない断定や検索意図から外れた本文を追加しないこと。"
         ],
         steps: [
+          article_candidate_step,
           "検索意図と読者の困りごとを整理する。",
           "SEOタイトルとmeta descriptionを作る。",
           "見出し構成を作り、本文を作成または改善する。",
@@ -249,6 +251,7 @@ module AicooExecutor
           "既存記事の表示、リンク切れ、レイアウト崩れがないか確認する。"
         ],
         report_items: [
+          "記事タイトル、SEO title、meta description、内部リンク案、FAQ/Schema方針",
           "作成・改善したSEOタイトルとmeta description",
           "追加した内部リンク",
           "既存記事を壊していないことの確認結果"
@@ -281,6 +284,25 @@ module AicooExecutor
           "確認した内部リンクとCTA"
         ]
       )
+    end
+
+    def article_candidate_scope
+      article = source_record&.try(:metadata).to_h.fetch("article_candidate", {}).to_h
+      return nil if article.blank?
+
+      [
+        "検索クエリ: #{article['search_query']}",
+        "検索意図: #{article['search_intent']}",
+        "タイトル候補: #{article['recommended_title']}",
+        "推奨URL: #{article['recommended_url']}",
+        "記事概要: #{article['article_summary']}",
+        "記事構成案: #{Array(article['article_outline']).join(' / ')}",
+        "必要データ: #{Array(article['required_data']).join(' / ')}"
+      ].compact_blank.join("\n")
+    end
+
+    def article_candidate_step
+      source_action_type == "new_article_candidate" ? "AICOOの記事企画を前提に、本文実装前にtitle/meta/内部リンク/FAQ/Schema方針を確定する。" : nil
     end
 
     def market_research_prompt
@@ -458,11 +480,11 @@ module AicooExecutor
     end
 
     def format_lines(lines)
-      lines.map { |line| "- #{line}" }.join("\n")
+      lines.compact_blank.map { |line| "- #{line}" }.join("\n")
     end
 
     def format_numbered_lines(lines)
-      lines.each_with_index.map { |line, index| "#{index + 1}. #{line}" }.join("\n")
+      lines.compact_blank.each_with_index.map { |line, index| "#{index + 1}. #{line}" }.join("\n")
     end
   end
 end
