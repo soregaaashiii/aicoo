@@ -124,11 +124,98 @@ module Aicoo
     attr_reader :opportunity, :profile
 
     def enumerate_candidates
+      return [ search_intent_analysis_candidate ] if search_intent_analysis_required?
+      return [ data_shortage_candidate ] if source_work_type == "data_shortage"
+
       profile.assets.flat_map do |asset|
         next unless asset_applicable?(asset)
 
         actions_for(asset).filter_map { |action| build_candidate(asset, action) }
       end.compact.select { |candidate| concrete_task_allowed?(candidate.concrete_task) }
+    end
+
+    def search_intent_analysis_candidate
+      task = source_metadata["concrete_task"].presence || "「#{plain_target}」の検索意図と対応ページ要件を確認する"
+      Candidate.new(
+        action_key: "#{pattern}:search_intent_analysis",
+        strategy_type: "search_intent_analysis",
+        asset_type: "owner_tasks",
+        concrete_task: task,
+        goal: "改善対象ページが未確定のため、先に検索意図と受け皿を確定する",
+        target: target_label,
+        target_type: "search_query",
+        target_url_or_identifier: target_identifier,
+        execution_mode: "manual_operation",
+        expected_profit_yen: opportunity.expected_value_yen,
+        expected_hours: [ opportunity.expected_hours.to_d, 0.5.to_d ].max,
+        success_probability: opportunity.success_probability,
+        historical_success_rate: 0.5,
+        learning_value: 60,
+        cost_yen: 0,
+        risk: "low",
+        implementation_complexity: 2,
+        roi: 0.to_d,
+        score: opportunity.expected_value_yen.to_d + 60,
+        reason: opportunity.reason,
+        execution_steps: [
+          "GSCで対象クエリの表示回数・クリック・現在の流入先を確認する",
+          "自社内に対応ページが存在するか確認する",
+          "SERPは参考として検索意図を分類する",
+          "既存改善・新規記事・新規LP・新規カテゴリのどれにするか決める",
+          "次のActionCandidate用に判断理由を記録する"
+        ],
+        execution_units: [ {
+          "label" => task,
+          "target_amount" => 1,
+          "estimated_minutes" => 30,
+          "reason" => opportunity.reason,
+          "target_type" => "search_query",
+          "target_identifier" => target_identifier
+        } ],
+        required_resources: source_metadata.slice("work_type", "page_exists", "matched_page", "recommended_slug", "creation_type"),
+        supporting_metrics: opportunity.supporting_metrics.to_h.deep_stringify_keys
+      )
+    end
+
+    def data_shortage_candidate
+      task = source_metadata["concrete_task"].presence || "#{target_label}の改善判断に必要なデータを確認する"
+      Candidate.new(
+        action_key: "#{pattern}:data_shortage",
+        strategy_type: "data_shortage",
+        asset_type: "owner_tasks",
+        concrete_task: task,
+        goal: "改善対象を決めるための計測・内部データを揃える",
+        target: target_label,
+        target_type: "data_check",
+        target_url_or_identifier: target_identifier,
+        execution_mode: "data_operation",
+        expected_profit_yen: opportunity.expected_value_yen,
+        expected_hours: [ opportunity.expected_hours.to_d, 0.5.to_d ].max,
+        success_probability: opportunity.success_probability,
+        historical_success_rate: 0.5,
+        learning_value: 55,
+        cost_yen: 0,
+        risk: "low",
+        implementation_complexity: 2,
+        roi: 0.to_d,
+        score: opportunity.expected_value_yen.to_d + 55,
+        reason: opportunity.reason,
+        execution_steps: [
+          "不足しているGSC/GA4/内部データを確認する",
+          "改善対象ページを特定できるデータがあるか確認する",
+          "不足している計測・紐付けを記録する"
+        ],
+        execution_units: [ {
+          "label" => task,
+          "target_amount" => 1,
+          "estimated_minutes" => 30,
+          "reason" => opportunity.reason,
+          "target_type" => "data_check",
+          "target_identifier" => target_identifier
+        } ],
+        required_resources: source_metadata.slice("work_type", "page_exists", "matched_page", "recommended_slug", "creation_type"),
+        supporting_metrics: opportunity.supporting_metrics.to_h.deep_stringify_keys
+      )
     end
 
     def asset_applicable?(asset)
@@ -496,6 +583,24 @@ module Aicoo
 
     def target_hash
       @target_hash ||= opportunity.target.to_h.deep_stringify_keys
+    end
+
+    def source_metadata
+      @source_metadata ||= opportunity.source_issue.metadata.to_h.deep_stringify_keys
+    end
+
+    def source_work_type
+      source_metadata["work_type"].presence ||
+        source_metadata["creation_type"].presence ||
+        opportunity.required_resources.to_h.deep_stringify_keys["work_type"].presence ||
+        opportunity.required_resources.to_h.deep_stringify_keys["creation_type"].presence
+    end
+
+    def search_intent_analysis_required?
+      return true if source_work_type == "search_intent_analysis"
+      return true if opportunity.source_issue.action_type.to_s == "opportunity_validation"
+
+      plain_target.match?(/#{Regexp.escape(opportunity.business.name.to_s)}.*(比較|とは|違い|評判|口コミ|おすすめ|使い方|サービス)/)
     end
 
     def target_label

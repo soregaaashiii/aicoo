@@ -120,6 +120,16 @@ module Aicoo
     end
 
     def page_work_type_label
+      case action_candidate.metadata.to_h["work_type"].to_s
+      when "existing_page_improvement" then return "既存改善"
+      when "new_article" then return "新規記事作成"
+      when "new_lp" then return "新規LP作成"
+      when "new_category" then return "新規カテゴリ作成"
+      when "search_intent_analysis" then return "検索意図分析"
+      when "competitor_analysis" then return "競合分析"
+      when "data_shortage" then return "データ不足確認"
+      end
+
       return "新規作成" if action_candidate.metadata.to_h["page_exists"] == false
       return "既存改善" if action_candidate.metadata.to_h["page_exists"] == true
 

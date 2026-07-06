@@ -29,6 +29,7 @@ module Aicoo
           "target_type" => decision.target_type,
           "target_url_or_identifier" => decision.target_url_or_identifier,
           "execution_mode" => decision.execution_mode,
+          "work_type" => work_type_for(issue, decision),
           "execution_units" => decision.execution_units,
           "concretization_status" => concretization_status,
           "concretization_warnings" => concretization_warnings,
@@ -38,7 +39,7 @@ module Aicoo
         candidate = business.action_candidates.create!(
           title: plan.summary,
           description: plan.goal,
-          action_type: action_type,
+          action_type: action_type_for(issue, decision),
           immediate_value_yen: decision.expected_profit_yen,
           success_probability: decision.success_probability,
           strategic_value_score: issue.strategic_value_score,
@@ -66,6 +67,7 @@ module Aicoo
             "data_sources_used" => data_sources_used_for(issue),
             "execution_units" => plan.execution_units,
             "execution_mode" => plan.execution_mode,
+            "work_type" => work_type_for(issue, decision),
             "concrete_task" => plan.summary,
             "concretization_status" => concretization_status,
             "concretization_warnings" => concretization_warnings,
@@ -85,8 +87,11 @@ module Aicoo
         Aicoo::ActionCandidateTargetSanitizer.call(business: opportunity.business, metadata:)
       end
 
-      def action_type
-        value = opportunity.source_issue.action_type.to_s
+      def action_type_for(issue, decision)
+        return "opportunity_validation" if decision.selected&.strategy_type == "search_intent_analysis"
+        return "data_preparation" if decision.selected&.strategy_type == "data_shortage"
+
+        value = issue.action_type.to_s
         return value if ActionCandidate::ACTION_TYPES.include?(value)
 
         {
@@ -94,6 +99,13 @@ module Aicoo
           "asset_creation" => "build_lp",
           "operations" => "data_preparation"
         }.fetch(value, "other")
+      end
+
+      def work_type_for(issue, decision)
+        attrs = issue.metadata.to_h.deep_stringify_keys
+        attrs["work_type"].presence ||
+          attrs["creation_type"].presence ||
+          decision.selected&.strategy_type.presence
       end
 
       def evaluation_reason_for(plan)

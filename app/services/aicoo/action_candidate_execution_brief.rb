@@ -138,6 +138,16 @@ module Aicoo
     end
 
     def page_change_type
+      case metadata["work_type"].to_s
+      when "existing_page_improvement" then return "既存ページ改善"
+      when "new_article" then return "新規記事"
+      when "new_lp" then return "新規LP"
+      when "new_category" then return "新規カテゴリ"
+      when "search_intent_analysis" then return "検索意図分析"
+      when "competitor_analysis" then return "競合分析"
+      when "data_shortage" then return "データ不足確認"
+      end
+
       return "新規記事" if new_article_creation?
       return "新規LP" if action_candidate.action_type.in?(%w[build_lp lp_experiment])
       return "既存記事" if resource_type == "Article"

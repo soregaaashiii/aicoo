@@ -31,7 +31,9 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     assert_not_empty candidate.metadata.dig("action_plan", "execution_steps")
     assert_not_empty candidate.metadata.dig("action_plan", "execution_units")
     assert candidate.metadata.dig("evidence", "target_amount").present?
-    assert_match(/タイトル|meta description|FAQ|内部リンク/, candidate.title)
+    assert_match(/検索意図|対応ページ要件/, candidate.title)
+    assert_equal "search_intent_analysis", candidate.metadata.fetch("work_type")
+    assert_equal "opportunity_validation", candidate.action_type
     assert_equal "high_impression_low_ctr", candidate.metadata.dig("opportunity", "key")
     assert_equal "high_impression_low_ctr", candidate.metadata.dig("opportunity", "opportunity_type")
     assert_equal "「吸えログ 比較」", candidate.metadata.dig("opportunity", "target", "label")
@@ -41,7 +43,7 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     assert candidate.metadata.dig("decision", "selected", "asset_type").present?
     assert_equal "Aicoo::UniversalImprovementStrategyEngine", candidate.metadata.fetch("strategy_engine")
     assert candidate.metadata.dig("strategy_ranking", "adopted").present?
-    assert_not_empty candidate.metadata.dig("strategy_ranking", "rejected")
+    assert_equal 1, candidate.metadata.dig("decision", "candidate_count")
     assert candidate.metadata.dig("business_knowledge", "assets").present?
     assert_equal false, candidate.metadata.fetch("codex_eligible")
     assert_match(/今日やること:/, candidate.evaluation_reason)
@@ -169,7 +171,7 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     assert_no_match(/s\.tabelog\.com/, candidate.execution_prompt.to_s)
   end
 
-  test "suelog site insights creates new article when matching page does not exist" do
+  test "suelog site insights creates search intent analysis when query is ambiguous and matching page does not exist" do
     @business.update!(project_key: "suelog", repository_name: "suelog")
     data_source = @business.data_sources.create!(source_type: "gsc", name: "Google Search Console")
     csv = CSV.generate(headers: true) do |rows|
@@ -195,13 +197,18 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     candidate = result.created.first
 
     assert candidate
-    assert_equal "seo_article", candidate.action_type
+    assert_equal "opportunity_validation", candidate.action_type
     assert_equal false, candidate.metadata["page_exists"]
     assert_nil candidate.metadata["matched_page"]
     assert_equal "suelog-comparison", candidate.metadata["recommended_slug"]
-    assert_equal "new_article", candidate.metadata["creation_type"]
-    assert_includes candidate.title, "記事を1本作成"
+    assert_equal "search_intent_analysis", candidate.metadata["creation_type"]
+    assert_equal "search_intent_analysis", candidate.metadata["work_type"]
+    assert_includes candidate.title, "検索意図"
+    assert_includes candidate.execution_prompt, "既存改善・新規記事・新規LP・新規カテゴリのどれにするか判断する"
+    assert_no_match(/title\/meta改善|SEOタイトル\/meta descriptionを改善/, candidate.title)
+    assert_no_match(/title\/meta改善|SEOタイトル\/meta descriptionを改善/, candidate.execution_prompt.to_s)
     assert_includes candidate.evaluation_reason, "ページ判定=新規作成"
+    assert_includes candidate.evaluation_reason, "作業種別=search_intent_analysis"
   end
 
   test "suelog site insights improves existing owner page when matching page exists" do
@@ -234,7 +241,8 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     assert_equal true, candidate.metadata["page_exists"]
     assert_equal "https://suelog.jp/articles/umeda-smoking-izakaya", candidate.metadata["matched_page"]
     assert_nil candidate.metadata["recommended_slug"]
-    assert_equal "existing_improvement", candidate.metadata["creation_type"]
+    assert_equal "existing_page_improvement", candidate.metadata["creation_type"]
+    assert_equal "existing_page_improvement", candidate.metadata["work_type"]
     assert_includes candidate.evaluation_reason, "ページ判定=既存改善"
   end
 

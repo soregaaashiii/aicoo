@@ -105,12 +105,13 @@ module Aicoo
 
         query = demand_query.presence || "流入上位検索入口"
         page_match = page_match_for(query)
+        task = search_task_for(query:, page_match:, amount: [ (recent_impressions / 500.0).ceil, 3 ].max.clamp(1, 8))
         amount = [ (recent_impressions / 500.0).ceil, 3 ].max.clamp(1, 8)
         issue(
           key: "high_impression_low_ctr",
-          title: page_match[:page_exists] ? "#{query}のCTRを#{amount}件改善する" : "「#{query}」向けの記事を1本作成する",
-          description: page_match[:page_exists] ? "表示回数はありますがCTRが低く、検索結果またはファーストビューでクリック理由が弱い状態です。" : "#{query} の検索需要がありますが、対応ページが見つかりません。",
-          action_type: page_match[:page_exists] ? "seo_improvement" : "seo_article",
+          title: task[:title],
+          description: task[:description],
+          action_type: task[:action_type],
           quantity: amount,
           unit: "件",
           why: "直近7日のimpressions=#{recent_impressions}, clicks=#{recent_clicks}, CTR=#{percent(recent_ctr)}です。",
@@ -128,7 +129,7 @@ module Aicoo
             current_value: recent_ctr.to_f,
             benchmark_value: 0.03,
             source_metric: "ctr",
-            concrete_task: page_match[:page_exists] ? "#{query}のタイトル・meta・ファーストビュー訴求を#{amount}件改善する" : "「#{query}」向けの記事を1本作成する",
+            concrete_task: task[:concrete_task],
             required_resources: page_match
           )
         )
@@ -140,11 +141,12 @@ module Aicoo
 
         query = demand_query.presence || "順位11〜20位の検索入口"
         page_match = page_match_for(query)
+        task = search_task_for(query:, page_match:, amount: 1)
         issue(
           key: "rank_11_20_gap",
-          title: page_match[:page_exists] ? "#{query}の不足要素を1ページで補強する" : "「#{query}」向けの記事を1本作成する",
-          description: page_match[:page_exists] ? "検索順位が11〜20位にあり、少量の補強で上位化の余地があります。" : "#{query} の検索需要がありますが、対応ページが見つかりません。",
-          action_type: page_match[:page_exists] ? "seo_improvement" : "seo_article",
+          title: task[:title],
+          description: task[:description],
+          action_type: task[:action_type],
           quantity: 1,
           unit: "ページ",
           why: "平均順位が#{position.round(1)}位で、内部リンク・FAQ・比較要素の補強余地があります。",
@@ -162,7 +164,7 @@ module Aicoo
             current_value: position.to_f,
             benchmark_value: 10,
             source_metric: "average_position",
-            concrete_task: page_match[:page_exists] ? "#{query}にFAQ・比較要素・内部リンクを追加する" : "「#{query}」向けの記事を1本作成する",
+            concrete_task: task[:concrete_task],
             required_resources: page_match
           )
         )
@@ -441,6 +443,7 @@ module Aicoo
           "matched_page" => page_match[:matched_page],
           "recommended_slug" => page_match[:recommended_slug],
           "creation_type" => page_match[:creation_type],
+          "work_type" => page_match[:work_type],
           "codex_eligible" => codex_eligible_for(pattern),
           "candidate_pages" => candidate_pages_for(target_identifier)
         }.compact
@@ -566,7 +569,7 @@ module Aicoo
 
       def page_match_for(query)
         normalized = query.to_s.downcase
-        return { page_exists: false, matched_page: nil, recommended_slug: nil, creation_type: "unknown" } if normalized.blank?
+        return { page_exists: false, matched_page: nil, recommended_slug: nil, creation_type: "data_shortage", work_type: "data_shortage" } if normalized.blank?
 
         log = business.business_activity_logs
                       .where(resource_type: asset_resource_types, occurred_at: 180.days.ago..Time.current)
@@ -578,15 +581,18 @@ module Aicoo
             page_exists: true,
             matched_page: activity_page_path(log),
             recommended_slug: nil,
-            creation_type: "existing_improvement"
+            creation_type: "existing_page_improvement",
+            work_type: "existing_page_improvement"
           }
         end
 
+        work_type = creation_type_for_missing_page(query)
         {
           page_exists: false,
           matched_page: nil,
           recommended_slug: recommended_slug_for(query),
-          creation_type: creation_type_for_missing_page
+          creation_type: work_type,
+          work_type:
         }
       end
 
@@ -604,11 +610,61 @@ module Aicoo
         parameterized.presence || "article-#{Digest::SHA1.hexdigest(query.to_s).first(10)}"
       end
 
-      def creation_type_for_missing_page
+      def creation_type_for_missing_page(query)
+        return "search_intent_analysis" if ambiguous_search_intent?(query)
         return "new_article" if capability.has_articles
-        return "new_landing_page" if capability.has_lp
+        return "new_lp" if capability.has_lp
 
         "new_category"
+      end
+
+      def ambiguous_search_intent?(query)
+        text = query.to_s.squish
+        normalized = text.downcase
+        business_name = business.name.to_s.downcase
+        branded_query = business_name.present? && normalized.include?(business_name)
+
+        branded_query && text.match?(/比較|とは|違い|評判|口コミ|おすすめ|使い方|サービス/)
+      end
+
+      def search_task_for(query:, page_match:, amount:)
+        case page_match[:work_type]
+        when "existing_page_improvement"
+          {
+            title: "#{query}のCTRを#{amount}件改善する",
+            description: "表示回数はありますがCTRが低く、検索結果またはファーストビューでクリック理由が弱い状態です。",
+            action_type: "seo_improvement",
+            concrete_task: "#{query}のタイトル・meta・ファーストビュー訴求を#{amount}件改善する"
+          }
+        when "search_intent_analysis"
+          {
+            title: "「#{query}」の検索意図と対応ページ要件を確認する",
+            description: "#{query} の検索需要はありますが、改善対象ページと検索意図が確定していません。",
+            action_type: "opportunity_validation",
+            concrete_task: "「#{query}」の検索意図と対応ページ要件を確認する"
+          }
+        when "new_lp"
+          {
+            title: "「#{query}」向けのLPを1ページ作成する",
+            description: "#{query} の検索需要がありますが、対応LPが見つかりません。",
+            action_type: "build_lp",
+            concrete_task: "「#{query}」向けのLPを1ページ作成する"
+          }
+        when "new_category"
+          {
+            title: "「#{query}」向けのカテゴリページを1ページ作成する",
+            description: "#{query} の検索需要がありますが、対応カテゴリページが見つかりません。",
+            action_type: "seo_article",
+            concrete_task: "「#{query}」向けのカテゴリページを1ページ作成する"
+          }
+        else
+          {
+            title: "「#{query}」向けの記事を1本作成する",
+            description: "#{query} の検索需要がありますが、対応ページが見つかりません。",
+            action_type: "seo_article",
+            concrete_task: "「#{query}」向けの記事を1本作成する"
+          }
+        end
       end
 
       def task_for_missing_asset(query)

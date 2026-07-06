@@ -244,6 +244,7 @@ module Aicoo
           matched_page: page_match[:matched_page],
           recommended_slug: page_match[:recommended_slug],
           creation_type: page_match[:creation_type],
+          work_type: page_match[:work_type],
           shops_count:, confirmed_count:, articles_count:,
           article_relevance_count: articles[:count],
           article_relevance_score: articles[:best_score],
@@ -338,6 +339,7 @@ module Aicoo
           "matched_page" => item[:matched_page],
           "recommended_slug" => item[:recommended_slug],
           "creation_type" => item[:creation_type],
+          "work_type" => item[:work_type],
           "shops_count" => item[:shops_count],
           "confirmed_count" => item[:confirmed_count],
           "articles_count" => item[:articles_count],
@@ -410,6 +412,7 @@ module Aicoo
         [
           "suelog_site_insights:#{item[:recommended_action]}",
           "query=#{item[:query]}",
+          "作業種別=#{item[:work_type].presence || '未判定'}",
           "ページ判定=#{item[:page_exists] ? '既存改善' : '新規作成'} / matched_page=#{item[:matched_page].presence || 'なし'} / recommended_slug=#{item[:recommended_slug].presence || '-'}",
           "表示=#{item[:impressions]} / クリック=#{item[:clicks]} / CTR=#{item[:ctr_percent]}% / 順位=#{item[:position]}",
           "対象=#{item[:area] || '未判定'} / #{item[:local_area] || '広域'} / #{item[:genre] || '未判定'} / CV意図=#{item[:cv_intent]}",
@@ -435,7 +438,20 @@ module Aicoo
       end
 
       def concrete_task_for(item)
-        return "「#{item[:query]}」向けの記事を1本作成する" unless item[:page_exists]
+        case item[:work_type]
+        when "search_intent_analysis"
+          return "「#{item[:query]}」の検索意図と対応ページ要件を確認する"
+        when "competitor_analysis"
+          return "「#{item[:query]}」の競合要素を確認し、自社ページ要件を整理する"
+        when "data_shortage"
+          return "「#{item[:query]}」の改善判断に必要なGSC/GA4/内部データを確認する"
+        when "new_article"
+          return "「#{item[:query]}」向けの記事を1本作成する"
+        when "new_lp"
+          return "「#{item[:query]}」向けのLPを1ページ作成する"
+        when "new_category"
+          return "#{item[:area] || item[:genre] || item[:query]}向けのカテゴリページを1ページ作成する"
+        end
 
         case item[:recommended_action]
         when "CTR改善優先"
@@ -458,6 +474,9 @@ module Aicoo
       end
 
       def todo_lines_for(item)
+        return search_intent_analysis_todo_lines_for(item) if item[:work_type] == "search_intent_analysis"
+        return competitor_analysis_todo_lines_for(item) if item[:work_type] == "competitor_analysis"
+        return data_shortage_todo_lines_for(item) if item[:work_type] == "data_shortage"
         return new_page_todo_lines_for(item) unless item[:page_exists]
 
         lines = []
@@ -505,7 +524,13 @@ module Aicoo
       end
 
       def action_type_for(item)
-        return "seo_article" unless item[:page_exists]
+        case item[:work_type]
+        when "search_intent_analysis" then return "opportunity_validation"
+        when "competitor_analysis" then return "market_research"
+        when "data_shortage" then return "data_preparation"
+        when "new_article", "new_category" then return "seo_article"
+        when "new_lp" then return "build_lp"
+        end
 
         case item[:recommended_action]
         when "店舗追加優先" then "data_preparation"
@@ -516,7 +541,11 @@ module Aicoo
       end
 
       def execution_mode_for(item)
-        return "content_creation" unless item[:page_exists]
+        case item[:work_type]
+        when "search_intent_analysis", "competitor_analysis" then return "manual_operation"
+        when "data_shortage" then return "data_operation"
+        when "new_article", "new_lp", "new_category" then return "content_creation"
+        end
 
         case item[:recommended_action]
         when "店舗追加優先" then "data_operation"
@@ -802,7 +831,8 @@ module Aicoo
             page_exists: true,
             matched_page: target_url.url,
             recommended_slug: nil,
-            creation_type: "existing_improvement"
+            creation_type: "existing_page_improvement",
+            work_type: "existing_page_improvement"
           }
         end
 
@@ -811,15 +841,19 @@ module Aicoo
             page_exists: true,
             matched_page: articles[:best_path],
             recommended_slug: nil,
-            creation_type: "existing_improvement"
+            creation_type: "existing_page_improvement",
+            work_type: "existing_page_improvement"
           }
         end
+
+        work_type = missing_page_work_type_for(query)
 
         {
           page_exists: false,
           matched_page: nil,
           recommended_slug: recommended_slug_for(query),
-          creation_type: new_asset_type_for(query)
+          creation_type: work_type,
+          work_type:
         }
       end
 
@@ -838,20 +872,63 @@ module Aicoo
         false
       end
 
-      def new_asset_type_for(query)
+      def missing_page_work_type_for(query)
+        return "search_intent_analysis" if ambiguous_search_intent?(query)
+
         text = query.to_s
-        return "new_landing_page" if text.match?(/料金|価格|問い合わせ|登録|申し込み/)
+        return "new_lp" if text.match?(/料金|価格|問い合わせ|登録|申し込み/)
         return "new_category" if detect_area(text).present? || detect_genre(text).present?
 
         "new_article"
       end
 
+      def ambiguous_search_intent?(query)
+        text = query.to_s.squish
+        normalized = text.downcase
+        business_name = business.name.to_s.downcase
+        branded_query = business_name.present? && normalized.include?(business_name)
+        brand_discovery_terms = /比較|とは|違い|評判|口コミ|おすすめ|使い方|サービス/
+        has_specific_target = detect_area(text).present? || detect_local_area(text).present? || detect_genre(text).present? || detect_theme(query: text).present?
+
+        return true if branded_query && text.match?(brand_discovery_terms) && !has_specific_target
+        return true if !has_specific_target && detect_cv_intent(text) == "unknown"
+
+        false
+      end
+
       def new_page_todo_lines_for(item)
         [
-          "新規作成: #{item[:creation_type]} / slug=#{item[:recommended_slug]}",
+          "新規作成: #{item[:work_type]} / slug=#{item[:recommended_slug]}",
           "検索意図「#{item[:query]}」に対応するタイトル・構成を決める",
           "既存の#{business.name}ページから内部リンクを追加する",
           "公開後、ActionResult登録用にURLと狙いKWをメモする"
+        ]
+      end
+
+      def search_intent_analysis_todo_lines_for(item)
+        [
+          "GSCで「#{item[:query]}」の表示回数・クリック・現在の流入先を確認する",
+          "#{business.name}内に対応ページがあるか確認する",
+          "SERPは参考として上位ページの意図を分類する",
+          "既存改善・新規記事・新規LP・新規カテゴリのどれにするか判断する",
+          "次のActionCandidate用に判断理由と推奨URL/slugをメモする"
+        ]
+      end
+
+      def competitor_analysis_todo_lines_for(item)
+        [
+          "参考競合URLを確認し、共通要素を3つ抽出する",
+          "#{business.name}に不足している要素を整理する",
+          "改善対象は必ず#{business.production_url.presence || '自社URL'}配下から選ぶ",
+          "次のActionCandidate用に改善要件をメモする"
+        ]
+      end
+
+      def data_shortage_todo_lines_for(item)
+        [
+          "GSC/GA4/内部ログの不足項目を確認する",
+          "改善対象ページを特定できるデータがあるか確認する",
+          "不足している計測・紐付けをメモする"
         ]
       end
 
