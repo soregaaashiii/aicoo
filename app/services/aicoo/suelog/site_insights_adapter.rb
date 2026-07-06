@@ -187,7 +187,10 @@ module Aicoo
         clicks = row[:clicks].to_i
         ctr_percent = row[:ctr_percent].to_f
         position = row[:position].to_f
-        landing_page = row[:landing_page].presence || infer_landing_page(area:, local_area:, genre:, theme:)
+        raw_landing_page = row[:landing_page].presence || infer_landing_page(area:, local_area:, genre:, theme:)
+        target_url = owned_target_url_for(raw_landing_page, area:, local_area:, genre:, theme:)
+        return unless target_url.owner_page?
+        landing_page = target_url.url
 
         shops_count = shop_count_for(area:, local_area:, genre:)
         confirmed_count = confirmed_shop_count_for(area:, local_area:, genre:)
@@ -231,6 +234,10 @@ module Aicoo
           query:, area:, local_area:, genre:, cv_intent:, query_type:, theme:,
           specific_shop_query:, impressions:, clicks:, ctr_percent: ctr_percent.round(2),
           position: position.round(1), landing_page:,
+          raw_landing_page:,
+          target_url: landing_page,
+          target_url_type: target_url.target_url_type,
+          external_reference_urls: [ target_url.reference_url ].compact,
           shops_count:, confirmed_count:, articles_count:,
           article_relevance_count: articles[:count],
           article_relevance_score: articles[:best_score],
@@ -317,6 +324,10 @@ module Aicoo
           "ctr_percent" => item[:ctr_percent],
           "position" => item[:position],
           "landing_page" => item[:landing_page],
+          "raw_landing_page" => item[:raw_landing_page],
+          "target_url" => item[:target_url],
+          "target_url_type" => item[:target_url_type],
+          "external_reference_urls" => item[:external_reference_urls],
           "shops_count" => item[:shops_count],
           "confirmed_count" => item[:confirmed_count],
           "articles_count" => item[:articles_count],
@@ -348,7 +359,7 @@ module Aicoo
         {
           "summary" => item[:concrete_task],
           "goal" => item[:recommended_action],
-          "target" => item[:landing_page].presence || item[:query],
+          "target" => item[:target_url].presence || item[:landing_page].presence || item[:query],
           "owner_next_step" => item[:todo].first,
           "execution_steps" => item[:todo],
           "execution_units" => execution_units_for(item)
@@ -375,7 +386,7 @@ module Aicoo
           "source" => %w[gsc ga4 business_db],
           "issue_type" => item[:recommended_action],
           "query" => item[:query],
-          "page_path" => item[:landing_page],
+          "page_path" => item[:target_url].presence || item[:landing_page],
           "area" => item[:area],
           "genre" => item[:genre],
           "current_value" => item[:expected_score],
@@ -763,6 +774,14 @@ module Aicoo
       def article_path_for(log)
         slug = log.metadata.to_h["slug"].presence || log.after_snapshot.to_h["slug"].presence || log.resource_id
         slug.to_s.start_with?("/") ? slug.to_s : "/articles/#{slug}"
+      end
+
+      def owned_target_url_for(raw_url, area:, local_area:, genre:, theme:)
+        Aicoo::BusinessOwnedUrlPolicy.call(
+          business:,
+          url: raw_url,
+          fallback: infer_landing_page(area:, local_area:, genre:, theme:).presence || "https://suelog.jp/"
+        )
       end
 
       def infer_landing_page(area:, local_area:, genre:, theme:)

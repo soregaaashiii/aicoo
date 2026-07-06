@@ -134,6 +134,41 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     assert result.created.none? { |candidate| candidate.generation_source == "serp" }
   end
 
+  test "suelog site insights keeps external gsc page as reference only" do
+    @business.update!(project_key: "suelog", repository_name: "suelog")
+    data_source = @business.data_sources.create!(source_type: "gsc", name: "Google Search Console")
+    csv = CSV.generate(headers: true) do |rows|
+      rows << %w[query clicks impressions ctr position page]
+      rows << [
+        "吸えログ 喫煙可能な飲食店検索サービス",
+        3,
+        240,
+        "0.012",
+        8,
+        "https://s.tabelog.com/rstLst/cond13-00-01/"
+      ]
+    end
+    data_source.data_imports.create!(
+      filename: "gsc_external_page.csv",
+      content_type: "text/csv",
+      row_count: 1,
+      processed_text: csv,
+      imported_at: @today.to_time
+    )
+
+    result = Aicoo::Suelog::SiteInsightsAdapter.new(business: @business, today: @today).call
+    candidate = result.created.first
+
+    assert candidate
+    assert_equal "owner_page", candidate.metadata["target_url_type"]
+    assert_equal "https://suelog.jp/", candidate.metadata["target_url"]
+    assert_equal "https://suelog.jp/", candidate.metadata["landing_page"]
+    assert_includes candidate.metadata["external_reference_urls"], "https://s.tabelog.com/rstLst/cond13-00-01/"
+    assert_no_match(/s\.tabelog\.com/, candidate.metadata.dig("action_plan", "target").to_s)
+    assert_no_match(/s\.tabelog\.com/, candidate.metadata.dig("evidence", "page_path").to_s)
+    assert_no_match(/s\.tabelog\.com/, candidate.execution_prompt.to_s)
+  end
+
   test "seo analyzer skips issues that cannot provide evidence" do
     analyzer = Aicoo::BusinessAnalyzers::SeoBusinessAnalyzer.new(business: @business, today: @today)
     issue = Aicoo::BusinessAnalyzers::BaseAnalyzer::Issue.new(

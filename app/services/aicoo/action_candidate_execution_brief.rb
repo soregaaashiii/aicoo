@@ -384,7 +384,24 @@ module Aicoo
       raw = metadata["target_url"].presence ||
         expansion["target_url"].presence ||
         evidence_items.filter_map { |row| row["page"].presence || row["url"].presence }.first
-      Aicoo::ActionTargetUrlResolver.call(raw, require_known_route: true)
+      return nil if Aicoo::ActionTargetUrlResolver.metric_reference?(raw)
+
+      resolved = Aicoo::ActionTargetUrlResolver.call(raw, require_known_route: true)
+      return nil if resolved.blank?
+
+      Aicoo::BusinessOwnedUrlPolicy.call(business:, url: resolved).url
+    end
+
+    def target_url_type
+      raw = metadata["target_url"].presence ||
+        expansion["target_url"].presence ||
+        evidence_items.filter_map { |row| row["page"].presence || row["url"].presence }.first
+      return "unknown" if raw.blank? || Aicoo::ActionTargetUrlResolver.metric_reference?(raw)
+
+      resolved = Aicoo::ActionTargetUrlResolver.call(raw, require_known_route: true)
+      return "unknown" if resolved.blank?
+
+      Aicoo::BusinessOwnedUrlPolicy.call(business:, url: resolved).target_url_type
     end
 
     def admin_url

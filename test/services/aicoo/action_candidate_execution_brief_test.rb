@@ -79,6 +79,32 @@ module Aicoo
       assert_no_match(/URL: \/map\/affiliate_clicks/, brief.prompt_markdown)
     end
 
+    test "does not use external urls as existing business execution target" do
+      business = businesses(:suelog)
+      business.update!(project_key: "suelog", repository_name: "suelog")
+      candidate = ActionCandidate.create!(
+        business:,
+        title: "吸えログの流入ページを改善する",
+        description: "GSCのページ列に外部URLが混入していても対象にはしない。",
+        action_type: "seo_improvement",
+        status: "pending",
+        generation_source: "business_analyzer",
+        immediate_value_yen: 12_000,
+        expected_hours: 1,
+        success_probability: 0.4,
+        metadata: {
+          "target_url" => "https://s.tabelog.com/rstLst/cond13-00-01/",
+          "source_query" => "吸えログ 喫煙可能な飲食店検索サービス"
+        }
+      )
+
+      brief = ActionCandidateExecutionBrief.new(candidate)
+
+      assert_equal "https://suelog.jp/", brief.target[:url]
+      assert_empty brief.open_links.select { |link| link[:url].to_s.include?("s.tabelog.com") }
+      assert_no_match(/対象URL: https:\/\/s\.tabelog\.com|URL: https:\/\/s\.tabelog\.com/, brief.prompt_markdown)
+    end
+
     test "does not use serp results for existing business improvement when policy disallows external sources" do
       candidate = ActionCandidate.create!(
         business: businesses(:suelog),
