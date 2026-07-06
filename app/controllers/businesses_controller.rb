@@ -70,6 +70,7 @@ class BusinessesController < ApplicationController
     @business_analytics_summary = Aicoo::BusinessAnalyticsSummary.new(@business, health: @integration_health).call
     @data_source_settings_presenter = Aicoo::DataSourceSettingsPresenter.new
     @business_data_source_statuses = @data_source_settings_presenter.business_statuses(@business)
+    @data_source_policy = Aicoo::DataSourcePolicy.for(@business)
     @auto_revision_run_logs = @business.auto_revision_run_logs.includes(:auto_revision_task).recent.limit(8)
     @pipeline_run = Aicoo::PipelineEngine.new(@business).call
     Aicoo::PipelineStuckDetector.new(scope: AicooPipelineRun.where(id: @pipeline_run.id), auto_recover: false).call
@@ -87,6 +88,7 @@ class BusinessesController < ApplicationController
   def edit
     load_data_source_settings_context
     load_google_source_options
+    @data_source_policy = Aicoo::DataSourcePolicy.for(@business)
     @return_to = safe_return_to || edit_business_path(@business)
   end
 
@@ -323,6 +325,7 @@ class BusinessesController < ApplicationController
       @data_source_cost_profiles = DataSourceCostProfile.ordered
       @business_data_source_settings_by_key = @business.business_data_source_settings.index_by(&:source_key)
       @data_source_settings_presenter = Aicoo::DataSourceSettingsPresenter.new(profiles: @data_source_cost_profiles, settings: @business.business_data_source_settings)
+      @data_source_policy = Aicoo::DataSourcePolicy.for(@business)
     end
 
     def load_google_source_options

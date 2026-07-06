@@ -150,6 +150,7 @@ class MetricActionCandidateGenerator
   end
 
   def serp_optional_spec
+    return unless Aicoo::DataSourcePolicy.for(business).enabled?(:serp, context: :existing_business_improvement)
     return unless business.respond_to?(:serp_enabled?) && business.serp_enabled?
     return unless Aicoo::Serp::OptionalMode.call.missing_key?
 

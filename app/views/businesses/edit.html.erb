@@ -24,6 +24,49 @@
       <%= link_to "全体Data Source設定", aicoo_setting_path(anchor: "data-source-costs"), class: "button secondary" %>
     </div>
 
+    <% data_source_policy = @data_source_policy || Aicoo::DataSourcePolicy.for(@business) %>
+    <% visible_analysis_sources = data_source_policy.visible_source_states %>
+    <div class="aicoo-card aicoo-card-compact" id="analysis-source-policy">
+      <div class="section-heading">
+        <div>
+          <h3>分析ソース</h3>
+          <p>既存Business改善で実際に使うデータソースです。外部データは検証済みになるまで既存改善には使いません。</p>
+        </div>
+      </div>
+      <div class="metric-grid aicoo-owner-secondary">
+        <div class="metric-card">
+          <span>現在使用中</span>
+          <strong><%= visible_analysis_sources.select(&:used?).map { |source| "✅ #{source.label}" }.join(" / ") %></strong>
+          <small>ActionCandidate / 期待値 / 実行指示はこの範囲だけを参照</small>
+        </div>
+        <div class="metric-card">
+          <span>未使用</span>
+          <strong><%= visible_analysis_sources.select(&:unused?).map { |source| "⬜ #{source.label}" }.join(" / ") %></strong>
+          <small>SERP・Reddit・X・Newsは新規事業探索または検証済み個別設定のみ</small>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>ソース</th>
+              <th>分析利用</th>
+              <th>理由</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% visible_analysis_sources.each do |source| %>
+              <tr>
+                <td><strong><%= source.label %></strong></td>
+                <td><span class="pill status-<%= source.used? ? "healthy" : "attention" %>"><%= source.used? ? "使用中" : "未使用" %></span></td>
+                <td><%= source.reason %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
     <% business_statuses = @data_source_settings_presenter.business_statuses(@business) %>
     <div class="metric-grid aicoo-owner-secondary">
       <% business_statuses.each do |status| %>

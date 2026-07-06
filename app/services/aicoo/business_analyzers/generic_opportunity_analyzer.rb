@@ -78,7 +78,7 @@ module Aicoo
           action_type: task.fetch(:action_type),
           quantity: 1,
           unit: task.fetch(:unit),
-          why: "SERP/GSCに需要シグナルがありますが、Businessの対応資産が不足しています。",
+          why: "GSCまたは内部データに需要シグナルがありますが、Businessの対応資産が不足しています。",
           expected_effect: "新規入口 1件、初月クリック +20",
           expected_value_yen: estimated_value(24_000),
           success_probability: 0.38,
@@ -92,7 +92,7 @@ module Aicoo
             query:,
             current_value: 0,
             benchmark_value: 1,
-            source_metric: "serp_or_gsc_demand",
+            source_metric: "gsc_or_internal_demand",
             concrete_task: task.fetch(:title),
             required_resources: task
           )
@@ -592,16 +592,16 @@ module Aicoo
 
       def evidence_sources_for(pattern)
         {
-          "demand_without_asset" => %w[gsc serp business_db],
-          "demand_without_supply" => %w[gsc serp business_db],
+          "demand_without_asset" => %w[gsc business_db],
+          "demand_without_supply" => %w[gsc business_db],
           "high_impression_low_ctr" => %w[gsc ga4],
-          "rank_11_20_gap" => %w[gsc serp],
-          "near_win_position" => %w[gsc serp],
+          "rank_11_20_gap" => %w[gsc],
+          "near_win_position" => %w[gsc],
           "traffic_without_conversion" => %w[ga4 business_db],
           "high_traffic_low_conversion" => %w[ga4 business_db],
           "funnel_drop" => %w[ga4 business_db],
           "asset_without_traffic" => %w[ga4 activity_log],
-          "asset_missing" => %w[gsc serp business_db],
+          "asset_missing" => %w[gsc business_db],
           "weak_existing_asset" => %w[gsc ga4 activity_log],
           "supply_gap" => %w[gsc business_db],
           "verification_gap" => %w[business_db activity_log],

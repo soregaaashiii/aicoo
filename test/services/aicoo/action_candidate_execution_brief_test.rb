@@ -42,8 +42,8 @@ module Aicoo
       assert_equal "Article", brief.target[:resource_type]
       assert_equal "/admin/articles/12/edit", brief.target[:edit_url]
       assert_equal "【2026年版】大阪で喫煙できるカフェ比較｜吸えログ", brief.before_after_items.first[:after]
-      assert_equal [ "比較", "口コミ" ], brief.serp_comparison[:common_words]
-      assert_equal [ "料金", "掲載件数" ], brief.serp_comparison[:missing_elements]
+      assert_empty brief.serp_comparison[:common_words]
+      assert_empty brief.serp_comparison[:missing_elements]
       assert_equal [ "app/views/articles/show.html.erb" ], brief.file_changes
       assert_equal [ "タイトル変更済み", "CTA変更済み" ], brief.completion_criteria
       assert_includes brief.prompt_markdown, "① 検索クエリ"
@@ -79,7 +79,7 @@ module Aicoo
       assert_no_match(/URL: \/map\/affiliate_clicks/, brief.prompt_markdown)
     end
 
-    test "does not use unrelated serp results for suelog branded query" do
+    test "does not use serp results for existing business improvement when policy disallows external sources" do
       candidate = ActionCandidate.create!(
         business: businesses(:suelog),
         title: "吸えログの指名検索対策ページを作る",
@@ -103,22 +103,21 @@ module Aicoo
 
       brief = ActionCandidateExecutionBrief.new(candidate)
 
-      assert_equal [ "大阪 喫煙可能 カフェ" ], brief.top_serp_results.map { |row| row["title"] }
-      assert_equal "指名検索ページ不足", brief.serp_comparison.dig(:relevance, :status)
-      assert_equal "suelog-comparison", brief.new_article_spec[:slug]
-      assert_equal "/articles/suelog-comparison", brief.target[:url]
-      assert_equal "/admin/articles/new?slug=suelog-comparison", brief.target[:admin_url]
+      assert_empty brief.top_serp_results
+      assert_equal "未取得", brief.serp_comparison.dig(:relevance, :status)
+      assert_equal "/articles/#{brief.new_article_spec[:slug]}", brief.target[:url]
+      assert_equal "/admin/articles/new?slug=#{brief.new_article_spec[:slug]}", brief.target[:admin_url]
       assert_equal "新規作成", brief.article_id
       assert_equal "新規記事", brief.page_change_type
-      assert_includes brief.own_site_gap, "食べログ/Googleマップ/Rettyとの違い"
+      assert_no_match(/ログ管理システム比較|it-trend/, brief.prompt_markdown)
       assert_empty brief.before_after_items
       assert_empty brief.file_changes
       assert_empty brief.completion_criteria
       assert_equal "comparison", brief.article_plan[:article_type]
-      assert_equal "初めて吸えログを知った人", brief.article_plan[:target_user]
+      assert_equal "検索キーワードに合う選択肢を比較したい人", brief.article_plan[:target_user]
       assert_equal "比較したい", brief.article_plan[:search_intent]
       assert_includes brief.article_plan[:recommended_sections], "比較表"
-      assert_includes brief.article_plan[:internal_links], "/osaka"
+      assert_includes brief.article_plan[:internal_links], "記事詳細ページ"
       assert_includes brief.prompt_markdown, "記事タイプ"
       assert_includes brief.prompt_markdown, "記事タイトル"
       assert_includes brief.prompt_markdown, "推奨構成"

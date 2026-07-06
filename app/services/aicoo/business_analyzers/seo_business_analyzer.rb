@@ -69,6 +69,8 @@ module Aicoo
       end
 
       def rank_opportunity_issue
+        return unless serp_allowed?
+
         analysis = latest_serp_analysis
         return unless analysis&.successful?
         return if analysis.competition_score.to_i < 55
@@ -205,7 +207,7 @@ module Aicoo
 
       def content_gap_issue
         return if recent_article_activity_count.positive?
-        return if recent_impressions.zero? && latest_serp_analysis.blank?
+        return if recent_impressions.zero?
 
         keyword = content_keywords.first
         return if keyword.blank?
@@ -219,7 +221,7 @@ module Aicoo
           action_type: "seo_article",
           quantity: 1,
           unit: "本",
-          why: "GSC/SERPに「#{keyword}」の検索需要がありますが、対応する記事作成Activityが直近30日で0件です。",
+          why: "GSCに「#{keyword}」の検索需要がありますが、対応する記事作成Activityが直近30日で0件です。",
           expected_effect: "新規検索入口 1本、初月クリック +20",
           expected_value_yen: estimated_value(27_000),
           success_probability: 0.34,
@@ -228,7 +230,7 @@ module Aicoo
           expected_hours: 1.5,
           metadata: {
             "seo_action_type" => action_type,
-            "evidence_sources" => [ "gsc", "serp", "business_db" ],
+            "evidence_sources" => [ "gsc", "business_db" ],
             "source_query" => keyword,
             "target_genre" => article_label,
             "current_value" => recent_article_activity_count,
@@ -409,7 +411,13 @@ module Aicoo
       end
 
       def latest_serp_analysis
+        return unless serp_allowed?
+
         @latest_serp_analysis ||= business.serp_analyses.successful.order(analyzed_at: :desc, created_at: :desc).first
+      end
+
+      def serp_allowed?
+        @serp_allowed ||= Aicoo::DataSourcePolicy.for(business).enabled?(:serp, context: :existing_business_improvement)
       end
 
       def relevant_serp_count(analysis)

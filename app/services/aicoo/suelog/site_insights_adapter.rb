@@ -128,6 +128,10 @@ module Aicoo
 
       attr_reader :business, :today, :limit
 
+      def serp_allowed?
+        @serp_allowed ||= Aicoo::DataSourcePolicy.for(business).enabled?(:serp, context: :existing_business_improvement)
+      end
+
       def build_items
         query_rows.filter_map { |row| build_item(row) }.reject { |item| item[:specific_shop_query] }
       end
@@ -886,6 +890,8 @@ module Aicoo
       end
 
       def serp_reference_for(query)
+        return nil unless serp_allowed?
+
         analysis = business.serp_analyses
           .successful
           .where(keyword: query)

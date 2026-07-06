@@ -715,10 +715,14 @@ module Aicoo
     end
 
     def serp_results
+      return [] unless serp_allowed?
+
       relevant_serp_results_from(raw_serp_results).first(5)
     end
 
     def raw_serp_results
+      return [] unless serp_allowed?
+
       explicit = Array(metadata["serp_top_results"])
       return explicit.first(5) if explicit.any?
 
@@ -737,7 +741,8 @@ module Aicoo
 
     def common_words
       explicit = Array(metadata["serp_common_words"])
-      return explicit if explicit.any?
+      return explicit if explicit.any? && serp_allowed?
+      return [] unless serp_allowed?
       return %w[指名検索 食べログ Googleマップ Retty 喫煙店検索] if branded_search_page_needed?
 
       titles = serp_results.map { |row| row["title"].to_s }
@@ -748,7 +753,8 @@ module Aicoo
 
     def common_structure
       explicit = Array(metadata["serp_common_structure"])
-      return explicit if explicit.any?
+      return explicit if explicit.any? && serp_allowed?
+      return [] unless serp_allowed?
       return %w[サービス説明 比較表 使い分け FAQ エリア導線] if branded_search_page_needed?
 
       %w[結論 比較表 選び方 FAQ CTA]
@@ -756,7 +762,8 @@ module Aicoo
 
     def missing_elements
       explicit = Array(metadata["missing_elements"])
-      return explicit if explicit.any?
+      return explicit if explicit.any? && serp_allowed?
+      return [] unless serp_allowed?
       return %w[吸えログとは何か 競合サービスとの差分 喫煙店検索への導線 FAQ] if branded_search_page_needed?
 
       %w[比較 掲載件数 FAQ 内部リンク]
@@ -780,6 +787,7 @@ module Aicoo
 
     def serp_relevance_scores
       @serp_relevance_scores ||= begin
+        return [] unless serp_allowed?
         return [] if business.blank? || source_query.blank?
 
         relevance_filter.scored_results(raw_serp_results)
@@ -814,9 +822,18 @@ module Aicoo
     end
 
     def branded_search_page_needed?
+      return false unless serp_allowed?
+
       @branded_search_page_needed ||= relevance_filter.branded_query? &&
         raw_serp_results.any? &&
         serp_relevance_scores.reject(&:excluded).size < 3
+    end
+
+    def serp_allowed?
+      @serp_allowed ||= begin
+        context = metadata["candidate_kind"] == "new_business" ? :new_business_exploration : :existing_business_improvement
+        Aicoo::DataSourcePolicy.for(business).enabled?(:serp, context:)
+      end
     end
 
     def branded_search_gap

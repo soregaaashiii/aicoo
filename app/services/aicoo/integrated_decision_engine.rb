@@ -34,9 +34,13 @@ module Aicoo
       candidates = []
       serp_run.serp_analyses.successful.includes(:business).group_by(&:business).each do |business, analyses|
         next unless business
+        next unless data_source_policy_for(business).enabled?(:serp, context: :existing_business_improvement)
         next if duplicate_today?(business, "existing_business_improvement")
 
-        best_analysis = analyses.max_by { |analysis| analysis.result_count.to_i }
+        relevant_analyses = analyses.select { |analysis| analysis_belongs_to_business?(analysis) && analysis_relevant_to_business?(analysis) }
+        next if relevant_analyses.empty?
+
+        best_analysis = relevant_analyses.max_by { |analysis| analysis.result_count.to_i }
         candidates << business.action_candidates.create!(
           title: "#{business.name}の市場観測と内部データを統合して改善する",
           description: "SERP市場観測とDaily Runの内部データを合わせ、検索意図・CTR・CV・改善履歴を見て優先改善を決めます。",
@@ -97,6 +101,9 @@ module Aicoo
 
     def generate_new_business_candidates!
       serp_run.serp_analyses.successful.includes(:business, :serp_results).filter_map do |analysis|
+        next unless analysis.business
+        next unless analysis_belongs_to_business?(analysis)
+        next unless data_source_policy_for(analysis.business).enabled?(:serp, context: :new_business_exploration)
         next unless new_business_analysis?(analysis)
         next if duplicate_new_business_today?(analysis)
 
@@ -137,7 +144,9 @@ module Aicoo
 
     def new_business_analysis?(analysis)
       serp_query = serp_query_for(analysis)
+      return false if branded_query?(analysis)
       return true if serp_query&.category.in?(%w[new_business keyword_discovery trend])
+      return false if serp_query.present?
 
       query = analysis.keyword.to_s
       query.match?(/AI|SaaS|自動化|代行|ツール|アプリ|比較|課題|効率化|生成|管理/i)
@@ -151,11 +160,44 @@ module Aicoo
         .exists?
     end
 
+    def data_source_policy_for(business)
+      @data_source_policies ||= {}
+      @data_source_policies[business.id] ||= Aicoo::DataSourcePolicy.for(business)
+    end
+
     def serp_query_for(analysis)
       serp_query_id = analysis.raw_summary.to_h["serp_query_id"]
       return if serp_query_id.blank?
 
       SerpQuery.find_by(id: serp_query_id)
+    end
+
+    def analysis_belongs_to_business?(analysis)
+      serp_query = serp_query_for(analysis)
+      return true unless serp_query
+
+      serp_query.business_id == analysis.business_id
+    end
+
+    def analysis_relevant_to_business?(analysis)
+      results = analysis.serp_results.order(:position).limit(5).map do |result|
+        { "position" => result.position, "title" => result.title, "url" => result.url, "snippet" => result.snippet }
+      end
+      return true if results.empty?
+
+      relevance = relevance_filter_for(analysis)
+      relevant_count = relevance.relevant_results(results).size
+      return relevant_count.positive? unless relevance.branded_query?
+
+      relevant_count >= 3
+    end
+
+    def branded_query?(analysis)
+      relevance_filter_for(analysis).branded_query?
+    end
+
+    def relevance_filter_for(analysis)
+      Aicoo::Serp::ResultRelevance.new(business: analysis.business, query: analysis.keyword)
     end
 
     def new_business_title(analysis)
@@ -173,7 +215,10 @@ module Aicoo
     end
 
     def market_memo_for(analysis)
-      top_titles = analysis.serp_results.order(:position).limit(3).pluck(:title).compact
+      rows = analysis.serp_results.order(:position).limit(5).map do |result|
+        { "position" => result.position, "title" => result.title, "url" => result.url, "snippet" => result.snippet }
+      end
+      top_titles = relevance_filter_for(analysis).relevant_results(rows).first(3).filter_map { |row| row["title"].presence }
       return "競合/市場メモはSERP結果詳細で確認してください。" if top_titles.empty?
 
       "上位結果: #{top_titles.join(' / ')}"

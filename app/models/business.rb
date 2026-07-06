@@ -16,6 +16,7 @@ class Business < ApplicationRecord
     content_media
     ecommerce
     community
+    exploration
     other
   ].freeze
   NEW_LP_AUTO_DEPLOY_LIFECYCLE_STAGES = %w[idea lp_validation mvp].freeze

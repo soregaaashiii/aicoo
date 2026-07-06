@@ -351,8 +351,8 @@ module Aicoo
       [
         content_action(
           strategy_type: "serp_gap_response",
-          task: "#{target_label}のSERP差分を1件埋める",
-          goal: "順位11〜20位の入口に不足要素を追加する",
+          task: "#{target_label}の順位改善要素を1件追加する",
+          goal: "順位11〜20位の入口に内部データで不足が見える要素を追加する",
           target_type: "page_or_query",
           steps: %w[不足要素確認 FAQまたは比較要素追加 内部リンク追加 公開 順位確認メモ作成]
         ),
