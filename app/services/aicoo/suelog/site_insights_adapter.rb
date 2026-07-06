@@ -292,6 +292,7 @@ module Aicoo
           "suelog_site_insights" => true,
           "suelog_insight_key" => key,
           "source_script" => "script/site_insights.rb",
+          "data_sources_used" => %w[gsc ga4 internal],
           "query" => item[:query],
           "area" => item[:area],
           "local_area" => item[:local_area],

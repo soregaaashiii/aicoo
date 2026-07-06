@@ -4,7 +4,11 @@ module Aicoo
       "gsc" => "GSC",
       "ga4" => "GA4",
       "business_db" => "Business DB",
+      "internal" => "Internal",
       "serp" => "SERP",
+      "x" => "X",
+      "reddit" => "Reddit",
+      "news" => "News",
       "activity_log" => "Activity Log"
     }.freeze
     SEO_ACTION_TYPE_LABELS = {
@@ -89,10 +93,14 @@ module Aicoo
     end
 
     def source_label
-      sources = Array(evidence["source"]).compact_blank
+      sources = data_sources_used.presence || Array(evidence["source"]).compact_blank
       return "未特定" if sources.empty?
 
       sources.map { |source| SOURCE_LABELS.fetch(source.to_s, source.to_s) }.join(" / ")
+    end
+
+    def data_sources_used
+      Array(action_candidate.metadata.to_h["data_sources_used"]).compact_blank
     end
 
     def target_label

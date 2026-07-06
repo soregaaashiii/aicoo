@@ -27,7 +27,7 @@ class ActionCandidate < ApplicationRecord
   ].freeze
 
   STATUSES = %w[idea pending approved executor_queued in_progress done rejected archived].freeze
-  INACTIVE_STATUSES = %w[archived rejected done].freeze
+  INACTIVE_STATUSES = %w[archived rejected done canceled cancelled invalid].freeze
   GENERATION_SOURCES = %w[manual seed ai_business ai_cross_business ai_reevaluation ai_insight learning_report opportunity_discovery business_analyzer serp traffic_channel integrated_decision].freeze
   DEPARTMENTS = %w[general revenue lab new_business].freeze
 

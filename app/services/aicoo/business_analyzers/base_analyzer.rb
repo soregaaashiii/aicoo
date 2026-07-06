@@ -93,6 +93,7 @@ module Aicoo
       def candidate_metadata(issue, opportunity: nil)
         issue.metadata.to_h.deep_stringify_keys.merge(
           "source" => "business_analyzer",
+          "data_sources_used" => data_sources_used_for(issue),
           "analyzer" => self.class.name,
           "business_type" => business.business_type,
           "issue_key" => issue.key,
@@ -154,6 +155,12 @@ module Aicoo
           "reason" => issue.why,
           "expected_effect" => issue.expected_effect
         }.compact
+      end
+
+      def data_sources_used_for(issue)
+        attrs = issue.metadata.to_h.deep_stringify_keys
+        sources = Array(attrs["evidence_sources"].presence || attrs["data_sources"].presence || attrs["source"].presence || "business_db")
+        sources.map(&:to_s).map { |source| source == "business_db" ? "internal" : source }.uniq
       end
 
       def execution_units_for(issue)

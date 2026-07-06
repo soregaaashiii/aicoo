@@ -674,11 +674,13 @@ class MetricActionCandidateGenerator
       "metric_rule" => spec.key,
       "comparison_strategy" => comparison_strategy,
       "metric_days_count" => metric_days_count,
+      "data_sources_used" => %w[ga4 gsc internal],
       "low_confidence" => metric_days_count < 7,
       "confidence_note" => confidence_note,
       "business_type_playbook" => business_type_playbook.call(spec_attributes(spec)).metadata
     }
-    return metadata unless Aicoo::Serp::OptionalMode.call.missing_key?
+    return metadata unless Aicoo::Serp::OptionalMode.call.missing_key? &&
+      Aicoo::DataSourcePolicy.for(business).enabled?(:serp, context: :existing_business_improvement)
 
     metadata.merge(
       "data_mode" => "internal_only",

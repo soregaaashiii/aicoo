@@ -86,6 +86,7 @@ module Aicoo
         .filter_map do |candidate|
         next if candidate.business&.system_business?
         next if abstract_seo_candidate?(candidate)
+        next if external_data_source_used_for_existing_business?(candidate)
 
         build_candidate_improvement(candidate)
       end
@@ -99,6 +100,7 @@ module Aicoo
         .filter_map do |task|
         next if task.business&.system_business?
         next if task.action_candidate && abstract_seo_candidate?(task.action_candidate)
+        next if task.action_candidate && external_data_source_used_for_existing_business?(task.action_candidate)
 
         build_auto_revision_improvement(task)
       end
@@ -248,6 +250,17 @@ module Aicoo
         row.business&.name.to_s,
         row.title.to_s
       ]
+    end
+
+    def external_data_source_used_for_existing_business?(candidate)
+      return false if Aicoo::DataSourcePolicy.for(candidate.business).exploration_business?
+
+      metadata = candidate.metadata.to_h
+      data_sources = Array(metadata["data_sources_used"]) +
+        Array(metadata.dig("evidence", "source")) +
+        Array(metadata["evidence_sources"]) +
+        Array(metadata["data_sources"])
+      (data_sources.map(&:to_s).map(&:downcase) & %w[serp x reddit news]).any?
     end
 
     def abstract_seo_candidate?(candidate)

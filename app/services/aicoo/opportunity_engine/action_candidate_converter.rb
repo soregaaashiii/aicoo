@@ -63,6 +63,7 @@ module Aicoo
             "business_knowledge" => decision.business_knowledge.to_h,
             "opportunity" => opportunity.to_metadata,
             "evidence" => analyzer.evidence_for(issue),
+            "data_sources_used" => data_sources_used_for(issue),
             "execution_units" => plan.execution_units,
             "execution_mode" => plan.execution_mode,
             "concrete_task" => plan.summary,
@@ -115,6 +116,12 @@ module Aicoo
           - 上記手順が完了している
           - 実行結果をActionResultへ登録できるメモがある
         PROMPT
+      end
+
+      def data_sources_used_for(issue)
+        analyzer.evidence_for(issue).fetch("source", []).map(&:to_s).map do |source|
+          source == "business_db" ? "internal" : source
+        end.uniq
       end
 
       ABSTRACT_PATTERNS = [

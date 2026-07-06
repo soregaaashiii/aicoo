@@ -39,6 +39,7 @@ module Aicoo
       :success_probability,
       :execution_mode,
       :execution_mode_label,
+      :data_sources_label,
       :approval_required,
       :codex_target,
       :owner_next_step,
@@ -147,6 +148,7 @@ module Aicoo
         success_probability:,
         execution_mode:,
         execution_mode_label: presenter.execution_mode_label,
+        data_sources_label: presenter.source_label,
         approval_required: approval_task.present?,
         codex_target: execution_mode == "code_revision",
         owner_next_step:,
@@ -166,6 +168,7 @@ module Aicoo
       return "fallback_action" if candidate.metadata.to_h["today_fallback"]
       return "needs_refinement" if candidate.metadata.to_h["concretization_status"] == "needs_refinement"
       return "abstract_concrete_task" unless concrete_text_allowed?(candidate)
+      return "external_data_source_disallowed" if external_data_source_used_for_existing_business?(candidate)
 
       owner_work = OWNER_EXECUTION_MODES.include?(execution_mode)
       approval_waiting_code_revision = execution_mode == "code_revision" && approval_task.present?
@@ -228,6 +231,16 @@ module Aicoo
       return false if values.empty?
 
       values.none? { |value| ABSTRACT_PATTERNS.any? { |pattern| value.to_s.match?(pattern) } }
+    end
+
+    def external_data_source_used_for_existing_business?(candidate)
+      return false if Aicoo::DataSourcePolicy.for(candidate.business).exploration_business?
+
+      data_sources = Array(candidate.metadata.to_h["data_sources_used"]) +
+        Array(candidate.metadata.to_h.dig("evidence", "source")) +
+        Array(candidate.metadata.to_h["evidence_sources"]) +
+        Array(candidate.metadata.to_h["data_sources"])
+      (data_sources.map(&:to_s).map(&:downcase) & %w[serp x reddit news]).any?
     end
 
     def approval_required_task(candidate)

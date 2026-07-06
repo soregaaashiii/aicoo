@@ -7,4 +7,13 @@ namespace :aicoo do
     result = Aicoo::UrlContaminationTracer.call(url:, fix:)
     puts JSON.pretty_generate(result.to_h)
   end
+
+  desc "Archive SERP-contaminated Suelog candidates and regenerate internal-data candidates"
+  task cleanup_suelog_serp_contamination: :environment do
+    result = Aicoo::SuelogSerpContaminationCleanup.call(
+      url: ENV["URL"].presence || Aicoo::SuelogSerpContaminationCleanup::DEFAULT_URL,
+      regenerate: ENV.fetch("REGENERATE", "true")
+    )
+    puts JSON.pretty_generate(result.to_h)
+  end
 end
