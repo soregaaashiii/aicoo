@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_11_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_12_093000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1293,6 +1293,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_11_090000) do
     t.boolean "created_by_aicoo", default: false, null: false
     t.boolean "daily_run_enabled", default: true, null: false
     t.jsonb "default_verification_commands", default: [], null: false
+    t.datetime "deleted_at"
+    t.string "deleted_by"
+    t.string "deletion_reason"
+    t.string "deletion_source"
     t.text "description"
     t.string "gsc_site_url"
     t.integer "idea_id"
@@ -1311,6 +1315,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_11_090000) do
     t.boolean "serp_enabled", default: true, null: false
     t.string "source"
     t.string "status"
+    t.string "status_before_deletion"
     t.datetime "updated_at", null: false
     t.index ["auto_build_enabled"], name: "index_businesses_on_auto_build_enabled"
     t.index ["auto_build_risk_level"], name: "index_businesses_on_auto_build_risk_level"
@@ -1319,6 +1324,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_11_090000) do
     t.index ["auto_revision_mode"], name: "index_businesses_on_auto_revision_mode"
     t.index ["business_type"], name: "index_businesses_on_business_type"
     t.index ["created_by_aicoo"], name: "index_businesses_on_created_by_aicoo"
+    t.index ["deleted_at"], name: "index_businesses_on_deleted_at"
+    t.index ["deletion_reason"], name: "index_businesses_on_deletion_reason"
+    t.index ["deletion_source"], name: "index_businesses_on_deletion_source"
     t.index ["idea_id"], name: "index_businesses_on_idea_id"
     t.index ["launched"], name: "index_businesses_on_launched"
     t.index ["lifecycle_stage"], name: "index_businesses_on_lifecycle_stage"

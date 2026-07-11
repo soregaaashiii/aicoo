@@ -3,14 +3,27 @@ class BusinessesController < ApplicationController
     show edit update destroy generate_ai_candidates import_google_api import_gsc import_ga4
     google_settings update_google_settings
     update_data_source_settings promote_to_mvp promote_to_production promote_to_scaling update_resource_status
+    restore permanently_destroy
   ]
+
+  DELETION_REASONS = %w[
+    SERP誤生成
+    既存事業との重複
+    需要なし
+    検証不要
+    誤登録
+    その他
+  ].freeze
 
   # GET /businesses or /businesses.json
   def index
     repair_approved_new_business_candidates!
     publish_serp_new_business_candidates!
     @businesses = Business.real_businesses.includes(:business_execution_profile).order(:name)
+    @businesses = @businesses.where(status: "exploring") if params[:filter] == "exploring"
+    @businesses = @businesses.select(&:serp_generated?) if params[:filter] == "serp"
     @active_tab = params[:tab].presence_in(%w[businesses serp_candidates]) || "businesses"
+    @deletion_reasons = DELETION_REASONS
     @serp_new_business_board = Aicoo::NewBusinessCandidateBoard.call(limit: 50)
     @business_integration_health = Aicoo::BusinessIntegrationHealth.new.call
     @data_source_settings_presenter = Aicoo::DataSourceSettingsPresenter.new
@@ -19,6 +32,11 @@ class BusinessesController < ApplicationController
       health_result: @business_integration_health
     )
     @business_expected_values = @businesses.index_with { |business| Aicoo::BusinessExpectedValue.call(business) }
+  end
+
+  def deleted
+    @businesses = Business.deleted.order(deleted_at: :desc, updated_at: :desc)
+    @deletion_reasons = DELETION_REASONS
   end
 
   # GET /businesses/1 or /businesses/1.json
@@ -169,12 +187,70 @@ class BusinessesController < ApplicationController
 
   # DELETE /businesses/1 or /businesses/1.json
   def destroy
-    @business.destroy!
+    @business.soft_delete!(
+      reason: deletion_reason,
+      actor: "owner",
+      source: "business_detail"
+    )
 
     respond_to do |format|
-      format.html { redirect_to businesses_path, notice: "Business was successfully destroyed.", status: :see_other }
-      format.json { head :no_content }
+      format.html { redirect_to businesses_path, notice: "Businessを削除しました。関連データは保持され、削除済み一覧から復元できます。", status: :see_other }
+      format.json { render json: { deleted: true, business_id: @business.id } }
     end
+  end
+
+  def restore
+    @business.restore_from_soft_delete!(actor: "owner")
+    redirect_to business_path(@business), notice: "Businessを復元しました。"
+  end
+
+  def permanently_destroy
+    unless @business.deleted?
+      redirect_to deleted_businesses_path, alert: "完全削除できません: 論理削除済みBusinessだけ完全削除できます。"
+      return
+    end
+
+    unless params[:confirmation_name].to_s == @business.name
+      redirect_to deleted_businesses_path, alert: "完全削除できません: Business名が一致しません。"
+      return
+    end
+
+    record_permanent_deletion_audit!(@business)
+    ApprovalLog.where(business_id: @business.id).update_all(business_id: nil, updated_at: Time.current)
+    @business.destroy!
+    redirect_to deleted_businesses_path, notice: "Businessを完全削除しました。"
+  end
+
+  def bulk_delete
+    ids = selected_business_ids
+    if ids.empty?
+      redirect_to businesses_path, alert: "削除するBusinessを選択してください。"
+      return
+    end
+
+    businesses = Business.real_businesses.where(id: ids)
+    businesses.find_each do |business|
+      business.soft_delete!(
+        reason: deletion_reason,
+        actor: "owner",
+        source: "business_bulk_delete"
+      )
+    end
+
+    redirect_to businesses_path, notice: "#{businesses.count}件のBusinessを削除しました。"
+  end
+
+  def bulk_restore
+    ids = selected_business_ids
+    if ids.empty?
+      redirect_to deleted_businesses_path, alert: "復元するBusinessを選択してください。"
+      return
+    end
+
+    businesses = Business.deleted.where(id: ids)
+    businesses.find_each { |business| business.restore_from_soft_delete!(actor: "owner") }
+
+    redirect_to deleted_businesses_path, notice: "#{businesses.count}件のBusinessを復元しました。"
   end
 
   def generate_ai_candidates
@@ -292,6 +368,37 @@ class BusinessesController < ApplicationController
   end
 
   private
+
+  def selected_business_ids
+    Array(params[:business_ids]).filter_map { |id| Integer(id, exception: false) }.uniq
+  end
+
+  def deletion_reason
+    params[:deletion_reason].presence_in(DELETION_REASONS) || params[:deletion_reason].presence || "その他"
+  end
+
+  def record_permanent_deletion_audit!(business)
+    ApprovalLog.create!(
+      approvable: business,
+      action: "permanent_delete",
+      source: "businesses_controller",
+      operator: "owner",
+      approved_at: Time.current,
+      common_previous_status: "deleted",
+      common_new_status: "deleted",
+      previous_status: business.status,
+      new_status: "permanent_deleted",
+      message: "Businessを完全削除しました: #{business.name}",
+      metadata: {
+        business_id: business.id,
+        business_name: business.name,
+        deletion_reason: business.deletion_reason,
+        deleted_at: business.deleted_at&.iso8601
+      }
+    )
+  rescue ActiveRecord::RecordInvalid
+    nil
+  end
     def load_suelog_database_status
       return unless Aicoo::CandidateGenerators::SuelogGenerator.target?(@business)
 

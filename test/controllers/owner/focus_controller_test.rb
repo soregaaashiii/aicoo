@@ -433,6 +433,26 @@ module Owner
       assert_includes response.body, "home_actions_page=7"
     end
 
+    test "does not show action candidates for deleted business in Today" do
+      business = Business.create!(name: "削除済み検証事業", status: "exploring")
+      candidate = create_today_candidate!(
+        business:,
+        title: "削除済み事業の確認作業",
+        immediate_value_yen: 100_000,
+        metadata: today_metadata(
+          title: "削除済み事業の確認作業",
+          target: "削除済み事業"
+        )
+      )
+      business.soft_delete!(reason: "SERP誤生成", actor: "owner", source: "test")
+
+      get owner_focus_url
+
+      assert_response :success
+      assert_not_includes today_item_ids(response.body), "action_candidate:#{candidate.id}"
+      assert_not_includes response.body, "削除済み事業の確認作業"
+    end
+
     test "does not create fallback Today item for data backed business with no visible candidate" do
       ActionCandidate.delete_all
       business = businesses(:suelog)

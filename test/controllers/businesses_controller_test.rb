@@ -866,12 +866,75 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "approval", @business.auto_deploy_mode
   end
 
-  test "should destroy business" do
-    assert_difference("Business.count", -1) do
-      delete business_url(@business)
+  test "soft deletes business instead of destroying related data" do
+    candidate = ActionCandidate.create!(
+      business: @business,
+      title: "削除後も保持する候補",
+      status: "approved",
+      action_type: "seo_improvement",
+      generation_source: "business_analyzer"
+    )
+
+    assert_no_difference("Business.count") do
+      delete business_url(@business), params: { deletion_reason: "SERP誤生成" }
     end
 
     assert_redirected_to businesses_url
+    @business.reload
+    assert @business.deleted?
+    assert_equal "SERP誤生成", @business.deletion_reason
+    assert_not @business.daily_run_enabled?
+    assert_not @business.serp_enabled?
+    assert_equal "manual", @business.auto_revision_mode
+    assert ActionCandidate.exists?(candidate.id)
+    assert_not_includes Business.real_businesses, @business
+  end
+
+  test "deleted businesses are shown on deleted list and can be restored" do
+    @business.soft_delete!(reason: "既存事業との重複", actor: "owner", source: "test")
+
+    get deleted_businesses_url
+
+    assert_response :success
+    assert_includes response.body, @business.name
+    assert_includes response.body, "既存事業との重複"
+    assert_includes response.body, "復元"
+    assert_includes response.body, "完全削除"
+
+    patch restore_business_url(@business)
+
+    assert_redirected_to business_url(@business)
+    assert_not @business.reload.deleted?
+    assert_includes Business.real_businesses, @business
+  end
+
+  test "bulk delete selected businesses" do
+    business = Business.create!(name: "一括削除対象", status: "exploring")
+
+    patch bulk_delete_businesses_url, params: {
+      business_ids: [ @business.id, business.id ],
+      deletion_reason: "SERP誤生成"
+    }
+
+    assert_redirected_to businesses_url
+    assert @business.reload.deleted?
+    assert business.reload.deleted?
+    assert_equal "SERP誤生成", business.deletion_reason
+  end
+
+  test "permanent delete requires soft deleted business name confirmation" do
+    business = Business.create!(name: "完全削除対象", status: "exploring")
+    business.soft_delete!(reason: "誤登録", actor: "owner", source: "test")
+
+    assert_no_difference("Business.count") do
+      delete permanently_destroy_business_url(business), params: { confirmation_name: "wrong" }
+    end
+    assert_redirected_to deleted_businesses_url
+
+    assert_difference("Business.count", -1) do
+      delete permanently_destroy_business_url(business), params: { confirmation_name: "完全削除対象" }
+    end
+    assert_redirected_to deleted_businesses_url
   end
 
   private

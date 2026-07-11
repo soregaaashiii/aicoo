@@ -149,6 +149,11 @@ Rails.application.routes.draw do
   get "judge/action_predictions", to: "admin/aicoo_judge#action_predictions", as: :judge_action_predictions
 
   resources :businesses do
+    get :deleted, on: :collection
+    patch :bulk_delete, on: :collection
+    patch :bulk_restore, on: :collection
+    patch :restore, on: :member
+    delete :permanently_destroy, on: :member
     post :promote_to_mvp, on: :member
     post :promote_to_production, on: :member
     post :promote_to_scaling, on: :member

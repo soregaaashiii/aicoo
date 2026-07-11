@@ -390,7 +390,7 @@ module Aicoo
     end
 
     def today_exclusion_reason(candidate, execution_mode, approval_task)
-      return "inactive_business" if candidate.business.blank? || candidate.business.resource_status == "archived"
+      return "inactive_business" if candidate.business.blank? || candidate.business.deleted? || candidate.business.resource_status == "archived"
       return "no_score" unless minimum_fields_present?(candidate, execution_mode)
       valuation = action_candidate_valuation(candidate)
       return "unvalued" if valuation.fetch(:valuation_status) == "unvalued"

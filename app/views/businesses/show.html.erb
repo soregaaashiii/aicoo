@@ -1933,6 +1933,23 @@
 
 <div class="actions">
   <%= link_to "事業一覧に戻る", businesses_path, class: "button secondary" %>
-  <%= button_to "Destroy", @business, method: :delete, class: "danger" %>
+  <% if @business.deleted? %>
+    <%= button_to "復元",
+                  restore_business_path(@business),
+                  method: :patch,
+                  class: "button",
+                  data: { turbo_confirm: "「#{@business.name}」を復元します。" } %>
+  <% else %>
+    <%= form_with url: business_path(@business), method: :delete, local: true, class: "actions compact-actions" do %>
+      <%= select_tag :deletion_reason,
+                     options_for_select(BusinessesController::DELETION_REASONS, "その他"),
+                     aria: { label: "削除理由" } %>
+      <%= submit_tag "削除",
+                     class: "button danger",
+                     data: {
+                       turbo_confirm: "「#{@business.name}」を削除しますか？\n事業一覧・ランキング・Daily Run・自動改修の対象外になります。\n関連データは保持され、後から復元できます。"
+                     } %>
+    <% end %>
+  <% end %>
 </div>
 </div>

@@ -2,6 +2,7 @@
 
 <% header_actions = capture do %>
   <%= link_to "事業を追加", new_business_path, class: "button" %>
+  <%= link_to "削除済み", deleted_businesses_path, class: "button secondary" %>
   <%= link_to "収益記録", revenue_events_path, class: "button secondary" %>
   <%= link_to "代理指標", business_metric_dailies_path, class: "button secondary" %>
 <% end %>
@@ -16,6 +17,7 @@
 <nav class="tabs">
   <%= link_to "事業一覧", businesses_path(tab: "businesses"), class: @active_tab == "businesses" ? "active" : nil %>
   <%= link_to "SERP新規事業候補 #{@serp_new_business_board.pending_count}", businesses_path(tab: "serp_candidates"), class: @active_tab == "serp_candidates" ? "active" : nil %>
+  <%= link_to "削除済み", deleted_businesses_path %>
 </nav>
 
 <% if @active_tab == "serp_candidates" %>
@@ -101,10 +103,29 @@
   </section>
 </div>
 <% else %>
+<div class="actions compact-actions">
+  <%= link_to "すべて", businesses_path(tab: "businesses"), class: "button secondary" %>
+  <%= link_to "SERP由来のみ", businesses_path(tab: "businesses", filter: "serp"), class: "button secondary" %>
+  <%= link_to "exploringのみ", businesses_path(tab: "businesses", filter: "exploring"), class: "button secondary" %>
+</div>
+
+<%= form_with url: bulk_delete_businesses_path, method: :patch, local: true do %>
+<div class="actions compact-actions">
+  <%= select_tag :deletion_reason,
+                 options_for_select(@deletion_reasons, "SERP誤生成"),
+                 aria: { label: "削除理由" } %>
+  <%= submit_tag "選択した事業を削除",
+                 class: "button danger",
+                 data: {
+                   turbo_confirm: "選択した事業を削除しますか？\n事業一覧・ランキング・Daily Run・自動改修の対象外になります。\n関連データは保持され、後から復元できます。"
+                 } %>
+</div>
+
 <div class="table-wrap">
   <table>
     <thead>
       <tr>
+        <th>選択</th>
         <th>事業名</th>
         <th>状態</th>
         <th>Type</th>
@@ -133,7 +154,13 @@
         <% period_7d = summary.periods.fetch(7) %>
         <% period_30d = summary.periods.fetch(30) %>
         <tr>
-          <td><%= link_to business.name, business %></td>
+          <td><%= check_box_tag "business_ids[]", business.id, false, id: "business_ids_#{business.id}" %></td>
+          <td>
+            <%= link_to business.name, business %>
+            <% if business.serp_generated? %>
+              <br><span class="pill">SERP由来</span>
+            <% end %>
+          </td>
           <td><span class="pill"><%= business.status %></span></td>
           <td><span class="pill"><%= business_type_label(business.business_type) %></span></td>
           <td>
@@ -230,6 +257,13 @@
               <%= link_to "詳細", business, class: "button secondary" %>
               <%= link_to "編集", edit_business_path(business), class: "button secondary" %>
               <%= link_to "Data Source紐付け", edit_business_path(business, anchor: "data-source-link-settings"), class: "button secondary" %>
+              <%= link_to "削除",
+                          business_path(business, deletion_reason: "その他"),
+                          class: "button danger",
+                          data: {
+                            turbo_method: :delete,
+                            turbo_confirm: "「#{business.name}」を削除しますか？\n事業一覧・ランキング・Daily Run・自動改修の対象外になります。\n関連データは保持され、後から復元できます。"
+                          } %>
               <% if business.aicoo_internal_codex? %>
                 <span class="pill status-healthy">AICOO内部</span>
               <% elsif business.business_execution_profile %>
@@ -244,5 +278,6 @@
     </tbody>
   </table>
 </div>
+<% end %>
 </div>
 <% end %>

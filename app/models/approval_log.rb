@@ -1,6 +1,6 @@
 class ApprovalLog < ApplicationRecord
-  ACTIONS = %w[approve reject pause archive delete].freeze
-  COMMON_STATUSES = %w[draft pending approved running completed rejected archived].freeze
+  ACTIONS = %w[approve reject pause archive delete restore permanent_delete].freeze
+  COMMON_STATUSES = %w[draft pending approved running completed rejected archived deleted].freeze
 
   belongs_to :approvable, polymorphic: true
   belongs_to :business, optional: true

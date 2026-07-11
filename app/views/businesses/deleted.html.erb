@@ -1,0 +1,88 @@
+<% content_for :title, "削除済みBusiness" %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "削除済みBusiness",
+             description: "論理削除済みのBusinessです。関連データは保持されており、必要なら復元できます。",
+             active_main: :revenue,
+             actions: link_to("事業一覧へ戻る", businesses_path, class: "button secondary") %>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <div>
+        <h2>削除済み一覧</h2>
+        <p>通常の事業一覧、ランキング、Daily Run、SERP、自動改修の対象外です。</p>
+      </div>
+    </div>
+
+    <% if @businesses.any? %>
+      <%= form_with url: bulk_restore_businesses_path, method: :patch, local: true, html: { id: "bulk_restore_businesses_form" } do %>
+        <%= submit_tag "選択した事業を復元",
+                       class: "button",
+                       data: { turbo_confirm: "選択したBusinessを復元します。" } %>
+      <% end %>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>選択</th>
+                <th>Business名</th>
+                <th>削除日時</th>
+                <th>削除理由</th>
+                <th>元status</th>
+                <th>由来</th>
+                <th>関連データ</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% @businesses.each do |business| %>
+                <tr>
+                  <td><%= check_box_tag "business_ids[]", business.id, false, id: "deleted_business_ids_#{business.id}", form: "bulk_restore_businesses_form" %></td>
+                  <td>
+                    <strong><%= business.name %></strong>
+                    <% if business.serp_generated? %>
+                      <br><span class="pill">SERP由来</span>
+                    <% end %>
+                  </td>
+                  <td><%= business.deleted_at ? l(business.deleted_at, format: :short) : "-" %></td>
+                  <td><%= business.deletion_reason.presence || "-" %></td>
+                  <td><%= business.status_before_deletion.presence || business.metadata.to_h.dig("deletion_snapshot", "status").presence || "-" %></td>
+                  <td><%= business.source.presence || business.metadata.to_h["generation_source"].presence || "-" %></td>
+                  <td>
+                    <small>ActionCandidate: <%= business.action_candidates.count %>件</small><br>
+                    <small>LP: <%= business.aicoo_lab_landing_pages.count %>件</small><br>
+                    <small>Metric: <%= business.business_metric_dailies.count %>件</small><br>
+                    <small>Activity: <%= business.business_activity_logs.count %>件</small>
+                  </td>
+                  <td>
+                    <div class="actions compact-actions">
+                      <%= button_to "復元",
+                                    restore_business_path(business),
+                                    method: :patch,
+                                    class: "button",
+                                    data: { turbo_confirm: "「#{business.name}」を復元します。" } %>
+                    </div>
+                    <div class="actions compact-actions">
+                      <%= form_with url: permanently_destroy_business_path(business), method: :delete, local: true do %>
+                        <%= text_field_tag :confirmation_name, nil, placeholder: business.name, aria: { label: "完全削除確認 Business名" } %>
+                        <%= submit_tag "完全削除",
+                                       class: "button danger",
+                                       data: { turbo_confirm: "完全削除は復元できません。Business名を入力している場合だけ実行します。" } %>
+                      <% end %>
+                    </div>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+    <% else %>
+      <div class="empty-state">
+        <h3>削除済みBusinessはありません</h3>
+        <p>不要なBusinessを削除するとここに表示され、後から復元できます。</p>
+      </div>
+    <% end %>
+  </section>
+</div>

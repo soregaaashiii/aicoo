@@ -70,7 +70,9 @@ class Business < ApplicationRecord
   validates :auto_build_risk_level, inclusion: { in: AUTO_BUILD_RISK_LEVELS }
   validates :business_type, inclusion: { in: BUSINESS_TYPES }
 
-  scope :real_businesses, -> { where.not(name: SYSTEM_BUSINESS_NAMES) }
+  scope :kept, -> { where(deleted_at: nil) }
+  scope :deleted, -> { where.not(deleted_at: nil) }
+  scope :real_businesses, -> { kept.where.not(name: SYSTEM_BUSINESS_NAMES) }
   scope :system_businesses, -> { where(name: SYSTEM_BUSINESS_NAMES) }
   scope :resource_active, -> { where(resource_status: "active") }
   scope :resource_watch, -> { where(resource_status: "watch") }
@@ -83,6 +85,102 @@ class Business < ApplicationRecord
 
   def system_business?
     name.in?(SYSTEM_BUSINESS_NAMES)
+  end
+
+  def deleted?
+    deleted_at.present?
+  end
+
+  def serp_generated?
+    source.to_s.include?("serp") ||
+      metadata.to_h.values_at(
+        "generation_source",
+        "source",
+        "created_by_service",
+        "source_serp_run_id",
+        "discovery_fingerprint"
+      ).compact.any? { |value| value.to_s.include?("serp") } ||
+      action_candidates.where(generation_source: "serp", department: "new_business").exists?
+  end
+
+  def soft_delete!(reason:, actor: "owner", source: "businesses")
+    return if deleted?
+
+    previous_status = status
+    previous_resource_status = resource_status
+    previous_flags = {
+      "daily_run_enabled" => daily_run_enabled,
+      "serp_enabled" => serp_enabled,
+      "auto_revision_mode" => auto_revision_mode,
+      "auto_build_enabled" => auto_build_enabled,
+      "auto_deploy_mode" => auto_deploy_mode,
+      "new_lp_auto_deploy_enabled" => new_lp_auto_deploy_enabled,
+      "auto_deploy_suspended" => auto_deploy_suspended,
+      "resource_status" => resource_status,
+      "status" => status
+    }
+
+    update!(
+      deleted_at: Time.current,
+      deletion_reason: reason.presence || "その他",
+      deleted_by: actor.presence || "owner",
+      deletion_source: source.presence || "businesses",
+      status_before_deletion: previous_status.presence || "exploring",
+      daily_run_enabled: false,
+      serp_enabled: false,
+      auto_revision_mode: "manual",
+      auto_build_enabled: false,
+      auto_deploy_mode: "manual",
+      new_lp_auto_deploy_enabled: false,
+      auto_deploy_suspended: true,
+      auto_deploy_suspended_at: Time.current,
+      auto_deploy_suspended_reason: "business_deleted",
+      resource_status: "archived",
+      resource_status_reason: "Business deleted: #{reason.presence || "その他"}",
+      resource_status_changed_at: Time.current,
+      metadata: metadata.to_h.merge(
+        "deletion_snapshot" => previous_flags,
+        "deleted_at" => Time.current.iso8601
+      )
+    )
+    record_deletion_audit!("delete", previous_status:, previous_resource_status:, actor:, reason:)
+  end
+
+  def restore_from_soft_delete!(actor: "owner")
+    return unless deleted?
+
+    snapshot = metadata.to_h.fetch("deletion_snapshot", {})
+    restored_status = status_before_deletion.presence || snapshot["status"].presence || "exploring"
+    restored_resource_status = snapshot["resource_status"].presence || "active"
+
+    update!(
+      deleted_at: nil,
+      deletion_reason: nil,
+      deleted_by: nil,
+      deletion_source: nil,
+      status: restored_status,
+      resource_status: restored_resource_status,
+      daily_run_enabled: ActiveModel::Type::Boolean.new.cast(snapshot.fetch("daily_run_enabled", false)),
+      serp_enabled: ActiveModel::Type::Boolean.new.cast(snapshot.fetch("serp_enabled", false)),
+      auto_revision_mode: snapshot["auto_revision_mode"].presence || "manual",
+      auto_build_enabled: ActiveModel::Type::Boolean.new.cast(snapshot.fetch("auto_build_enabled", false)),
+      auto_deploy_mode: snapshot["auto_deploy_mode"].presence || "manual",
+      new_lp_auto_deploy_enabled: ActiveModel::Type::Boolean.new.cast(snapshot.fetch("new_lp_auto_deploy_enabled", false)),
+      auto_deploy_suspended: ActiveModel::Type::Boolean.new.cast(snapshot.fetch("auto_deploy_suspended", false)),
+      auto_deploy_suspended_reason: nil,
+      resource_status_reason: "Business restored",
+      resource_status_changed_at: Time.current,
+      metadata: metadata.to_h.except("deleted_at")
+    )
+    record_deletion_audit!("restore", previous_status: "deleted", previous_resource_status: "archived", actor:, reason: "復元")
+  end
+
+  def permanent_destroy!(confirmation_name:)
+    raise ArgumentError, "論理削除済みBusinessだけ完全削除できます。" unless deleted?
+    raise ArgumentError, "Business名が一致しません。" unless confirmation_name.to_s == name
+
+    ApprovalLog.where(business_id: id).update_all(business_id: nil, updated_at: Time.current)
+    destroy!
   end
 
   def business_type_playbook
@@ -334,6 +432,54 @@ class Business < ApplicationRecord
         "operator" => operator,
         "reason" => resource_status_reason,
         "next_review_on" => next_review_on&.iso8601
+      }
+    )
+  rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique
+    nil
+  end
+
+  def record_deletion_audit!(action, previous_status:, previous_resource_status:, actor:, reason:)
+    business_activity_logs.create!(
+      activity_type: "business_#{action}",
+      source_app: "aicoo",
+      source_method: "businesses_controller",
+      resource_type: "Business",
+      resource_id: id.to_s,
+      title: action == "restore" ? "Businessを復元しました" : "Businessを削除しました",
+      occurred_at: Time.current,
+      detected_at: Time.current,
+      diff_summary: "#{previous_status} / #{previous_resource_status} -> #{status} / #{resource_status}",
+      idempotency_key: "business:#{action}:#{id}:#{Time.current.to_i}",
+      before_snapshot: {
+        "status" => previous_status,
+        "resource_status" => previous_resource_status
+      },
+      after_snapshot: {
+        "status" => status,
+        "resource_status" => resource_status,
+        "deleted_at" => deleted_at&.iso8601
+      },
+      metadata: {
+        "actor" => actor,
+        "reason" => reason,
+        "deletion_source" => deletion_source
+      }
+    )
+    ApprovalLog.create!(
+      approvable: self,
+      business: self,
+      action:,
+      source: "businesses_controller",
+      operator: actor,
+      approved_at: Time.current,
+      common_previous_status: previous_status.presence_in(ApprovalLog::COMMON_STATUSES),
+      common_new_status: deleted? ? "deleted" : status.presence_in(ApprovalLog::COMMON_STATUSES),
+      previous_status: previous_status,
+      new_status: deleted? ? "deleted" : status,
+      message: reason,
+      metadata: {
+        reason:,
+        deletion_source:
       }
     )
   rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique
