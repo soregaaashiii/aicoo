@@ -76,6 +76,7 @@
             <th>skip</th>
             <th>fail</th>
             <th>候補</th>
+            <th>Business追加</th>
             <th>詳細</th>
           </tr>
         </thead>
@@ -90,11 +91,15 @@
               <td class="number"><%= serp_run.skipped_plan_rows.size %></td>
               <td class="number"><%= serp_run.failure_count %></td>
               <td class="number"><%= serp_run.candidate_count %></td>
+              <td class="number">
+                <% publication = serp_run.metadata.to_h["auto_new_business_publication"].to_h %>
+                <%= publication["business_created_count"].to_i + publication["business_linked_count"].to_i %>
+              </td>
               <td><%= link_to "見る", admin_serp_run_path(serp_run), class: "button secondary" %></td>
             </tr>
           <% end %>
           <% if @related_serp_runs.empty? %>
-            <tr><td colspan="9">同時間帯に実行されたSERP Runはありません。</td></tr>
+            <tr><td colspan="10">同時間帯に実行されたSERP Runはありません。</td></tr>
           <% end %>
         </tbody>
       </table>

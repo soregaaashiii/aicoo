@@ -118,7 +118,7 @@ module Aicoo
           ActionCandidate.all
         end
 
-        base = base.where.not(status: %w[rejected archived done])
+        base = base.where.not(status: %w[rejected archived])
                    .where(generation_source: Aicoo::ActionCandidateBusinessPromoter::NEW_BUSINESS_SOURCES)
                    .where(
                      "department = :department OR metadata ->> 'candidate_kind' = :candidate_kind OR action_type IN (:action_types)",
@@ -153,8 +153,8 @@ module Aicoo
 
       def prepare_business!(business)
         business.update!(
-          status: "launched",
-          launched: true,
+          status: "exploring",
+          launched: false,
           created_by_aicoo: true,
           daily_run_enabled: true,
           serp_enabled: true,
@@ -171,6 +171,7 @@ module Aicoo
           metadata: business.metadata.to_h.merge(
             "auto_serp_business" => true,
             "auto_lp_published" => true,
+            "business_flow" => "serp_auto_added",
             "auto_published_at" => Time.current.iso8601
           )
         )

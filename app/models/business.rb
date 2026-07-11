@@ -1,5 +1,5 @@
 class Business < ApplicationRecord
-  STATUSES = %w[idea researching building launched paused sold withdrawn].freeze
+  STATUSES = %w[idea discovered draft exploring researching building launched paused sold withdrawn].freeze
   LIFECYCLE_STAGES = %w[idea lp_validation mvp production scaling pivot archived].freeze
   RESOURCE_STATUSES = %w[active watch paused archived].freeze
   AUTO_REVISION_MODES = %w[manual approval automatic].freeze

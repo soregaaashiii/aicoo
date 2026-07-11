@@ -76,7 +76,7 @@ module Aicoo
         name: business_name,
         description: business_description,
         category: business_category,
-        status: "idea",
+        status: "exploring",
         source: business_source,
         created_by_aicoo: true,
         launched: false,

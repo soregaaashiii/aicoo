@@ -100,6 +100,7 @@
             <th>候補生成</th>
             <th>結果評価</th>
             <th>関連SERP Run</th>
+            <th>SERP Business追加</th>
             <th>詳細</th>
           </tr>
         </thead>
@@ -133,11 +134,17 @@
                   <span class="muted">-</span>
                 <% end %>
               </td>
+              <td class="number">
+                <%= related_serp_runs.sum { |serp_run|
+                  publication = serp_run.metadata.to_h["auto_new_business_publication"].to_h
+                  publication["business_created_count"].to_i + publication["business_linked_count"].to_i
+                } %>
+              </td>
               <td><%= link_to "詳細", daily_run, class: "button secondary" %></td>
             </tr>
           <% end %>
           <% if @daily_runs.empty? %>
-            <tr><td colspan="12">まだDaily Runはありません。</td></tr>
+            <tr><td colspan="13">まだDaily Runはありません。</td></tr>
           <% end %>
         </tbody>
       </table>

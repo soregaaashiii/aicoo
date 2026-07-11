@@ -1,4 +1,6 @@
 <% if serp_run %>
+  <% publication = serp_run.metadata.to_h["auto_new_business_publication"].to_h %>
+  <% business_added_count = publication["business_created_count"].to_i + publication["business_linked_count"].to_i %>
   <div class="aicoo-card aicoo-card-compact">
     <div class="section-heading">
       <div>
@@ -17,6 +19,7 @@
       <div class="metric-card"><span>skip</span><strong><%= serp_run.skipped_plan_rows.size %></strong></div>
       <div class="metric-card"><span>fail</span><strong><%= serp_run.failure_count %></strong></div>
       <div class="metric-card"><span>ActionCandidate生成</span><strong><%= serp_run.candidate_count %></strong></div>
+      <div class="metric-card"><span>SERPからBusiness追加</span><strong><%= business_added_count %></strong></div>
       <div class="metric-card"><span>使用クレジット</span><strong><%= serp_run.credit_estimate %></strong></div>
       <div class="metric-card"><span>実行時間</span><strong><%= serp_run.duration_seconds ? "#{serp_run.duration_seconds}s" : "-" %></strong></div>
     </div>

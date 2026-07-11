@@ -26,14 +26,17 @@ module Aicoo
           next
         end
 
-        result = ApprovalService.approve(candidate, operator: "system", source:)
+        result = Aicoo::Serp::AutoNewBusinessPublisher.call(
+          candidates: [ candidate ],
+          source:
+        )
         candidate.reload
 
         if candidate.metadata.to_h.dig("business_promotion", "promoted")
           repaired_count += 1
           Rails.logger.info(
             "[ApprovedNewBusinessCandidateRepairer] repaired action_candidate_id=#{candidate.id} " \
-              "business_id=#{candidate.business_id} message=#{result.message}"
+              "business_id=#{candidate.business_id} created=#{result.business_created_count} linked=#{result.business_linked_count}"
           )
         else
           skipped_count += 1
@@ -55,7 +58,7 @@ module Aicoo
 
     def scope
       ActionCandidate
-        .where(status: "approved")
+        .where.not(status: %w[rejected archived])
         .where(
           "department = :department OR action_type IN (:action_types) OR generation_source IN (:sources) OR metadata ->> 'candidate_kind' = :candidate_kind",
           department: "new_business",
