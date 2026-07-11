@@ -309,7 +309,8 @@
               <td><%= number_to_currency(ranking.raw_candidate_sum_yen, unit: "¥", precision: 0) %></td>
               <td>
                 重複 <%= number_to_currency(ranking.duplicate_adjustment_yen, unit: "¥", precision: 0) %><br>
-                上限 <%= number_to_currency(ranking.cap_adjustment_yen, unit: "¥", precision: 0) %><br>
+                流入制約 <%= number_to_currency(ranking.market_limit_adjustment_yen, unit: "¥", precision: 0) %><br>
+                カニバリ <%= number_to_currency(ranking.cannibalization_adjustment_yen, unit: "¥", precision: 0) %><br>
                 信頼度 <%= number_to_currency(ranking.confidence_adjustment_yen, unit: "¥", precision: 0) %>
               </td>
               <td><%= number_to_currency(ranking.cost_yen, unit: "¥", precision: 0) %></td>

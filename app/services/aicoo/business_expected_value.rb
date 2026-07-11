@@ -1,8 +1,5 @@
 module Aicoo
   class BusinessExpectedValue
-    ACTION_CAP_YEN = 250_000
-    OPPORTUNITY_CAP_YEN = 250_000
-    BUSINESS_SHORT_TERM_CAP_YEN = 1_000_000
     NEW_BUSINESS_STANDARD_90D_PROFIT_YEN = 30_000
     NEW_BUSINESS_STANDARD_SUCCESS_PROBABILITY = 0.15.to_d
     NEW_BUSINESS_STANDARD_VALIDATION_COST_YEN = 5_000
@@ -14,7 +11,8 @@ module Aicoo
       :unique_opportunity_count,
       :duplicate_candidate_count,
       :duplicate_adjustment_yen,
-      :cap_adjustment_yen,
+      :market_limit_adjustment_yen,
+      :cannibalization_adjustment_yen,
       :confidence_adjustment_yen,
       :cost_yen,
       :expected_revenue_value_yen,
@@ -28,14 +26,18 @@ module Aicoo
     OpportunityRow = Data.define(
       :key,
       :raw_sum_yen,
-      :cap_yen,
+      :market_limit_yen,
       :final_value_yen,
       :candidate_ids,
       :duplicate_candidate_count,
       :duplicate_adjustment_yen,
-      :cap_adjustment_yen,
+      :market_limit_adjustment_yen,
+      :cannibalization_adjustment_yen,
       :confidence_adjustment_yen,
-      :cost_yen
+      :cost_yen,
+      :input_values,
+      :anomaly_detected,
+      :anomaly_reason
     )
     NewBusinessValue = Data.define(
       :estimated_90d_profit_yen,
@@ -71,13 +73,12 @@ module Aicoo
       duplicate_candidate_count = rows.sum(&:duplicate_candidate_count)
       duplicate_adjustment_yen = rows.sum(&:duplicate_adjustment_yen)
       opportunity_total_yen = rows.sum(&:final_value_yen)
-      business_capped_revenue_yen = [ opportunity_total_yen, BUSINESS_SHORT_TERM_CAP_YEN ].min
-      business_cap_adjustment_yen = [ opportunity_total_yen - business_capped_revenue_yen, 0 ].max
-      cap_adjustment_yen = rows.sum(&:cap_adjustment_yen) + business_cap_adjustment_yen
+      market_limit_adjustment_yen = rows.sum(&:market_limit_adjustment_yen)
+      cannibalization_adjustment_yen = rows.sum(&:cannibalization_adjustment_yen)
       confidence_adjustment_yen = rows.sum(&:confidence_adjustment_yen)
       cost_yen = rows.sum(&:cost_yen)
-      expected_revenue_value_yen = business_capped_revenue_yen - cost_yen
-      expected_learning_value_yen = [ active_candidates.sum { |candidate| candidate.expected_learning_value_yen.to_i }, 100_000 ].min
+      expected_revenue_value_yen = opportunity_total_yen - cost_yen
+      expected_learning_value_yen = active_candidates.sum { |candidate| candidate.expected_learning_value_yen.to_i }
       expected_total_value_yen = expected_revenue_value_yen + expected_learning_value_yen
 
       result = Result.new(
@@ -86,13 +87,14 @@ module Aicoo
         unique_opportunity_count: rows.size,
         duplicate_candidate_count:,
         duplicate_adjustment_yen:,
-        cap_adjustment_yen:,
+        market_limit_adjustment_yen:,
+        cannibalization_adjustment_yen:,
         confidence_adjustment_yen:,
         cost_yen:,
         expected_revenue_value_yen:,
         expected_learning_value_yen:,
         expected_total_value_yen:,
-        calculation_method: "opportunity_grouped_capped_sum",
+        calculation_method: "opportunity_grouped_market_limited_sum",
         confidence: rows.any? ? average(rows.map { |row| row.final_value_yen.positive? ? 0.7 : 0.4 }) : 0.3,
         opportunities: rows,
         new_business_value: nil
@@ -109,7 +111,8 @@ module Aicoo
         unique_opportunity_count: 1,
         duplicate_candidate_count: 0,
         duplicate_adjustment_yen: 0,
-        cap_adjustment_yen: 0,
+        market_limit_adjustment_yen: 0,
+        cannibalization_adjustment_yen: 0,
         confidence_adjustment_yen: ((value.estimated_90d_profit_yen.to_d * (1 - value.validation_success_probability)).round),
         cost_yen: value.validation_cost_yen,
         expected_revenue_value_yen: value.final_expected_value_yen,
@@ -135,33 +138,41 @@ module Aicoo
     def build_opportunity_row(key, candidates)
       raw_sum_yen = candidates.sum { |candidate| raw_candidate_value_yen(candidate) }
       cost_yen = candidates.sum { |candidate| candidate.cost_yen.to_i }
-      action_capped_values = candidates.to_h do |candidate|
-        [ candidate, [ raw_candidate_value_yen(candidate), ACTION_CAP_YEN ].min ]
-      end
-      action_cap_adjustment_yen = candidates.sum do |candidate|
-        [ raw_candidate_value_yen(candidate) - action_capped_values.fetch(candidate), 0 ].max
-      end
+      duplicate_base_yen = candidates.map { |candidate| raw_candidate_value_yen(candidate) }.max.to_i
+      duplicate_adjustment_yen = candidates.size > 1 ? [ raw_sum_yen - duplicate_base_yen, 0 ].max : 0
       confidence_adjusted_values = candidates.to_h do |candidate|
-        value = action_capped_values.fetch(candidate)
+        value = raw_candidate_value_yen(candidate)
         [ candidate, (value.to_d * confidence_for(candidate)).round ]
       end
-      confidence_adjustment_yen = action_capped_values.values.sum - confidence_adjusted_values.values.sum
-      confidence_adjusted_sum = confidence_adjusted_values.values.sum
-      final_value_yen = [ confidence_adjusted_sum, OPPORTUNITY_CAP_YEN ].min
-      opportunity_cap_adjustment_yen = [ confidence_adjusted_sum - final_value_yen, 0 ].max
-      duplicate_adjustment_yen = candidates.size > 1 ? [ raw_sum_yen - candidates.map { |candidate| raw_candidate_value_yen(candidate) }.max, 0 ].max : 0
+      confidence_adjusted_sum = if candidates.size > 1
+        confidence_adjusted_values.values.max.to_i
+      else
+        confidence_adjusted_values.values.sum
+      end
+      confidence_adjustment_yen = raw_sum_yen - duplicate_adjustment_yen - confidence_adjusted_sum
+      input_values = opportunity_input_values(candidates)
+      market_limit_yen = market_limit_yen_for(input_values)
+      market_limited_value_yen = market_limit_yen ? [ confidence_adjusted_sum, market_limit_yen ].min : confidence_adjusted_sum
+      market_limit_adjustment_yen = market_limit_yen ? [ confidence_adjusted_sum - market_limited_value_yen, 0 ].max : 0
+      cannibalization_adjustment_yen = cannibalization_adjustment_yen_for(candidates, market_limited_value_yen)
+      final_value_yen = market_limited_value_yen - cannibalization_adjustment_yen
+      anomaly = anomaly_for(raw_sum_yen:, final_value_yen:, input_values:, candidates:)
 
       row = OpportunityRow.new(
         key:,
         raw_sum_yen:,
-        cap_yen: OPPORTUNITY_CAP_YEN,
+        market_limit_yen:,
         final_value_yen:,
         candidate_ids: candidates.map(&:id),
         duplicate_candidate_count: [ candidates.size - 1, 0 ].max,
         duplicate_adjustment_yen:,
-        cap_adjustment_yen: action_cap_adjustment_yen + opportunity_cap_adjustment_yen,
+        market_limit_adjustment_yen:,
+        cannibalization_adjustment_yen:,
         confidence_adjustment_yen:,
-        cost_yen:
+        cost_yen:,
+        input_values:,
+        anomaly_detected: anomaly[:detected],
+        anomaly_reason: anomaly[:reason]
       )
       persist_candidate_value_models!(key, candidates, row)
       row
@@ -220,16 +231,23 @@ module Aicoo
       candidates.each do |candidate|
         metadata = candidate.metadata.to_h
         raw_value = raw_candidate_value_yen(candidate)
-        action_capped_value = [ raw_value, ACTION_CAP_YEN ].min
         payload = {
           "raw_expected_value_yen" => raw_value,
-          "capped_expected_value_yen" => action_capped_value,
-          "cap_reason" => cap_reason_for(raw_value, row),
+          "final_expected_value_yen" => row.final_value_yen,
+          "calculation_method" => "opportunity_grouped_market_limited_sum",
           "opportunity_group" => key,
           "duplicate_candidates" => duplicate_ids - [ candidate.id ],
-          "opportunity_cap_yen" => OPPORTUNITY_CAP_YEN,
-          "action_cap_yen" => ACTION_CAP_YEN,
-          "business_short_term_cap_yen" => BUSINESS_SHORT_TERM_CAP_YEN,
+          "duplicate_adjustment_yen" => row.duplicate_adjustment_yen,
+          "market_limit_yen" => row.market_limit_yen,
+          "market_limit_adjustment_yen" => row.market_limit_adjustment_yen,
+          "cannibalization_adjustment_yen" => row.cannibalization_adjustment_yen,
+          "confidence_adjustment_yen" => row.confidence_adjustment_yen,
+          "execution_cost_yen" => row.cost_yen,
+          "target_period" => "90d",
+          "input_values" => row.input_values,
+          "anomaly_detected" => row.anomaly_detected,
+          "anomaly_reason" => row.anomaly_reason,
+          "review_required" => row.anomaly_detected,
           "calculation_version" => CALCULATION_VERSION
         }
         next if metadata["business_value_model"] == payload
@@ -248,7 +266,8 @@ module Aicoo
         "unique_opportunity_count" => result.unique_opportunity_count,
         "duplicate_candidate_count" => result.duplicate_candidate_count,
         "duplicate_adjustment_yen" => result.duplicate_adjustment_yen,
-        "cap_adjustment_yen" => result.cap_adjustment_yen,
+        "market_limit_adjustment_yen" => result.market_limit_adjustment_yen,
+        "cannibalization_adjustment_yen" => result.cannibalization_adjustment_yen,
         "confidence_adjustment_yen" => result.confidence_adjustment_yen,
         "cost_yen" => result.cost_yen,
         "expected_revenue_value_yen" => result.expected_revenue_value_yen,
@@ -279,14 +298,6 @@ module Aicoo
         "confidence" => value.confidence,
         "missing_inputs" => value.missing_inputs
       }
-    end
-
-    def cap_reason_for(raw_value, row)
-      reasons = []
-      reasons << "action_cap" if raw_value > ACTION_CAP_YEN
-      reasons << "opportunity_cap" if row.cap_adjustment_yen.positive?
-      reasons << "duplicate_opportunity" if row.duplicate_candidate_count.positive?
-      reasons.presence || [ "none" ]
     end
 
     def new_business_value
@@ -344,6 +355,64 @@ module Aicoo
       return 0.to_d if values.blank?
 
       values.sum.to_d / values.size
+    end
+
+    def opportunity_input_values(candidates)
+      metadata_values = candidates.map { |candidate| candidate.metadata.to_h }
+      impressions = first_positive_integer(*metadata_values.map { |metadata| dig_any(metadata, %w[impressions evidence.impressions opportunity.supporting_metrics.impressions]) })
+      current_ctr = first_positive_decimal(*metadata_values.map { |metadata| dig_any(metadata, %w[current_ctr ctr evidence.current_ctr opportunity.supporting_metrics.current_ctr]) })
+      benchmark_ctr = first_positive_decimal(*metadata_values.map { |metadata| dig_any(metadata, %w[benchmark_ctr target_ctr evidence.benchmark_ctr opportunity.supporting_metrics.benchmark_ctr]) })
+      available_clicks = impressions.to_d * [ benchmark_ctr - current_ctr, 0.to_d ].max
+      {
+        "impressions" => impressions,
+        "current_ctr" => current_ctr,
+        "benchmark_ctr" => benchmark_ctr,
+        "available_clicks" => available_clicks.round(2),
+        "conversion_rate" => first_positive_decimal(*metadata_values.map { |metadata| dig_any(metadata, %w[conversion_rate cv_rate evidence.conversion_rate value_model.evidence.conversion_rate]) }),
+        "profit_per_conversion" => first_positive_integer(*metadata_values.map { |metadata| dig_any(metadata, %w[profit_per_conversion profit_per_cv value_per_conversion value_model.evidence.profit_per_conversion]) }),
+        "success_probability" => candidates.map { |candidate| candidate.success_probability.to_d }.max || 0.to_d,
+        "target_period" => metadata_values.filter_map { |metadata| metadata["target_period"].presence || metadata.dig("value_model", "target_period").presence }.first || "90d"
+      }
+    end
+
+    def market_limit_yen_for(input_values)
+      impressions = input_values["impressions"].to_d
+      return nil unless impressions.positive?
+
+      current_ctr = input_values["current_ctr"].to_d
+      benchmark_ctr = input_values["benchmark_ctr"].to_d
+      return nil unless benchmark_ctr.positive?
+
+      available_clicks = impressions * [ benchmark_ctr - current_ctr, 0.to_d ].max
+      conversion_rate = input_values["conversion_rate"].presence&.to_d || 0.01.to_d
+      profit_per_conversion = input_values["profit_per_conversion"].presence&.to_d || 500.to_d
+      success_probability = input_values["success_probability"].presence&.to_d || 0.5.to_d
+      (available_clicks * conversion_rate * profit_per_conversion * success_probability).round
+    end
+
+    def cannibalization_adjustment_yen_for(candidates, market_limited_value_yen)
+      cannibalization_rates = candidates.filter_map { |candidate| candidate.metadata.to_h["cannibalization_rate"].presence&.to_d }
+      return 0 if cannibalization_rates.blank?
+
+      rate = cannibalization_rates.max.clamp(0.to_d, 0.9.to_d)
+      (market_limited_value_yen.to_d * rate).round
+    end
+
+    def anomaly_for(raw_sum_yen:, final_value_yen:, input_values:, candidates:)
+      reasons = []
+      reasons << "raw_value_over_1m" if raw_sum_yen > 1_000_000
+      reasons << "final_value_over_1m" if final_value_yen > 1_000_000
+      reasons << "missing_market_inputs" if input_values["impressions"].to_i.zero? && raw_sum_yen > 1_000_000
+      reasons << "large_duplicate_group" if candidates.size >= 5
+      { detected: reasons.any?, reason: reasons.join(", ") }
+    end
+
+    def dig_any(hash, paths)
+      paths.each do |path|
+        value = path.split(".").reduce(hash) { |current, key| current.respond_to?(:[]) ? current[key] : nil }
+        return value if value.present?
+      end
+      nil
     end
   end
 end

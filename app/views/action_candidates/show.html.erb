@@ -61,11 +61,15 @@
         <strong>事業期待値での補正</strong>
         <div class="metric-grid compact-metrics">
           <div><span>生の期待値</span><strong><%= number_to_currency(business_value_model["raw_expected_value_yen"].to_i, unit: "¥", precision: 0) %></strong></div>
-          <div><span>上限補正後</span><strong><%= number_to_currency(business_value_model["capped_expected_value_yen"].to_i, unit: "¥", precision: 0) %></strong></div>
+          <div><span>最終期待値</span><strong><%= number_to_currency(business_value_model["final_expected_value_yen"].to_i, unit: "¥", precision: 0) %></strong></div>
           <div><span>Opportunity</span><strong><%= business_value_model["opportunity_group"].presence || "-" %></strong></div>
           <div><span>重複候補</span><strong><%= Array(business_value_model["duplicate_candidates"]).size %>件</strong></div>
         </div>
-        <small>cap理由: <%= Array(business_value_model["cap_reason"]).join(" / ") %></small>
+        <small>
+          流入制約補正: <%= number_to_currency(business_value_model["market_limit_adjustment_yen"].to_i, unit: "¥", precision: 0) %> /
+          信頼度補正: <%= number_to_currency(business_value_model["confidence_adjustment_yen"].to_i, unit: "¥", precision: 0) %> /
+          異常値: <%= business_value_model["anomaly_detected"] ? business_value_model["anomaly_reason"] : "なし" %>
+        </small>
       </div>
     <% end %>
 

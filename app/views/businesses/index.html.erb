@@ -149,7 +149,7 @@
             <strong><%= number_to_currency(expected_value.expected_total_value_yen, unit: "¥", precision: 0) %></strong><br>
             <small>
               raw <%= number_to_currency(expected_value.raw_candidate_sum_yen, unit: "¥", precision: 0) %> /
-              cap <%= number_to_currency(expected_value.cap_adjustment_yen, unit: "¥", precision: 0) %>
+              流入制約 <%= number_to_currency(expected_value.market_limit_adjustment_yen, unit: "¥", precision: 0) %>
             </small><br>
             <small>opp <%= expected_value.unique_opportunity_count %> / cost <%= number_to_currency(expected_value.cost_yen, unit: "¥", precision: 0) %></small>
           </td>
