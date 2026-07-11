@@ -2,6 +2,11 @@ require "test_helper"
 
 module Admin
   class AicooRevenueControllerTest < ActionDispatch::IntegrationTest
+    setup do
+      AicooDailyRunStep.delete_all
+      AicooDailyRun.delete_all
+    end
+
     test "shows Today as ranked action list with three modes" do
       candidate = create_today_candidate(
         title: "梅田の未確認店舗を30件確認済みにする",

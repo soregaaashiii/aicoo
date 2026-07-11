@@ -21,25 +21,16 @@
     </script>
   </section>
 
-  <section class="dashboard-section">
-    <div class="section-heading">
-      <h2>Focus Home</h2>
-      <p>迷ったら、次に押すべき1件だけを処理します。</p>
-    </div>
-    <div class="aicoo-card aicoo-card-compact">
-      <% if @owner_focus_home.top_task %>
-        <p><span class="pill"><%= @owner_focus_home.top_task.priority %></span> <%= @owner_focus_home.top_task.task_type_label %></p>
-        <h3><%= @owner_focus_home.top_task.title %></h3>
-        <p><%= @owner_focus_home.top_task.reason %></p>
-      <% else %>
-        <p>今すぐ処理すべきタスクはありません。</p>
-      <% end %>
-      <div class="actions compact-actions">
-        <%= link_to "Focusで処理", owner_focus_path, class: "button" %>
-        <%= link_to "すべてのタスクを見る", owner_tasks_path, class: "button secondary" %>
-      </div>
-    </div>
-  </section>
+  <nav class="aicoo-sub-tabs" aria-label="Today ranking mode">
+    <% @today_board.tabs.each do |tab| %>
+      <%= link_to tab.label,
+                  owner_dashboard_path(mode: tab.key),
+                  class: "aicoo-sub-tab#{' active' if tab.key == @today_board.mode}",
+                  aria: (tab.active ? { current: "page" } : nil) %>
+    <% end %>
+  </nav>
+
+  <%= render "shared/today_action_board", today_board: @today_board %>
 
   <section class="dashboard-section">
     <div class="section-heading">
@@ -66,14 +57,10 @@
     </div>
   </section>
 
-  <%= render "shared/owner_task_inbox",
-             owner_task_inbox: @owner_task_inbox,
-             limit: 10 %>
-
   <section class="dashboard-section">
     <div class="section-heading">
-      <h2>今日やる分析</h2>
-      <p>分析も期待値とコストで優先順位を付けます。</p>
+      <h2>分析候補</h2>
+      <p>分析候補の件数とコストです。実際に処理する項目は上のTodayに統合します。</p>
     </div>
     <div class="metric-grid aicoo-owner-secondary">
       <div class="metric-card"><span>候補</span><strong><%= @analysis_monitor.today_count %>件</strong></div>
@@ -95,91 +82,6 @@
         <% end %>
       </ul>
     </div>
-  </section>
-
-  <section class="dashboard-section">
-    <div class="section-heading">
-      <h2>今日やること TOP10</h2>
-      <p>モードに応じて、収益と学習のどちらを重視するかを切り替えます。</p>
-    </div>
-
-    <nav class="aicoo-sub-tabs" aria-label="オーナーモード">
-      <%= link_to "バランス", owner_dashboard_path(mode: "balanced"), class: "aicoo-sub-tab#{' active' if @mode == 'balanced'}" %>
-      <%= link_to "収益重視", owner_dashboard_path(mode: "revenue"), class: "aicoo-sub-tab#{' active' if @mode == 'revenue'}" %>
-      <%= link_to "学習重視", owner_dashboard_path(mode: "learning"), class: "aicoo-sub-tab#{' active' if @mode == 'learning'}" %>
-    </nav>
-
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>順位</th>
-            <th>タイトル</th>
-            <th>事業</th>
-            <th>期待値</th>
-            <th>収益</th>
-            <th>学習</th>
-            <th>信頼度</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          <% @dashboard_summary.today_tasks.each.with_index(1) do |action_candidate, index| %>
-            <tr>
-              <td><%= index %></td>
-              <td><%= link_to action_candidate.title, owner_auto_revision_loop_path(selected: "action_candidate:#{action_candidate.id}", anchor: "selected-task") %></td>
-              <td><%= action_candidate.business.name %></td>
-              <td>
-                <strong><%= number_to_currency(action_candidate.final_expected_value_yen, unit: "¥", precision: 0) %></strong>
-                <br>
-                <small>
-                  <% action_candidate.metadata.to_h.fetch("evaluator_breakdown", []).each do |entry| %>
-                    <%= owner_evaluator_label(entry["evaluator_type"]) %>: <%= entry["confidence_score"].to_i %>
-                  <% end %>
-                </small>
-              </td>
-              <td>
-                <%= number_to_currency(action_candidate.expected_revenue_value_yen, unit: "¥", precision: 0) %>
-                <br>
-                <small><%= action_candidate.revenue_ratio %>%</small>
-              </td>
-              <td>
-                <%= number_to_currency(action_candidate.expected_learning_value_yen, unit: "¥", precision: 0) %>
-                <br>
-                <small><%= action_candidate.learning_ratio %>%</small>
-              </td>
-              <td><%= action_candidate.final_confidence_score.to_i %></td>
-              <td>
-                <% if action_candidate.status == "approved" %>
-                  準備完了
-                <% else %>
-                  <%= button_to "改修開始", approve_action_candidate_path(action_candidate), method: :patch, class: "button" %>
-                <% end %>
-              </td>
-            </tr>
-          <% end %>
-          <% if @dashboard_summary.today_tasks.empty? %>
-            <tr><td colspan="8">今日やる候補はまだありません。</td></tr>
-          <% end %>
-        </tbody>
-      </table>
-    </div>
-
-    <% if @dashboard_summary.owner_fallback_tasks.any? %>
-      <div class="aicoo-card">
-        <h3>AICOO推奨タスク</h3>
-        <p>収益候補が少ないため、予測精度や成長スコアを改善するための学習準備タスクを補完しています。</p>
-        <ol>
-          <% @dashboard_summary.owner_fallback_tasks.first(3).each do |task| %>
-            <li>
-              <strong><%= link_to task.title, owner_auto_revision_loop_path(selected: "action_candidate:#{task.id}", anchor: "selected-task") %></strong>
-              <br>
-              <small><%= task.evaluation_reason.presence || task.description %></small>
-            </li>
-          <% end %>
-        </ol>
-      </div>
-    <% end %>
   </section>
 
   <section class="dashboard-section">

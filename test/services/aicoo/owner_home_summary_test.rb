@@ -5,6 +5,9 @@ module Aicoo
     setup do
       ActionExecution.delete_all
       ActionResult.delete_all
+      ActionCandidate.update_all(status: "done")
+      AicooDailyRunStep.delete_all
+      AicooDailyRun.delete_all
       ActionPredictionCalibration.delete_all
       OpportunityDiscoveryItem.delete_all
       ExploreObservation.delete_all
@@ -19,7 +22,18 @@ module Aicoo
         action_type: "seo_improvement",
         immediate_value_yen: 20_000,
         success_probability: 1,
-        expected_hours: 1
+        expected_hours: 1,
+        metadata: {
+          "execution_mode" => "manual_operation",
+          "concrete_task" => "Owner home execution",
+          "action_plan" => {
+            "summary" => "Owner home execution",
+            "target" => "Owner Home",
+            "owner_next_step" => "実行する",
+            "execution_steps" => [ "実行する" ],
+            "execution_units" => [ { "label" => "実行する" } ]
+          }
+        }
       )
       candidate.create_action_execution!(status: "ready", execution_type: "manual")
       ActionPredictionCalibration.create!(
@@ -31,9 +45,9 @@ module Aicoo
         probability_calibration_factor: 1
       )
 
-      summary = OwnerHomeSummary.new(owner_focus_home: OwnerFocusHome.new.call).call
+      summary = OwnerHomeSummary.new.call
 
-      assert_equal "action_execution_ready", summary.next_action.task_type
+      assert_equal "action_candidate:#{candidate.id}", summary.next_action.stable_id
       assert_equal 1, summary.execution_ready_count
       assert_equal 0, summary.result_registration_count
       assert_equal 1, summary.pending_calibration_count
@@ -45,7 +59,7 @@ module Aicoo
       assert_nil summary.top_queue_item
       assert_includes %w[Healthy Warning Critical], summary.daily_run_status
       assert_includes %w[Improving Stable Declining], summary.learning_status
-      assert_equal "今はこの1件だけ処理してください。", summary.summary_message
+      assert_equal "Todayの最上位Actionを処理してください。", summary.summary_message
     end
 
     test "summarizes pending opportunities" do
@@ -57,12 +71,12 @@ module Aicoo
         opportunity_score: 85
       )
 
-      summary = OwnerHomeSummary.new(owner_focus_home: OwnerFocusHome.new.call).call
+      summary = OwnerHomeSummary.new.call
 
       assert_equal 1, summary.pending_opportunities_count
       assert_equal 1, summary.explore_review_count
       assert_equal opportunity, summary.top_pending_opportunity
-      assert_equal "opportunity_review", summary.next_action.task_type
+      assert_nil summary.next_action
     end
 
     test "uses queue item as next action when focus tasks are empty" do
@@ -77,7 +91,7 @@ module Aicoo
         priority_score: 100
       )
 
-      summary = OwnerHomeSummary.new(owner_focus_home: OwnerFocusHome.new.call).call
+      summary = OwnerHomeSummary.new.call
 
       assert_equal 1, summary.today_queue_count
       assert_equal item, summary.top_queue_item

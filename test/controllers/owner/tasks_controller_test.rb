@@ -18,12 +18,11 @@ module Owner
       get owner_tasks_url
 
       assert_response :success
-      assert_includes response.body, "今日の確認タスク"
-      assert_includes response.body, "迷ったらFocusで1件ずつ処理"
-      assert_includes response.body, "Focusで処理"
-      assert_includes response.body, "今日の確認ダイジェスト"
+      assert_includes response.body, "システム障害・確認タスク"
+      assert_includes response.body, "Todayと同じ優先順位"
+      assert_includes response.body, "確認ダイジェスト"
       assert_includes response.body, "Daily Run Health"
-      assert_includes response.body, "今日の提案"
+      assert_includes response.body, "本日生成提案"
       assert_includes response.body, "pending補正"
       assert_includes response.body, "結果登録待ち"
       assert_includes response.body, "最古登録待ち"

@@ -8,13 +8,13 @@
 
 <section class="dashboard-section">
   <div class="section-heading">
-    <h2>今日の確認タスク</h2>
-    <p>改修開始・警告・失敗対応をここに集約します。</p>
+    <h2>システム障害・確認タスク</h2>
+    <p>Todayの補助として、警告・失敗対応・確認タスクを確認します。</p>
   </div>
 
   <div class="aicoo-card aicoo-card-compact">
     <div class="section-heading">
-      <h3>今日の確認ダイジェスト</h3>
+      <h3>確認ダイジェスト</h3>
       <p><%= digest.summary_message %></p>
     </div>
 
@@ -22,7 +22,7 @@
       <div class="metric-card"><span>Critical</span><strong><%= digest.critical_count %>件</strong></div>
       <div class="metric-card"><span>High</span><strong><%= digest.high_count %>件</strong></div>
       <div class="metric-card"><span>Daily Run</span><strong><%= digest.daily_run_health.health_status %></strong></div>
-      <div class="metric-card"><span>今日の提案</span><strong><%= digest.daily_run_health.today_generated_action_candidates_count %>件</strong></div>
+      <div class="metric-card"><span>本日生成提案</span><strong><%= digest.daily_run_health.today_generated_action_candidates_count %>件</strong></div>
       <div class="metric-card"><span>pending補正</span><strong><%= digest.daily_run_health.today_pending_calibration_count %>件</strong></div>
       <div class="metric-card"><span>今日処理済み</span><strong><%= digest.completed_today_count %>件</strong></div>
       <div class="metric-card"><span>昨日処理済み</span><strong><%= digest.completed_yesterday_count %>件</strong></div>

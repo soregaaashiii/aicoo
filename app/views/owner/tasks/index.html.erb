@@ -1,4 +1,4 @@
-<% content_for :title, "今日の確認タスク" %>
+<% content_for :title, "システム障害・確認タスク" %>
 
 <% header_actions = capture do %>
   <%= link_to "Todayへ戻る", owner_focus_path, class: "button secondary" %>
@@ -7,25 +7,12 @@
 
 <div class="aicoo-page">
   <%= render "shared/aicoo_header",
-             title: "今日の確認タスク",
-             description: "改修開始・警告・失敗対応をまとめて確認します。",
+             title: "システム障害・確認タスク",
+             description: "Todayと同じ優先順位を確認し、補助的なInboxや実行キューを確認します。",
              active_main: :revenue,
              actions: header_actions %>
 
-  <section class="dashboard-section">
-    <div class="aicoo-card aicoo-card-compact">
-      <div class="section-heading">
-        <h2>迷ったらFocusで1件ずつ処理</h2>
-        <p><%= @owner_focus_home.summary_message %></p>
-      </div>
-      <% if @owner_focus_home.top_task %>
-        <p><span class="pill"><%= @owner_focus_home.top_task.priority %></span> <%= @owner_focus_home.top_task.title %></p>
-      <% end %>
-      <div class="actions compact-actions">
-        <%= link_to "Focusで処理", owner_focus_path, class: "button" %>
-      </div>
-    </div>
-  </section>
+  <%= render "shared/today_action_board", today_board: @today_board %>
 
   <%= render "shared/owner_task_inbox",
              owner_task_inbox: @owner_task_inbox,

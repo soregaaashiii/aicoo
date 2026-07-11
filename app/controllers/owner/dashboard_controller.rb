@@ -2,6 +2,7 @@ module Owner
   class DashboardController < ApplicationController
     def show
       @mode = params[:mode].presence_in(%w[balanced revenue learning]) || "balanced"
+      @today_board = Aicoo::TodayActionBoard.new(mode: @mode).call
       @dashboard_summary = DashboardSummaryService.new(owner_mode: @mode, current_mode: "ceo").call
       @owner_task_inbox = Aicoo::OwnerTaskInbox.new.call
       @owner_task_digest = Aicoo::OwnerTaskDigest.new(owner_task_inbox: @owner_task_inbox).call

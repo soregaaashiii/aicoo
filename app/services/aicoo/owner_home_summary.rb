@@ -16,8 +16,9 @@ module Aicoo
       :summary_message
     )
 
-    def initialize(owner_focus_home: nil, daily_run_health: nil, learning_report: nil, explore_daily_routine: nil)
+    def initialize(owner_focus_home: nil, today_board: nil, daily_run_health: nil, learning_report: nil, explore_daily_routine: nil)
       @owner_focus_home = owner_focus_home
+      @today_board = today_board
       @daily_run_health = daily_run_health
       @learning_report = learning_report
       @explore_daily_routine = explore_daily_routine
@@ -25,7 +26,7 @@ module Aicoo
 
     def call
       Result.new(
-        next_action: owner_focus_home.top_task || owner_execution_queue_summary.top_item,
+        next_action: today_board.items.first || owner_execution_queue_summary.top_item,
         execution_ready_count: ActionExecution.ready.count,
         result_registration_count: ActionExecution.completed_without_result.count,
         pending_calibration_count: ActionPredictionCalibration.where(approval_status: "pending").count,
@@ -44,6 +45,10 @@ module Aicoo
     private
 
     attr_reader :owner_focus_home
+
+    def today_board
+      @today_board ||= TodayActionBoard.new(mode: "revenue", limit: 20).call
+    end
 
     def daily_run_health
       @daily_run_health ||= DailyRunHealthSummary.new.call
@@ -96,7 +101,7 @@ module Aicoo
     end
 
     def summary_message
-      return "今はこの1件だけ処理してください。" if owner_focus_home.top_task
+      return "Todayの最上位Actionを処理してください。" if today_board.items.any?
       return "今日の実行キューに#{owner_execution_queue_summary.pending_count}件あります。" if owner_execution_queue_summary.pending_count.positive?
       return "Exploreで見つかったOpportunityの確認待ちがあります。" if pending_opportunities_count.positive?
 

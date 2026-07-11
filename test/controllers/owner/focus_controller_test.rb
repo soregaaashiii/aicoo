@@ -5,6 +5,8 @@ module Owner
     setup do
       ActionCandidate.update_all(status: "done")
       AutoRevisionTask.delete_all
+      AicooDailyRunStep.delete_all
+      AicooDailyRun.delete_all
     end
 
     test "shows Today as ranking list without hero card" do
@@ -119,6 +121,57 @@ module Owner
       assert_not_includes response.body, ">Learning<"
       assert_not_includes response.body, ">Revenue<"
       assert_not_includes response.body, ">Action Candidates<"
+    end
+
+    test "deduplicates repeated stuck daily runs while keeping improvements visible" do
+      3.times do |index|
+        run = AicooDailyRun.create!(
+          target_date: Date.new(2026, 7, 10),
+          status: "stuck",
+          source: "cron",
+          started_at: (index + 1).hours.ago,
+          error_message: "business_metrics_import timeout"
+        )
+        run.aicoo_daily_run_steps.create!(
+          step_name: "business_metrics_import",
+          status: "running",
+          started_at: run.started_at,
+          error_message: "business_metrics_import timeout"
+        )
+      end
+      improvement = create_today_candidate!(title: "梅田の未確認店舗を30件確認済みにする")
+
+      get owner_focus_url
+
+      assert_response :success
+      assert_includes response.body, "Daily Run 2026-07-10 が business_metrics_import で停止"
+      assert_includes response.body, "同一障害 3件"
+      assert_equal 1, response.body.scan("Daily Run 2026-07-10 が business_metrics_import で停止").size
+      assert_includes response.body, improvement.title
+    end
+
+    test "excludes action candidates with external target urls" do
+      external = create_today_candidate!(
+        title: "外部サイトを改善する",
+        metadata: {
+          "execution_mode" => "manual_operation",
+          "concrete_task" => "外部サイトを改善する",
+          "target_url" => "https://it-trend.jp/log_management/article/84-0008",
+          "action_plan" => {
+            "summary" => "外部サイトを改善する",
+            "target" => "https://it-trend.jp/log_management/article/84-0008",
+            "owner_next_step" => "外部サイトを見る",
+            "execution_steps" => [ "外部サイトを見る" ],
+            "execution_units" => [ { "label" => "外部サイトを見る" } ]
+          }
+        }
+      )
+
+      get owner_focus_url
+
+      assert_response :success
+      assert_not_includes response.body, "https://it-trend.jp/log_management/article/84-0008"
+      assert_equal "external_target_url", external.reload.metadata.fetch("today_exclusion_reason")
     end
 
     test "does not create fallback Today item for data backed business with no visible candidate" do

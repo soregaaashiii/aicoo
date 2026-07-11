@@ -27,9 +27,11 @@ module Aicoo
     Board = Data.define(:mode, :tabs, :items, :description)
     Tab = Data.define(:key, :label, :path, :active)
     Item = Data.define(
+      :stable_id,
       :rank,
       :source_type,
       :record,
+      :priority,
       :business_name,
       :concrete_task,
       :target,
@@ -46,6 +48,8 @@ module Aicoo
       :detail_url,
       :reason,
       :stopped_reason,
+      :group_count,
+      :group_summary,
       :revenue_score,
       :learning_score,
       :balanced_score,
@@ -60,7 +64,7 @@ module Aicoo
     def call
       items = candidate_items
       ranked_items = items
-        .sort_by { |item| [ -item.score.to_d, -item.expected_value_yen.to_i, item.business_name.to_s ] }
+        .sort_by { |item| [ priority_rank(item), -item.score.to_d, -item.expected_value_yen.to_i, item.business_name.to_s ] }
         .first(limit)
 
       ranked_items = include_missing_data_backed_businesses(items, ranked_items)
@@ -85,14 +89,18 @@ module Aicoo
     end
 
     def candidate_items
-      items = ActionCandidate
+      daily_run_issue_items +
+        action_candidate_items +
+        new_business_items
+    end
+
+    def action_candidate_items
+      ActionCandidate
         .active_for_ranking
         .includes(:business, :auto_revision_tasks)
         .order(updated_at: :desc)
         .limit(1_000)
         .filter_map { |candidate| build_item(candidate) }
-
-      items
     end
 
     def build_item(candidate)
@@ -141,9 +149,11 @@ module Aicoo
 
       mark_today_included!(candidate)
       Item.new(
+        stable_id: "action_candidate:#{candidate.id}",
         rank: nil,
         source_type: approval_task ? "auto_revision_task" : "action_candidate",
         record: approval_task || candidate,
+        priority: approval_task ? "critical" : "improvement",
         business_name: candidate.business&.name.to_s,
         concrete_task:,
         target:,
@@ -160,10 +170,118 @@ module Aicoo
         detail_url: action_workspace_path(candidate),
         reason: presenter.reason,
         stopped_reason: stopped_reason_for(approval_task),
+        group_count: 1,
+        group_summary: nil,
         revenue_score: revenue_score.round(2),
         learning_score: learning_score.round(2),
         balanced_score: balanced_score.round(2),
         score: selected_score.round(2)
+      )
+    end
+
+    def daily_run_issue_items
+      runs = AicooDailyRun
+        .actual_runs
+        .where(created_at: 7.days.ago..Time.current)
+        .where(status: %w[failed partial_failed stuck])
+        .includes(:aicoo_daily_run_steps)
+        .recent
+        .limit(100)
+        .to_a
+
+      runs.group_by { |run| daily_run_dedupe_key(run) }
+          .values
+          .map { |grouped_runs| build_daily_run_issue_item(grouped_runs) }
+    end
+
+    def build_daily_run_issue_item(runs)
+      sorted = runs.sort_by { |run| [ run.started_at || run.created_at, run.id ] }
+      latest = sorted.last
+      oldest = sorted.first
+      step = daily_run_last_step(latest)
+      step_name = step&.step_name.presence || "unknown_step"
+      reason = daily_run_reason(latest, step)
+      count = runs.size
+      status_label = latest.status == "partial_failed" ? "一部失敗" : "停止"
+
+      Item.new(
+        stable_id: "daily_run_issue:#{daily_run_dedupe_key(latest)}",
+        rank: nil,
+        source_type: "daily_run_issue",
+        record: latest,
+        priority: latest.status == "partial_failed" ? "high" : "critical",
+        business_name: "AICOO",
+        concrete_task: "Daily Run #{latest.target_date} が #{step_name} で#{status_label}",
+        target: "最新Run ##{latest.id} / 最古Run ##{oldest.id}",
+        expected_value_yen: 0,
+        expected_hours: 0.25,
+        expected_hourly_value_yen: 0,
+        success_probability: 1.to_d,
+        execution_mode: "system_recovery",
+        execution_mode_label: "障害対応",
+        data_sources_label: "Daily Run",
+        approval_required: false,
+        codex_target: false,
+        owner_next_step: "最新RunのStep Breakdownを確認する",
+        detail_url: aicoo_daily_run_path(latest, anchor: "step-breakdown"),
+        reason:,
+        stopped_reason: "同一障害 #{count}件" + (count > 1 ? " / 最新Run ##{latest.id} / 最古Run ##{oldest.id}" : ""),
+        group_count: count,
+        group_summary: count > 1 ? "同一障害 #{count}件" : nil,
+        revenue_score: 0,
+        learning_score: 0,
+        balanced_score: 0,
+        score: latest.status == "partial_failed" ? 800_000_000 : 1_000_000_000
+      )
+    end
+
+    def new_business_items
+      Business
+        .real_businesses
+        .where(status: %w[discovered draft exploring])
+        .where(resource_status: %w[active watch])
+        .where("created_by_aicoo = ? OR business_type = ?", true, "exploration")
+        .order(created_at: :desc)
+        .limit(20)
+        .map { |business| build_new_business_item(business) }
+    end
+
+    def build_new_business_item(business)
+      expected_value_yen = business.metadata.to_h["expected_value_yen"].to_i
+      expected_hours = positive_decimal(business.metadata.to_h["expected_hours"].presence || 2)
+      success_probability = decimal_value(business.metadata.to_h["success_probability"], fallback: 0.3)
+      revenue_score = expected_hours.positive? ? expected_value_yen.to_d / expected_hours * success_probability : 0.to_d
+      learning_score = numeric_metadata(business.metadata.to_h, "learning_value")
+      balanced_score = (revenue_score * 0.6) + (learning_score * 0.4)
+
+      Item.new(
+        stable_id: "business:#{business.id}",
+        rank: nil,
+        source_type: "new_business",
+        record: business,
+        priority: "new_business",
+        business_name: business.name,
+        concrete_task: "#{business.name} の検証を進める",
+        target: business.name,
+        expected_value_yen:,
+        expected_hours: expected_hours.to_f,
+        expected_hourly_value_yen: expected_hours.positive? ? (expected_value_yen.to_d / expected_hours).round.to_i : 0,
+        success_probability:,
+        execution_mode: "owner_decision",
+        execution_mode_label: "新規事業検証",
+        data_sources_label: "SERP / 新規事業",
+        approval_required: false,
+        codex_target: false,
+        owner_next_step: "LP・計測・初期検証を確認する",
+        detail_url: owner_new_business_pipeline_path(selected: "business:#{business.id}"),
+        reason: business.metadata.to_h["reason"].presence || "探索中の新規事業です。",
+        stopped_reason: business.launched? ? nil : "検証前状態です",
+        group_count: 1,
+        group_summary: nil,
+        revenue_score: revenue_score.round(2),
+        learning_score: learning_score.round(2),
+        balanced_score: balanced_score.round(2),
+        score: score_for(revenue_score:, learning_score:, balanced_score:).round(2)
       )
     end
 
@@ -174,6 +292,7 @@ module Aicoo
       return "needs_refinement" if candidate.metadata.to_h["concretization_status"] == "needs_refinement"
       return "abstract_concrete_task" unless concrete_text_allowed?(candidate)
       return "external_data_source_disallowed" if external_data_source_used_for_existing_business?(candidate)
+      return "external_target_url" if external_target_url_for_existing_business?(candidate)
 
       owner_work = OWNER_EXECUTION_MODES.include?(execution_mode)
       approval_waiting_code_revision = execution_mode == "code_revision" && approval_task.present?
@@ -276,14 +395,14 @@ module Aicoo
     end
 
     def include_missing_data_backed_businesses(items, ranked_items)
-      ranked_business_ids = ranked_items.map { |item| item.record.business_id }.compact.to_set
+      ranked_business_ids = ranked_items.filter_map { |item| item.record.business_id if item.record.respond_to?(:business_id) }.to_set
       missing_items = items
-        .select { |item| analysis_data_available_for?(item.record.business) && ranked_business_ids.exclude?(item.record.business_id) }
+        .select { |item| item.record.respond_to?(:business) && analysis_data_available_for?(item.record.business) && ranked_business_ids.exclude?(item.record.business_id) }
         .group_by { |item| item.record.business_id }
         .values
         .map { |business_items| business_items.max_by(&:score) }
 
-      (ranked_items + missing_items).uniq { |item| "#{item.source_type}:#{item.record.id}" }
+      (ranked_items + missing_items).uniq(&:stable_id)
     end
 
     def today_visible_businesses
@@ -327,8 +446,9 @@ module Aicoo
     end
 
     def mark_filtered_items!(items, ranked_items)
-      ranked_ids = ranked_items.map { |item| item.record.id }.to_set
+      ranked_ids = ranked_items.select { |item| item.record.is_a?(ActionCandidate) }.map { |item| item.record.id }.to_set
       items.each do |item|
+        next unless item.record.is_a?(ActionCandidate)
         next if ranked_ids.include?(item.record.id)
 
         mark_today_exclusion!(item.record, "filtered_by_tab")
@@ -336,8 +456,8 @@ module Aicoo
     end
 
     def log_business_diagnostics!(items, ranked_items)
-      grouped_items = items.group_by { |item| item.record.business_id }
-      ranked_grouped_items = ranked_items.group_by { |item| item.record.business_id }
+      grouped_items = items.select { |item| item.record.respond_to?(:business_id) }.group_by { |item| item.record.business_id }
+      ranked_grouped_items = ranked_items.select { |item| item.record.respond_to?(:business_id) }.group_by { |item| item.record.business_id }
 
       Business.real_businesses.find_each do |business|
         active_candidates = business.action_candidates.active_for_ranking.limit(250).to_a
@@ -438,6 +558,69 @@ module Aicoo
         balanced_score
       else
         revenue_score
+      end
+    end
+
+    def priority_rank(item)
+      case item.priority
+      when "critical" then 0
+      when "high" then 1
+      when "improvement" then 3
+      when "new_business" then 4
+      else 5
+      end
+    end
+
+    def daily_run_dedupe_key(run)
+      step = daily_run_last_step(run)
+      [
+        "daily_run",
+        run.target_date,
+        run.status,
+        step&.step_name.presence || "unknown_step",
+        normalized_reason(daily_run_reason(run, step)),
+        run.source
+      ].join(":")
+    end
+
+    def daily_run_last_step(run)
+      steps = run.aicoo_daily_run_steps.to_a
+      steps.select { |step| step.status == "running" }
+           .max_by { |step| [ step.started_at || Time.zone.at(0), step.created_at, step.id ] } ||
+        steps.max_by { |step| [ step.started_at || step.finished_at || Time.zone.at(0), step.created_at, step.id ] }
+    end
+
+    def daily_run_reason(run, step)
+      step&.error_message.presence ||
+        step&.metadata.to_h["error"].presence ||
+        step&.metadata.to_h["exception"].presence ||
+        step&.metadata.to_h["message"].presence ||
+        run.error_message.presence ||
+        run.calibration_error.presence ||
+        "Run Logを確認してください。"
+    end
+
+    def normalized_reason(reason)
+      reason.to_s.squish.first(120).presence || "unknown"
+    end
+
+    def external_target_url_for_existing_business?(candidate)
+      return false if Aicoo::DataSourcePolicy.for(candidate.business).exploration_business?
+
+      metadata = candidate.metadata.to_h
+      possible_targets = [
+        metadata["target_url"],
+        metadata["target_url_or_identifier"],
+        metadata["page_path"],
+        metadata.dig("action_plan", "target"),
+        metadata.dig("action_plan", "target_url_or_identifier"),
+        metadata.dig("decision", "selected", "target_url_or_identifier")
+      ].flatten.compact_blank
+
+      possible_targets.any? do |target|
+        next false unless target.to_s.match?(%r{\Ahttps?://}i)
+
+        !BusinessOwnedUrlPolicy.call(business: candidate.business, url: target).owner_page?
       end
     end
 
