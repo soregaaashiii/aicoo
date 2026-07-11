@@ -42,7 +42,7 @@ module Aicoo
         end
       end
 
-      test "does not convert branded existing business serp result into new business" do
+      test "backfills from stored serp result even when existing seo improvement candidate exists" do
         business = businesses(:suelog)
         serp_run = create_serp_run
         analysis = create_analysis(
@@ -65,11 +65,18 @@ module Aicoo
           metadata: { "source_query" => analysis.keyword }
         )
 
-        assert_no_difference("Business.real_businesses.count") do
+        assert_difference("Business.real_businesses.count", 1) do
           result = Aicoo::Serp::NewBusinessDiscoveryBackfiller.call(scope: SerpRun.where(id: serp_run.id))
 
-          assert_equal 0, result.new_business_candidates_created
-          assert_operator result.insufficient_data_skipped, :>=, 1
+          assert_equal 1, result.new_business_candidates_created
+          assert_equal 0, result.blank_query_skipped
+          assert_equal 0, result.no_result_skipped
+          candidate = ActionCandidate.find(result.candidate_ids.first)
+          assert_equal "new_business", candidate.department
+          assert_equal "new_business", candidate.action_type
+          assert_equal "done", candidate.status
+          assert_equal "exploring", candidate.business.status
+          assert_equal analysis.keyword, candidate.metadata["source_query"]
         end
       end
 

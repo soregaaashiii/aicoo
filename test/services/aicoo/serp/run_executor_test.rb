@@ -93,7 +93,7 @@ module Aicoo
         end
       end
 
-      test "existing business serp improvement does not create duplicate business" do
+      test "existing business serp query with results is still assetized as exploring business" do
         business = businesses(:suelog)
         business.update!(status: "launched", serp_enabled: true)
         serp_query = business.serp_queries.create!(
@@ -106,9 +106,9 @@ module Aicoo
         )
 
         with_adapter_result(query: serp_query.query) do
-          assert_no_difference("Business.real_businesses.count") do
+          assert_difference("Business.real_businesses.count", 1) do
             run = Aicoo::Serp::RunExecutor.new(executed_by: "manual", force: true, serp_query:).call
-            assert_equal 0, run.metadata.to_h.dig("new_business_discovery", "new_business_candidate_count").to_i
+            assert_equal 1, run.metadata.to_h.dig("new_business_discovery", "new_business_candidate_count").to_i
           end
         end
       end

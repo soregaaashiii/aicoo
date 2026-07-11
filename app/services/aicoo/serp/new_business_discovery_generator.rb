@@ -8,7 +8,8 @@ module Aicoo
         :candidates,
         :created_count,
         :duplicate_count,
-        :insufficient_data_count,
+        :blank_query_count,
+        :no_result_count,
         :failed_count,
         :existing_improvement_count,
         :serp_analyses_checked,
@@ -24,7 +25,8 @@ module Aicoo
         @backfill = backfill
         @errors = []
         @duplicate_count = 0
-        @insufficient_data_count = 0
+        @blank_query_count = 0
+        @no_result_count = 0
       end
 
       def call
@@ -33,11 +35,12 @@ module Aicoo
           candidates:,
           created_count: candidates.size,
           duplicate_count: duplicate_count,
-          insufficient_data_count: insufficient_data_count,
+          blank_query_count: blank_query_count,
+          no_result_count: no_result_count,
           failed_count: errors.size,
           existing_improvement_count: existing_improvement_count,
-          serp_analyses_checked: successful_analyses.size,
-          serp_results_checked: successful_analyses.sum { |analysis| analysis.serp_results.size },
+          serp_analyses_checked: source_analyses.size,
+          serp_results_checked: source_analyses.sum { |analysis| analysis.serp_results.size },
           errors: errors.first(10)
         )
       end
@@ -45,43 +48,35 @@ module Aicoo
       private
 
       attr_reader :serp_run, :limit, :errors, :backfill
-      attr_accessor :duplicate_count, :insufficient_data_count
+      attr_accessor :duplicate_count, :blank_query_count, :no_result_count
 
       def discoverable_analyses
-        successful_analyses
+        source_analyses
           .select { |analysis| market_discovery_analysis?(analysis) }
           .sort_by { |analysis| -market_score(analysis) }
       end
 
-      def successful_analyses
-        @successful_analyses ||= serp_run.serp_analyses
-                                         .successful
-                                         .includes(:business, :serp_results)
-                                         .to_a
+      def source_analyses
+        @source_analyses ||= serp_run.serp_analyses
+                                     .includes(:business, :serp_results)
+                                     .to_a
       end
 
       def market_discovery_analysis?(analysis)
-        return insufficient!(analysis, "blank_keyword") if analysis.keyword.blank?
-        return insufficient!(analysis, "no_serp_results") unless analysis.serp_results.exists?
-        return insufficient!(analysis, "branded_existing_business_query") if branded_existing_business_query?(analysis)
-        serp_query = serp_query_for(analysis)
-        return true if serp_query&.category.in?(%w[new_business keyword_discovery trend])
-        return insufficient!(analysis, "existing_business_serp_query") if serp_query.present? && !backfill
+        return blank_query!(analysis) if analysis.keyword.blank?
+        return no_result!(analysis) unless analysis.serp_results.exists?
 
-        return true if analysis.keyword.match?(MARKET_INTENT_PATTERN)
-
-        insufficient!(analysis, "market_intent_not_detected")
+        true
       end
 
-      def insufficient!(_analysis, _reason)
-        self.insufficient_data_count += 1
+      def blank_query!(_analysis)
+        self.blank_query_count += 1
         false
       end
 
-      def branded_existing_business_query?(analysis)
-        return false unless analysis.business
-
-        Aicoo::Serp::ResultRelevance.new(business: analysis.business, query: analysis.keyword).branded_query?
+      def no_result!(_analysis)
+        self.no_result_count += 1
+        false
       end
 
       def create_candidate_for(analysis)
@@ -171,6 +166,9 @@ module Aicoo
           "origin_business_id" => analysis.business_id,
           "origin_business_name" => analysis.business&.name,
           "data_sources_used" => [ "serp" ],
+          "data_quality" => data_quality_for(analysis),
+          "missing_fields" => missing_fields_for(analysis),
+          "requires_enrichment" => requires_enrichment?(analysis),
           "execution_mode" => "owner_decision",
           "auto_business_publish_required" => true
         }
@@ -308,6 +306,20 @@ module Aicoo
 
       def validation_plan_for(analysis)
         "7日以内に「#{analysis.keyword}」向けLPを公開し、CTAクリック、問い合わせ、検索流入、広告テスト反応を確認する。"
+      end
+
+      def missing_fields_for(_analysis)
+        %w[market problem target_customer monetization validation_plan]
+      end
+
+      def requires_enrichment?(_analysis)
+        true
+      end
+
+      def data_quality_for(analysis)
+        return "sufficient" if analysis.keyword.match?(MARKET_INTENT_PATTERN) && analysis.serp_results.size >= 5
+
+        "insufficient"
       end
     end
   end

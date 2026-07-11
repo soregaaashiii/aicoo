@@ -8,7 +8,8 @@ module Aicoo
         :new_business_candidates_created,
         :businesses_created,
         :duplicates_skipped,
-        :insufficient_data_skipped,
+        :blank_query_skipped,
+        :no_result_skipped,
         :failed,
         :candidate_ids,
         :business_ids,
@@ -22,7 +23,8 @@ module Aicoo
             new_business_candidates_created:,
             businesses_created:,
             duplicates_skipped:,
-            insufficient_data_skipped:,
+            blank_query_skipped:,
+            no_result_skipped:,
             failed:,
             candidate_ids:,
             business_ids:,
@@ -58,7 +60,8 @@ module Aicoo
           counters[:serp_results_checked] += result.serp_results_checked.to_i
           counters[:new_business_candidates_created] += result.created_count.to_i
           counters[:duplicates_skipped] += result.duplicate_count.to_i
-          counters[:insufficient_data_skipped] += result.insufficient_data_count.to_i
+          counters[:blank_query_skipped] += result.blank_query_count.to_i
+          counters[:no_result_skipped] += result.no_result_count.to_i
           counters[:failed] += result.failed_count.to_i
           candidate_ids.concat(result.candidates.map(&:id))
           business_ids.concat(result.candidates.filter_map(&:business_id))
@@ -81,7 +84,8 @@ module Aicoo
           new_business_candidates_created: counters[:new_business_candidates_created],
           businesses_created: created_business_count(candidate_ids),
           duplicates_skipped: counters[:duplicates_skipped],
-          insufficient_data_skipped: counters[:insufficient_data_skipped],
+          blank_query_skipped: counters[:blank_query_skipped],
+          no_result_skipped: counters[:no_result_skipped],
           failed: counters[:failed],
           candidate_ids: candidate_ids.uniq,
           business_ids: business_ids.uniq,
@@ -117,7 +121,8 @@ module Aicoo
               "business_ids" => result.candidates.filter_map(&:business_id),
               "candidate_ids" => result.candidates.map(&:id),
               "duplicate_count" => result.duplicate_count,
-              "insufficient_data_count" => result.insufficient_data_count,
+              "blank_query_count" => result.blank_query_count,
+              "no_result_count" => result.no_result_count,
               "failed_count" => result.failed_count
             )
           ),
