@@ -111,6 +111,7 @@
         <th>Lifecycle</th>
         <th>Resource</th>
         <th>Health</th>
+        <th>最終期待値</th>
         <th>Last Sync</th>
         <th>GSC 7日 / 30日</th>
         <th>GA4 7日 / 30日</th>
@@ -128,6 +129,7 @@
     <tbody>
       <% @businesses.each do |business| %>
         <% summary = @business_analytics_summaries.fetch(business) %>
+        <% expected_value = @business_expected_values.fetch(business) %>
         <% period_7d = summary.periods.fetch(7) %>
         <% period_30d = summary.periods.fetch(30) %>
         <tr>
@@ -143,6 +145,14 @@
             <small><%= business.next_review_on ? "次回 #{business.next_review_on}" : resource_status_description(business.resource_status) %></small>
           </td>
           <td class="number"><%= number_with_precision(summary.health&.health_score.to_d, precision: 1) %></td>
+          <td>
+            <strong><%= number_to_currency(expected_value.expected_total_value_yen, unit: "¥", precision: 0) %></strong><br>
+            <small>
+              raw <%= number_to_currency(expected_value.raw_candidate_sum_yen, unit: "¥", precision: 0) %> /
+              cap <%= number_to_currency(expected_value.cap_adjustment_yen, unit: "¥", precision: 0) %>
+            </small><br>
+            <small>opp <%= expected_value.unique_opportunity_count %> / cost <%= number_to_currency(expected_value.cost_yen, unit: "¥", precision: 0) %></small>
+          </td>
           <td><%= summary.last_sync_at ? l(summary.last_sync_at, format: :short) : "未接続 / データ不足" %></td>
           <td>
             clicks <%= number_with_delimiter(period_7d.gsc_clicks) %> / <%= number_with_delimiter(period_30d.gsc_clicks) %><br>

@@ -154,7 +154,7 @@ module Aicoo
         return
       end
 
-      expected_value_yen = candidate.expected_profit_yen.to_i
+      expected_value_yen = candidate_today_expected_value_yen(candidate)
       expected_hours = positive_decimal(candidate.expected_hours)
       success_probability = candidate.success_probability.to_d
       concrete_task = concrete_task_for(candidate, presenter, action_plan)
@@ -297,9 +297,10 @@ module Aicoo
 
     def build_new_business_item(group)
       business = group.max_by { |item| new_business_score(item) }
-      expected_value_yen = business.metadata.to_h["expected_value_yen"].to_i
+      business_value = Aicoo::BusinessExpectedValue.call(business)
+      expected_value_yen = business_value.expected_total_value_yen.to_i
       expected_hours = positive_decimal(business.metadata.to_h["expected_hours"].presence || 2)
-      success_probability = decimal_value(business.metadata.to_h["success_probability"], fallback: 0.3)
+      success_probability = business_value.new_business_value&.validation_success_probability || decimal_value(business.metadata.to_h["success_probability"], fallback: 0.3)
       revenue_score = expected_hours.positive? ? expected_value_yen.to_d / expected_hours * success_probability : 0.to_d
       learning_score = numeric_metadata(business.metadata.to_h, "learning_value")
       balanced_score = (revenue_score * 0.6) + (learning_score * 0.4)
@@ -327,7 +328,7 @@ module Aicoo
         codex_target: false,
         owner_next_step: business.metadata.to_h["owner_next_step"].presence || business.metadata.to_h["next_action"].presence || "代表案を確認し、残りを統合またはアーカイブする",
         detail_url: owner_new_business_pipeline_path(selected: "business:#{business.id}"),
-        reason: business.metadata.to_h["reason"].presence || "探索中の新規事業です。",
+        reason: business.metadata.to_h["reason"].presence || "探索中の新規事業です。算定方法: #{business_value.calculation_method}",
         stopped_reason: business.launched? ? nil : "検証前状態です",
         group_count: group_count,
         group_summary: group_count > 1 ? "類似候補 #{group_count}件" : nil,
@@ -341,7 +342,7 @@ module Aicoo
     def today_exclusion_reason(candidate, execution_mode, approval_task)
       return "inactive_business" if candidate.business.blank? || candidate.business.resource_status == "archived"
       return "no_score" unless minimum_fields_present?(candidate, execution_mode)
-      return "zero_expected_value" if candidate.expected_profit_yen.to_i <= 0 && approval_task.blank?
+      return "zero_expected_value" if candidate_today_expected_value_yen(candidate) == 0 && approval_task.blank?
       return "fallback_action" if candidate.metadata.to_h["today_fallback"]
       return "needs_refinement" if candidate.metadata.to_h["concretization_status"] == "needs_refinement"
       return "abstract_concrete_task" unless concrete_text_allowed?(candidate)
@@ -692,6 +693,21 @@ module Aicoo
       )
     end
 
+    def candidate_today_expected_value_yen(candidate)
+      return candidate.expected_profit_yen.to_i unless candidate.business
+
+      result = business_expected_value_for(candidate.business)
+      row = result.opportunities.find { |opportunity| opportunity.candidate_ids.include?(candidate.id) }
+      return candidate.expected_profit_yen.to_i unless row
+
+      [ (row.final_value_yen.to_d / row.candidate_ids.size).round, 0 ].max
+    end
+
+    def business_expected_value_for(business)
+      @business_expected_value_for ||= {}
+      @business_expected_value_for[business.id] ||= Aicoo::BusinessExpectedValue.call(business)
+    end
+
     def persist_daily_run_valuation!(step, valuation)
       return unless step
 
@@ -867,9 +883,10 @@ module Aicoo
     end
 
     def new_business_score(business)
+      business_value = Aicoo::BusinessExpectedValue.call(business)
       metadata = business.metadata.to_h
-      expected_value = metadata["expected_value_yen"].to_i
-      success_probability = decimal_value(metadata["success_probability"], fallback: 0.3)
+      expected_value = business_value.expected_total_value_yen.to_i
+      success_probability = business_value.new_business_value&.validation_success_probability || decimal_value(metadata["success_probability"], fallback: 0.3)
       learning_value = numeric_metadata(metadata, "learning_value")
 
       (expected_value.to_d * success_probability) + learning_value

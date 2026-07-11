@@ -18,6 +18,7 @@ class BusinessesController < ApplicationController
       @businesses,
       health_result: @business_integration_health
     )
+    @business_expected_values = @businesses.index_with { |business| Aicoo::BusinessExpectedValue.call(business) }
   end
 
   # GET /businesses/1 or /businesses/1.json

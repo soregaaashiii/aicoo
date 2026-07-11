@@ -54,7 +54,21 @@ class DashboardSummaryService
     :today_executor_queued_count
   )
   LearningValueSummary = Data.define(:total_learning_value_yen, :learning_candidate_count)
-  BusinessRanking = Data.define(:business, :expected_total_value_yen, :expected_revenue_value_yen, :expected_learning_value_yen)
+  BusinessRanking = Data.define(
+    :business,
+    :expected_total_value_yen,
+    :expected_revenue_value_yen,
+    :expected_learning_value_yen,
+    :raw_candidate_sum_yen,
+    :unique_opportunity_count,
+    :duplicate_candidate_count,
+    :duplicate_adjustment_yen,
+    :cap_adjustment_yen,
+    :confidence_adjustment_yen,
+    :cost_yen,
+    :calculation_method,
+    :confidence
+  )
   EvaluatorConfidence = Data.define(:evaluator_type, :confidence_score, :weighted_contribution_score, :confidence_delta)
   LearningProgress = Data.define(
     :action_result_current,
@@ -236,12 +250,21 @@ class DashboardSummaryService
 
   def owner_business_rankings
     Business.real_businesses.includes(:action_candidates).order(:name).map do |business|
-      active_actions = business.action_candidates.reject { |candidate| ActionCandidate::INACTIVE_STATUSES.include?(candidate.status) }
+      value = Aicoo::BusinessExpectedValue.call(business)
       BusinessRanking.new(
         business:,
-        expected_total_value_yen: active_actions.sum(&:expected_total_value_yen),
-        expected_revenue_value_yen: active_actions.sum(&:expected_revenue_value_yen),
-        expected_learning_value_yen: active_actions.sum(&:expected_learning_value_yen)
+        expected_total_value_yen: value.expected_total_value_yen,
+        expected_revenue_value_yen: value.expected_revenue_value_yen,
+        expected_learning_value_yen: value.expected_learning_value_yen,
+        raw_candidate_sum_yen: value.raw_candidate_sum_yen,
+        unique_opportunity_count: value.unique_opportunity_count,
+        duplicate_candidate_count: value.duplicate_candidate_count,
+        duplicate_adjustment_yen: value.duplicate_adjustment_yen,
+        cap_adjustment_yen: value.cap_adjustment_yen,
+        confidence_adjustment_yen: value.confidence_adjustment_yen,
+        cost_yen: value.cost_yen,
+        calculation_method: value.calculation_method,
+        confidence: value.confidence
       )
     end.sort_by { |ranking| [ -ranking.expected_total_value_yen.to_i, ranking.business.name ] }
   end

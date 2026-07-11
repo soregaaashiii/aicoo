@@ -294,9 +294,11 @@
         <thead>
           <tr>
             <th>事業</th>
-            <th>総期待値</th>
-            <th>収益価値</th>
-            <th>学習価値</th>
+            <th>最終期待値</th>
+            <th>生の期待値</th>
+            <th>補正</th>
+            <th>コスト</th>
+            <th>Opportunity</th>
           </tr>
         </thead>
         <tbody>
@@ -304,8 +306,17 @@
             <tr>
               <td><%= ranking.business.name %></td>
               <td><%= number_to_currency(ranking.expected_total_value_yen, unit: "¥", precision: 0) %></td>
-              <td><%= number_to_currency(ranking.expected_revenue_value_yen, unit: "¥", precision: 0) %></td>
-              <td><%= number_to_currency(ranking.expected_learning_value_yen, unit: "¥", precision: 0) %></td>
+              <td><%= number_to_currency(ranking.raw_candidate_sum_yen, unit: "¥", precision: 0) %></td>
+              <td>
+                重複 <%= number_to_currency(ranking.duplicate_adjustment_yen, unit: "¥", precision: 0) %><br>
+                上限 <%= number_to_currency(ranking.cap_adjustment_yen, unit: "¥", precision: 0) %><br>
+                信頼度 <%= number_to_currency(ranking.confidence_adjustment_yen, unit: "¥", precision: 0) %>
+              </td>
+              <td><%= number_to_currency(ranking.cost_yen, unit: "¥", precision: 0) %></td>
+              <td>
+                <%= ranking.unique_opportunity_count %>件<br>
+                <small><%= ranking.calculation_method %> / confidence <%= ranking.confidence %></small>
+              </td>
             </tr>
           <% end %>
         </tbody>
