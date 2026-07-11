@@ -48,6 +48,9 @@ module Aicoo
     Tab = Data.define(:key, :label, :path, :active)
     DailyRunValuation = Data.define(
       :avoided_loss_yen,
+      :expected_value_if_no_action_yen,
+      :expected_value_if_action_yen,
+      :action_expected_value_delta_yen,
       :final_expected_value_yen,
       :recovery_success_probability,
       :repair_cost_yen,
@@ -73,6 +76,14 @@ module Aicoo
       :concrete_task,
       :target,
       :expected_value_yen,
+      :expected_value_if_no_action_yen,
+      :expected_value_if_action_yen,
+      :execution_cost_yen,
+      :action_expected_value_delta_yen,
+      :valuation_period_days,
+      :calculation_method,
+      :confidence,
+      :valuation_status,
       :expected_hours,
       :expected_hourly_value_yen,
       :success_probability,
@@ -168,7 +179,8 @@ module Aicoo
         return
       end
 
-      expected_value_yen = candidate_today_expected_value_yen(candidate)
+      valuation = action_candidate_valuation(candidate)
+      expected_value_yen = valuation.fetch(:action_expected_value_delta_yen)
       expected_hours = positive_decimal(candidate.expected_hours)
       success_probability = candidate.success_probability.to_d
       concrete_task = concrete_task_for(candidate, presenter, action_plan)
@@ -211,6 +223,14 @@ module Aicoo
         concrete_task:,
         target:,
         expected_value_yen:,
+        expected_value_if_no_action_yen: valuation.fetch(:expected_value_if_no_action_yen),
+        expected_value_if_action_yen: valuation.fetch(:expected_value_if_action_yen),
+        execution_cost_yen: valuation.fetch(:execution_cost_yen),
+        action_expected_value_delta_yen: valuation.fetch(:action_expected_value_delta_yen),
+        valuation_period_days: valuation.fetch(:valuation_period_days),
+        calculation_method: valuation.fetch(:calculation_method),
+        confidence: valuation.fetch(:confidence),
+        valuation_status: valuation.fetch(:valuation_status),
         expected_hours: expected_hours.to_f,
         expected_hourly_value_yen: expected_hours.positive? ? (expected_value_yen.to_d / expected_hours).round.to_i : 0,
         success_probability:,
@@ -268,9 +288,17 @@ module Aicoo
         business_name: "AICOO",
         concrete_task: "Daily Runが #{step_name} で継続#{status_label}",
         target: "影響日数 #{valuation.impact_days}日 / 影響Business #{valuation.impacted_business_count}件 / 該当Run #{count}件 / 最新Run ##{latest.id}",
-        expected_value_yen: valuation.final_expected_value_yen,
+        expected_value_yen: valuation.action_expected_value_delta_yen,
+        expected_value_if_no_action_yen: valuation.expected_value_if_no_action_yen,
+        expected_value_if_action_yen: valuation.expected_value_if_action_yen,
+        execution_cost_yen: valuation.repair_cost_yen,
+        action_expected_value_delta_yen: valuation.action_expected_value_delta_yen,
+        valuation_period_days: valuation.impact_days,
+        calculation_method: valuation.calculation_method,
+        confidence: valuation.recovery_success_probability,
+        valuation_status: valuation.action_expected_value_delta_yen.positive? ? "positive" : "negative",
         expected_hours: 1.0,
-        expected_hourly_value_yen: valuation.final_expected_value_yen,
+        expected_hourly_value_yen: valuation.action_expected_value_delta_yen,
         success_probability: valuation.recovery_success_probability,
         execution_mode: "system_recovery",
         execution_mode_label: "障害対応",
@@ -283,13 +311,13 @@ module Aicoo
         stopped_reason: "影響日数 #{valuation.impact_days}日 / 影響Business #{valuation.impacted_business_count}件 / 同一障害 #{count}件 / 算定方法 #{valuation.calculation_method} / 信頼度 #{valuation.estimate_confidence} / 最新Run ##{latest.id} / 最古Run ##{oldest.id}",
         group_count: count,
         group_summary: "影響日数 #{valuation.impact_days}日 / 同一障害 #{count}件 / 損失回避額 #{valuation.avoided_loss_yen.to_fs(:delimited)}円",
-        revenue_score: valuation.final_expected_value_yen,
+        revenue_score: valuation.action_expected_value_delta_yen,
         learning_score: valuation.daily_learning_loss_yen,
-        balanced_score: ((valuation.final_expected_value_yen.to_d * 0.6) + (valuation.daily_learning_loss_yen.to_d * 0.4)).round(2),
+        balanced_score: ((valuation.action_expected_value_delta_yen.to_d * 0.6) + (valuation.daily_learning_loss_yen.to_d * 0.4)).round(2),
         score: score_for(
-          revenue_score: valuation.final_expected_value_yen.to_d,
+          revenue_score: valuation.action_expected_value_delta_yen.to_d,
           learning_score: valuation.daily_learning_loss_yen.to_d,
-          balanced_score: (valuation.final_expected_value_yen.to_d * 0.6) + (valuation.daily_learning_loss_yen.to_d * 0.4)
+          balanced_score: (valuation.action_expected_value_delta_yen.to_d * 0.6) + (valuation.daily_learning_loss_yen.to_d * 0.4)
         ).round(2)
       )
     end
@@ -312,9 +340,10 @@ module Aicoo
     def build_new_business_item(group)
       business = group.max_by { |item| new_business_score(item) }
       business_value = Aicoo::BusinessExpectedValue.call(business)
-      expected_value_yen = business_value.expected_total_value_yen.to_i
+      valuation = new_business_valuation(business, business_value)
+      expected_value_yen = valuation.fetch(:action_expected_value_delta_yen)
       expected_hours = positive_decimal(business.metadata.to_h["expected_hours"].presence || 2)
-      success_probability = business_value.new_business_value&.validation_success_probability || decimal_value(business.metadata.to_h["success_probability"], fallback: 0.3)
+      success_probability = valuation.fetch(:confidence)
       revenue_score = expected_hours.positive? ? expected_value_yen.to_d / expected_hours * success_probability : 0.to_d
       learning_score = numeric_metadata(business.metadata.to_h, "learning_value")
       balanced_score = (revenue_score * 0.6) + (learning_score * 0.4)
@@ -332,6 +361,14 @@ module Aicoo
         concrete_task: title,
         target: group_count > 1 ? "代表Business ##{business.id} / 類似候補 #{group_count}件" : business.name,
         expected_value_yen:,
+        expected_value_if_no_action_yen: valuation.fetch(:expected_value_if_no_action_yen),
+        expected_value_if_action_yen: valuation.fetch(:expected_value_if_action_yen),
+        execution_cost_yen: valuation.fetch(:execution_cost_yen),
+        action_expected_value_delta_yen: valuation.fetch(:action_expected_value_delta_yen),
+        valuation_period_days: valuation.fetch(:valuation_period_days),
+        calculation_method: valuation.fetch(:calculation_method),
+        confidence: valuation.fetch(:confidence),
+        valuation_status: valuation.fetch(:valuation_status),
         expected_hours: expected_hours.to_f,
         expected_hourly_value_yen: expected_hours.positive? ? (expected_value_yen.to_d / expected_hours).round.to_i : 0,
         success_probability:,
@@ -356,7 +393,9 @@ module Aicoo
     def today_exclusion_reason(candidate, execution_mode, approval_task)
       return "inactive_business" if candidate.business.blank? || candidate.business.resource_status == "archived"
       return "no_score" unless minimum_fields_present?(candidate, execution_mode)
-      return "zero_expected_value" if candidate_today_expected_value_yen(candidate) == 0 && approval_task.blank?
+      valuation = action_candidate_valuation(candidate)
+      return "unvalued" if valuation.fetch(:valuation_status) == "unvalued"
+      return "zero_expected_value" if valuation.fetch(:action_expected_value_delta_yen).zero? && approval_task.blank?
       return "fallback_action" if candidate.metadata.to_h["today_fallback"]
       return "needs_refinement" if candidate.metadata.to_h["concretization_status"] == "needs_refinement"
       return "abstract_concrete_task" unless concrete_text_allowed?(candidate)
@@ -604,6 +643,40 @@ module Aicoo
         numeric_metadata(metadata, "calibration_value_yen")
     end
 
+    def action_candidate_valuation(candidate)
+      metadata = candidate.metadata.to_h
+      gross_action_value_yen = first_present_integer(
+        metadata["expected_value_if_action_yen"],
+        metadata.dig("action_value_model", "expected_value_if_action_yen"),
+        metadata.dig("value_model", "expected_value_if_action_yen")
+      )
+      gross_action_value_yen = candidate_today_expected_value_yen(candidate) if gross_action_value_yen.nil?
+
+      no_action_yen = first_present_integer(
+        metadata["expected_value_if_no_action_yen"],
+        metadata.dig("action_value_model", "expected_value_if_no_action_yen"),
+        metadata.dig("value_model", "expected_value_if_no_action_yen")
+      ) || 0
+      execution_cost_yen = first_present_integer(
+        metadata["execution_cost_yen"],
+        metadata.dig("action_value_model", "execution_cost_yen"),
+        metadata.dig("value_model", "execution_cost_yen")
+      )
+      execution_cost_yen = candidate.cost_yen.to_i if execution_cost_yen.nil?
+      delta_yen = gross_action_value_yen.to_i - no_action_yen.to_i - execution_cost_yen.to_i
+
+      {
+        expected_value_if_no_action_yen: no_action_yen.to_i,
+        expected_value_if_action_yen: gross_action_value_yen.to_i,
+        execution_cost_yen: execution_cost_yen.to_i,
+        action_expected_value_delta_yen: delta_yen,
+        valuation_period_days: first_present_integer(metadata["valuation_period_days"], metadata.dig("action_value_model", "valuation_period_days")) || 90,
+        calculation_method: metadata.dig("action_value_model", "calculation_method").presence || metadata.dig("business_value_model", "calculation_method").presence || "action_counterfactual_delta",
+        confidence: confidence_value_for(candidate),
+        valuation_status: valuation_status_for(delta_yen)
+      }
+    end
+
     def valuation_adjusted_revenue_score(candidate, expected_value_yen:, expected_hours:, success_probability:)
       return 0.to_d unless expected_hours.positive?
 
@@ -665,11 +738,16 @@ module Aicoo
       ].max
       recovery_success_probability = daily_run_recovery_success_probability(latest, runs)
       repair_cost_yen = DAILY_RUN_REPAIR_COST_YEN
-      final_expected_value_yen = ((avoided_loss_yen.to_d * recovery_success_probability) - repair_cost_yen).round
-      final_expected_value_yen = [ final_expected_value_yen, DAILY_RUN_MINIMUM_AVOIDED_LOSS_YEN / 2 ].max
+      expected_value_if_no_action_yen = -avoided_loss_yen
+      expected_value_if_action_yen = (expected_value_if_no_action_yen.to_d * (1 - recovery_success_probability)).round
+      action_expected_value_delta_yen = expected_value_if_action_yen - expected_value_if_no_action_yen - repair_cost_yen
+      final_expected_value_yen = action_expected_value_delta_yen
 
       DailyRunValuation.new(
         avoided_loss_yen:,
+        expected_value_if_no_action_yen:,
+        expected_value_if_action_yen:,
+        action_expected_value_delta_yen:,
         final_expected_value_yen:,
         recovery_success_probability:,
         repair_cost_yen:,
@@ -708,6 +786,12 @@ module Aicoo
       metadata = step.metadata.to_h
       valuation_payload = {
         "avoided_loss_yen" => valuation.avoided_loss_yen,
+        "expected_value_if_no_action_yen" => valuation.expected_value_if_no_action_yen,
+        "expected_value_if_action_yen" => valuation.expected_value_if_action_yen,
+        "execution_cost_yen" => valuation.repair_cost_yen,
+        "action_expected_value_delta_yen" => valuation.action_expected_value_delta_yen,
+        "valuation_period_days" => valuation.impact_days,
+        "valuation_status" => valuation.action_expected_value_delta_yen.positive? ? "positive" : "negative",
         "final_expected_value_yen" => valuation.final_expected_value_yen,
         "recovery_success_probability" => valuation.recovery_success_probability.to_f,
         "repair_cost_yen" => valuation.repair_cost_yen,
@@ -869,7 +953,7 @@ module Aicoo
       metadata = business.metadata.to_h
       return true if metadata["today_actionable"] == true
       return true if metadata["owner_next_step"].present? || metadata["next_action"].present?
-      return true if metadata["validation_plan"].present? && new_business_score(business).positive?
+      return true if metadata["validation_plan"].present?
       return true if parse_date(metadata["due_on"]) == Date.current
       return true if business.next_review_on.present? && business.next_review_on <= Date.current
 
@@ -878,12 +962,47 @@ module Aicoo
 
     def new_business_score(business)
       business_value = Aicoo::BusinessExpectedValue.call(business)
+      valuation = new_business_valuation(business, business_value)
+      expected_value = valuation.fetch(:action_expected_value_delta_yen)
       metadata = business.metadata.to_h
-      expected_value = business_value.expected_total_value_yen.to_i
-      success_probability = business_value.new_business_value&.validation_success_probability || decimal_value(metadata["success_probability"], fallback: 0.3)
       learning_value = numeric_metadata(metadata, "learning_value")
 
-      (expected_value.to_d * success_probability) + learning_value
+      expected_value.to_d + learning_value
+    end
+
+    def new_business_valuation(business, business_value)
+      metadata = business.metadata.to_h
+      new_business_value = business_value.new_business_value
+      estimated_90d_profit_yen = first_present_integer(
+        metadata["estimated_90d_profit_yen"],
+        metadata["expected_90d_profit_yen"],
+        new_business_value&.estimated_90d_profit_yen
+      ) || 0
+      success_probability = decimal_value(
+        metadata["validation_success_probability"].presence || metadata["success_probability"].presence || new_business_value&.validation_success_probability,
+        fallback: 0.15
+      )
+      failure_residual_value_yen = first_present_integer(metadata["failure_residual_value_yen"], metadata["residual_value_yen"]) || 0
+      validation_cost_yen = first_present_integer(
+        metadata["validation_cost_yen"],
+        metadata["initial_cost_yen"],
+        new_business_value&.validation_cost_yen
+      ) || 0
+      inaction_loss_yen = first_present_integer(metadata["inaction_loss_yen"], metadata["opportunity_decay_loss_yen"]) || 0
+      expected_value_if_no_action_yen = first_present_integer(metadata["expected_value_if_no_action_yen"]) || -inaction_loss_yen
+      expected_value_if_action_yen = ((estimated_90d_profit_yen.to_d * success_probability) + (failure_residual_value_yen.to_d * (1 - success_probability))).round
+      delta_yen = expected_value_if_action_yen - expected_value_if_no_action_yen - validation_cost_yen
+
+      {
+        expected_value_if_no_action_yen:,
+        expected_value_if_action_yen:,
+        execution_cost_yen: validation_cost_yen,
+        action_expected_value_delta_yen: delta_yen,
+        valuation_period_days: 90,
+        calculation_method: "new_business_counterfactual_delta",
+        confidence: success_probability,
+        valuation_status: valuation_status_for(delta_yen)
+      }
     end
 
     def new_business_group_key(business)
@@ -956,6 +1075,25 @@ module Aicoo
       metadata[key].to_d
     rescue ArgumentError, NoMethodError
       0.to_d
+    end
+
+    def first_present_integer(*values)
+      values.find { |value| !value.nil? && value.to_s.present? }&.to_i
+    end
+
+    def confidence_value_for(candidate)
+      metadata = candidate.metadata.to_h
+      value = metadata.dig("action_value_model", "confidence").presence ||
+        metadata.dig("value_model", "confidence").presence ||
+        candidate.success_probability
+      decimal_value(value, fallback: 0.5).clamp(0.to_d, 1.to_d)
+    end
+
+    def valuation_status_for(delta_yen)
+      return "positive" if delta_yen.positive?
+      return "negative" if delta_yen.negative?
+
+      "neutral"
     end
 
     def decimal_value(value, fallback:)

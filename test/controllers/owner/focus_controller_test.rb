@@ -32,7 +32,7 @@ module Owner
       assert_includes response.body, "学習優先"
       assert_includes response.body, "バランス"
       assert_includes response.body, "今日処理するAction"
-      assert_includes response.body, "期待利益"
+      assert_includes response.body, "施策期待値"
       assert_includes response.body, "想定時間"
       assert_includes response.body, "期待時給"
       assert_includes response.body, "成功率"
@@ -211,6 +211,18 @@ module Owner
       three_days = board.send(:daily_run_issue_valuation, three_day_runs, latest: three_day_runs.last)
 
       assert_operator three_days.avoided_loss_yen, :>, one_day.avoided_loss_yen
+    end
+
+    test "daily run issue ranks by recovery delta instead of negative loss value" do
+      board = Aicoo::TodayActionBoard.new
+      runs = [ create_stuck_daily_run!(target_date: Date.new(2026, 7, 10)) ]
+
+      valuation = board.send(:daily_run_issue_valuation, runs, latest: runs.last)
+
+      assert_operator valuation.expected_value_if_no_action_yen, :<, 0
+      assert_equal valuation.expected_value_if_action_yen - valuation.expected_value_if_no_action_yen - valuation.repair_cost_yen,
+                   valuation.action_expected_value_delta_yen
+      assert_not_equal valuation.expected_value_if_no_action_yen, valuation.action_expected_value_delta_yen
     end
 
     test "duplicate stuck runs are grouped without simply multiplying loss by run count" do

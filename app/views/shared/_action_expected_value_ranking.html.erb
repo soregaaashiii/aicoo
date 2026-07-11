@@ -7,7 +7,8 @@
         <th>順位</th>
         <th>Business名</th>
         <th>具体的な作業名</th>
-        <th>期待利益</th>
+        <th>施策期待値</th>
+        <th>反実仮想</th>
         <th>想定時間</th>
         <th>期待時給</th>
         <th>成功率</th>
@@ -37,7 +38,17 @@
               <br><small>停止理由: <%= item.stopped_reason %></small>
             <% end %>
           </td>
-          <td class="number"><%= number_to_currency(item.expected_value_yen, unit: "¥", precision: 0) %></td>
+          <td class="number">
+            <% delta = item.action_expected_value_delta_yen.to_i %>
+            <strong><%= delta.positive? ? "+" : "" %><%= number_to_currency(delta, unit: "¥", precision: 0) %></strong><br>
+            <small><%= item.valuation_status %> / <%= item.valuation_period_days %>日</small>
+          </td>
+          <td>
+            <small>何もしない: <%= number_to_currency(item.expected_value_if_no_action_yen, unit: "¥", precision: 0) %></small><br>
+            <small>実行後: <%= number_to_currency(item.expected_value_if_action_yen, unit: "¥", precision: 0) %></small><br>
+            <small>実行コスト: <%= number_to_currency(item.execution_cost_yen, unit: "¥", precision: 0) %></small><br>
+            <small>算定: <%= item.calculation_method %> / 信頼度 <%= number_to_percentage(item.confidence.to_d * 100, precision: 0) %></small>
+          </td>
           <td class="number"><%= number_with_precision(item.expected_hours, precision: 1, strip_insignificant_zeros: true) %>時間</td>
           <td class="number"><%= number_to_currency(item.expected_hourly_value_yen, unit: "¥", precision: 0) %></td>
           <td class="number"><%= number_to_percentage(item.success_probability.to_d * 100, precision: 1) %></td>

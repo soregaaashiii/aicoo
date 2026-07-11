@@ -37,7 +37,7 @@ module Owner
       assert_not_includes response.body, "今日やること TOP10"
     end
 
-    test "owner dashboard shows deduplicated critical issue before improvements" do
+    test "owner dashboard shows deduplicated critical issue and improvements in one ranking" do
       2.times do |index|
         run = AicooDailyRun.create!(
           target_date: Date.new(2026, 7, 10),
@@ -62,7 +62,7 @@ module Owner
       assert_includes response.body, improvement.title
       ids = today_item_ids(response.body)
       assert_equal 1, ids.count { |id| id.start_with?("daily_run_issue:") }
-      assert_equal "action_candidate:#{improvement.id}", ids.second
+      assert_includes ids, "action_candidate:#{improvement.id}"
     end
 
     test "owner dashboard shows twenty actions per page and page two starts at rank twenty one" do

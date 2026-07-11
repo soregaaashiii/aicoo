@@ -8,7 +8,11 @@ module Aicoo
       :priority,
       :business_name,
       :expected_value_yen,
-      :score
+      :score,
+      :record,
+      :action_expected_value_delta_yen,
+      :confidence,
+      :valuation_status
     )
 
     test "paginates twenty items and keeps global rank" do
@@ -19,7 +23,11 @@ module Aicoo
           priority: "improvement",
           business_name: "Business",
           expected_value_yen: 100_000 - index,
-          score: 100_000 - index
+          score: 100_000 - index,
+          record: nil,
+          action_expected_value_delta_yen: 100_000 - index,
+          confidence: 0.8,
+          valuation_status: "positive"
         )
       end
 
@@ -34,6 +42,50 @@ module Aicoo
       assert_equal 5, second_page.items.size
       assert_equal 21, second_page.items.first.rank
       assert_equal "action_candidate:21", second_page.items.first.stable_id
+    end
+
+    test "ranks avoided loss by positive action delta instead of raw negative loss" do
+      recovery = item(
+        stable_id: "daily_run_issue:stuck",
+        delta: 700_000,
+        no_action: -1_000_000,
+        action: -200_000,
+        cost: 100_000,
+        confidence: 0.8
+      )
+      neutral = item(stable_id: "action_candidate:neutral", delta: 0, confidence: 1)
+      negative = item(stable_id: "new_business:negative", delta: -500, confidence: 0.9)
+
+      result = ActionExpectedValueRanking.new(items: [ negative, neutral, recovery ], mode: "revenue").call
+
+      assert_equal [ "daily_run_issue:stuck", "action_candidate:neutral", "new_business:negative" ], result.items.map(&:stable_id)
+      assert_equal 700_000, result.items.first.action_expected_value_delta_yen
+    end
+
+    test "excludes unvalued items from ranking instead of treating them as zero" do
+      unvalued = item(stable_id: "action_candidate:unvalued", delta: 0, confidence: 1, valuation_status: "unvalued")
+      valued = item(stable_id: "action_candidate:valued", delta: 1, confidence: 0.5)
+
+      result = ActionExpectedValueRanking.new(items: [ unvalued, valued ], mode: "revenue").call
+
+      assert_equal [ "action_candidate:valued" ], result.items.map(&:stable_id)
+    end
+
+    private
+
+    def item(stable_id:, delta:, confidence:, valuation_status: nil, no_action: 0, action: nil, cost: 0)
+      Item.new(
+        stable_id:,
+        rank: nil,
+        priority: "improvement",
+        business_name: "Business",
+        expected_value_yen: delta,
+        score: delta,
+        record: nil,
+        action_expected_value_delta_yen: delta,
+        confidence:,
+        valuation_status: valuation_status || (delta.positive? ? "positive" : (delta.negative? ? "negative" : "neutral"))
+      )
     end
   end
 end
