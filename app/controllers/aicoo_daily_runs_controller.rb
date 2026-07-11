@@ -68,7 +68,7 @@ class AicooDailyRunsController < ApplicationController
   end
 
   def filtered_daily_runs
-    scope = AicooDailyRun.recent
+    scope = AicooDailyRun.actual_runs.recent
     scope = scope.where(status: params[:status]) if params[:status].present?
     scope = scope.where(source: params[:source]) if params[:source].present?
     scope = scope.where(target_date: Date.parse(params[:date])) if params[:date].present?

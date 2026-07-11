@@ -26,4 +26,58 @@ namespace :aicoo do
       puts "data_preparation_auto_queued_count=#{run.data_preparation_auto_queued_count}"
     end
   end
+
+  desc "Dry-run cleanup of cron schedule-check skipped Daily Run rows. Use APPLY=1 to delete."
+  task cleanup_daily_run_schedule_checks: :environment do
+    apply = ENV.fetch("APPLY", nil).to_s == "1"
+    reasons = %w[
+      not_due
+      already_success
+      already_running
+      retry_limit_reached
+      disabled
+      lock_not_acquired
+      schedule_check_only
+    ]
+
+    scope = AicooDailyRun.where(status: "skipped")
+    checked_count = scope.count
+    scope = scope.left_outer_joins(:aicoo_daily_run_steps)
+                 .where(aicoo_daily_run_steps: { id: nil })
+    scope = scope.where(reasons.map { "run_log LIKE ?" }.join(" OR "), *reasons.map { |reason| "%#{reason}%" })
+
+    zero_counter_columns = %w[
+      analytics_fetch_count
+      snapshot_count
+      insight_generated_count
+      business_metrics_imported_count
+      proxy_weights_adjusted_count
+      action_candidates_generated_count
+      action_results_evaluated_count
+      score_snapshots_created_count
+      score_snapshot_rank_up_count
+      score_snapshot_rank_down_count
+      score_snapshot_no_adjustment_count
+      data_preparation_candidates_count
+      data_preparation_auto_queued_count
+      calibration_log_count
+      pending_calibration_count
+      updated_calibration_count
+    ] & AicooDailyRun.column_names
+
+    zero_counter_columns.each do |column|
+      scope = scope.where(column => 0)
+    end
+
+    ids = scope.reorder(:id).pluck(:id)
+    deleted_count = apply ? AicooDailyRun.where(id: ids).delete_all : 0
+
+    puts "mode=#{apply ? 'apply' : 'dry_run'}"
+    puts "checked=#{checked_count}"
+    puts "schedule_checks_found=#{ids.size}"
+    puts "deleted=#{deleted_count}"
+    puts "preserved=#{checked_count - ids.size}"
+    puts "failed=0"
+    puts "ids=#{ids.join(',')}" unless apply || ids.empty?
+  end
 end

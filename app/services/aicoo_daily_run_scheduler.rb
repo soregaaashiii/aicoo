@@ -1,3 +1,5 @@
+require "zlib"
+
 class AicooDailyRunScheduler
   STUCK_AFTER = 30.minutes
 
@@ -13,6 +15,8 @@ class AicooDailyRunScheduler
     :ready,
     :reason
   )
+
+  ScheduleDecision = Data.define(:status, :reason, :source, :target_date, :message)
 
   def self.check!(source: "cron")
     new.check!(source:)
@@ -39,7 +43,13 @@ class AicooDailyRunScheduler
     return running_run if running_run
     return skipped("retry_limit_reached", source:) if retry_limit_reached?
 
-    AicooDailyRunner.run!(target_date:, source:)
+    with_scheduler_lock(source:) do
+      return skipped("already_success", source:) if successful_today?
+      return running_run if running_run
+      return skipped("retry_limit_reached", source:) if retry_limit_reached?
+
+      AicooDailyRunner.run!(target_date:, source:)
+    end
   end
 
   def status
@@ -63,15 +73,31 @@ class AicooDailyRunScheduler
   attr_reader :setting
 
   def skipped(reason, source:)
-    AicooDailyRun.create!(
-      target_date:,
-      status: "skipped",
+    decision = ScheduleDecision.new(
+      status: "schedule_check",
+      reason:,
       source:,
-      retry_count: retry_count,
-      started_at: Time.current,
-      finished_at: Time.current,
-      run_log: "Daily Run skipped: #{reason}"
+      target_date:,
+      message: "Daily Run schedule check: #{reason}"
     )
+    Rails.logger.info("[AicooDailyRunScheduler] #{decision.message} source=#{source} target_date=#{target_date}")
+    decision
+  end
+
+  def with_scheduler_lock(source:)
+    return yield unless postgresql_adapter?
+
+    lock_key = Zlib.crc32("aicoo_daily_run:#{target_date}")
+    acquired = ActiveRecord::Base.connection.select_value("SELECT pg_try_advisory_lock(#{lock_key})")
+    return skipped("lock_not_acquired", source:) unless acquired
+
+    yield
+  ensure
+    ActiveRecord::Base.connection.select_value("SELECT pg_advisory_unlock(#{lock_key})") if acquired && lock_key
+  end
+
+  def postgresql_adapter?
+    ActiveRecord::Base.connection.adapter_name.downcase.include?("postgres")
   end
 
   def due?
@@ -103,7 +129,7 @@ class AicooDailyRunScheduler
   end
 
   def latest_run
-    AicooDailyRun.recent.first
+    AicooDailyRun.actual_runs.recent.first
   end
 
   def retry_count

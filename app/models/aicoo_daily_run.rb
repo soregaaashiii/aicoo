@@ -17,6 +17,7 @@ class AicooDailyRun < ApplicationRecord
   has_one :auto_revision_queue_run, dependent: :destroy
 
   scope :recent, -> { order(started_at: :desc, created_at: :desc) }
+  scope :actual_runs, -> { where.not(status: "skipped") }
   scope :running, -> { where(status: "running") }
   scope :successful, -> { where(status: SUCCESS_STATUSES) }
   scope :retryable, -> { where(status: %w[failed partial_failed stuck skipped]) }

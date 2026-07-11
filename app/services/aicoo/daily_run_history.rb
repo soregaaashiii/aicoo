@@ -49,7 +49,7 @@ module Aicoo
     }.freeze
 
     def self.comparison_rows(limit: 10)
-      AicooDailyRun.includes(:aicoo_daily_run_steps).recent.limit(limit).map do |run|
+      AicooDailyRun.actual_runs.includes(:aicoo_daily_run_steps).recent.limit(limit).map do |run|
         new(run).comparison_row
       end
     end

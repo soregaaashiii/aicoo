@@ -64,10 +64,41 @@ class AicooDailyRunSchedulerTest < ActiveSupport::TestCase
     AicooDailyRun.create!(target_date: Date.yesterday, status: "failed", source: "cron")
 
     with_runner_stub(->(**) { raise "should not run" }) do
-      run = AicooDailyRunScheduler.new(setting:).check!(source: "cron")
+      assert_no_difference -> { AicooDailyRun.count } do
+        result = AicooDailyRunScheduler.new(setting:).check!(source: "cron")
 
-      assert_equal "skipped", run.status
-      assert_match "retry_limit_reached", run.run_log
+        assert_equal "schedule_check", result.status
+        assert_equal "retry_limit_reached", result.reason
+      end
+    end
+  end
+
+  test "does not create daily run row when cron is not due" do
+    setting = AicooDailyRunSetting.create!(enabled: true, run_hour: 23, run_minute: 59)
+    setting.define_singleton_method(:scheduled_time_for) { |_date = Date.current| 1.hour.from_now }
+
+    with_runner_stub(->(**) { raise "should not run" }) do
+      assert_no_difference -> { AicooDailyRun.count } do
+        result = AicooDailyRunScheduler.new(setting:).check!(source: "cron")
+
+        assert_equal "schedule_check", result.status
+        assert_equal "not_due", result.reason
+      end
+    end
+  end
+
+  test "does not create daily run row when already successful today" do
+    setting = AicooDailyRunSetting.create!(run_hour: 0, run_minute: 0)
+    make_due!(setting)
+    AicooDailyRun.create!(target_date: Date.yesterday, status: "success", source: "cron")
+
+    with_runner_stub(->(**) { raise "should not run" }) do
+      assert_no_difference -> { AicooDailyRun.count } do
+        result = AicooDailyRunScheduler.new(setting:).check!(source: "cron")
+
+        assert_equal "schedule_check", result.status
+        assert_equal "already_success", result.reason
+      end
     end
   end
 

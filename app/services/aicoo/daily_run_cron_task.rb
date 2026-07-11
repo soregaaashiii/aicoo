@@ -26,10 +26,17 @@ module Aicoo
       end
 
       Rails.logger.info("AICOO Daily Run cron started.")
-      daily_run = scheduler.check!(source: "cron")
-      message = "AICOO Daily Run cron finished: daily_run_id=#{daily_run.id} status=#{daily_run.status} target_date=#{daily_run.target_date}"
+      result = scheduler.check!(source: "cron")
+      daily_run = result if result.is_a?(AicooDailyRun)
+      if daily_run
+        message = "AICOO Daily Run cron finished: daily_run_id=#{daily_run.id} status=#{daily_run.status} target_date=#{daily_run.target_date}"
+        status = daily_run.status
+      else
+        status = result.status
+        message = "AICOO Daily Run cron schedule check: reason=#{result.reason} target_date=#{result.target_date}"
+      end
       Rails.logger.info(message)
-      Result.new(status: daily_run.status, message:, daily_run:)
+      Result.new(status:, message:, daily_run:)
     rescue StandardError => e
       Rails.logger.error("AICOO Daily Run cron failed: #{e.class}: #{e.message}")
       record_failure!(error: e, started_at:)
