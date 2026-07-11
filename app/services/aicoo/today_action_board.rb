@@ -163,7 +163,6 @@ module Aicoo
         .active_for_ranking
         .includes(:business, :auto_revision_tasks)
         .order(updated_at: :desc)
-        .limit(1_000)
         .filter_map { |candidate| build_item(candidate) }
     end
 

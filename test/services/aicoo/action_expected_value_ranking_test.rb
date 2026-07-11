@@ -16,7 +16,7 @@ module Aicoo
     )
 
     test "paginates twenty items and keeps global rank" do
-      items = 25.times.map do |index|
+      items = 45.times.map do |index|
         Item.new(
           stable_id: "action_candidate:#{index + 1}",
           rank: nil,
@@ -33,15 +33,19 @@ module Aicoo
 
       first_page = ActionExpectedValueRanking.new(items:, mode: "revenue", page: 1).call
       second_page = ActionExpectedValueRanking.new(items:, mode: "revenue", page: 2).call
+      third_page = ActionExpectedValueRanking.new(items:, mode: "revenue", page: 3).call
 
-      assert_equal 25, first_page.total_count
+      assert_equal 45, first_page.total_count
       assert_equal 20, first_page.items.size
-      assert_equal 2, first_page.total_pages
+      assert_equal 3, first_page.total_pages
       assert_equal 1, first_page.items.first.rank
       assert_equal "action_candidate:1", first_page.items.first.stable_id
-      assert_equal 5, second_page.items.size
+      assert_equal 20, second_page.items.size
       assert_equal 21, second_page.items.first.rank
       assert_equal "action_candidate:21", second_page.items.first.stable_id
+      assert_equal 5, third_page.items.size
+      assert_equal 41, third_page.items.first.rank
+      assert_equal "action_candidate:41", third_page.items.first.stable_id
     end
 
     test "ranks avoided loss by positive action delta instead of raw negative loss" do

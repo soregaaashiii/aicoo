@@ -372,7 +372,7 @@ module Owner
     end
 
     test "shows twenty Today actions per page and keeps global rank on page two" do
-      candidates = 25.times.map do |index|
+      candidates = 45.times.map do |index|
         create_today_candidate!(
           title: "梅田の未確認店舗を#{index + 1}件確認済みにする",
           immediate_value_yen: 100_000 - index,
@@ -390,14 +390,28 @@ module Owner
       assert_includes response.body, "次ページ"
       assert_equal "action_candidate:#{candidates.first.id}", today_item_ids(response.body).first
       assert_not_includes response.body, "梅田の未確認店舗を21件確認済みにする"
+      assert_includes response.body, "全45件中 1〜20件を表示"
+      assert_includes response.body, "1 / 3ページ"
 
       get owner_focus_url(today_actions_page: 2)
 
       assert_response :success
-      assert_equal 5, today_item_ids(response.body).size
+      assert_equal 20, today_item_ids(response.body).size
       assert_equal "action_candidate:#{candidates[20].id}", today_item_ids(response.body).first
       assert_includes response.body, "<td class=\"number\">21</td>"
       assert_includes response.body, "前ページ"
+      assert_includes response.body, "全45件中 21〜40件を表示"
+      assert_includes response.body, "2 / 3ページ"
+
+      get owner_focus_url(today_actions_page: 3)
+
+      assert_response :success
+      assert_equal 5, today_item_ids(response.body).size
+      assert_equal "action_candidate:#{candidates[40].id}", today_item_ids(response.body).first
+      assert_includes response.body, "<td class=\"number\">41</td>"
+      assert_includes response.body, "全45件中 41〜45件を表示"
+      assert_includes response.body, "3 / 3ページ"
+      assert_includes response.body, "<span class=\"button secondary disabled\">次ページ</span>"
     end
 
     test "Today pagination uses today_actions_page without changing home_actions_page" do
