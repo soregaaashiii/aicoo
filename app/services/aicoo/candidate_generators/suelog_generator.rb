@@ -136,7 +136,7 @@ module Aicoo
       end
 
       def create_article_candidates(skipped:)
-        articles = Suelog::Article.published.limit(500).to_a
+        articles = ::Suelog::Article.published.limit(500).to_a
         gsc_rows.first(ARTICLE_LIMIT).filter_map do |row|
           query = row.fetch(:query).to_s.squish
           next if query.blank? || row.fetch(:impressions).to_i < MIN_GSC_IMPRESSIONS
@@ -266,7 +266,7 @@ module Aicoo
       end
 
       def verification_candidate_shops
-        Suelog::Shop.approved
+        ::Suelog::Shop.approved
           .verification_needed
           .select(:id, :name, :area, :genre, :phone, :smoking_area, :smoking_type, :smoking_unverified, :last_confirmed_on, :on_hold, :hold_reason, :phone_check_on_hold, :updated_at)
           .order(Arel.sql("last_confirmed_on ASC NULLS FIRST, updated_at DESC"))
@@ -277,7 +277,7 @@ module Aicoo
       def click_counts_for(shop_ids)
         return {} if shop_ids.blank?
 
-        Suelog::ShopClick
+        ::Suelog::ShopClick
           .where(shop_id: shop_ids, created_at: CLICK_LOOKBACK.ago..Time.current)
           .group(:shop_id)
           .count
@@ -307,7 +307,7 @@ module Aicoo
       def priority_reason_for(shop, click_count)
         reasons = []
         reasons << "直近クリックが#{click_count}件あります" if click_count.positive?
-        reasons << "喫煙区分が不明です" if shop.smoking_area == Suelog::Shop::UNKNOWN_SMOKING_AREA || shop.smoking_type == Suelog::Shop::UNKNOWN_SMOKING_TYPE
+        reasons << "喫煙区分が不明です" if shop.smoking_area == ::Suelog::Shop::UNKNOWN_SMOKING_AREA || shop.smoking_type == ::Suelog::Shop::UNKNOWN_SMOKING_TYPE
         reasons << "喫煙情報が未確認です" if shop.smoking_unverified
         reasons << "最終確認が古い/未設定です" if shop.stale_verification?
         reasons << "保留理由があります: #{shop.hold_reason}" if shop.hold_reason.present?
@@ -438,7 +438,7 @@ module Aicoo
 
       def candidate_shops_for(query)
         terms = words_for(query)
-        scope = Suelog::Shop.approved.select(:id, :name, :area, :genre)
+        scope = ::Suelog::Shop.approved.select(:id, :name, :area, :genre)
         if terms.any?
           conditions = terms.map.with_index { |_, index| "name ILIKE :q#{index} OR area ILIKE :q#{index} OR genre ILIKE :q#{index}" }.join(" OR ")
           binds = terms.each_with_index.to_h { |term, index| [ :"q#{index}", "%#{term}%" ] }
@@ -449,7 +449,7 @@ module Aicoo
 
       def internal_link_candidates_for(query)
         words = words_for(query)
-        Suelog::Article.published.limit(200).select { |article| words.any? { |word| article.searchable_text.include?(word.downcase) } }
+        ::Suelog::Article.published.limit(200).select { |article| words.any? { |word| article.searchable_text.include?(word.downcase) } }
           .first(5)
           .map { |article| { "article_id" => article.id, "title" => article.title, "path" => article.public_path } }
       end

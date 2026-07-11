@@ -51,13 +51,13 @@ module Aicoo
           status: "success",
           code: "connected",
           message: "connected",
-          shops_count: Suelog::Shop.limit(1_000_000_000).count,
-          articles_count: Suelog::Article.limit(1_000_000_000).count,
-          shop_clicks_count: Suelog::ShopClick.where(created_at: 30.days.ago..Time.current).count,
+          shops_count: ::Suelog::Shop.limit(1_000_000_000).count,
+          articles_count: ::Suelog::Article.limit(1_000_000_000).count,
+          shop_clicks_count: ::Suelog::ShopClick.where(created_at: 30.days.ago..Time.current).count,
           last_checked_at: Time.current,
-          last_shop_updated_at: Suelog::Shop.maximum(:updated_at),
-          last_article_updated_at: Suelog::Article.maximum(:updated_at),
-          last_shop_click_at: Suelog::ShopClick.maximum(:created_at),
+          last_shop_updated_at: ::Suelog::Shop.maximum(:updated_at),
+          last_article_updated_at: ::Suelog::Article.maximum(:updated_at),
+          last_shop_click_at: ::Suelog::ShopClick.maximum(:created_at),
           error_class: nil
         )
       rescue SuelogRecord::MissingDatabaseUrl
