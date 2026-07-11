@@ -93,6 +93,7 @@ production:
     url: <%= ENV["SUELOG_DATABASE_URL"] %>
     pool: <%= ENV.fetch("RAILS_MAX_THREADS", 5) %>
     timeout: 5000
+    database_tasks: false
   cache:
     <<: *primary_production
     migrations_paths: db/cache_migrate
