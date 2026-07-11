@@ -67,7 +67,6 @@ module Aicoo
           }
         )
       end
-      candidates.concat(generate_new_business_candidates!)
       candidates
     end
 

@@ -61,6 +61,19 @@ module Aicoo
         assert_equal "success", keyword.metadata_json["latest_serp_status"]
       end
 
+      test "fallback queries use market themes instead of business name comparison" do
+        business = businesses(:suelog)
+        business.business_serp_keywords.delete_all
+        business.serp_queries.delete_all
+        business.business_data_source_settings.find_by(source_key: "serp")&.destroy!
+
+        queries = ScanRunner.queries_for_business(business, max_queries_per_business: 3)
+
+        assert queries.present?
+        assert queries.none? { |query| query.include?(business.name) }
+        assert queries.none? { |query| query == "#{business.name} 比較" }
+      end
+
       test "uses serp queries before keyword records and updates query counters" do
         business = businesses(:suelog)
         business.update!(status: "launched", serp_enabled: true)

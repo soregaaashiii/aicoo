@@ -59,13 +59,67 @@ module Aicoo
         end
       end
 
+      test "serp run discovers new business candidate and auto adds exploring business" do
+        business = businesses(:cards)
+        business.update!(status: "launched", serp_enabled: true)
+        serp_query = business.serp_queries.create!(
+          query: "請求 管理 個人事業主 自動化 #{SecureRandom.hex(4)}",
+          category: "new_business",
+          status: "active",
+          enabled: true,
+          priority: 1,
+          daily_limit: 5
+        )
+
+        with_adapter_result(query: serp_query.query) do
+          assert_difference("Business.real_businesses.count", 1) do
+            run = Aicoo::Serp::RunExecutor.new(executed_by: "manual", force: true, serp_query:).call
+
+            discovery = run.metadata.to_h["new_business_discovery"].to_h
+            assert_equal 1, discovery["new_business_candidate_count"]
+            assert_equal 0, discovery["failed_count"]
+
+            candidate = ActionCandidate.find(discovery.fetch("candidate_ids").first)
+            assert_equal "serp", candidate.generation_source
+            assert_equal "new_business", candidate.department
+            assert_equal "new_business", candidate.action_type
+            assert_equal "new_business", candidate.metadata["candidate_kind"]
+            assert_equal serp_query.query, candidate.metadata["source_query"]
+            assert_equal "done", candidate.status
+            assert candidate.business
+            assert_equal "exploring", candidate.business.status
+            assert Business.real_businesses.where(id: candidate.business_id).exists?
+          end
+        end
+      end
+
+      test "existing business serp improvement does not create duplicate business" do
+        business = businesses(:suelog)
+        business.update!(status: "launched", serp_enabled: true)
+        serp_query = business.serp_queries.create!(
+          query: "大阪 喫煙 居酒屋 #{SecureRandom.hex(4)}",
+          category: "existing_business",
+          status: "active",
+          enabled: true,
+          priority: 1,
+          daily_limit: 5
+        )
+
+        with_adapter_result(query: serp_query.query) do
+          assert_no_difference("Business.real_businesses.count") do
+            run = Aicoo::Serp::RunExecutor.new(executed_by: "manual", force: true, serp_query:).call
+            assert_equal 0, run.metadata.to_h.dig("new_business_discovery", "new_business_candidate_count").to_i
+          end
+        end
+      end
+
       private
 
-      def with_adapter_result
+      def with_adapter_result(query: "大阪 喫煙")
         payload = {
           provider: "serper",
           type: "google_search",
-          query: "大阪 喫煙",
+          query:,
           location: "Japan",
           language: "ja",
           fetched_at: Time.current.iso8601,

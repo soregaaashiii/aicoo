@@ -37,7 +37,7 @@ class ActionCandidate < ApplicationRecord
   GENERATION_SOURCES = %w[manual seed ai_business ai_cross_business ai_reevaluation ai_insight learning_report opportunity_discovery business_analyzer suelog_db serp traffic_channel integrated_decision].freeze
   DEPARTMENTS = %w[general revenue lab new_business].freeze
 
-  belongs_to :business
+  belongs_to :business, optional: true
   has_one :action_result, dependent: :destroy
   has_one :action_execution, dependent: :destroy
   has_many :action_execution_logs, dependent: :destroy
@@ -186,6 +186,13 @@ class ActionCandidate < ApplicationRecord
     self.expected_revenue_value_yen = calculate_expected_revenue_value
     self.expected_learning_value_yen = LearningValueCalculator.new(self).value_yen
     self.expected_total_value_yen = expected_revenue_value_yen.to_i + expected_learning_value_yen.to_i
+    if business.blank?
+      self.final_expected_value_yen = expected_total_value_yen.to_i
+      self.final_confidence_score = confidence_score.to_i
+      self.metadata = metadata.to_h.merge("business_pending_publication" => true)
+      return
+    end
+
     apply_meta_evaluation
     apply_evidence
     apply_action_expansion
@@ -378,6 +385,7 @@ class ActionCandidate < ApplicationRecord
 
   def sync_serp_query_counters
     return unless generation_source == "serp"
+    return unless business
 
     source_query = metadata.to_h["source_query"].presence || metadata.to_h["serp_keyword"].presence
     return if source_query.blank?

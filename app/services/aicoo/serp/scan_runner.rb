@@ -39,16 +39,28 @@ module Aicoo
                                       .split(/[\n,、]/)
                                       .map(&:strip)
                                       .compact_blank
-        fallback_keywords = [
-          business.name,
-          [ business.name, business.description.to_s.split(/[。.\n]/).first ].compact_blank.join(" "),
-          [ business.name, "比較" ].join(" ")
-        ]
+        fallback_keywords = market_exploration_queries_for(business)
 
         (configured_keywords.presence || fallback_keywords)
           .compact_blank
           .uniq
           .first(max_queries_per_business)
+      end
+
+      def self.market_exploration_queries_for(business)
+        theme = [
+          business.respond_to?(:category) ? business.category : nil,
+          business.respond_to?(:business_type) ? business.business_type.presence&.humanize : nil
+        ].compact_blank.first
+
+        seed = theme.presence || "個人事業主 業務"
+        [
+          "#{seed} 自動化",
+          "#{seed} 代行",
+          "#{seed} 料金 比較",
+          "#{seed} 管理 テンプレート",
+          "#{seed} 困る 面倒"
+        ]
       end
 
       def self.query_plans_for_business(business, max_queries_per_business: 3, force: false)

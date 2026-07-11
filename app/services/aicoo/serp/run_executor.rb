@@ -39,11 +39,15 @@ module Aicoo
         ).call
         run_priority_learning!
         serp_run.finish_from_result!(result)
-        candidates = run_integrated_decision!(serp_run)
+        discovery_result = run_new_business_discovery!(serp_run)
+        existing_candidates = run_integrated_decision!(serp_run)
+        candidates = discovery_result.candidates + existing_candidates
         publication_result = publish_new_business_candidates!(serp_run, candidates)
         serp_run.update!(
           candidate_count: candidates.size,
           metadata: serp_run.metadata.to_h.merge(
+            "new_business_discovery" => discovery_metadata(discovery_result),
+            "existing_business_improvement_count" => existing_candidates.size,
             "auto_new_business_publication" => publication_metadata(publication_result)
           )
         ) if candidates
@@ -94,6 +98,21 @@ module Aicoo
         Aicoo::IntegratedDecisionEngine.new(serp_run:).generate_unified_candidates!
       rescue StandardError => e
         Rails.logger.warn("[SERP] integrated decision skipped serp_run_id=#{serp_run.id} #{e.class}: #{e.message}")
+        []
+      end
+
+      def run_new_business_discovery!(serp_run)
+        Aicoo::Serp::NewBusinessDiscoveryGenerator.new(serp_run:).call
+      rescue StandardError => e
+        Rails.logger.warn("[SERP] new business discovery skipped serp_run_id=#{serp_run.id} #{e.class}: #{e.message}")
+        Aicoo::Serp::NewBusinessDiscoveryGenerator::Result.new(
+          candidates: [],
+          created_count: 0,
+          duplicate_count: 0,
+          failed_count: 1,
+          existing_improvement_count: 0,
+          errors: [ { "error_class" => e.class.name, "error_message" => e.message } ]
+        )
       end
 
       def publish_new_business_candidates!(serp_run, candidates)
@@ -117,6 +136,19 @@ module Aicoo
           "failed_count" => result.failed_count,
           "business_ids" => result.business_ids,
           "landing_page_ids" => result.landing_page_ids,
+          "errors" => result.errors.first(5)
+        }
+      end
+
+      def discovery_metadata(result)
+        {
+          "status" => result.failed_count.to_i.positive? ? "partial_failed" : "success",
+          "new_business_candidate_count" => result.created_count,
+          "duplicate_count" => result.duplicate_count,
+          "failed_count" => result.failed_count,
+          "existing_business_improvement_count" => result.existing_improvement_count,
+          "candidate_ids" => result.candidates.map(&:id),
+          "business_ids" => result.candidates.filter_map(&:business_id),
           "errors" => result.errors.first(5)
         }
       end

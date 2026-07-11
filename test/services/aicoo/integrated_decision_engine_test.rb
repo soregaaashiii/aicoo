@@ -2,7 +2,7 @@ require "test_helper"
 
 module Aicoo
   class IntegratedDecisionEngineTest < ActiveSupport::TestCase
-    test "generates new business candidate from new business serp query" do
+    test "does not generate new business candidate because serp discovery owns that flow" do
       business = businesses(:suelog)
       business.update!(business_type: "exploration")
       serp_query = business.serp_queries.create!(
@@ -35,12 +35,7 @@ module Aicoo
 
       candidates = Aicoo::IntegratedDecisionEngine.new(serp_run:, daily_run: nil).generate_unified_candidates!
 
-      new_business = candidates.find { |candidate| candidate.metadata["candidate_kind"] == "new_business" }
-      assert new_business
-      assert_equal "integrated_decision", new_business.generation_source
-      assert_equal "new_business", new_business.department
-      assert_equal "build_lp", new_business.action_type
-      assert_equal serp_query.query, new_business.metadata["source_query"]
+      assert_empty candidates.select { |candidate| candidate.metadata["candidate_kind"] == "new_business" }
     end
 
     test "does not generate suelog candidate from unrelated branded serp results" do
