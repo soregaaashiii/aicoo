@@ -11,15 +11,21 @@ class SuelogRecord < ActiveRecord::Base
     ENV["SUELOG_DATABASE_URL"].present?
   end
 
-  def self.ensure_connection!
+  def self.configure_connection!
     raise MissingDatabaseUrl, "SUELOG_DATABASE_URL is not configured" unless configured?
 
-    connect_to_suelog! unless connected_to_suelog?
+    establish_connection(:suelog) unless suelog_connection_pool?
+  end
+
+  def self.ensure_connection!
+    configure_connection!
     prepare_read_connection!
   end
 
-  def self.connected_to_suelog?
-    @suelog_database_url == ENV["SUELOG_DATABASE_URL"] && @suelog_database_url.present?
+  def self.suelog_connection_pool?
+    connection_pool.db_config.name == "suelog"
+  rescue ActiveRecord::ConnectionNotEstablished, ActiveRecord::AdapterNotSpecified
+    false
   end
 
   def self.prepare_read_connection!
@@ -31,16 +37,7 @@ class SuelogRecord < ActiveRecord::Base
     nil
   end
 
-  def self.connection
-    raise MissingDatabaseUrl, "SUELOG_DATABASE_URL is not configured" unless configured?
-    connect_to_suelog! unless connected_to_suelog?
-    super
-  end
-
-  def self.connect_to_suelog!
-    establish_connection(ENV.fetch("SUELOG_DATABASE_URL"))
-    @suelog_database_url = ENV.fetch("SUELOG_DATABASE_URL")
-  end
+  configure_connection! if configured?
 
   def readonly?
     true
