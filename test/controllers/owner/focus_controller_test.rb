@@ -7,6 +7,7 @@ module Owner
       AutoRevisionTask.delete_all
       AicooDailyRunStep.delete_all
       AicooDailyRun.delete_all
+      Business.where(created_by_aicoo: true).update_all(resource_status: "archived")
     end
 
     test "shows Today as ranking list without hero card" do
@@ -144,10 +145,35 @@ module Owner
       get owner_focus_url
 
       assert_response :success
-      assert_includes response.body, "Daily Run 2026-07-10 が business_metrics_import で停止"
+      assert_includes response.body, "Daily Runが business_metrics_import で継続停止"
       assert_includes response.body, "同一障害 3件"
-      assert_equal 1, response.body.scan("Daily Run 2026-07-10 が business_metrics_import で停止").size
+      assert_equal 1, response.body.scan("Daily Runが business_metrics_import で継続停止").size
       assert_includes response.body, improvement.title
+    end
+
+    test "deduplicates stuck daily runs across target dates by root cause" do
+      7.times do |index|
+        run = AicooDailyRun.create!(
+          target_date: Date.new(2026, 7, 10) - index.days,
+          status: "stuck",
+          source: "cron",
+          started_at: (index + 1).hours.ago,
+          error_message: "business_metrics_import timeout"
+        )
+        run.aicoo_daily_run_steps.create!(
+          step_name: "business_metrics_import",
+          status: "running",
+          started_at: run.started_at,
+          error_message: "business_metrics_import timeout"
+        )
+      end
+
+      get owner_focus_url
+
+      assert_response :success
+      assert_equal 1, response.body.scan("Daily Runが business_metrics_import で継続停止").size
+      assert_includes response.body, "影響日数 7日"
+      assert_includes response.body, "同一障害 7件"
     end
 
     test "excludes action candidates with external target urls" do
@@ -172,6 +198,113 @@ module Owner
       assert_response :success
       assert_not_includes response.body, "https://it-trend.jp/log_management/article/84-0008"
       assert_equal "external_target_url", external.reload.metadata.fetch("today_exclusion_reason")
+    end
+
+    test "excludes tabelog target url and broken article path" do
+      tabelog = create_today_candidate!(
+        title: "食べログを改善する",
+        metadata: today_metadata(
+          title: "食べログを改善する",
+          target: "https://s.tabelog.com/rstLst/cond13-00-01/"
+        )
+      )
+      broken = create_today_candidate!(
+        title: "壊れた記事URLを改善する",
+        metadata: today_metadata(
+          title: "壊れた記事URLを改善する",
+          target: "/articles/-smoking"
+        )
+      )
+
+      get owner_focus_url
+
+      assert_response :success
+      assert_not_includes response.body, "https://s.tabelog.com/rstLst/cond13-00-01/"
+      assert_not_includes response.body, "/articles/-smoking"
+      assert_equal "external_target_url", tabelog.reload.metadata.fetch("today_exclusion_reason")
+      assert_equal "invalid_target_path", broken.reload.metadata.fetch("today_exclusion_reason")
+    end
+
+    test "excludes unrealistic expected profit from Today" do
+      candidate = create_today_candidate!(
+        title: "SEOタイトルを1件修正する",
+        immediate_value_yen: 14_468_211,
+        success_probability: 1,
+        action_type: "seo_improvement",
+        metadata: today_metadata(title: "SEOタイトルを1件修正する").merge(
+          "value_model" => {
+            "raw_expected_value_yen" => 14_468_211,
+            "adjusted_expected_value_yen" => 14_468_211,
+            "confidence" => 0.2,
+            "evidence_level" => "low",
+            "outlier_ratio" => 80,
+            "valuation_review_required" => true
+          }
+        )
+      )
+
+      get owner_focus_url
+
+      assert_response :success
+      assert_not_includes response.body, "SEOタイトルを1件修正する"
+      assert_equal "unrealistic_expected_profit", candidate.reload.metadata.fetch("today_exclusion_reason")
+    end
+
+    test "groups similar new businesses and hides non actionable exploring businesses" do
+      Business.create!(
+        name: "無料テンプレート比較の検証事業",
+        status: "exploring",
+        business_type: "exploration",
+        created_by_aicoo: true,
+        metadata: {
+          "source_query" => "無料テンプレート 比較",
+          "expected_value_yen" => 50_000,
+          "success_probability" => 0.4,
+          "validation_plan" => "LPで検証",
+          "owner_next_step" => "代表案を選ぶ"
+        }
+      )
+      Business.create!(
+        name: "無料テンプレート利用者を集める検証事業",
+        status: "exploring",
+        business_type: "exploration",
+        created_by_aicoo: true,
+        metadata: {
+          "source_query" => "無料テンプレート 利用者を集める",
+          "expected_value_yen" => 45_000,
+          "success_probability" => 0.35,
+          "validation_plan" => "LPで検証",
+          "owner_next_step" => "代表案を選ぶ"
+        }
+      )
+      Business.create!(
+        name: "次の作業がない検証事業",
+        status: "exploring",
+        business_type: "exploration",
+        created_by_aicoo: true
+      )
+
+      get owner_focus_url
+
+      assert_response :success
+      assert_includes response.body, "無料テンプレート関連の検証事業を整理する"
+      assert_includes response.body, "類似候補 2件"
+      assert_not_includes response.body, "次の作業がない検証事業"
+      assert_includes response.body, "代表Business"
+    end
+
+    test "limits Today to fifteen items" do
+      20.times do |index|
+        create_today_candidate!(
+          title: "梅田の未確認店舗を#{index + 1}件確認済みにする",
+          immediate_value_yen: 100_000 - index
+        )
+      end
+
+      get owner_focus_url
+
+      assert_response :success
+      assert_operator response.body.scan("data-today-item-id=").size, :<=, 15
     end
 
     test "does not create fallback Today item for data backed business with no visible candidate" do
@@ -276,6 +409,22 @@ module Owner
           "execution_units" => [ { "label" => title, "target_amount" => 20 } ]
         },
         "execution_units" => [ { "label" => title, "target_amount" => 20 } ]
+      }
+    end
+
+    def today_metadata(title:, target: "梅田 / 未確認店舗")
+      {
+        "execution_mode" => "manual_operation",
+        "concrete_task" => title,
+        "action_plan" => {
+          "summary" => title,
+          "target" => target,
+          "target_url_or_identifier" => target,
+          "owner_next_step" => "対象を開く",
+          "execution_steps" => [ "対象を開く" ],
+          "execution_units" => [ { "label" => title } ]
+        },
+        "execution_units" => [ { "label" => title } ]
       }
     end
 

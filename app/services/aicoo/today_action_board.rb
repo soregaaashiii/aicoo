@@ -7,6 +7,13 @@ module Aicoo
     APPROVAL_REQUIRED_STATUSES = %w[draft waiting_approval approved].freeze
     CODEX_QUEUE_STATUSES = %w[queued ready_for_codex sent_to_codex running].freeze
     OWNER_EXECUTION_MODES = %w[manual_operation content_creation data_operation owner_decision].freeze
+    MAX_TOTAL_ITEMS = 15
+    MAX_DAILY_RUN_ISSUES = 3
+    MAX_APPROVAL_ITEMS = 3
+    MAX_IMPROVEMENT_ITEMS = 5
+    MAX_NEW_BUSINESS_ITEMS = 3
+    HIGH_VALUE_REVIEW_THRESHOLD_YEN = 1_000_000
+    ARTICLE_PATH_PATTERN = %r{\A/articles/([^/?#]+)}.freeze
     ABSTRACT_PATTERNS = [
       /検索需要があるテーマ/,
       /CVを改善/,
@@ -56,18 +63,17 @@ module Aicoo
       :score
     )
 
-    def initialize(mode: nil, limit: 200)
+    def initialize(mode: nil, limit: MAX_TOTAL_ITEMS)
       @mode = MODES.include?(mode.to_s) ? mode.to_s : "revenue"
-      @limit = limit
+      limit_value = limit.respond_to?(:to_i) ? limit.to_i : MAX_TOTAL_ITEMS
+      @limit = [ limit_value.positive? ? limit_value : MAX_TOTAL_ITEMS, MAX_TOTAL_ITEMS ].min
     end
 
     def call
       items = candidate_items
-      ranked_items = items
+      ranked_items = select_today_items(items)
         .sort_by { |item| [ priority_rank(item), -item.score.to_d, -item.expected_value_yen.to_i, item.business_name.to_s ] }
         .first(limit)
-
-      ranked_items = include_missing_data_backed_businesses(items, ranked_items)
         .map.with_index(1) { |item, index| item.with(rank: index) }
 
       mark_filtered_items!(items, ranked_items)
@@ -94,6 +100,16 @@ module Aicoo
         new_business_items
     end
 
+    def select_today_items(items)
+      sorted = items.sort_by { |item| [ priority_rank(item), -item.score.to_d, -item.expected_value_yen.to_i, item.business_name.to_s ] }
+      daily_run_items = sorted.select { |item| item.source_type == "daily_run_issue" }.first(MAX_DAILY_RUN_ISSUES)
+      approval_items = sorted.select { |item| item.approval_required }.first(MAX_APPROVAL_ITEMS)
+      improvement_items = sorted.select { |item| item.source_type.in?(%w[action_candidate auto_revision_task]) && !item.approval_required }.first(MAX_IMPROVEMENT_ITEMS)
+      new_business_items = sorted.select { |item| item.source_type == "new_business" }.first(MAX_NEW_BUSINESS_ITEMS)
+
+      (daily_run_items + approval_items + improvement_items + new_business_items).uniq(&:stable_id).first(limit)
+    end
+
     def action_candidate_items
       ActionCandidate
         .active_for_ranking
@@ -111,7 +127,7 @@ module Aicoo
 
       exclusion_reason = today_exclusion_reason(candidate, execution_mode, approval_task)
       if exclusion_reason
-        mark_today_exclusion!(candidate, exclusion_reason)
+        mark_today_exclusion!(candidate, exclusion_reason, detected_target_url: detected_target_url_for(candidate))
         return
       end
 
@@ -202,6 +218,7 @@ module Aicoo
       step_name = step&.step_name.presence || "unknown_step"
       reason = daily_run_reason(latest, step)
       count = runs.size
+      impact_days = sorted.map(&:target_date).compact.uniq.size
       status_label = latest.status == "partial_failed" ? "一部失敗" : "停止"
 
       Item.new(
@@ -211,8 +228,8 @@ module Aicoo
         record: latest,
         priority: latest.status == "partial_failed" ? "high" : "critical",
         business_name: "AICOO",
-        concrete_task: "Daily Run #{latest.target_date} が #{step_name} で#{status_label}",
-        target: "最新Run ##{latest.id} / 最古Run ##{oldest.id}",
+        concrete_task: "Daily Runが #{step_name} で継続#{status_label}",
+        target: "影響日数 #{impact_days}日 / 該当Run #{count}件 / 最新Run ##{latest.id}",
         expected_value_yen: 0,
         expected_hours: 0.25,
         expected_hourly_value_yen: 0,
@@ -222,12 +239,12 @@ module Aicoo
         data_sources_label: "Daily Run",
         approval_required: false,
         codex_target: false,
-        owner_next_step: "最新RunのStep Breakdownを確認する",
+        owner_next_step: "#{step_name}を修復する",
         detail_url: aicoo_daily_run_path(latest, anchor: "step-breakdown"),
         reason:,
-        stopped_reason: "同一障害 #{count}件" + (count > 1 ? " / 最新Run ##{latest.id} / 最古Run ##{oldest.id}" : ""),
+        stopped_reason: "影響日数 #{impact_days}日 / 同一障害 #{count}件 / 最新Run ##{latest.id} / 最古Run ##{oldest.id}",
         group_count: count,
-        group_summary: count > 1 ? "同一障害 #{count}件" : nil,
+        group_summary: "影響日数 #{impact_days}日 / 同一障害 #{count}件",
         revenue_score: 0,
         learning_score: 0,
         balanced_score: 0,
@@ -236,17 +253,22 @@ module Aicoo
     end
 
     def new_business_items
-      Business
+      businesses = Business
         .real_businesses
         .where(status: %w[discovered draft exploring])
         .where(resource_status: %w[active watch])
         .where("created_by_aicoo = ? OR business_type = ?", true, "exploration")
         .order(created_at: :desc)
-        .limit(20)
-        .map { |business| build_new_business_item(business) }
+        .limit(100)
+        .select { |business| new_business_today_actionable?(business) }
+
+      businesses.group_by { |business| new_business_group_key(business) }
+                .values
+                .map { |group| build_new_business_item(group) }
     end
 
-    def build_new_business_item(business)
+    def build_new_business_item(group)
+      business = group.max_by { |item| new_business_score(item) }
       expected_value_yen = business.metadata.to_h["expected_value_yen"].to_i
       expected_hours = positive_decimal(business.metadata.to_h["expected_hours"].presence || 2)
       success_probability = decimal_value(business.metadata.to_h["success_probability"], fallback: 0.3)
@@ -254,15 +276,18 @@ module Aicoo
       learning_score = numeric_metadata(business.metadata.to_h, "learning_value")
       balanced_score = (revenue_score * 0.6) + (learning_score * 0.4)
 
+      group_count = group.size
+      title = group_count > 1 ? "#{new_business_group_label(business)}関連の検証事業を整理する" : "#{business.name} の検証を進める"
+
       Item.new(
-        stable_id: "business:#{business.id}",
+        stable_id: "new_business_group:#{new_business_group_key(business)}",
         rank: nil,
         source_type: "new_business",
         record: business,
         priority: "new_business",
         business_name: business.name,
-        concrete_task: "#{business.name} の検証を進める",
-        target: business.name,
+        concrete_task: title,
+        target: group_count > 1 ? "代表Business ##{business.id} / 類似候補 #{group_count}件" : business.name,
         expected_value_yen:,
         expected_hours: expected_hours.to_f,
         expected_hourly_value_yen: expected_hours.positive? ? (expected_value_yen.to_d / expected_hours).round.to_i : 0,
@@ -272,12 +297,12 @@ module Aicoo
         data_sources_label: "SERP / 新規事業",
         approval_required: false,
         codex_target: false,
-        owner_next_step: "LP・計測・初期検証を確認する",
+        owner_next_step: business.metadata.to_h["owner_next_step"].presence || business.metadata.to_h["next_action"].presence || "代表案を確認し、残りを統合またはアーカイブする",
         detail_url: owner_new_business_pipeline_path(selected: "business:#{business.id}"),
         reason: business.metadata.to_h["reason"].presence || "探索中の新規事業です。",
         stopped_reason: business.launched? ? nil : "検証前状態です",
-        group_count: 1,
-        group_summary: nil,
+        group_count: group_count,
+        group_summary: group_count > 1 ? "類似候補 #{group_count}件" : nil,
         revenue_score: revenue_score.round(2),
         learning_score: learning_score.round(2),
         balanced_score: balanced_score.round(2),
@@ -293,6 +318,8 @@ module Aicoo
       return "abstract_concrete_task" unless concrete_text_allowed?(candidate)
       return "external_data_source_disallowed" if external_data_source_used_for_existing_business?(candidate)
       return "external_target_url" if external_target_url_for_existing_business?(candidate)
+      return invalid_target_path_reason(candidate) if invalid_target_path_reason(candidate).present?
+      return "unrealistic_expected_profit" if unrealistic_expected_profit?(candidate)
 
       owner_work = OWNER_EXECUTION_MODES.include?(execution_mode)
       approval_waiting_code_revision = execution_mode == "code_revision" && approval_task.present?
@@ -418,15 +445,17 @@ module Aicoo
         business.business_activity_logs.where(occurred_at: 30.days.ago..Time.current).exists?
     end
 
-    def mark_today_exclusion!(candidate, reason)
+    def mark_today_exclusion!(candidate, reason, detected_target_url: nil)
       metadata = candidate.metadata.to_h
-      return if metadata["today_exclusion_reason"] == reason
+      return if metadata["today_exclusion_reason"] == reason && metadata["detected_target_url"].to_s == detected_target_url.to_s
 
       candidate.update_columns(
         metadata: metadata.merge(
           "today_exclusion_reason" => reason,
+          "today_excluded_at" => Time.current.iso8601,
           "today_exclusion_checked_at" => Time.current.iso8601,
-          "today_mode" => mode
+          "today_mode" => mode,
+          "detected_target_url" => detected_target_url
         ),
         updated_at: Time.current
       )
@@ -437,7 +466,7 @@ module Aicoo
       return if metadata["today_exclusion_reason"].blank? && metadata["today_included_at"].present?
 
       candidate.update_columns(
-        metadata: metadata.except("today_exclusion_reason").merge(
+        metadata: metadata.except("today_exclusion_reason", "today_excluded_at", "detected_target_url").merge(
           "today_included_at" => Time.current.iso8601,
           "today_mode" => mode
         ),
@@ -575,11 +604,8 @@ module Aicoo
       step = daily_run_last_step(run)
       [
         "daily_run",
-        run.target_date,
-        run.status,
         step&.step_name.presence || "unknown_step",
-        normalized_reason(daily_run_reason(run, step)),
-        run.source
+        normalized_reason(daily_run_reason(run, step))
       ].join(":")
     end
 
@@ -607,21 +633,138 @@ module Aicoo
     def external_target_url_for_existing_business?(candidate)
       return false if Aicoo::DataSourcePolicy.for(candidate.business).exploration_business?
 
-      metadata = candidate.metadata.to_h
-      possible_targets = [
-        metadata["target_url"],
-        metadata["target_url_or_identifier"],
-        metadata["page_path"],
-        metadata.dig("action_plan", "target"),
-        metadata.dig("action_plan", "target_url_or_identifier"),
-        metadata.dig("decision", "selected", "target_url_or_identifier")
-      ].flatten.compact_blank
-
-      possible_targets.any? do |target|
+      possible_target_urls(candidate).any? do |target|
         next false unless target.to_s.match?(%r{\Ahttps?://}i)
 
         !BusinessOwnedUrlPolicy.call(business: candidate.business, url: target).owner_page?
       end
+    end
+
+    def detected_target_url_for(candidate)
+      possible_target_urls(candidate).find do |target|
+        target.to_s.match?(%r{\Ahttps?://}i) ||
+          target.to_s.start_with?("/")
+      end
+    end
+
+    def possible_target_urls(candidate)
+      metadata = candidate.metadata.to_h
+      [
+        metadata["target_url"],
+        metadata["target_url_or_identifier"],
+        metadata["page_path"],
+        metadata.dig("article_candidate", "url"),
+        metadata.dig("article_candidate", "recommended_url"),
+        metadata.dig("new_article", "url"),
+        metadata.dig("new_article", "recommended_url"),
+        metadata.dig("action_plan", "target"),
+        metadata.dig("action_plan", "target_url_or_identifier"),
+        metadata.dig("action_plan", "page_path"),
+        metadata.dig("decision", "selected", "target_url_or_identifier"),
+        metadata.dig("action_expansion", "target_url"),
+        metadata.dig("evidence", "page_path")
+      ].flatten.compact_blank.map(&:to_s)
+    end
+
+    def invalid_target_path_reason(candidate)
+      metadata = candidate.metadata.to_h
+      return "target_type_mismatch" if existing_page_improvement?(candidate) && metadata["page_exists"] == false
+
+      path = possible_target_urls(candidate).find { |target| target.start_with?("/") }
+      return unless path
+
+      return "invalid_target_path" if path.include?("/-")
+
+      article_match = path.match(ARTICLE_PATH_PATTERN)
+      return unless article_match
+
+      slug = article_match[1].to_s
+      return "missing_slug" if slug.blank? || slug == "-" || slug.start_with?("-")
+      return "invalid_target_path" unless slug.match?(/\A[a-z0-9][a-z0-9\-]*\z/i)
+      return "target_type_mismatch" if existing_page_improvement?(candidate) && metadata["page_exists"] == false
+
+      nil
+    end
+
+    def new_business_today_actionable?(business)
+      metadata = business.metadata.to_h
+      return true if metadata["today_actionable"] == true
+      return true if metadata["owner_next_step"].present? || metadata["next_action"].present?
+      return true if metadata["validation_plan"].present? && new_business_score(business).positive?
+      return true if parse_date(metadata["due_on"]) == Date.current
+      return true if business.next_review_on.present? && business.next_review_on <= Date.current
+
+      false
+    end
+
+    def new_business_score(business)
+      metadata = business.metadata.to_h
+      expected_value = metadata["expected_value_yen"].to_i
+      success_probability = decimal_value(metadata["success_probability"], fallback: 0.3)
+      learning_value = numeric_metadata(metadata, "learning_value")
+
+      (expected_value.to_d * success_probability) + learning_value
+    end
+
+    def new_business_group_key(business)
+      metadata = business.metadata.to_h
+      raw = metadata["discovery_fingerprint"].presence ||
+        metadata["source_query"].presence ||
+        metadata.dig("serp", "query").presence ||
+        metadata["market"].presence ||
+        metadata["problem"].presence ||
+        business.name
+
+      normalized_new_business_text(raw)
+    end
+
+    def new_business_group_label(business)
+      metadata = business.metadata.to_h
+      raw = metadata["market"].presence ||
+        metadata["source_query"].presence ||
+        business.name
+
+      raw.to_s.gsub(/の?検証事業/, "").presence || business.name
+    end
+
+    def normalized_new_business_text(value)
+      value.to_s.downcase
+        .unicode_normalize(:nfkc)
+        .gsub(/https?:\/\/\S+/, "")
+        .gsub(/(比較|おすすめ|料金|利用者を集める|検証事業|の検証|サービス|とは|向け|候補|新規事業)/, "")
+        .gsub(/[[:space:]　\-_｜|・:：\/]+/, "")
+        .presence || "unknown"
+    end
+
+    def parse_date(value)
+      return value.to_date if value.respond_to?(:to_date)
+      return if value.blank?
+
+      Date.parse(value.to_s)
+    rescue ArgumentError
+      nil
+    end
+
+    def existing_page_improvement?(candidate)
+      candidate.action_type.in?(%w[seo_improvement article_update]) ||
+        candidate.metadata.to_h["work_type"].to_s == "existing_page_improvement" ||
+        candidate.metadata.to_h["target_url_type"].to_s == "owner_page"
+    end
+
+    def unrealistic_expected_profit?(candidate)
+      expected_value = candidate.expected_profit_yen.to_i
+      return false if expected_value <= HIGH_VALUE_REVIEW_THRESHOLD_YEN
+
+      value_model = candidate.metadata.to_h["value_model"].to_h
+      return true if value_model.blank?
+      return true if value_model["valuation_review_required"] == true
+      return true if value_model["valuation_state"].to_s == "valuation_review_required"
+      return true if value_model["evidence_level"].to_s == "low"
+      return true if decimal_value(value_model["confidence"], fallback: candidate.success_probability).to_d < 0.5.to_d
+      return true if decimal_value(value_model["outlier_ratio"], fallback: 1).to_d >= 50.to_d
+      return true if candidate.action_type.in?(%w[seo_improvement article_update]) && value_model["evidence_level"].to_s != "high"
+
+      false
     end
 
     def positive_decimal(value)
