@@ -16,6 +16,60 @@
 
 <%= render "navigation", business: @business, current_section: "概要" %>
 
+<% production_access_url = normalize_public_access_url(@business.business_execution_profile&.production_url) %>
+<% service_access_rows = @business_services.map { |service| [service, business_service_access_url(service)] } %>
+<% visible_service_access_rows = service_access_rows.select { |_service, url| url.present? } %>
+<% landing_page_access_rows = @business_landing_pages.map { |landing_page| [landing_page, business_landing_page_access_path(landing_page)] } %>
+<% visible_landing_page_access_rows = landing_page_access_rows.select { |_landing_page, path| path.present? } %>
+
+<section class="dashboard-section" id="business-access-urls">
+  <div class="section-heading">
+    <div>
+      <h2>公開確認URL</h2>
+      <p>事業一覧から作成されたサービスとLPの見た目を、まずここから確認します。</p>
+    </div>
+  </div>
+
+  <div class="metric-grid">
+    <div class="metric-card">
+      <span>Service</span>
+      <% if visible_service_access_rows.any? %>
+        <% visible_service_access_rows.first(3).each do |service, access_url| %>
+          <strong><%= link_to service.name, access_url, target: "_blank", rel: "noopener" %></strong>
+          <small><%= business_service_status_label(service.status) %> / <%= access_url %></small>
+        <% end %>
+      <% else %>
+        <strong>URL未設定</strong>
+        <small>Service作成後、urlまたはdomainを登録するとここに表示されます。</small>
+      <% end %>
+    </div>
+
+    <div class="metric-card">
+      <span>LP</span>
+      <% if visible_landing_page_access_rows.any? %>
+        <% visible_landing_page_access_rows.first(3).each do |landing_page, access_path| %>
+          <strong><%= link_to landing_page.public_headline, access_path, target: "_blank", rel: "noopener" %></strong>
+          <small><%= landing_page.public_status %> / <%= access_path %></small>
+        <% end %>
+      <% else %>
+        <strong>公開LPなし</strong>
+        <small>publishedまたはpausedのLPが公開確認URLとして表示されます。</small>
+      <% end %>
+    </div>
+
+    <div class="metric-card">
+      <span>Production URL</span>
+      <% if production_access_url.present? %>
+        <strong><%= link_to production_access_url, production_access_url, target: "_blank", rel: "noopener" %></strong>
+        <small>Execution Profileの本番確認URL</small>
+      <% else %>
+        <strong>未設定</strong>
+        <small>Codex接続のProduction URLを設定すると表示されます。</small>
+      <% end %>
+    </div>
+  </div>
+</section>
+
 <section class="dashboard-section" id="business-lifecycle">
   <div class="section-heading">
     <div>

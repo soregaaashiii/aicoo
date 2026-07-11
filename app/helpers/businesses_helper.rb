@@ -105,4 +105,29 @@ module BusinessesHelper
       "archived" => "終了"
     }.fetch(status.to_s, status.to_s)
   end
+
+  def business_service_access_url(service)
+    normalize_public_access_url(
+      service.url.presence ||
+        service.domain.presence ||
+        service.metadata.to_h["public_url"].presence ||
+        service.metadata.to_h["service_url"].presence ||
+        service.metadata.to_h["production_url"].presence
+    )
+  end
+
+  def business_landing_page_access_path(landing_page)
+    return nil unless landing_page.published_slug.present?
+    return nil unless landing_page.public_status.in?(%w[published paused])
+
+    public_lp_path(landing_page.published_slug)
+  end
+
+  def normalize_public_access_url(value)
+    url = value.to_s.strip
+    return nil if url.blank? || url == "-"
+    return url if url.start_with?("/", "http://", "https://")
+
+    "https://#{url}"
+  end
 end

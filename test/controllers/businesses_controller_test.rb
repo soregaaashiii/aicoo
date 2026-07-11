@@ -242,10 +242,46 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
       expected_hours: 1,
       evaluation_reason: "CTRが低いためSEOタイトル改善を推奨"
     )
+    @business.business_services.create!(
+      name: "吸えログMVP",
+      domain: "suelog-mvp.example.com",
+      status: "live"
+    )
+    experiment = AicooLabExperiment.create!(
+      title: "吸えログLP",
+      experiment_type: "lp",
+      acquisition_channel: "seo",
+      status: "running",
+      approval_status: "approved"
+    )
+    experiment.create_aicoo_lab_landing_page!(
+      business: @business,
+      headline: "吸えログ公開LP",
+      subheadline: "喫煙できる店を探す",
+      body: "公開LP本文",
+      cta_text: "登録する",
+      status: "published",
+      public_status: "published",
+      published_slug: "suelog-visible-lp",
+      published_at: Time.current
+    )
+    @business.create_business_execution_profile!(
+      production_url: "https://suelog.jp",
+      repository_name: "suelog",
+      repository_type: "rails",
+      repository_path: "/apps/suelog",
+      github_repository: "kawamura/suelog",
+      test_command: "bin/rails test",
+      deploy_command: "bin/deploy"
+    )
 
     get business_url(@business)
 
     assert_response :success
+    assert_includes response.body, "公開確認URL"
+    assert_includes response.body, "https://suelog-mvp.example.com"
+    assert_includes response.body, "/lp/suelog-visible-lp"
+    assert_includes response.body, "https://suelog.jp"
     assert_includes response.body, "Business Analytics Dashboard"
     assert_includes response.body, "事業ホーム"
     assert_includes response.body, "現在フェーズ"
