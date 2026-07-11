@@ -60,7 +60,7 @@ module Aicoo
     def call
       items = candidate_items
       ranked_items = items
-        .sort_by { |item| [ -item.expected_value_yen.to_i, -item.score.to_d, item.business_name.to_s ] }
+        .sort_by { |item| [ -item.score.to_d, -item.expected_value_yen.to_i, item.business_name.to_s ] }
         .first(limit)
 
       ranked_items = include_missing_data_backed_businesses(items, ranked_items)
@@ -129,7 +129,12 @@ module Aicoo
         return
       end
 
-      revenue_score = expected_hours.positive? ? (expected_value_yen.to_d / expected_hours * success_probability) : 0.to_d
+      revenue_score = valuation_adjusted_revenue_score(
+        candidate,
+        expected_value_yen:,
+        expected_hours:,
+        success_probability:
+      )
       learning_score = learning_score_for(candidate)
       balanced_score = (revenue_score * 0.6) + (learning_score * 0.4)
       selected_score = score_for(revenue_score:, learning_score:, balanced_score:)
@@ -406,6 +411,25 @@ module Aicoo
         numeric_metadata(metadata, "calibration_value_yen")
     end
 
+    def valuation_adjusted_revenue_score(candidate, expected_value_yen:, expected_hours:, success_probability:)
+      return 0.to_d unless expected_hours.positive?
+
+      base_score = expected_value_yen.to_d / expected_hours * success_probability
+      value_model = candidate.metadata.to_h["value_model"].to_h
+      return base_score if value_model.blank?
+
+      confidence = decimal_value(value_model["confidence"], fallback: success_probability)
+      evidence_factor = { "high" => 1.0.to_d, "medium" => 0.7.to_d, "low" => 0.35.to_d }.fetch(value_model["evidence_level"].to_s, 0.35.to_d)
+      outlier_penalty = [ decimal_value(value_model["outlier_ratio"], fallback: 1) / 10, 1.to_d ].max
+      cost_factor = if candidate.cost_yen.to_d.positive? && expected_value_yen.to_d.positive?
+        [ 1.to_d + (candidate.cost_yen.to_d / expected_value_yen.to_d), 1.5.to_d ].min
+      else
+        1.to_d
+      end
+
+      base_score * confidence * evidence_factor / outlier_penalty / cost_factor
+    end
+
     def score_for(revenue_score:, learning_score:, balanced_score:)
       case mode
       when "learning"
@@ -426,6 +450,12 @@ module Aicoo
       metadata[key].to_d
     rescue ArgumentError, NoMethodError
       0.to_d
+    end
+
+    def decimal_value(value, fallback:)
+      value.to_d
+    rescue ArgumentError, NoMethodError
+      fallback.to_d
     end
   end
 end

@@ -27,6 +27,22 @@
   <dt>期待利益</dt>
   <dd><%= number_to_currency(action_candidate.expected_profit_yen, unit: "¥", precision: 0) %></dd>
 
+  <% value_model = action_candidate.metadata.to_h["value_model"].to_h %>
+  <% if value_model["raw_expected_value_yen"].to_i > 1_000_000 || value_model["valuation_review_required"] %>
+    <dt>高額期待値</dt>
+    <dd>
+      算出 <%= number_to_currency(value_model["raw_expected_value_yen"].to_i, unit: "¥", precision: 0) %> /
+      補正後 <%= number_to_currency(value_model["adjusted_expected_value_yen"].to_i, unit: "¥", precision: 0) %> /
+      confidence <%= number_with_precision(value_model["confidence"].to_d, precision: 2) %> /
+      根拠 <%= value_model.dig("evidence", "data_points").to_i %>件 /
+      類似施策 <%= value_model.dig("evidence", "similar_action_result_count").to_i %>件 /
+      <%= value_model["valuation_review_required"] ? "検証待ち" : "維持" %>
+      <% if Array(value_model["assumptions"]).any? %>
+        <br><small>仮定: <%= Array(value_model["assumptions"]).join(" / ") %></small>
+      <% end %>
+    </dd>
+  <% end %>
+
   <dt>想定時間</dt>
   <dd><%= action_candidate.expected_hours || "-" %></dd>
 

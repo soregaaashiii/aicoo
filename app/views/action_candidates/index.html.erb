@@ -65,7 +65,19 @@
           <td><%= action_candidate.business.name %></td>
           <td><span class="pill"><%= ActionCandidateDepartmentRanking::DEPARTMENTS.fetch(action_candidate.department, action_candidate.department) %></span></td>
           <td><span class="pill"><%= action_candidate_type_label(action_candidate) %></span></td>
-          <td class="number"><%= number_to_currency(action_candidate.expected_profit_yen, unit: "¥", precision: 0) %></td>
+          <td class="number">
+            <%= number_to_currency(action_candidate.expected_profit_yen, unit: "¥", precision: 0) %>
+            <% value_model = action_candidate.metadata.to_h["value_model"].to_h %>
+            <% if value_model["raw_expected_value_yen"].to_i > 1_000_000 || value_model["valuation_review_required"] %>
+              <br>
+              <span class="pill">算出 <%= number_to_currency(value_model["raw_expected_value_yen"].to_i, unit: "¥", precision: 0) %></span>
+              <span class="pill">信頼度 <%= number_with_precision(value_model["confidence"].to_d, precision: 2) %></span>
+              <span class="pill">類似 <%= value_model.dig("evidence", "similar_action_result_count").to_i %>件</span>
+              <% if value_model["valuation_review_required"] %>
+                <span class="pill">検証待ち</span>
+              <% end %>
+            <% end %>
+          </td>
           <td class="number"><%= number_with_precision(judge_score.judge_adjusted_score, precision: 1) %></td>
           <td>
             <span class="pill"><%= action_candidate.status %></span>

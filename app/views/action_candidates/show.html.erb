@@ -54,6 +54,29 @@
       <div><span>根拠データ</span><strong><%= @evidence_presenter.source_label.presence || @action_candidate.generation_source %></strong></div>
     </div>
 
+    <% value_model = @action_candidate.metadata.to_h["value_model"].to_h %>
+    <% if value_model["raw_expected_value_yen"].to_i > 1_000_000 || value_model["valuation_review_required"] %>
+      <div class="aicoo-decision-subcard">
+        <strong>高額期待値の検証</strong>
+        <div class="metric-grid compact-metrics">
+          <div><span>算出期待利益</span><strong><%= number_to_currency(value_model["raw_expected_value_yen"].to_i, unit: "¥", precision: 0) %></strong></div>
+          <div><span>補正後期待利益</span><strong><%= number_to_currency(value_model["adjusted_expected_value_yen"].to_i, unit: "¥", precision: 0) %></strong></div>
+          <div><span>confidence</span><strong><%= number_with_precision(value_model["confidence"].to_d, precision: 2) %></strong></div>
+          <div><span>根拠データ数</span><strong><%= value_model.dig("evidence", "data_points").to_i %></strong></div>
+          <div><span>過去類似施策</span><strong><%= value_model.dig("evidence", "similar_action_result_count").to_i %>件</strong></div>
+          <div><span>最大寄与要因</span><strong><%= value_model["max_contribution_factor"].presence || "-" %></strong></div>
+          <div><span>状態</span><strong><%= value_model["valuation_review_required"] ? "検証待ち" : "維持" %></strong></div>
+        </div>
+        <% if value_model["high_value_reason"].present? %>
+          <p><%= value_model["high_value_reason"] %></p>
+        <% end %>
+        <% assumptions = Array(value_model["assumptions"]) %>
+        <% if assumptions.any? %>
+          <small>検証が必要な仮定: <%= assumptions.join(" / ") %></small>
+        <% end %>
+      </div>
+    <% end %>
+
     <% if @evidence_presenter&.execution_units? %>
       <div class="aicoo-decision-subcard">
         <strong>今日やる単位</strong>

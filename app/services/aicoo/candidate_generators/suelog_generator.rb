@@ -27,8 +27,6 @@ module Aicoo
       CLEANUP_LIMIT = 10
       ARTICLE_LIMIT = 20
       MIN_GSC_IMPRESSIONS = 20
-      MAX_CANDIDATE_VALUE_YEN = 250_000
-      MAX_HIGH_CONFIDENCE_VALUE_YEN = 1_000_000
       OWNER_HOSTS = %w[suelog.jp www.suelog.jp].freeze
 
       def self.target?(business)
@@ -277,37 +275,44 @@ module Aicoo
       def create_candidate(action_type:, title:, description:, external_record_id:, target_query:, immediate_value_yen:, expected_hours:, success_probability:, strategic_value_score:, metadata:, evaluation_reason:)
         return if duplicate_candidate?(action_type:, external_record_id:, target_query:)
 
-        capped_value_yen = calibrated_value_yen(immediate_value_yen, metadata:)
+        value_model = valuation_model_for(
+          action_type:,
+          raw_value_yen: immediate_value_yen,
+          expected_hours:,
+          success_probability:,
+          metadata:
+        )
         ActionCandidate.create!(
           business:,
           title:,
           description:,
           action_type:,
-          status: "idea",
+          status: value_model.fetch("valuation_review_required") ? "valuation_review_required" : "idea",
           generation_source: "suelog_db",
-          immediate_value_yen: capped_value_yen,
+          immediate_value_yen: immediate_value_yen.to_i,
           success_probability:,
           strategic_value_score:,
           risk_reduction_score: 20,
           expected_hours:,
           cost_yen: estimated_labor_cost_yen(expected_hours),
           priority_score: candidate_priority_score(
-            value_yen: capped_value_yen,
+            value_yen: immediate_value_yen,
             expected_hours:,
             success_probability:,
-            strategic_value_score:
+            strategic_value_score:,
+            value_model:
           ),
           evaluation_reason:,
           execution_prompt: nil,
           metadata: metadata.merge(
+            "value_model" => value_model,
             "external_source" => "suelog_db",
             "external_record_id" => external_record_id.to_s,
             "target_query" => target_query.to_s,
             "execution_mode" => execution_mode_for(action_type),
             "data_sources_used" => (Array(metadata["data_sources_used"]) + %w[suelog_db]).uniq,
             "created_by" => self.class.name,
-            "raw_immediate_value_yen" => immediate_value_yen.to_i,
-            "value_capped" => capped_value_yen != immediate_value_yen.to_i
+            "raw_immediate_value_yen" => immediate_value_yen.to_i
           )
         )
       end
@@ -581,23 +586,188 @@ module Aicoo
         [ value.round, 800 ].max
       end
 
-      def calibrated_value_yen(value, metadata:)
-        value = value.to_i
-        cap = metadata.to_h.dig("value_model", "high_confidence") ? MAX_HIGH_CONFIDENCE_VALUE_YEN : MAX_CANDIDATE_VALUE_YEN
-        [ value, cap ].min
-      end
-
       def estimated_labor_cost_yen(expected_hours)
         (expected_hours.to_d * 1_500).round
       end
 
-      def candidate_priority_score(value_yen:, expected_hours:, success_probability:, strategic_value_score:)
+      def candidate_priority_score(value_yen:, expected_hours:, success_probability:, strategic_value_score:, value_model:)
         hours = [ expected_hours.to_d, 0.05.to_d ].max
-        expected_profit = value_yen.to_d * success_probability.to_d
-        hourly_score = [ expected_profit / hours / 1_000, 55 ].min
-        confidence_score = (success_probability.to_d * 20)
+        confidence = value_model.fetch("confidence").to_d
+        evidence_factor = { "high" => 1.0.to_d, "medium" => 0.7.to_d, "low" => 0.35.to_d }.fetch(value_model.fetch("evidence_level"), 0.35.to_d)
+        outlier_penalty = [ value_model.fetch("outlier_ratio").to_d / 10, 1 ].max
+        ranking_value = value_yen.to_d * confidence * evidence_factor * success_probability.to_d / hours / outlier_penalty
+        hourly_score = [ ranking_value / 1_000, 55 ].min
+        confidence_score = (confidence * 20)
         strategic_score = strategic_value_score.to_i * 0.25
         [ (hourly_score + confidence_score + strategic_score).round, 100 ].min
+      end
+
+      def valuation_model_for(action_type:, raw_value_yen:, expected_hours:, success_probability:, metadata:)
+        base = suelog_value_model
+        raw_value_yen = raw_value_yen.to_i
+        raw_expected_value_yen = (raw_value_yen.to_d * success_probability.to_d).round
+        action_type_median = historical_median_value(action_type:)
+        business_median = historical_median_value
+        outlier_ratio = [
+          ratio_against(raw_expected_value_yen, action_type_median),
+          ratio_against(raw_expected_value_yen, business_median)
+        ].compact.max || 1.to_d
+        evidence = valuation_evidence_for(metadata:, base:, action_type_median:, business_median:)
+        assumptions = valuation_assumptions_for(raw_expected_value_yen:, evidence:, outlier_ratio:)
+        evidence_level = valuation_evidence_level(evidence)
+        confidence = valuation_confidence(evidence_level:, outlier_ratio:, assumptions:)
+        review_required = valuation_review_required?(
+          raw_expected_value_yen:,
+          evidence_level:,
+          outlier_ratio:,
+          assumptions:
+        )
+
+        base.merge(
+          "raw_expected_value_yen" => raw_expected_value_yen,
+          "adjusted_expected_value_yen" => valuation_adjusted_value(raw_expected_value_yen:, confidence:, evidence_level:, outlier_ratio:),
+          "raw_immediate_value_yen" => raw_value_yen,
+          "confidence" => confidence.to_f.round(2),
+          "evidence_level" => evidence_level,
+          "valuation_review_required" => review_required,
+          "valuation_state" => review_required ? "valuation_review_required" : "accepted",
+          "outlier_ratio" => outlier_ratio.to_f.round(2),
+          "assumptions" => assumptions,
+          "evidence" => evidence,
+          "calculation_version" => "suelog_v3",
+          "max_contribution_factor" => max_contribution_factor(metadata:, base:),
+          "high_value_reason" => high_value_reason(raw_expected_value_yen:, evidence_level:, outlier_ratio:),
+          "expected_hours" => expected_hours.to_s,
+          "success_probability" => success_probability.to_s
+        )
+      end
+
+      def valuation_evidence_for(metadata:, base:, action_type_median:, business_median:)
+        {
+          "impressions" => metadata["impressions"].to_i,
+          "ctr_lift" => metadata["expected_ctr_lift"].to_s,
+          "incremental_clicks" => metadata["expected_pv"].to_i,
+          "value_per_click_yen" => base["value_per_click_yen"],
+          "value_per_shop_click_yen" => base["value_per_shop_click_yen"],
+          "cv_rate_proxy" => cv_rate_proxy(base),
+          "profit_unit_source" => "ProxyScoreWeight phone/map/affiliate weights",
+          "recent_90d" => base.slice(
+            "business_clicks_90d",
+            "phone_clicks_90d",
+            "map_clicks_90d",
+            "affiliate_clicks_90d",
+            "near_conversion_count_90d",
+            "near_conversion_proxy_value_90d"
+          ),
+          "similar_action_count" => similar_action_count(metadata["external_source"]),
+          "similar_action_result_count" => similar_action_result_count,
+          "action_type_median_yen" => action_type_median.to_i,
+          "business_median_yen" => business_median.to_i,
+          "recent_shop_clicks" => metadata["recent_clicks"].to_i,
+          "data_points" => valuation_data_points(base:, metadata:)
+        }
+      end
+
+      def valuation_adjusted_value(raw_expected_value_yen:, confidence:, evidence_level:, outlier_ratio:)
+        evidence_factor = { "high" => 1.0.to_d, "medium" => 0.7.to_d, "low" => 0.35.to_d }.fetch(evidence_level, 0.35.to_d)
+        outlier_penalty = [ outlier_ratio.to_d / 10, 1 ].max
+        (raw_expected_value_yen.to_d * confidence.to_d * evidence_factor / outlier_penalty).round
+      end
+
+      def valuation_assumptions_for(raw_expected_value_yen:, evidence:, outlier_ratio:)
+        assumptions = []
+        assumptions << "直近90日のBusinessMetricDailyが少ないためクリック価値はfallbackを含みます" if evidence.dig("recent_90d", "business_clicks_90d").to_i < 100
+        assumptions << "近接CV実績が少ないためvalue_per_clickの信頼度は低めです" if evidence.dig("recent_90d", "near_conversion_count_90d").to_i < 5
+        assumptions << "類似ActionResultがないため実績補正は未反映です" if evidence["similar_action_result_count"].to_i.zero?
+        assumptions << "同種候補中央値に対して#{outlier_ratio.to_f.round(1)}倍です" if outlier_ratio.to_d > 10
+        assumptions << "100万円超のため前提確認が必要です" if raw_expected_value_yen > 1_000_000
+        assumptions
+      end
+
+      def valuation_evidence_level(evidence)
+        return "high" if evidence.dig("recent_90d", "business_clicks_90d").to_i >= 1_000 &&
+                         evidence.dig("recent_90d", "near_conversion_count_90d").to_i >= 20 &&
+                         evidence["similar_action_result_count"].to_i.positive?
+        return "medium" if evidence.dig("recent_90d", "business_clicks_90d").to_i >= 100 &&
+                           evidence.dig("recent_90d", "near_conversion_count_90d").to_i >= 5
+
+        "low"
+      end
+
+      def valuation_confidence(evidence_level:, outlier_ratio:, assumptions:)
+        base = { "high" => 0.9.to_d, "medium" => 0.65.to_d, "low" => 0.35.to_d }.fetch(evidence_level, 0.35.to_d)
+        outlier_penalty = outlier_ratio.to_d > 10 ? 0.2.to_d : 0.to_d
+        assumption_penalty = [ assumptions.size * 0.05, 0.25 ].min.to_d
+        [ base - outlier_penalty - assumption_penalty, 0.1.to_d ].max
+      end
+
+      def valuation_review_required?(raw_expected_value_yen:, evidence_level:, outlier_ratio:, assumptions:)
+        return false if raw_expected_value_yen <= 1_000_000
+        return false if evidence_level == "high" && outlier_ratio.to_d <= 10 && assumptions.size <= 1
+
+        true
+      end
+
+      def valuation_data_points(base:, metadata:)
+        [
+          base["business_clicks_90d"].to_i,
+          base["near_conversion_count_90d"].to_i,
+          metadata["impressions"].to_i,
+          metadata["recent_clicks"].to_i
+        ].count(&:positive?)
+      end
+
+      def max_contribution_factor(metadata:, base:)
+        if metadata["impressions"].to_i.positive?
+          "GSC impressions"
+        elsif metadata["recent_clicks"].to_i.positive?
+          "Suelog ShopClick"
+        elsif base["near_conversion_proxy_value_90d"].to_d.positive?
+          "90d conversion proxy"
+        else
+          "fallback assumptions"
+        end
+      end
+
+      def high_value_reason(raw_expected_value_yen:, evidence_level:, outlier_ratio:)
+        return nil if raw_expected_value_yen <= 250_000
+
+        "期待利益#{raw_expected_value_yen}円 / evidence=#{evidence_level} / outlier_ratio=#{outlier_ratio.to_f.round(2)}"
+      end
+
+      def historical_median_value(action_type: nil)
+        scope = ActionCandidate.where(business:, generation_source: "suelog_db")
+        scope = scope.where(action_type:) if action_type
+        median(scope.where("expected_profit_yen > 0").limit(200).pluck(:expected_profit_yen))
+      end
+
+      def median(values)
+        sorted = values.compact.map(&:to_d).sort
+        return nil if sorted.empty?
+
+        mid = sorted.length / 2
+        sorted.length.odd? ? sorted[mid] : ((sorted[mid - 1] + sorted[mid]) / 2)
+      end
+
+      def ratio_against(value, baseline)
+        return nil if baseline.blank? || baseline.to_d <= 0
+
+        value.to_d / baseline.to_d
+      end
+
+      def similar_action_count(_external_source)
+        ActionCandidate.where(business:, generation_source: "suelog_db").where.not(status: ActionCandidate::INACTIVE_STATUSES).count
+      end
+
+      def similar_action_result_count
+        ActionResult.joins(:action_candidate).where(action_candidates: { business_id: business.id, generation_source: "suelog_db" }).count
+      end
+
+      def cv_rate_proxy(base)
+        clicks = base["business_clicks_90d"].to_i
+        return "0" if clicks.zero?
+
+        (base["near_conversion_count_90d"].to_d / clicks).round(4).to_s
       end
 
       def suelog_value_model
