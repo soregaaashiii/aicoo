@@ -13,6 +13,12 @@ module Aicoo
     MAX_IMPROVEMENT_ITEMS = 5
     MAX_NEW_BUSINESS_ITEMS = 3
     HIGH_VALUE_REVIEW_THRESHOLD_YEN = 1_000_000
+    DAILY_RUN_MINIMUM_AVOIDED_LOSS_YEN = 15_000
+    DAILY_RUN_STANDARD_LOSS_PER_BUSINESS_YEN = 5_000
+    DAILY_RUN_STANDARD_NEW_BUSINESS_LOSS_PER_BUSINESS_YEN = 1_500
+    DAILY_RUN_STANDARD_LEARNING_LOSS_PER_BUSINESS_YEN = 1_000
+    DAILY_RUN_OWNER_HOURLY_COST_YEN = 6_000
+    DAILY_RUN_REPAIR_COST_YEN = 10_000
     ARTICLE_PATH_PATTERN = %r{\A/articles/([^/?#]+)}.freeze
     ABSTRACT_PATTERNS = [
       /検索需要があるテーマ/,
@@ -33,6 +39,23 @@ module Aicoo
 
     Board = Data.define(:mode, :tabs, :items, :description)
     Tab = Data.define(:key, :label, :path, :active)
+    DailyRunValuation = Data.define(
+      :avoided_loss_yen,
+      :final_expected_value_yen,
+      :recovery_success_probability,
+      :repair_cost_yen,
+      :human_cost_yen,
+      :impact_days,
+      :unresolved_run_count,
+      :impacted_business_count,
+      :calculation_method,
+      :estimate_confidence,
+      :missing_inputs,
+      :daily_improvement_value_yen,
+      :daily_new_business_value_yen,
+      :daily_learning_loss_yen,
+      :recurrence_expected_loss_yen
+    )
     Item = Data.define(
       :stable_id,
       :rank,
@@ -72,7 +95,7 @@ module Aicoo
     def call
       items = candidate_items
       ranked_items = select_today_items(items)
-        .sort_by { |item| [ priority_rank(item), -item.score.to_d, -item.expected_value_yen.to_i, item.business_name.to_s ] }
+        .sort_by { |item| today_sort_key(item) }
         .first(limit)
         .map.with_index(1) { |item, index| item.with(rank: index) }
 
@@ -101,7 +124,7 @@ module Aicoo
     end
 
     def select_today_items(items)
-      sorted = items.sort_by { |item| [ priority_rank(item), -item.score.to_d, -item.expected_value_yen.to_i, item.business_name.to_s ] }
+      sorted = items.sort_by { |item| today_sort_key(item) }
       daily_run_items = sorted.select { |item| item.source_type == "daily_run_issue" }.first(MAX_DAILY_RUN_ISSUES)
       approval_items = sorted.select { |item| item.approval_required }.first(MAX_APPROVAL_ITEMS)
       improvement_items = sorted.select { |item| item.source_type.in?(%w[action_candidate auto_revision_task]) && !item.approval_required }.first(MAX_IMPROVEMENT_ITEMS)
@@ -218,8 +241,9 @@ module Aicoo
       step_name = step&.step_name.presence || "unknown_step"
       reason = daily_run_reason(latest, step)
       count = runs.size
-      impact_days = sorted.map(&:target_date).compact.uniq.size
+      valuation = daily_run_issue_valuation(sorted, latest:)
       status_label = latest.status == "partial_failed" ? "一部失敗" : "停止"
+      persist_daily_run_valuation!(step, valuation)
 
       Item.new(
         stable_id: "daily_run_issue:#{daily_run_dedupe_key(latest)}",
@@ -229,11 +253,11 @@ module Aicoo
         priority: latest.status == "partial_failed" ? "high" : "critical",
         business_name: "AICOO",
         concrete_task: "Daily Runが #{step_name} で継続#{status_label}",
-        target: "影響日数 #{impact_days}日 / 該当Run #{count}件 / 最新Run ##{latest.id}",
-        expected_value_yen: 0,
-        expected_hours: 0.25,
-        expected_hourly_value_yen: 0,
-        success_probability: 1.to_d,
+        target: "影響日数 #{valuation.impact_days}日 / 影響Business #{valuation.impacted_business_count}件 / 該当Run #{count}件 / 最新Run ##{latest.id}",
+        expected_value_yen: valuation.final_expected_value_yen,
+        expected_hours: 1.0,
+        expected_hourly_value_yen: valuation.final_expected_value_yen,
+        success_probability: valuation.recovery_success_probability,
         execution_mode: "system_recovery",
         execution_mode_label: "障害対応",
         data_sources_label: "Daily Run",
@@ -241,14 +265,18 @@ module Aicoo
         codex_target: false,
         owner_next_step: "#{step_name}を修復する",
         detail_url: aicoo_daily_run_path(latest, anchor: "step-breakdown"),
-        reason:,
-        stopped_reason: "影響日数 #{impact_days}日 / 同一障害 #{count}件 / 最新Run ##{latest.id} / 最古Run ##{oldest.id}",
+        reason: "#{reason} / 損失回避額 #{valuation.avoided_loss_yen.to_fs(:delimited)}円 / 復旧成功率 #{(valuation.recovery_success_probability * 100).round}% / 修正コスト #{valuation.repair_cost_yen.to_fs(:delimited)}円",
+        stopped_reason: "影響日数 #{valuation.impact_days}日 / 影響Business #{valuation.impacted_business_count}件 / 同一障害 #{count}件 / 算定方法 #{valuation.calculation_method} / 信頼度 #{valuation.estimate_confidence} / 最新Run ##{latest.id} / 最古Run ##{oldest.id}",
         group_count: count,
-        group_summary: "影響日数 #{impact_days}日 / 同一障害 #{count}件",
-        revenue_score: 0,
-        learning_score: 0,
-        balanced_score: 0,
-        score: latest.status == "partial_failed" ? 800_000_000 : 1_000_000_000
+        group_summary: "影響日数 #{valuation.impact_days}日 / 同一障害 #{count}件 / 損失回避額 #{valuation.avoided_loss_yen.to_fs(:delimited)}円",
+        revenue_score: valuation.final_expected_value_yen,
+        learning_score: valuation.daily_learning_loss_yen,
+        balanced_score: ((valuation.final_expected_value_yen.to_d * 0.6) + (valuation.daily_learning_loss_yen.to_d * 0.4)).round(2),
+        score: score_for(
+          revenue_score: valuation.final_expected_value_yen.to_d,
+          learning_score: valuation.daily_learning_loss_yen.to_d,
+          balanced_score: (valuation.final_expected_value_yen.to_d * 0.6) + (valuation.daily_learning_loss_yen.to_d * 0.4)
+        ).round(2)
       )
     end
 
@@ -313,6 +341,7 @@ module Aicoo
     def today_exclusion_reason(candidate, execution_mode, approval_task)
       return "inactive_business" if candidate.business.blank? || candidate.business.resource_status == "archived"
       return "no_score" unless minimum_fields_present?(candidate, execution_mode)
+      return "zero_expected_value" if candidate.expected_profit_yen.to_i <= 0 && approval_task.blank?
       return "fallback_action" if candidate.metadata.to_h["today_fallback"]
       return "needs_refinement" if candidate.metadata.to_h["concretization_status"] == "needs_refinement"
       return "abstract_concrete_task" unless concrete_text_allowed?(candidate)
@@ -598,6 +627,146 @@ module Aicoo
       when "new_business" then 4
       else 5
       end
+    end
+
+    def today_sort_key(item)
+      [
+        -item.expected_value_yen.to_i,
+        -item.score.to_d,
+        priority_rank(item),
+        item.business_name.to_s,
+        item.stable_id.to_s
+      ]
+    end
+
+    def daily_run_issue_valuation(runs, latest:)
+      impact_days = [ runs.map(&:target_date).compact.uniq.size, 1 ].max
+      impacted_business_count = active_impacted_business_count
+      missing_inputs = []
+
+      daily_improvement_value_yen = recent_daily_candidate_value_yen
+      unless daily_improvement_value_yen.positive?
+        missing_inputs << "recent_action_candidate_value"
+        daily_improvement_value_yen = impacted_business_count * DAILY_RUN_STANDARD_LOSS_PER_BUSINESS_YEN
+      end
+
+      daily_new_business_value_yen = recent_daily_new_business_value_yen
+      unless daily_new_business_value_yen.positive?
+        missing_inputs << "recent_new_business_value"
+        daily_new_business_value_yen = impacted_business_count * DAILY_RUN_STANDARD_NEW_BUSINESS_LOSS_PER_BUSINESS_YEN
+      end
+
+      daily_learning_loss_yen = recent_daily_learning_value_yen
+      unless daily_learning_loss_yen.positive?
+        missing_inputs << "recent_learning_value"
+        daily_learning_loss_yen = impacted_business_count * DAILY_RUN_STANDARD_LEARNING_LOSS_PER_BUSINESS_YEN
+      end
+
+      human_cost_yen = estimated_daily_run_human_cost_yen(runs)
+      recurrence_expected_loss_yen = ((daily_improvement_value_yen + daily_new_business_value_yen + daily_learning_loss_yen).to_d * 0.2).round
+      avoided_loss_yen = [
+        ((daily_improvement_value_yen + daily_new_business_value_yen + daily_learning_loss_yen) * impact_days) + human_cost_yen + recurrence_expected_loss_yen,
+        DAILY_RUN_MINIMUM_AVOIDED_LOSS_YEN
+      ].max
+      recovery_success_probability = daily_run_recovery_success_probability(latest, runs)
+      repair_cost_yen = DAILY_RUN_REPAIR_COST_YEN
+      final_expected_value_yen = ((avoided_loss_yen.to_d * recovery_success_probability) - repair_cost_yen).round
+      final_expected_value_yen = [ final_expected_value_yen, DAILY_RUN_MINIMUM_AVOIDED_LOSS_YEN / 2 ].max
+
+      DailyRunValuation.new(
+        avoided_loss_yen:,
+        final_expected_value_yen:,
+        recovery_success_probability:,
+        repair_cost_yen:,
+        human_cost_yen:,
+        impact_days:,
+        unresolved_run_count: runs.size,
+        impacted_business_count:,
+        calculation_method: missing_inputs.empty? ? "recent_30d_actual_average" : "fallback_#{missing_inputs.join('+')}",
+        estimate_confidence: missing_inputs.empty? ? "high" : (missing_inputs.size <= 1 ? "medium" : "low"),
+        missing_inputs:,
+        daily_improvement_value_yen:,
+        daily_new_business_value_yen:,
+        daily_learning_loss_yen:,
+        recurrence_expected_loss_yen:
+      )
+    end
+
+    def persist_daily_run_valuation!(step, valuation)
+      return unless step
+
+      metadata = step.metadata.to_h
+      valuation_payload = {
+        "avoided_loss_yen" => valuation.avoided_loss_yen,
+        "final_expected_value_yen" => valuation.final_expected_value_yen,
+        "recovery_success_probability" => valuation.recovery_success_probability.to_f,
+        "repair_cost_yen" => valuation.repair_cost_yen,
+        "human_cost_yen" => valuation.human_cost_yen,
+        "impact_days" => valuation.impact_days,
+        "unresolved_run_count" => valuation.unresolved_run_count,
+        "impacted_business_count" => valuation.impacted_business_count,
+        "calculation_method" => valuation.calculation_method,
+        "estimate_confidence" => valuation.estimate_confidence,
+        "missing_inputs" => valuation.missing_inputs,
+        "daily_improvement_value_yen" => valuation.daily_improvement_value_yen,
+        "daily_new_business_value_yen" => valuation.daily_new_business_value_yen,
+        "daily_learning_loss_yen" => valuation.daily_learning_loss_yen,
+        "recurrence_expected_loss_yen" => valuation.recurrence_expected_loss_yen,
+        "calculated_at" => Time.current.iso8601
+      }
+      return if metadata["today_valuation"].to_h.except("calculated_at") == valuation_payload.except("calculated_at")
+
+      step.update_columns(
+        metadata: metadata.merge("today_valuation" => valuation_payload),
+        updated_at: Time.current
+      )
+    end
+
+    def active_impacted_business_count
+      count = Business.real_businesses.where(resource_status: %w[active watch]).count
+      count.positive? ? count : 1
+    end
+
+    def recent_daily_candidate_value_yen
+      scope = ActionCandidate.active_for_ranking.where(created_at: 30.days.ago..Time.current)
+      return 0 unless scope.exists?
+
+      (scope.sum(:expected_profit_yen).to_d / recent_day_denominator(scope.minimum(:created_at))).round
+    end
+
+    def recent_daily_new_business_value_yen
+      scope = ActionCandidate
+        .active_for_ranking
+        .where(generation_source: "serp", department: "new_business")
+        .where(created_at: 30.days.ago..Time.current)
+      return 0 unless scope.exists?
+
+      (scope.sum(:expected_profit_yen).to_d / recent_day_denominator(scope.minimum(:created_at))).round
+    end
+
+    def recent_daily_learning_value_yen
+      scope = ActionCandidate.active_for_ranking.where(created_at: 30.days.ago..Time.current)
+      return 0 unless scope.exists?
+
+      (scope.sum(:expected_learning_value_yen).to_d / recent_day_denominator(scope.minimum(:created_at))).round
+    end
+
+    def recent_day_denominator(oldest_created_at)
+      return 30 if oldest_created_at.blank?
+
+      [ (Date.current - oldest_created_at.to_date).to_i + 1, 1 ].max
+    end
+
+    def estimated_daily_run_human_cost_yen(runs)
+      base_hours = 1.to_d
+      duplicate_review_hours = [ runs.size - 1, 0 ].max * 0.05.to_d
+      ((base_hours + duplicate_review_hours) * DAILY_RUN_OWNER_HOURLY_COST_YEN).round
+    end
+
+    def daily_run_recovery_success_probability(latest, runs)
+      probability = latest.status == "partial_failed" ? 0.9.to_d : 0.8.to_d
+      probability -= 0.05.to_d if runs.size >= 3
+      [ probability, 0.6.to_d ].max
     end
 
     def daily_run_dedupe_key(run)

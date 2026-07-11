@@ -151,6 +151,30 @@ module Owner
       assert_includes response.body, improvement.title
     end
 
+    test "daily run issue shows avoided loss valuation instead of zero yen" do
+      create_today_candidate!(
+        title: "梅田の未確認店舗を30件確認済みにする",
+        immediate_value_yen: 90_000,
+        expected_profit_yen: 90_000,
+        expected_learning_value_yen: 12_000
+      )
+      run = create_stuck_daily_run!(target_date: Date.new(2026, 7, 10))
+
+      get owner_focus_url
+
+      assert_response :success
+      assert_includes response.body, "Daily Runが business_metrics_import で継続停止"
+      assert_includes response.body, "損失回避額"
+      assert_includes response.body, "修正コスト"
+      assert_includes response.body, "算定方法"
+      assert_not_includes response.body, ">¥0<"
+
+      valuation = run.aicoo_daily_run_steps.first.reload.metadata.fetch("today_valuation")
+      assert_operator valuation.fetch("avoided_loss_yen"), :>, 0
+      assert_operator valuation.fetch("final_expected_value_yen"), :>, 0
+      assert_equal 10_000, valuation.fetch("repair_cost_yen")
+    end
+
     test "deduplicates stuck daily runs across target dates by root cause" do
       7.times do |index|
         run = AicooDailyRun.create!(
@@ -174,6 +198,32 @@ module Owner
       assert_equal 1, response.body.scan("Daily Runが business_metrics_import で継続停止").size
       assert_includes response.body, "影響日数 7日"
       assert_includes response.body, "同一障害 7件"
+    end
+
+    test "daily run avoided loss grows with impact days" do
+      board = Aicoo::TodayActionBoard.new
+      one_day_runs = [ create_stuck_daily_run!(target_date: Date.new(2026, 7, 10)) ]
+      one_day = board.send(:daily_run_issue_valuation, one_day_runs, latest: one_day_runs.last)
+
+      AicooDailyRunStep.delete_all
+      AicooDailyRun.delete_all
+      three_day_runs = 3.times.map { |index| create_stuck_daily_run!(target_date: Date.new(2026, 7, 10) - index.days) }
+      three_days = board.send(:daily_run_issue_valuation, three_day_runs, latest: three_day_runs.last)
+
+      assert_operator three_days.avoided_loss_yen, :>, one_day.avoided_loss_yen
+    end
+
+    test "duplicate stuck runs are grouped without simply multiplying loss by run count" do
+      board = Aicoo::TodayActionBoard.new
+      single_run = [ create_stuck_daily_run!(target_date: Date.new(2026, 7, 10)) ]
+      single = board.send(:daily_run_issue_valuation, single_run, latest: single_run.last)
+
+      AicooDailyRunStep.delete_all
+      AicooDailyRun.delete_all
+      duplicate_runs = 5.times.map { create_stuck_daily_run!(target_date: Date.new(2026, 7, 10)) }
+      grouped = board.send(:daily_run_issue_valuation, duplicate_runs, latest: duplicate_runs.last)
+
+      assert_operator grouped.avoided_loss_yen, :<, single.avoided_loss_yen * 2
     end
 
     test "excludes action candidates with external target urls" do
@@ -248,6 +298,22 @@ module Owner
       assert_response :success
       assert_not_includes response.body, "SEOタイトルを1件修正する"
       assert_equal "unrealistic_expected_profit", candidate.reload.metadata.fetch("today_exclusion_reason")
+    end
+
+    test "excludes normal zero value action candidates from Today" do
+      candidate = create_today_candidate!(
+        title: "梅田の店舗一覧を確認する",
+        immediate_value_yen: 0,
+        expected_profit_yen: 0,
+        expected_revenue_value_yen: 0,
+        expected_total_value_yen: 0
+      )
+
+      get owner_focus_url
+
+      assert_response :success
+      assert_not_includes response.body, candidate.title
+      assert_equal "zero_expected_value", candidate.reload.metadata.fetch("today_exclusion_reason")
     end
 
     test "groups similar new businesses and hides non actionable exploring businesses" do
@@ -391,6 +457,23 @@ module Owner
     end
 
     private
+
+    def create_stuck_daily_run!(target_date:)
+      run = AicooDailyRun.create!(
+        target_date:,
+        status: "stuck",
+        source: "cron",
+        started_at: 1.hour.ago,
+        error_message: "business_metrics_import timeout"
+      )
+      run.aicoo_daily_run_steps.create!(
+        step_name: "business_metrics_import",
+        status: "running",
+        started_at: run.started_at,
+        error_message: "business_metrics_import timeout"
+      )
+      run
+    end
 
     def suelog_metadata(title, expected_score:)
       {

@@ -37,6 +37,9 @@
                 <strong><%= item.concrete_task %></strong><br>
                 <small>対象: <%= item.target %></small><br>
                 <small>次: <%= item.owner_next_step %></small>
+                <% if item.reason.present? %>
+                  <br><small>理由: <%= item.reason %></small>
+                <% end %>
                 <% if item.group_summary.present? %>
                   <br><small><%= item.group_summary %></small>
                 <% end %>
