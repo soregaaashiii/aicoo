@@ -1,6 +1,6 @@
 class AicooDailyRunStep < ApplicationRecord
   STATUSES = %w[pending running success failed skipped].freeze
-  PRIMARY_STEP_NAMES = %w[analytics_fetch datahub_collect business_metrics_import action_generation insight_generation].freeze
+  PRIMARY_STEP_NAMES = %w[analytics_fetch datahub_collect business_metrics_import suelog_database_health_check suelog_candidate_generation action_generation insight_generation].freeze
   RECOVERABLE_STEP_NAMES = %w[
     calibration
     owner_task_digest

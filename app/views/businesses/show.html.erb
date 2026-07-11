@@ -371,6 +371,50 @@
     </div>
   </div>
 
+  <% if @suelog_db_health %>
+    <div class="aicoo-card aicoo-card-compact" id="suelog-db-status">
+      <div class="section-heading">
+        <div>
+          <h3>吸えログDB連携</h3>
+          <p>吸えログ本番PostgreSQLを読み取り専用で参照し、店舗確認・記事候補の判断に使います。</p>
+        </div>
+        <span class="pill status-<%= @suelog_db_health.success? ? "healthy" : "warning" %>">
+          <%= @suelog_db_health.success? ? "接続済み" : "スキップ" %>
+        </span>
+      </div>
+      <div class="metric-grid aicoo-owner-secondary">
+        <div class="metric-card">
+          <span>Shop</span>
+          <strong><%= @suelog_db_health.shops_count || "-" %></strong>
+          <small>shops</small>
+        </div>
+        <div class="metric-card">
+          <span>Article</span>
+          <strong><%= @suelog_db_health.articles_count || "-" %></strong>
+          <small>articles</small>
+        </div>
+        <div class="metric-card">
+          <span>ShopClick 30日</span>
+          <strong><%= @suelog_db_health.shop_clicks_count || "-" %></strong>
+          <small>shop_clicks</small>
+        </div>
+        <div class="metric-card">
+          <span>今回生成</span>
+          <strong><%= @suelog_db_candidate_counts.to_h.values.sum %>件</strong>
+          <small>
+            喫煙確認 <%= @suelog_db_candidate_counts.to_h["smoking_info_verify"].to_i %> /
+            電話確認 <%= @suelog_db_candidate_counts.to_h["shop_phone_verify"].to_i %> /
+            新規記事 <%= @suelog_db_candidate_counts.to_h["article_create"].to_i %> /
+            記事改訂 <%= @suelog_db_candidate_counts.to_h["article_update"].to_i %>
+          </small>
+        </div>
+      </div>
+      <% unless @suelog_db_health.success? %>
+        <p class="aicoo-empty-state">理由: <%= @suelog_db_health.code %> / <%= @suelog_db_health.message %></p>
+      <% end %>
+    </div>
+  <% end %>
+
   <div class="aicoo-card aicoo-card-compact" id="auto-revision">
     <div class="section-heading">
       <div>

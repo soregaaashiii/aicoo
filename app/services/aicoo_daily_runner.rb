@@ -101,6 +101,8 @@ class AicooDailyRunner
     run.update!(business_metrics_imported_count: imported_results.size)
     log!("BusinessMetricDaily imported count=#{imported_results.size}")
 
+    run_suelog_database_steps!(run)
+
     run_source_app_diff_detection!(run)
 
     adjustment_logs = record_step!(run, "proxy_weight_adjustment") do
@@ -271,6 +273,99 @@ class AicooDailyRunner
 
   def global_adjustable?
     BusinessMetricDaily.count >= 90 && RevenueEvent.revenue.count >= 20
+  end
+
+  def run_suelog_database_steps!(run)
+    business = suelog_business
+    unless business
+      step = start_step!(run, "suelog_database_health_check")
+      skip_step!(
+        step,
+        metadata: {
+          warning: true,
+          reason: "suelog_business_not_found",
+          message: "吸えログBusinessが見つからないため、吸えログDB連携をスキップしました。"
+        }
+      )
+      generation_step = start_step!(run, "suelog_candidate_generation")
+      skip_step!(
+        generation_step,
+        metadata: {
+          warning: true,
+          reason: "suelog_business_not_found",
+          message: "吸えログBusinessが見つからないため、候補生成をスキップしました。"
+        }
+      )
+      log!("Suelog DB skipped: business_not_found")
+      return
+    end
+
+    health_step = start_step!(run, "suelog_database_health_check")
+    health = Aicoo::ExternalSources::SuelogHealthCheck.call
+    if health.success?
+      finish_step!(health_step, metadata: health.diagnostics.merge("business_id" => business.id))
+      log!("Suelog DB connected shops=#{health.shops_count} articles=#{health.articles_count} shop_clicks_30d=#{health.shop_clicks_count}")
+    else
+      skip_step!(
+        health_step,
+        metadata: health.diagnostics.merge(
+          "business_id" => business.id,
+          warning: true,
+          reason: health.code,
+          message: "吸えログDBへ接続できないため、吸えログ専用候補生成をスキップしました。"
+        )
+      )
+      log!("Suelog DB skipped code=#{health.code}")
+      generation_step = start_step!(run, "suelog_candidate_generation")
+      skip_step!(
+        generation_step,
+        metadata: health.diagnostics.merge(
+          "business_id" => business.id,
+          warning: true,
+          reason: health.code,
+          message: "吸えログDB接続が利用できないため、候補生成をスキップしました。"
+        )
+      )
+      return
+    end
+
+    generation_step = start_step!(run, "suelog_candidate_generation")
+    result = Aicoo::CandidateGenerators::SuelogGenerator.call(business:)
+    if result.health&.success?
+      finish_step!(
+        generation_step,
+        metadata: result.diagnostics.merge(
+          "business_id" => business.id,
+          "action_type_counts" => result.created.group_by(&:action_type).transform_values(&:size)
+        )
+      )
+      log!("Suelog candidates created=#{result.created_count} skipped=#{result.skipped_count}")
+    else
+      skip_step!(
+        generation_step,
+        metadata: result.diagnostics.merge(
+          "business_id" => business.id,
+          warning: true,
+          reason: result.health&.code || "suelog_candidate_generation_skipped",
+          message: "吸えログ専用候補生成はスキップされました。"
+        )
+      )
+      log!("Suelog candidates skipped reason=#{result.health&.code || result.skipped.first}")
+    end
+  rescue StandardError => e
+    fail_step!(health_step, "#{e.class}: #{safe_suelog_error(e)}") if defined?(health_step) && health_step&.running?
+    fail_step!(generation_step, "#{e.class}: #{safe_suelog_error(e)}") if defined?(generation_step) && generation_step&.running?
+    log!("Suelog DB integration failed but Daily Run continues: #{e.class}")
+  end
+
+  def suelog_business
+    @suelog_business ||= Business.real_businesses.find_each.find do |business|
+      Aicoo::Suelog::SiteInsightsAdapter.target?(business)
+    end
+  end
+
+  def safe_suelog_error(error)
+    error.message.to_s.gsub(ENV["SUELOG_DATABASE_URL"].to_s, "[FILTERED]")
   end
 
   def run_calibration!(run)

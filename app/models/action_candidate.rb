@@ -5,6 +5,10 @@ class ActionCandidate < ApplicationRecord
     seo_article
     seo_improvement
     new_article_candidate
+    smoking_info_verify
+    shop_phone_verify
+    article_create
+    article_update
     serp_research
     market_research
     new_business
@@ -29,7 +33,7 @@ class ActionCandidate < ApplicationRecord
 
   STATUSES = %w[idea proposal planning pending approved executor_queued in_progress done rejected archived].freeze
   INACTIVE_STATUSES = %w[archived rejected done canceled cancelled invalid].freeze
-  GENERATION_SOURCES = %w[manual seed ai_business ai_cross_business ai_reevaluation ai_insight learning_report opportunity_discovery business_analyzer serp traffic_channel integrated_decision].freeze
+  GENERATION_SOURCES = %w[manual seed ai_business ai_cross_business ai_reevaluation ai_insight learning_report opportunity_discovery business_analyzer suelog_db serp traffic_channel integrated_decision].freeze
   DEPARTMENTS = %w[general revenue lab new_business].freeze
 
   belongs_to :business

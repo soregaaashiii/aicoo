@@ -71,6 +71,7 @@ class BusinessesController < ApplicationController
     @data_source_settings_presenter = Aicoo::DataSourceSettingsPresenter.new
     @business_data_source_statuses = @data_source_settings_presenter.business_statuses(@business)
     @data_source_policy = Aicoo::DataSourcePolicy.for(@business)
+    load_suelog_database_status
     @auto_revision_run_logs = @business.auto_revision_run_logs.includes(:auto_revision_task).recent.limit(8)
     @pipeline_run = Aicoo::PipelineEngine.new(@business).call
     Aicoo::PipelineStuckDetector.new(scope: AicooPipelineRun.where(id: @pipeline_run.id), auto_recover: false).call
@@ -290,6 +291,16 @@ class BusinessesController < ApplicationController
   end
 
   private
+    def load_suelog_database_status
+      return unless Aicoo::CandidateGenerators::SuelogGenerator.target?(@business)
+
+      @suelog_db_health = Aicoo::ExternalSources::SuelogHealthCheck.call
+      @suelog_db_candidate_counts = @business.action_candidates
+        .where(generation_source: "suelog_db", created_at: 24.hours.ago..Time.current)
+        .group(:action_type)
+        .count
+    end
+
     # Use callbacks to share common setup or constraints between actions.
     def set_business
       @business = Business.find(params.expect(:id))
