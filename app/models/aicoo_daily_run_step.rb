@@ -4,10 +4,16 @@ class AicooDailyRunStep < ApplicationRecord
   RECOVERABLE_STEP_NAMES = %w[
     calibration
     owner_task_digest
+    owner_execution_queue
     action_result_evaluation
     score_snapshot
+    data_preparation_queue
+    meta_evaluation_snapshot
     source_app_diff_detection
     activity_log_evaluation_queue_build
+    business_playbook_update
+    traffic_channel_recording
+    system_mode_snapshot
   ].freeze
   RECOVERY_STATUSES = %w[success failed skipped].freeze
   SLOW_THRESHOLD_SECONDS = 60

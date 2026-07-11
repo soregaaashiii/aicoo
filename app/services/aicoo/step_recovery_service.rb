@@ -74,6 +74,34 @@ module Aicoo
       when "score_snapshot"
         result = ActionCandidateScoreSnapshotter.new.snapshot_top_candidates!(date: daily_run.target_date)
         "Score snapshot step recovery completed successfully count=#{result.created_count}"
+      when "source_app_diff_detection"
+        result = Aicoo::SourceAppDiffDetector.new.call
+        "Source app diff detection step recovery completed successfully created=#{result.created_count} skipped=#{result.skipped_count} errors=#{result.error_count}"
+      when "activity_log_evaluation_queue_build"
+        result = Aicoo::ActivityEvaluationBuilder.new.call
+        "Activity evaluation queue step recovery completed successfully created=#{result.created_count} evaluated=#{result.evaluated_count}"
+      when "data_preparation_queue"
+        result = DataPreparationExecutorQueuer.new.call
+        daily_run.update!(
+          data_preparation_candidates_count: result.candidate_count,
+          data_preparation_auto_queued_count: result.queued_count
+        )
+        "Data preparation queue step recovery completed successfully candidates=#{result.candidate_count} queued=#{result.queued_count}"
+      when "meta_evaluation_snapshot"
+        result = MetaEvaluationSnapshotter.new.snapshot!(date: daily_run.target_date, aicoo_daily_run: daily_run)
+        "Meta evaluation snapshot step recovery completed successfully created=#{result.created_count}"
+      when "owner_execution_queue"
+        result = Aicoo::OwnerExecutionQueueBuilder.new(due_on: Date.current, generated_from: "daily_run_recovery").call
+        "Owner execution queue step recovery completed successfully created=#{result.created.size} skipped=#{result.skipped.size}"
+      when "business_playbook_update"
+        result = Aicoo::BusinessPlaybookBuilder.update_all!(collect_records: false)
+        "Business playbook step recovery completed successfully updated=#{result.updated_count}"
+      when "traffic_channel_recording"
+        result = Aicoo::TrafficChannels::DailyRecorder.record!(daily_run:)
+        "Traffic channel recording step recovery completed successfully recorded=#{result.recorded_count} skipped=#{result.skipped_count}"
+      when "system_mode_snapshot"
+        snapshot = Aicoo::SystemModeSnapshotBuilder.new.call
+        "System mode snapshot step recovery completed successfully id=#{snapshot.id}"
       end
     end
 

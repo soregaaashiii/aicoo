@@ -80,4 +80,85 @@ namespace :aicoo do
     puts "failed=0"
     puts "ids=#{ids.join(',')}" unless apply || ids.empty?
   end
+
+  desc "Diagnose latest stuck Daily Runs. Usage: bin/rails aicoo:diagnose_stuck_daily_runs LIMIT=10"
+  task diagnose_stuck_daily_runs: :environment do
+    limit = ENV.fetch("LIMIT", "10").to_i
+    rows = Aicoo::DailyRunStuckDiagnostic.call(limit:)
+
+    puts "stuck_runs_checked=#{rows.size}"
+    puts
+
+    rows.each do |row|
+      run = row.run
+      last_step = row.last_started_step
+      running_step = row.last_running_step
+      successful_step = row.last_successful_step
+
+      puts "Run #{run.id}"
+      puts "status=#{run.status}"
+      puts "target_date=#{run.target_date}"
+      puts "source=#{run.source}"
+      puts "started_at=#{run.started_at&.iso8601 || '-'}"
+      puts "finished_at=#{row.finished_at&.iso8601 || '-'}"
+      puts "last_successful_step=#{successful_step&.step_name || '-'}"
+      puts "last_started_step=#{last_step&.step_name || '-'}"
+      puts "last_step=#{running_step&.step_name || last_step&.step_name || '-'}"
+      puts "last_step_status=#{running_step&.status || last_step&.status || '-'}"
+      puts "elapsed=#{format_duration(row.elapsed_seconds)}"
+      puts "exception=#{row.exception.presence || '-'}"
+      puts "heartbeat=#{row.heartbeat.presence || '-'}"
+      puts "recoverable=#{running_step&.recoverable? || false}"
+      puts "=================="
+      puts
+    end
+  end
+
+  desc "Resume a recoverable stuck Daily Run step. Usage: RUN_ID=123 bin/rails aicoo:resume_stuck_daily_run"
+  task resume_stuck_daily_run: :environment do
+    run_id = ENV.fetch("RUN_ID", nil).presence
+    abort "RUN_ID is required" unless run_id
+
+    run = AicooDailyRun.find(run_id)
+    step = run.aicoo_daily_run_steps.where(status: "running").recent.first ||
+      run.aicoo_daily_run_steps.failed.recent.first
+    abort "recoverable step not found" unless step
+    if step.status == "running"
+      finished_at = Time.current
+      step.update!(
+        status: "failed",
+        finished_at:,
+        duration_seconds: step.started_at ? finished_at - step.started_at : nil,
+        error_message: "stuck recovery requested"
+      )
+    end
+
+    result = Aicoo::StepRecoveryService.run!(daily_run: run, step_name: step.step_name)
+    if result.success
+      run.update!(
+        status: "partial_failed",
+        finished_at: result.finished_at,
+        error_message: nil,
+        run_log: [ run.run_log.presence, "[#{Time.current.iso8601}] Step resumed: #{step.step_name} #{result.message}" ].compact.join("\n")
+      )
+    end
+
+    puts "run_id=#{run.id}"
+    puts "step=#{step.step_name}"
+    puts "success=#{result.success}"
+    puts "message=#{result.message.presence || '-'}"
+    puts "error=#{result.error_message.presence || '-'}"
+  end
+
+  def format_duration(seconds)
+    seconds = seconds.to_i
+    minutes = seconds / 60
+    return "#{seconds}s" if minutes.zero?
+
+    hours = minutes / 60
+    remaining_minutes = minutes % 60
+    return "#{minutes}m" if hours.zero?
+
+    "#{hours}h#{remaining_minutes}m"
+  end
 end

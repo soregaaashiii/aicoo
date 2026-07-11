@@ -143,13 +143,7 @@ class AicooDailyRunScheduler
   end
 
   def mark_stuck_runs!
-    AicooDailyRun.running.where(finished_at: nil).where("started_at < ?", STUCK_AFTER.ago).find_each do |run|
-      run.update!(
-        status: "stuck",
-        finished_at: Time.current,
-        error_message: "runningのまま#{STUCK_AFTER.inspect}を超過しました"
-      )
-    end
+    Aicoo::DailyRunStuckGuard.call(threshold: STUCK_AFTER)
   end
 
   def status_reason
