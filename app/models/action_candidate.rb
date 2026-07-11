@@ -7,6 +7,7 @@ class ActionCandidate < ApplicationRecord
     new_article_candidate
     smoking_info_verify
     shop_phone_verify
+    shop_data_cleanup
     article_create
     article_update
     serp_research

@@ -88,6 +88,37 @@ module Aicoo
         assert_nil matched
       end
 
+      test "external landing page is never treated as an owned article target" do
+        generator = SuelogGenerator.new(business: @business)
+        article = FakeArticle.new(
+          id: 1,
+          slug: "84-0008",
+          title: "外部比較記事ではない",
+          seo_title: nil,
+          meta_description: nil,
+          summary: nil,
+          recommended_areas: nil
+        )
+
+        matched = generator.send(
+          :article_for,
+          row: { query: "吸えログ 比較", landing_page: "https://it-trend.jp/log_management/article/84-0008" },
+          articles: [ article ]
+        )
+
+        assert_nil matched
+        assert_not generator.send(:owner_landing_page?, "https://it-trend.jp/log_management/article/84-0008")
+      end
+
+      test "recommended slug falls back to stable article slug when Japanese query cannot parameterize cleanly" do
+        generator = SuelogGenerator.new(business: @business)
+
+        slug = generator.send(:recommended_slug_for, "吸えログ 喫煙")
+
+        assert_match(/\Aarticle-[a-f0-9]{10}\z/, slug)
+        assert_no_match(/\A-|-\z/, slug)
+      end
+
       private
 
       def without_suelog_database_url

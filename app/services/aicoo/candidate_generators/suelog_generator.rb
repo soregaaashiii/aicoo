@@ -1,6 +1,7 @@
 require "csv"
 require "digest"
 require "json"
+require "uri"
 
 module Aicoo
   module CandidateGenerators
@@ -23,8 +24,12 @@ module Aicoo
       STALE_VERIFICATION_DAYS = 180
       SMOKING_LIMIT = 20
       PHONE_LIMIT = 10
+      CLEANUP_LIMIT = 10
       ARTICLE_LIMIT = 20
       MIN_GSC_IMPRESSIONS = 20
+      MAX_CANDIDATE_VALUE_YEN = 250_000
+      MAX_HIGH_CONFIDENCE_VALUE_YEN = 1_000_000
+      OWNER_HOSTS = %w[suelog.jp www.suelog.jp].freeze
 
       def self.target?(business)
         Aicoo::Suelog::SiteInsightsAdapter.target?(business)
@@ -49,6 +54,7 @@ module Aicoo
         skipped = []
         created.concat(create_smoking_info_candidates(skipped:))
         created.concat(create_phone_verify_candidates(skipped:))
+        created.concat(create_shop_data_cleanup_candidates(skipped:))
         created.concat(create_article_candidates(skipped:))
 
         Result.new(created:, skipped:, health:)
@@ -73,11 +79,12 @@ module Aicoo
             description: "#{shop.area.presence || 'エリア未設定'} / #{shop.smoking_area_label} / #{shop.smoking_type_label}",
             external_record_id: shop.id,
             target_query: nil,
-            immediate_value_yen: 2_400 + (click_counts.fetch(shop.id, 0) * 120),
+            immediate_value_yen: estimated_shop_action_value(action_type: "smoking_info_verify", click_count: click_counts.fetch(shop.id, 0)),
             expected_hours: 0.08,
             success_probability: 0.82,
             strategic_value_score: 45,
             metadata: shop_metadata(shop, click_counts).merge(
+              "value_model" => suelog_value_model,
               "recommended_verification_method" => verification_method_for(shop),
               "priority_reason" => priority_reason_for(shop, click_counts.fetch(shop.id, 0)),
               "action_plan" => {
@@ -111,11 +118,12 @@ module Aicoo
             description: "電話番号あり / #{shop.area.presence || 'エリア未設定'} / 直近クリック #{click_counts.fetch(shop.id, 0)}",
             external_record_id: shop.id,
             target_query: nil,
-            immediate_value_yen: 3_000 + (click_counts.fetch(shop.id, 0) * 150),
+            immediate_value_yen: estimated_shop_action_value(action_type: "shop_phone_verify", click_count: click_counts.fetch(shop.id, 0)),
             expected_hours: 0.1,
             success_probability: 0.78,
             strategic_value_score: 50,
             metadata: shop_metadata(shop, click_counts).merge(
+              "value_model" => suelog_value_model,
               "recommended_verification_method" => "phone",
               "priority_reason" => "電話番号があり、喫煙情報が不明または古いため電話確認で解決できます。",
               "action_plan" => {
@@ -131,6 +139,47 @@ module Aicoo
           )
         rescue ActiveRecord::RecordInvalid => e
           skipped << "shop_phone_verify_invalid:#{shop.id}:#{e.record.errors.full_messages.join(',')}"
+          nil
+        end.compact
+      end
+
+      def create_shop_data_cleanup_candidates(skipped:)
+        shops = ::Suelog::Shop.approved
+          .where("on_hold = TRUE OR hold_reason IS NOT NULL")
+          .select(:id, :name, :area, :genre, :phone, :smoking_area, :smoking_type, :smoking_unverified, :last_confirmed_on, :on_hold, :hold_reason, :phone_check_on_hold, :updated_at)
+          .order(updated_at: :asc)
+          .limit(100)
+          .to_a
+        click_counts = click_counts_for(shops.map(&:id))
+        shops.sort_by { |shop| [ -click_counts.fetch(shop.id, 0), shop.updated_at || Time.zone.at(0) ] }
+             .first(CLEANUP_LIMIT)
+             .filter_map do |shop|
+          create_candidate(
+            action_type: "shop_data_cleanup",
+            title: "#{shop.name}の保留/古い店舗データを整理する",
+            description: "#{shop.area.presence || 'エリア未設定'} / #{shop.hold_reason.presence || '保留理由未設定'} / 直近クリック #{click_counts.fetch(shop.id, 0)}",
+            external_record_id: shop.id,
+            target_query: nil,
+            immediate_value_yen: estimated_shop_action_value(action_type: "shop_data_cleanup", click_count: click_counts.fetch(shop.id, 0)),
+            expected_hours: 0.12,
+            success_probability: 0.65,
+            strategic_value_score: 42,
+            metadata: shop_metadata(shop, click_counts).merge(
+              "value_model" => suelog_value_model,
+              "cleanup_reason" => shop.hold_reason.presence || "on_hold",
+              "action_plan" => {
+                "owner_output" => "#{shop.name}の保留理由と店舗データを整理する",
+                "execution_steps" => [
+                  "保留理由を確認する",
+                  "住所/閉店/重複/喫煙情報のどれが問題か切り分ける",
+                  "必要な項目を更新し、保留を解除または維持理由を更新する"
+                ]
+              }
+            ),
+            evaluation_reason: "suelog_db: 保留/古い店舗データを検出。直近クリック=#{click_counts.fetch(shop.id, 0)}"
+          )
+        rescue ActiveRecord::RecordInvalid => e
+          skipped << "shop_data_cleanup_invalid:#{shop.id}:#{e.record.errors.full_messages.join(',')}"
           nil
         end.compact
       end
@@ -165,10 +214,14 @@ module Aicoo
           success_probability: 0.58,
           strategic_value_score: 55,
           metadata: article_metadata(row).merge(
+            "value_model" => suelog_value_model,
             "article_id" => article.id,
             "article_title" => article.title,
             "article_slug" => article.slug,
             "target_url" => article.public_path,
+            "target_url_type" => "owner_page",
+            "page_exists" => true,
+            "matched_article_id" => article.id,
             "current_title" => article.title,
             "current_seo_title" => article.seo_title,
             "current_meta_description" => article.meta_description,
@@ -199,9 +252,11 @@ module Aicoo
           success_probability: 0.48,
           strategic_value_score: 60,
           metadata: article_metadata(row).merge(
+            "value_model" => suelog_value_model,
             "recommended_title" => "#{row[:query]}｜喫煙できる飲食店を探すなら吸えログ",
             "recommended_slug" => slug,
             "recommended_url" => "/articles/#{slug}",
+            "target_url_type" => "owner_page",
             "article_summary" => "検索クエリ「#{row[:query]}」の意図に対応するまとめ記事を作成します。",
             "article_reason" => "GSCに検索需要がありますが、吸えログDB上に対応する公開済みArticleが存在しません。",
             "article_outline" => [ "H1 #{row[:query]}", "H2 探している人の条件", "H2 喫煙可否で選ぶ", "H2 エリア/ジャンル別の探し方", "H2 FAQ" ],
@@ -222,6 +277,7 @@ module Aicoo
       def create_candidate(action_type:, title:, description:, external_record_id:, target_query:, immediate_value_yen:, expected_hours:, success_probability:, strategic_value_score:, metadata:, evaluation_reason:)
         return if duplicate_candidate?(action_type:, external_record_id:, target_query:)
 
+        capped_value_yen = calibrated_value_yen(immediate_value_yen, metadata:)
         ActionCandidate.create!(
           business:,
           title:,
@@ -229,12 +285,18 @@ module Aicoo
           action_type:,
           status: "idea",
           generation_source: "suelog_db",
-          immediate_value_yen:,
+          immediate_value_yen: capped_value_yen,
           success_probability:,
           strategic_value_score:,
           risk_reduction_score: 20,
           expected_hours:,
-          priority_score: [ strategic_value_score.to_i + 20, 100 ].min,
+          cost_yen: estimated_labor_cost_yen(expected_hours),
+          priority_score: candidate_priority_score(
+            value_yen: capped_value_yen,
+            expected_hours:,
+            success_probability:,
+            strategic_value_score:
+          ),
           evaluation_reason:,
           execution_prompt: nil,
           metadata: metadata.merge(
@@ -243,7 +305,9 @@ module Aicoo
             "target_query" => target_query.to_s,
             "execution_mode" => execution_mode_for(action_type),
             "data_sources_used" => (Array(metadata["data_sources_used"]) + %w[suelog_db]).uniq,
-            "created_by" => self.class.name
+            "created_by" => self.class.name,
+            "raw_immediate_value_yen" => immediate_value_yen.to_i,
+            "value_capped" => capped_value_yen != immediate_value_yen.to_i
           )
         )
       end
@@ -251,6 +315,7 @@ module Aicoo
       def execution_mode_for(action_type)
         case action_type
         when "smoking_info_verify", "shop_phone_verify" then "manual_operation"
+        when "shop_data_cleanup" then "data_operation"
         when "article_create", "article_update" then "content_creation"
         else "manual_operation"
         end
@@ -331,7 +396,9 @@ module Aicoo
           "clicks" => row[:clicks],
           "ctr" => row[:ctr],
           "average_position" => row[:position],
-          "landing_page" => row[:landing_page],
+          "landing_page" => owner_landing_page?(row[:landing_page]) ? row[:landing_page] : nil,
+          "external_landing_page_reference" => owner_landing_page?(row[:landing_page]) ? nil : row[:landing_page],
+          "target_url_type" => owner_landing_page?(row[:landing_page]) ? "owner_page" : "unknown",
           "expected_pv" => expected_pv(row),
           "expected_ctr_lift" => expected_ctr_lift(row)
         }
@@ -414,7 +481,7 @@ module Aicoo
       def article_for(row:, articles:)
         return if articles.blank?
 
-        landing_slug = row[:landing_page].to_s[/\/articles\/([^\/?#]+)/, 1]
+        landing_slug = owner_landing_page?(row[:landing_page]) ? row[:landing_page].to_s[/\/articles\/([^\/?#]+)/, 1] : nil
         return articles.find { |article| article.slug == landing_slug } if landing_slug.present?
 
         articles.max_by { |article| article_relevance_score(article, row[:query]) }.then do |article|
@@ -455,8 +522,12 @@ module Aicoo
       end
 
       def recommended_slug_for(query)
-        parameterized = query.to_s.parameterize
-        parameterized.presence || "article-#{Digest::SHA1.hexdigest(query.to_s).first(10)}"
+        normalized_query = query.to_s.encode("UTF-8", invalid: :replace, undef: :replace, replace: "")
+        parameterized = normalized_query.parameterize
+        normalized = parameterized.to_s.gsub(/\A-+|-+\z/, "").squish
+        return normalized if normalized.match?(/\A[a-z0-9][a-z0-9-]{4,}[a-z0-9]\z/)
+
+        "article-#{Digest::SHA1.hexdigest(normalized_query).first(10)}"
       end
 
       def query_external_id(query)
@@ -464,17 +535,125 @@ module Aicoo
       end
 
       def article_expected_value(row)
-        [ (row[:impressions].to_i * 0.08 * 120).round, 2_400 ].max
+        impressions = row[:impressions].to_i
+        current_ctr = row[:ctr].to_d
+        target_ctr = target_ctr_for(row)
+        incremental_clicks = [ impressions * [ target_ctr - current_ctr, 0.005.to_d ].max, 500 ].min
+        value = incremental_clicks * suelog_value_model.fetch("value_per_click_yen").to_d
+        [ value.round, 1_200 ].max
       end
 
       def expected_pv(row)
-        [ (row[:impressions].to_i * 0.08).round, 10 ].max
+        [ (row[:impressions].to_i * target_ctr_for(row)).round, 10 ].max
       end
 
       def expected_ctr_lift(row)
         current = row[:ctr].to_d
-        target = current < 0.02 ? 0.02 : current + 0.005
+        target = target_ctr_for(row)
         (target - current).round(4).to_s
+      end
+
+      def target_ctr_for(row)
+        position = row[:position].to_d
+        current = row[:ctr].to_d
+        baseline =
+          if position.positive? && position <= 5
+            0.035.to_d
+          elsif position <= 10
+            0.025.to_d
+          elsif position <= 30
+            0.015.to_d
+          else
+            0.01.to_d
+          end
+        [ baseline, current + 0.005.to_d ].max
+      end
+
+      def estimated_shop_action_value(action_type:, click_count:)
+        model = suelog_value_model
+        base_clicks = [ click_count.to_i, 1 ].max
+        multiplier = {
+          "smoking_info_verify" => 2.5,
+          "shop_phone_verify" => 3.0,
+          "shop_data_cleanup" => 1.4
+        }.fetch(action_type, 1.0)
+        value = base_clicks * model.fetch("value_per_shop_click_yen").to_d * multiplier
+        [ value.round, 800 ].max
+      end
+
+      def calibrated_value_yen(value, metadata:)
+        value = value.to_i
+        cap = metadata.to_h.dig("value_model", "high_confidence") ? MAX_HIGH_CONFIDENCE_VALUE_YEN : MAX_CANDIDATE_VALUE_YEN
+        [ value, cap ].min
+      end
+
+      def estimated_labor_cost_yen(expected_hours)
+        (expected_hours.to_d * 1_500).round
+      end
+
+      def candidate_priority_score(value_yen:, expected_hours:, success_probability:, strategic_value_score:)
+        hours = [ expected_hours.to_d, 0.05.to_d ].max
+        expected_profit = value_yen.to_d * success_probability.to_d
+        hourly_score = [ expected_profit / hours / 1_000, 55 ].min
+        confidence_score = (success_probability.to_d * 20)
+        strategic_score = strategic_value_score.to_i * 0.25
+        [ (hourly_score + confidence_score + strategic_score).round, 100 ].min
+      end
+
+      def suelog_value_model
+        @suelog_value_model ||= begin
+          metrics = business.business_metric_dailies.where(recorded_on: 90.days.ago.to_date..today)
+          clicks = metrics.sum(:clicks).to_i
+          phone_clicks = metrics.sum(:phone_clicks).to_i
+          map_clicks = metrics.sum(:map_clicks).to_i
+          affiliate_clicks = metrics.sum(:affiliate_clicks).to_i
+          near_conversion_count = phone_clicks + map_clicks + affiliate_clicks
+          weights = ProxyScoreWeight.for_business(business)
+          near_conversion_value =
+            (phone_clicks * weights.weight_for(:phone_clicks).to_d) +
+            (map_clicks * weights.weight_for(:map_clicks).to_d) +
+            (affiliate_clicks * weights.weight_for(:affiliate_clicks).to_d)
+          value_per_click = if clicks.positive? && near_conversion_value.positive?
+            near_conversion_value / clicks
+          else
+            8.to_d
+          end
+          value_per_shop_click = if near_conversion_count.positive?
+            near_conversion_value / near_conversion_count
+          else
+            12.to_d
+          end
+
+          {
+            "source" => "business_metric_dailies_90d_and_suelog_shop_clicks",
+            "lookback_days" => 90,
+            "business_clicks_90d" => clicks,
+            "phone_clicks_90d" => phone_clicks,
+            "map_clicks_90d" => map_clicks,
+            "affiliate_clicks_90d" => affiliate_clicks,
+            "near_conversion_count_90d" => near_conversion_count,
+            "near_conversion_proxy_value_90d" => near_conversion_value.round(2).to_s,
+            "value_per_click_yen" => clamp_decimal(value_per_click, min: 2, max: 80).round(2).to_s,
+            "value_per_shop_click_yen" => clamp_decimal(value_per_shop_click, min: 5, max: 120).round(2).to_s,
+            "calibration_target" => "ActionResult / BusinessMetricDailyで継続補正",
+            "high_confidence" => clicks >= 100 && near_conversion_count >= 5
+          }
+        end
+      end
+
+      def clamp_decimal(value, min:, max:)
+        [[ value.to_d, min.to_d ].max, max.to_d].min
+      end
+
+      def owner_landing_page?(url)
+        text = url.to_s
+        return false if text.blank?
+        return true if text.start_with?("/")
+
+        uri = URI.parse(text)
+        uri.host.in?(OWNER_HOSTS)
+      rescue URI::InvalidURIError
+        false
       end
 
       def percent(value)
