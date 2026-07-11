@@ -47,7 +47,7 @@ module Aicoo
     attr_reader :owner_focus_home
 
     def today_board
-      @today_board ||= TodayActionBoard.new(mode: "revenue", limit: 20).call
+      @today_board ||= TodayActionBoard.new(mode: "revenue").call
     end
 
     def daily_run_health

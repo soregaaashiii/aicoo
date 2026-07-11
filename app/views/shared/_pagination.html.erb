@@ -1,0 +1,28 @@
+<% current_page = local_assigns.fetch(:current_page).to_i %>
+<% total_pages = local_assigns.fetch(:total_pages).to_i %>
+<% total_count = local_assigns.fetch(:total_count).to_i %>
+<% per_page = local_assigns.fetch(:per_page).to_i %>
+<% page_param = local_assigns.fetch(:page_param).to_sym %>
+
+<% if total_pages > 1 %>
+  <nav class="pagination-nav" aria-label="ページ移動">
+    <div>
+      <span><%= total_count %>件中 <%= ((current_page - 1) * per_page) + 1 %>-<%= [current_page * per_page, total_count].min %>件</span>
+    </div>
+    <div class="actions compact-actions">
+      <% if current_page > 1 %>
+        <%= link_to "前ページ", url_for(request.query_parameters.merge(page_param => current_page - 1)), class: "button secondary" %>
+      <% else %>
+        <span class="button secondary disabled">前ページ</span>
+      <% end %>
+      <span class="pill"><%= current_page %> / <%= total_pages %></span>
+      <% if current_page < total_pages %>
+        <%= link_to "次ページ", url_for(request.query_parameters.merge(page_param => current_page + 1)), class: "button secondary" %>
+      <% else %>
+        <span class="button secondary disabled">次ページ</span>
+      <% end %>
+    </div>
+  </nav>
+<% elsif total_count.positive? %>
+  <p class="muted"><%= total_count %>件中 <%= total_count %>件を表示</p>
+<% end %>

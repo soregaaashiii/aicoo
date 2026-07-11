@@ -7,11 +7,7 @@ module Aicoo
     APPROVAL_REQUIRED_STATUSES = %w[draft waiting_approval approved].freeze
     CODEX_QUEUE_STATUSES = %w[queued ready_for_codex sent_to_codex running].freeze
     OWNER_EXECUTION_MODES = %w[manual_operation content_creation data_operation owner_decision].freeze
-    MAX_TOTAL_ITEMS = 15
-    MAX_DAILY_RUN_ISSUES = 3
-    MAX_APPROVAL_ITEMS = 3
-    MAX_IMPROVEMENT_ITEMS = 5
-    MAX_NEW_BUSINESS_ITEMS = 3
+    PER_PAGE = Aicoo::ActionExpectedValueRanking::DEFAULT_PER_PAGE
     HIGH_VALUE_REVIEW_THRESHOLD_YEN = 1_000_000
     DAILY_RUN_MINIMUM_AVOIDED_LOSS_YEN = 15_000
     DAILY_RUN_STANDARD_LOSS_PER_BUSINESS_YEN = 5_000
@@ -37,7 +33,18 @@ module Aicoo
     ].freeze
     UNSPECIFIED_VALUES = %w[未特定 unspecified unknown].freeze
 
-    Board = Data.define(:mode, :tabs, :items, :description)
+    Board = Data.define(
+      :mode,
+      :tabs,
+      :items,
+      :description,
+      :total_count,
+      :current_page,
+      :total_pages,
+      :per_page,
+      :offset,
+      :page_param
+    )
     Tab = Data.define(:key, :label, :path, :active)
     DailyRunValuation = Data.define(
       :avoided_loss_yen,
@@ -86,28 +93,41 @@ module Aicoo
       :score
     )
 
-    def initialize(mode: nil, limit: MAX_TOTAL_ITEMS)
+    def initialize(mode: nil, page: nil, page_param: :today_actions_page, per_page: PER_PAGE)
       @mode = MODES.include?(mode.to_s) ? mode.to_s : "revenue"
-      limit_value = limit.respond_to?(:to_i) ? limit.to_i : MAX_TOTAL_ITEMS
-      @limit = [ limit_value.positive? ? limit_value : MAX_TOTAL_ITEMS, MAX_TOTAL_ITEMS ].min
+      @page = page
+      @page_param = page_param.to_sym
+      @per_page = per_page
     end
 
     def call
       items = candidate_items
-      ranked_items = select_today_items(items)
-        .sort_by { |item| today_sort_key(item) }
-        .first(limit)
-        .map.with_index(1) { |item, index| item.with(rank: index) }
+      ranking = ActionExpectedValueRanking.new(
+        items: select_today_items(items),
+        mode:,
+        page:,
+        per_page:
+      ).call
 
-      mark_filtered_items!(items, ranked_items)
-      log_business_diagnostics!(items, ranked_items)
+      log_business_diagnostics!(items, ranking.items)
 
-      Board.new(mode:, tabs:, items: ranked_items, description: DESCRIPTION)
+      Board.new(
+        mode:,
+        tabs:,
+        items: ranking.items,
+        description: DESCRIPTION,
+        total_count: ranking.total_count,
+        current_page: ranking.current_page,
+        total_pages: ranking.total_pages,
+        per_page: ranking.per_page,
+        offset: ranking.offset,
+        page_param:
+      )
     end
 
     private
 
-    attr_reader :mode, :limit
+    attr_reader :mode, :page, :page_param, :per_page
 
     def tabs
       [
@@ -124,13 +144,7 @@ module Aicoo
     end
 
     def select_today_items(items)
-      sorted = items.sort_by { |item| today_sort_key(item) }
-      daily_run_items = sorted.select { |item| item.source_type == "daily_run_issue" }.first(MAX_DAILY_RUN_ISSUES)
-      approval_items = sorted.select { |item| item.approval_required }.first(MAX_APPROVAL_ITEMS)
-      improvement_items = sorted.select { |item| item.source_type.in?(%w[action_candidate auto_revision_task]) && !item.approval_required }.first(MAX_IMPROVEMENT_ITEMS)
-      new_business_items = sorted.select { |item| item.source_type == "new_business" }.first(MAX_NEW_BUSINESS_ITEMS)
-
-      (daily_run_items + approval_items + improvement_items + new_business_items).uniq(&:stable_id).first(limit)
+      items.uniq(&:stable_id)
     end
 
     def action_candidate_items
@@ -618,26 +632,6 @@ module Aicoo
       else
         revenue_score
       end
-    end
-
-    def priority_rank(item)
-      case item.priority
-      when "critical" then 0
-      when "high" then 1
-      when "improvement" then 3
-      when "new_business" then 4
-      else 5
-      end
-    end
-
-    def today_sort_key(item)
-      [
-        -item.expected_value_yen.to_i,
-        -item.score.to_d,
-        priority_rank(item),
-        item.business_name.to_s,
-        item.stable_id.to_s
-      ]
     end
 
     def daily_run_issue_valuation(runs, latest:)

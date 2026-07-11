@@ -359,18 +359,52 @@ module Owner
       assert_includes response.body, "代表Business"
     end
 
-    test "limits Today to fifteen items" do
-      20.times do |index|
+    test "shows twenty Today actions per page and keeps global rank on page two" do
+      candidates = 25.times.map do |index|
         create_today_candidate!(
           title: "梅田の未確認店舗を#{index + 1}件確認済みにする",
-          immediate_value_yen: 100_000 - index
+          immediate_value_yen: 100_000 - index,
+          metadata: today_metadata(
+            title: "梅田の未確認店舗を#{index + 1}件確認済みにする",
+            target: "梅田 / 未確認店舗 #{index + 1}"
+          )
         )
       end
 
       get owner_focus_url
 
       assert_response :success
-      assert_operator response.body.scan("data-today-item-id=").size, :<=, 15
+      assert_equal 20, today_item_ids(response.body).size
+      assert_includes response.body, "次ページ"
+      assert_equal "action_candidate:#{candidates.first.id}", today_item_ids(response.body).first
+      assert_not_includes response.body, "梅田の未確認店舗を21件確認済みにする"
+
+      get owner_focus_url(today_actions_page: 2)
+
+      assert_response :success
+      assert_equal 5, today_item_ids(response.body).size
+      assert_equal "action_candidate:#{candidates[20].id}", today_item_ids(response.body).first
+      assert_includes response.body, "<td class=\"number\">21</td>"
+      assert_includes response.body, "前ページ"
+    end
+
+    test "Today pagination uses today_actions_page without changing home_actions_page" do
+      25.times do |index|
+        create_today_candidate!(
+          title: "難波の確認済み店舗を#{index + 1}件増やす",
+          immediate_value_yen: 100_000 - index,
+          metadata: today_metadata(
+            title: "難波の確認済み店舗を#{index + 1}件増やす",
+            target: "難波 / 確認済み #{index + 1}"
+          )
+        )
+      end
+
+      get owner_focus_url(today_actions_page: 2, home_actions_page: 7)
+
+      assert_response :success
+      assert_includes response.body, "today_actions_page=1"
+      assert_includes response.body, "home_actions_page=7"
     end
 
     test "does not create fallback Today item for data backed business with no visible candidate" do
@@ -552,6 +586,10 @@ module Owner
           }
         }.merge(attributes)
       )
+    end
+
+    def today_item_ids(body)
+      body.scan(/data-today-item-id="([^"]+)"/).flatten
     end
   end
 end
