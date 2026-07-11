@@ -95,10 +95,7 @@ class AicooDailyRunner
     run.update!(snapshot_count: datahub_run.snapshot_count)
     log!("DataHub collected snapshots count=#{datahub_run.snapshot_count}")
 
-    imported_results = record_step!(run, "business_metrics_import") do
-      BusinessMetricDailyImporter.import_all!(date: target_date)
-    end
-    run.update!(business_metrics_imported_count: imported_results.size)
+    imported_results = run_business_metrics_import!(run)
     log!("BusinessMetricDaily imported count=#{imported_results.size}")
 
     run_suelog_database_steps!(run)
@@ -228,6 +225,77 @@ class AicooDailyRunner
     last_id = AnalyticsFetchRun.maximum(:id).to_i
     AicooAnalytics::DailyFetchJob.perform_now
     AnalyticsFetchRun.where("id > ?", last_id)
+  end
+
+  def run_business_metrics_import!(run)
+    step = start_step!(run, "business_metrics_import")
+    log!("business_metrics_import start target_date=#{target_date}")
+    imported_results = BusinessMetricDailyImporter.import_all!(
+      date: target_date,
+      progress: business_metrics_progress_callback(step)
+    )
+    metadata = step.metadata.to_h
+    run.update!(business_metrics_imported_count: imported_results.size)
+    if metadata["error_count"].to_i.positive? || metadata["skipped_count"].to_i.positive?
+      partial_failures << "business_metrics_import_partial"
+      finish_step!(
+        step,
+        metadata: metadata.merge(
+          warning: true,
+          reason: "business_metrics_import_partial",
+          message: "BusinessMetricDaily importは完了しましたが、一部Businessで失敗またはtimeoutしました。"
+        )
+      )
+    else
+      finish_step!(step, metadata:)
+    end
+    log!(
+      "business_metrics_import finish processed=#{metadata['processed_business_count'].to_i} " \
+      "created=#{metadata['created_count'].to_i} updated=#{metadata['updated_count'].to_i} " \
+      "skipped=#{metadata['skipped_count'].to_i} errors=#{metadata['error_count'].to_i}"
+    )
+    imported_results
+  rescue StandardError => e
+    error_message = "#{e.class}: #{e.message}"
+    Rails.logger.error("AICOO Daily Run business metrics import failed: #{error_message}")
+    partial_failures << "business_metrics_import_failed"
+    fail_step!(
+      step,
+      error_message,
+      metadata: {
+        error_class: e.class.name,
+        backtrace: e.backtrace.to_a.first(5),
+        message: "BusinessMetricDaily import failed and Daily Run continues as partial_failed."
+      }
+    ) if step
+    log!("business_metrics_import failed: #{error_message}")
+    []
+  end
+
+  def business_metrics_progress_callback(step)
+    lambda do |progress|
+      metadata = step.metadata.to_h.merge(
+        "heartbeat" => progress.last_progress_at.iso8601,
+        "last_progress_at" => progress.last_progress_at.iso8601,
+        "progress_event" => progress.event,
+        "target_business_count" => progress.target_business_count,
+        "processed_business_count" => progress.processed_business_count,
+        "current_business_id" => progress.current_business_id,
+        "current_business_name" => progress.current_business_name,
+        "created_count" => progress.created_count,
+        "updated_count" => progress.updated_count,
+        "skipped_count" => progress.skipped_count,
+        "error_count" => progress.error_count,
+        "elapsed_seconds" => progress.elapsed_seconds.to_f.round(2)
+      )
+      metadata["last_error"] = progress.error_message if progress.error_message.present?
+      step.update!(metadata:)
+      log!(
+        "business_metrics_import #{progress.event} " \
+        "processed=#{progress.processed_business_count}/#{progress.target_business_count} " \
+        "business_id=#{progress.current_business_id || '-'} elapsed=#{progress.elapsed_seconds.to_f.round(1)}s"
+      )
+    end
   end
 
   def analytics_metadata(success_count:, failed_runs:, blocking_failures:)

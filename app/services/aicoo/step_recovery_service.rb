@@ -65,6 +65,8 @@ module Aicoo
       case step_name
       when "calibration"
         recover_calibration
+      when "business_metrics_import"
+        recover_business_metrics_import
       when "owner_task_digest"
         Aicoo::OwnerTaskDigest.new.call
         "Owner Task Digest step recovery completed successfully"
@@ -117,6 +119,12 @@ module Aicoo
         pending_calibration_count: result.pending_count
       )
       "Calibration step recovery completed successfully updated=#{result.calibration_count} logs=#{result.logs.size}"
+    end
+
+    def recover_business_metrics_import
+      results = BusinessMetricDailyImporter.import_all!(date: daily_run.target_date)
+      daily_run.update!(business_metrics_imported_count: results.size)
+      "BusinessMetricDaily import step recovery completed successfully count=#{results.size}"
     end
 
     def skipped_result(started_at, message)

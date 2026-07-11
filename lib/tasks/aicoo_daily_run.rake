@@ -150,6 +150,40 @@ namespace :aicoo do
     puts "error=#{result.error_message.presence || '-'}"
   end
 
+  desc "Dry-run cleanup duplicate stuck Daily Runs. Use APPLY=1 to delete duplicates."
+  task cleanup_duplicate_stuck_daily_runs: :environment do
+    apply = ENV.fetch("APPLY", nil).to_s == "1"
+    rows = Aicoo::DailyRunStuckDiagnostic.call(limit: AicooDailyRun.where(status: "stuck").count)
+    groups = rows.group_by do |row|
+      [
+        row.run.target_date,
+        row.last_running_step&.step_name || row.last_started_step&.step_name || "unknown",
+        row.exception.to_s.presence || row.run.error_message.to_s.presence || "unknown"
+      ]
+    end
+
+    duplicate_ids = groups.values.flat_map do |items|
+      next [] if items.size <= 1
+
+      items.sort_by { |row| row.run.id }.reverse.drop(1).map { |row| row.run.id }
+    end
+
+    deleted_count = 0
+    if apply
+      AicooDailyRun.where(id: duplicate_ids).find_each do |run|
+        run.destroy!
+        deleted_count += 1
+      end
+    end
+
+    puts "mode=#{apply ? 'apply' : 'dry_run'}"
+    puts "stuck_checked=#{rows.size}"
+    puts "duplicate_groups=#{groups.values.count { |items| items.size > 1 }}"
+    puts "duplicates_found=#{duplicate_ids.size}"
+    puts "deleted=#{deleted_count}"
+    puts "ids=#{duplicate_ids.join(',')}" unless apply || duplicate_ids.empty?
+  end
+
   def format_duration(seconds)
     seconds = seconds.to_i
     minutes = seconds / 60

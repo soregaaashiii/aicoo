@@ -280,29 +280,35 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
     end
   end
 
-  test "failed run stores error message" do
+  test "business metric import failure stores failed step and lets run continue as partial failed" do
     error = RuntimeError.new("boom")
+    order = []
+    target_date = Date.new(2026, 6, 21)
+    adjuster = fake_adjuster(order)
+    generator_result = MetricActionCandidateGenerator::Result.new(created: [], skipped: [])
 
-    with_singleton_stub(BusinessMetricDailyImporter, :import_all!, ->(date:) { raise error }) do
-      assert_raises(RuntimeError) do
-        AicooDailyRunner.run!(target_date: Date.new(2026, 6, 21))
-      end
+    stub_daily_steps(
+      order:,
+      adjuster:,
+      generator_results: [ generator_result ],
+      evaluated_results: [],
+      business_metric_error: error
+    ) do
+      run = AicooDailyRunner.run!(target_date:)
+
+      assert_equal "partial_failed", run.status
+      assert_match "business_metrics_import_failed", run.run_log
+      step = run.aicoo_daily_run_steps.find_by!(step_name: "business_metrics_import")
+      assert_equal "failed", step.status
+      assert_match "RuntimeError: boom", step.error_message
     end
-
-    run = AicooDailyRun.last
-    assert_equal "failed", run.status
-    assert_match "RuntimeError: boom", run.error_message
-    assert_match "Daily Run failed", run.run_log
-    step = run.aicoo_daily_run_steps.find_by!(step_name: "business_metrics_import")
-    assert_equal "failed", step.status
-    assert_match "RuntimeError: boom", step.error_message
   end
 
   test "does not start duplicate running daily run for same target date" do
     target_date = Date.new(2026, 6, 21)
     existing = AicooDailyRun.create!(target_date:, status: "running", started_at: Time.current)
 
-    with_singleton_stub(BusinessMetricDailyImporter, :import_all!, ->(date:) { raise "should not be called" }) do
+    with_singleton_stub(BusinessMetricDailyImporter, :import_all!, ->(date:, progress: nil) { raise "should not be called" }) do
       assert_equal existing, AicooDailyRunner.run!(target_date:)
     end
   end
@@ -343,14 +349,31 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
     analytics_status: "success",
     analytics_error_message: nil,
     calibration_error: nil,
+    business_metric_error: nil,
     insight_result: nil
   )
     with_singleton_stub(AicooAnalytics::DailyFetchJob, :perform_now, -> {
       fake_analytics_fetch(order, analytics_status, analytics_error_message)
     }) do
       with_singleton_stub(AicooDataHub::DailyCollector, :new, -> { fake_datahub_collector(order) }) do
-        with_singleton_stub(BusinessMetricDailyImporter, :import_all!, ->(date:) {
+        with_singleton_stub(BusinessMetricDailyImporter, :import_all!, ->(date:, progress: nil) {
           order << :import
+          raise business_metric_error if business_metric_error
+
+          progress&.call(BusinessMetricDailyImporter::Progress.new(
+            event: "finish",
+            target_business_count: 2,
+            processed_business_count: 2,
+            current_business_id: nil,
+            current_business_name: nil,
+            created_count: 1,
+            updated_count: 1,
+            skipped_count: 0,
+            error_count: 0,
+            elapsed_seconds: 1,
+            last_progress_at: Time.current,
+            error_message: nil
+          ))
           [ Object.new, Object.new ]
         }) do
           with_singleton_stub(Aicoo::SourceAppDiffDetector, :new, -> { fake_source_app_diff_detector(order) }) do

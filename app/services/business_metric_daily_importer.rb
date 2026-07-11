@@ -1,5 +1,19 @@
 class BusinessMetricDailyImporter
   Result = Data.define(:metric)
+  Progress = Data.define(
+    :event,
+    :target_business_count,
+    :processed_business_count,
+    :current_business_id,
+    :current_business_name,
+    :created_count,
+    :updated_count,
+    :skipped_count,
+    :error_count,
+    :elapsed_seconds,
+    :last_progress_at,
+    :error_message
+  )
 
   DATE_KEYS = %w[date recorded_on occurred_on event_date].freeze
   METRIC_FIELDS = %i[
@@ -23,8 +37,114 @@ class BusinessMetricDailyImporter
   ].freeze
   DECIMAL_FIELDS = %i[views_per_user engagement_rate bounce_rate average_position].freeze
 
-  def self.import_all!(date:)
-    Business.real_businesses.find_each.map { |business| new(business:, date:).call }
+  DEFAULT_PER_BUSINESS_TIMEOUT = 60.seconds
+  DEFAULT_STEP_TIMEOUT = 10.minutes
+  SNAPSHOT_LOOKAHEAD = 2.days
+
+  def self.import_all!(date:, progress: nil, per_business_timeout: DEFAULT_PER_BUSINESS_TIMEOUT, step_timeout: DEFAULT_STEP_TIMEOUT)
+    started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    businesses = Business.real_businesses.order(:id)
+    target_business_count = businesses.count
+    results = []
+    created_count = 0
+    updated_count = 0
+    skipped_count = 0
+    error_count = 0
+
+    emit_progress(
+      progress,
+      event: "start",
+      target_business_count:,
+      processed_business_count: 0,
+      created_count:,
+      updated_count:,
+      skipped_count:,
+      error_count:,
+      started_at:
+    )
+
+    businesses.find_each.with_index do |business, index|
+      if elapsed_seconds(started_at) >= step_timeout
+        skipped_count += target_business_count - index
+        emit_progress(
+          progress,
+          event: "step_timeout",
+          target_business_count:,
+          processed_business_count: index,
+          current_business_id: business.id,
+          current_business_name: business.name,
+          created_count:,
+          updated_count:,
+          skipped_count:,
+          error_count:,
+          elapsed_seconds: elapsed_seconds(started_at),
+          error_message: "business_metrics_import step timeout"
+        )
+        break
+      end
+
+      emit_progress(
+        progress,
+        event: "business_start",
+        target_business_count:,
+        processed_business_count: index,
+        current_business_id: business.id,
+        current_business_name: business.name,
+        created_count:,
+        updated_count:,
+        skipped_count:,
+        error_count:,
+        started_at:
+      )
+
+      was_new = !BusinessMetricDaily.exists?(business:, recorded_on: date)
+      result = import_one_with_timeout!(business:, date:, per_business_timeout:)
+      results << result
+      was_new ? created_count += 1 : updated_count += 1
+      emit_progress(
+        progress,
+        event: "business_finish",
+        target_business_count:,
+        processed_business_count: index + 1,
+        current_business_id: business.id,
+        current_business_name: business.name,
+        created_count:,
+        updated_count:,
+        skipped_count:,
+        error_count:,
+        started_at:
+      )
+    rescue StandardError => e
+      error_count += 1
+      emit_progress(
+        progress,
+        event: "business_error",
+        target_business_count:,
+        processed_business_count: index + 1,
+        current_business_id: business.id,
+        current_business_name: business.name,
+        created_count:,
+        updated_count:,
+        skipped_count:,
+        error_count:,
+        started_at:,
+        error_message: "#{e.class}: #{e.message}"
+      )
+    end
+
+    emit_progress(
+      progress,
+      event: "finish",
+      target_business_count:,
+      processed_business_count: results.size + error_count,
+      created_count:,
+      updated_count:,
+      skipped_count:,
+      error_count:,
+      started_at:
+    )
+
+    results
   end
 
   def self.import_range!(business:, start_date:, end_date:)
@@ -108,10 +228,81 @@ class BusinessMetricDailyImporter
     }
   end
 
-  def matching_snapshots(source_type)
-    AicooDataSnapshot.where(source_type:).select do |snapshot|
-      snapshot_business_id(snapshot) == business.id
+  def self.import_one_with_timeout!(business:, date:, per_business_timeout:)
+    ActiveRecord::Base.transaction do
+      apply_statement_timeout!(per_business_timeout)
+      new(business:, date:).call
     end
+  end
+
+  def self.apply_statement_timeout!(timeout)
+    return unless ActiveRecord::Base.connection.adapter_name.downcase.include?("postgres")
+
+    milliseconds = (timeout.to_f * 1000).to_i
+    ActiveRecord::Base.connection.execute("SET LOCAL statement_timeout = #{milliseconds}")
+  end
+
+  def self.emit_progress(progress, started_at: nil, elapsed_seconds: nil, **attributes)
+    return unless progress
+
+    progress.call(
+      Progress.new(
+        event: attributes[:event],
+        target_business_count: attributes[:target_business_count].to_i,
+        processed_business_count: attributes[:processed_business_count].to_i,
+        current_business_id: attributes[:current_business_id],
+        current_business_name: attributes[:current_business_name],
+        created_count: attributes[:created_count].to_i,
+        updated_count: attributes[:updated_count].to_i,
+        skipped_count: attributes[:skipped_count].to_i,
+        error_count: attributes[:error_count].to_i,
+        elapsed_seconds: elapsed_seconds || (started_at ? self.elapsed_seconds(started_at) : 0),
+        last_progress_at: Time.current,
+        error_message: attributes[:error_message]
+      )
+    )
+  end
+
+  def self.elapsed_seconds(started_at)
+    Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at
+  end
+
+  def matching_snapshots(source_type)
+    snapshots_by_source_type[source_type] ||= snapshots_scope(source_type).to_a
+  end
+
+  def snapshots_scope(source_type)
+    scope = AicooDataSnapshot
+      .where(source_type:)
+      .where(captured_at: snapshot_time_range)
+
+    business_id_conditions = [ "payload ->> 'business_id' = ?" ]
+    business_id_values = [ business.id.to_s ]
+
+    analytics_site_ids = AicooAnalyticsSite.where(business_id: business.id).select(:id)
+    data_import_ids = DataImport.joins(:data_source)
+                                .where(data_sources: { business_id: business.id })
+                                .select(:id)
+
+    if analytics_site_ids.exists?
+      business_id_conditions << "payload ->> 'analytics_site_id' IN (?)"
+      business_id_values << analytics_site_ids.pluck(:id).map(&:to_s)
+    end
+
+    if %w[gsc ga4].include?(source_type) && data_import_ids.exists?
+      business_id_conditions << "source_id IN (?)"
+      business_id_values << data_import_ids.pluck(:id)
+    end
+
+    scope.where(business_id_conditions.join(" OR "), *business_id_values)
+  end
+
+  def snapshot_time_range
+    date.beginning_of_day..(date.end_of_day + SNAPSHOT_LOOKAHEAD)
+  end
+
+  def snapshots_by_source_type
+    @snapshots_by_source_type ||= {}
   end
 
   def snapshot_metric_total(source_type, *keys)

@@ -108,6 +108,40 @@ class BusinessMetricDailyImporterTest < ActiveSupport::TestCase
     assert_equal Business.count, results.size
   end
 
+  test "import_all emits progress heartbeat events" do
+    date = Date.new(2030, 1, 1)
+    events = []
+
+    BusinessMetricDailyImporter.import_all!(date:, progress: ->(progress) { events << progress })
+
+    assert events.any? { |event| event.event == "start" }
+    assert events.any? { |event| event.event == "business_start" }
+    assert events.any? { |event| event.event == "finish" }
+    assert events.all? { |event| event.last_progress_at.present? }
+  end
+
+  test "import_all continues when one business fails" do
+    date = Date.new(2030, 1, 2)
+    events = []
+    failed_once = false
+
+    with_singleton_stub(BusinessMetricDailyImporter, :import_one_with_timeout!, ->(business:, date:, per_business_timeout:) {
+      unless failed_once
+        failed_once = true
+        raise RuntimeError, "business import timeout"
+      end
+
+      metric = BusinessMetricDaily.create!(business:, recorded_on: date)
+      BusinessMetricDailyImporter::Result.new(metric:)
+    }) do
+      results = BusinessMetricDailyImporter.import_all!(date:, progress: ->(progress) { events << progress })
+
+      assert results.any?
+      assert events.any? { |event| event.event == "business_error" }
+      assert_equal 1, events.select { |event| event.event == "finish" }.last.error_count
+    end
+  end
+
   test "imports range into multiple daily metrics from dated snapshot rows" do
     business = businesses(:suelog)
     start_date = Date.new(2026, 6, 18)
