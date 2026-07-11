@@ -109,8 +109,11 @@ module Aicoo
           candidates: [],
           created_count: 0,
           duplicate_count: 0,
+          insufficient_data_count: 0,
           failed_count: 1,
           existing_improvement_count: 0,
+          serp_analyses_checked: 0,
+          serp_results_checked: 0,
           errors: [ { "error_class" => e.class.name, "error_message" => e.message } ]
         )
       end
@@ -145,8 +148,11 @@ module Aicoo
           "status" => result.failed_count.to_i.positive? ? "partial_failed" : "success",
           "new_business_candidate_count" => result.created_count,
           "duplicate_count" => result.duplicate_count,
+          "insufficient_data_count" => result.insufficient_data_count,
           "failed_count" => result.failed_count,
           "existing_business_improvement_count" => result.existing_improvement_count,
+          "serp_analyses_checked" => result.serp_analyses_checked,
+          "serp_results_checked" => result.serp_results_checked,
           "candidate_ids" => result.candidates.map(&:id),
           "business_ids" => result.candidates.filter_map(&:business_id),
           "errors" => result.errors.first(5)

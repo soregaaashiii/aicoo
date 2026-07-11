@@ -1,15 +1,30 @@
+require "digest"
+require "uri"
+
 module Aicoo
   module Serp
     class NewBusinessDiscoveryGenerator
-      Result = Data.define(:candidates, :created_count, :duplicate_count, :failed_count, :existing_improvement_count, :errors)
+      Result = Data.define(
+        :candidates,
+        :created_count,
+        :duplicate_count,
+        :insufficient_data_count,
+        :failed_count,
+        :existing_improvement_count,
+        :serp_analyses_checked,
+        :serp_results_checked,
+        :errors
+      )
 
       MARKET_INTENT_PATTERN = /困る|面倒|代行|比較|料金|おすすめ|できない|自動化|管理|テンプレート|法人|個人事業主|AI|SaaS|ツール|アプリ|予約|確認|チェック|作成|生成/i
 
-      def initialize(serp_run:, limit: 10)
+      def initialize(serp_run:, limit: 10, backfill: false)
         @serp_run = serp_run
         @limit = limit.to_i.positive? ? limit.to_i : 10
+        @backfill = backfill
         @errors = []
         @duplicate_count = 0
+        @insufficient_data_count = 0
       end
 
       def call
@@ -18,34 +33,49 @@ module Aicoo
           candidates:,
           created_count: candidates.size,
           duplicate_count: duplicate_count,
+          insufficient_data_count: insufficient_data_count,
           failed_count: errors.size,
           existing_improvement_count: existing_improvement_count,
+          serp_analyses_checked: successful_analyses.size,
+          serp_results_checked: successful_analyses.sum { |analysis| analysis.serp_results.size },
           errors: errors.first(10)
         )
       end
 
       private
 
-      attr_reader :serp_run, :limit, :errors
-      attr_accessor :duplicate_count
+      attr_reader :serp_run, :limit, :errors, :backfill
+      attr_accessor :duplicate_count, :insufficient_data_count
 
       def discoverable_analyses
-        serp_run.serp_analyses
-                .successful
-                .includes(:business, :serp_results)
-                .to_a
-                .select { |analysis| market_discovery_analysis?(analysis) }
-                .sort_by { |analysis| -market_score(analysis) }
+        successful_analyses
+          .select { |analysis| market_discovery_analysis?(analysis) }
+          .sort_by { |analysis| -market_score(analysis) }
+      end
+
+      def successful_analyses
+        @successful_analyses ||= serp_run.serp_analyses
+                                         .successful
+                                         .includes(:business, :serp_results)
+                                         .to_a
       end
 
       def market_discovery_analysis?(analysis)
-        return false if analysis.keyword.blank?
-        return false if branded_existing_business_query?(analysis)
+        return insufficient!(analysis, "blank_keyword") if analysis.keyword.blank?
+        return insufficient!(analysis, "no_serp_results") unless analysis.serp_results.exists?
+        return insufficient!(analysis, "branded_existing_business_query") if branded_existing_business_query?(analysis)
         serp_query = serp_query_for(analysis)
         return true if serp_query&.category.in?(%w[new_business keyword_discovery trend])
-        return false if serp_query.present?
+        return insufficient!(analysis, "existing_business_serp_query") if serp_query.present? && !backfill
 
-        analysis.keyword.match?(MARKET_INTENT_PATTERN)
+        return true if analysis.keyword.match?(MARKET_INTENT_PATTERN)
+
+        insufficient!(analysis, "market_intent_not_detected")
+      end
+
+      def insufficient!(_analysis, _reason)
+        self.insufficient_data_count += 1
+        false
       end
 
       def branded_existing_business_query?(analysis)
@@ -137,6 +167,7 @@ module Aicoo
           "source_query" => analysis.keyword,
           "serp_run_id" => serp_run.id,
           "serp_analysis_id" => analysis.id,
+          "discovery_fingerprint" => discovery_fingerprint(analysis),
           "origin_business_id" => analysis.business_id,
           "origin_business_name" => analysis.business&.name,
           "data_sources_used" => [ "serp" ],
@@ -146,12 +177,44 @@ module Aicoo
       end
 
       def duplicate_candidate?(analysis)
+        fingerprint = discovery_fingerprint(analysis)
         ActionCandidate
           .where(generation_source: "serp")
           .where("metadata ->> 'candidate_kind' = ?", "new_business")
-          .where("metadata ->> 'source_query' = ?", analysis.keyword)
-          .where(created_at: Time.zone.today.all_day)
+          .where(
+            "metadata ->> 'discovery_fingerprint' = :fingerprint OR (metadata ->> 'source_query' = :source_query AND metadata ->> 'serp_run_id' = :serp_run_id)",
+            fingerprint:,
+            source_query: analysis.keyword,
+            serp_run_id: serp_run.id.to_s
+          )
           .exists?
+      end
+
+      def discovery_fingerprint(analysis)
+        Digest::SHA256.hexdigest(
+          [
+            normalized_market_theme(analysis),
+            analysis.keyword.to_s.squish.downcase,
+            canonical_source_urls(analysis).join("|")
+          ].join("::")
+        )
+      end
+
+      def normalized_market_theme(analysis)
+        analysis.keyword.to_s.unicode_normalize(:nfkc).downcase.gsub(/\s+/, " ").strip
+      end
+
+      def canonical_source_urls(analysis)
+        analysis.serp_results.order(:position).limit(5).filter_map do |result|
+          uri = URI.parse(result.url.to_s)
+          host = uri.host.to_s.downcase.sub(/\Awww\./, "")
+          path = uri.path.to_s.sub(%r{/\z}, "")
+          next if host.blank?
+
+          "#{host}#{path}"
+        rescue URI::InvalidURIError
+          nil
+        end.first(3)
       end
 
       def existing_improvement_count
