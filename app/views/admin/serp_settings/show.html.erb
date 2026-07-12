@@ -4,7 +4,7 @@
 <% current_candidates = Array(@current_run_candidates) %>
 <% publication = current_run&.metadata.to_h["auto_new_business_publication"].to_h %>
 <% businessized_count = publication["business_created_count"].to_i + publication["business_linked_count"].to_i %>
-<% result_count = current_run&.result_count.to_i %>
+<% result_count = current_run&.metadata.to_h["result_count"].to_i %>
 <% settings = @serp_settings.to_h %>
 
 <div class="aicoo-page">
