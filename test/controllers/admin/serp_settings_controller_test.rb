@@ -6,15 +6,18 @@ module Admin
       get admin_serp_settings_url
 
       assert_response :success
-      assert_includes response.body, "SERP新規事業探索"
+      assert_includes response.body, "新規事業探索"
       assert_includes response.body, "設定"
-      assert_includes response.body, "SERP走査"
+      assert_includes response.body, "探索方法"
       assert_includes response.body, "今回の走査結果"
       assert_includes response.body, "事業化した一覧"
       assert_includes response.body, "Provider"
       assert_includes response.body, "API Key"
       assert_includes response.body, "検索件数"
-      assert_includes response.body, "対象Business"
+      assert_includes response.body, "Business入力なし"
+      assert_not_includes response.body, "対象Business"
+      assert_not_includes response.body, "全Business"
+      assert_not_includes response.body, "name=\"business_id\""
       assert_not_includes response.body, "SERP Optional Mode"
       assert_not_includes response.body, "SERP依存step"
       assert_not_includes response.body, "検索クエリ管理"
@@ -76,7 +79,7 @@ module Admin
       get admin_serp_settings_url
 
       assert_response :success
-      assert_includes response.body, "SERP新規事業探索"
+      assert_includes response.body, "新規事業探索"
       assert_not_includes response.body, "保存済み分析"
       assert_not_includes response.body, "保存済み結果"
       assert_not_includes response.body, "梅田 喫煙 カフェ"

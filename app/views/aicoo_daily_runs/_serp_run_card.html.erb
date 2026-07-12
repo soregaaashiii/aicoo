@@ -35,8 +35,6 @@
 
     <div class="actions compact-actions">
       <%= link_to "詳細を見る", admin_serp_run_path(serp_run), class: "button" %>
-      <%= button_to "今すぐSERP実行", run_now_admin_serp_settings_path, method: :post, class: "button secondary" %>
-      <%= link_to "SERP設定", admin_serp_settings_path, class: "button secondary" %>
     </div>
   </div>
 <% else %>
@@ -47,9 +45,6 @@
         <p>SERP Runはまだ実行されていません。</p>
       </div>
     </div>
-    <div class="actions compact-actions">
-      <%= button_to "今すぐSERP実行", run_now_admin_serp_settings_path, method: :post, class: "button" %>
-      <%= link_to "SERP設定", admin_serp_settings_path, class: "button secondary" %>
-    </div>
+    <p class="muted">新規事業探索はCEO MODEの「新規事業探索」から実行します。</p>
   </div>
 <% end %>

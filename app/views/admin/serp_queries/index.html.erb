@@ -1,7 +1,6 @@
 <% content_for :title, "SERP検索クエリ" %>
 
 <% header_actions = capture do %>
-  <%= link_to "SERP設定", admin_serp_settings_path, class: "button secondary" %>
   <%= link_to "SERP E2E診断", admin_serp_e2e_check_path, class: "button secondary" %>
 <% end %>
 
@@ -119,10 +118,6 @@
                 <%= button_to query.enabled? ? "OFF" : "ON", toggle_admin_serp_query_path(query), method: :patch, class: "button secondary" %>
                 <%= button_to "Pause", pause_admin_serp_query_path(query), method: :patch, class: "button secondary" %>
                 <%= button_to "Archive", archive_admin_serp_query_path(query), method: :patch, class: "button secondary" %>
-                <%= link_to "最終結果を見る", admin_serp_settings_path(business_id: query.business_id, anchor: "serp-market-results"), class: "button secondary" %>
-                <% if query.failure_count.to_i.positive? %>
-                  <%= link_to "エラーを見る", admin_serp_settings_path(business_id: query.business_id, anchor: "serp-market-results"), class: "button secondary" %>
-                <% end %>
                 <%= button_to "削除", admin_serp_query_path(query), method: :delete, class: "button danger", form: { data: { turbo_confirm: "このSERP検索クエリを削除しますか？" } } %>
               </td>
             </tr>

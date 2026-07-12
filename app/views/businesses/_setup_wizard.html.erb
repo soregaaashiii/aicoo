@@ -2,12 +2,10 @@
 <% system_statuses ||= {} %>
 <% ga4_status = system_statuses["ga4"] || Aicoo::SystemStatusResolver.call("ga4", business:) %>
 <% gsc_status = system_statuses["gsc"] || Aicoo::SystemStatusResolver.call("gsc", business:) %>
-<% serp_status = system_statuses["serp"] || Aicoo::SystemStatusResolver.call("serp", business:) %>
 <% lp_ready = landing_page_counts.values.sum.positive? %>
 <% steps = [
   [ "GA4", ga4_status.connected? || ga4_status.warning?, ga4_status.detail_url || google_settings_business_path(business), ga4_status.reason ],
   [ "GSC", gsc_status.connected? || gsc_status.warning?, gsc_status.detail_url || google_settings_business_path(business), gsc_status.reason ],
-  [ "SERP", serp_status.connected? || serp_status.warning?, serp_status.detail_url || admin_serp_settings_path(business_id: business.id), serp_status.reason ],
   [ "LP", lp_ready, admin_aicoo_lab_public_landing_pages_path, "公開LPを作成/公開" ]
 ] %>
 

@@ -186,7 +186,6 @@
       <div class="notice-toast">
         <%= @item.serp_warning_for_lp_generation %>
         <div class="actions compact-actions">
-          <%= link_to "SERP設定へ", admin_serp_settings_path, class: "button secondary" %>
           <%= button_to "SERPなしでLP生成", generate_lp_admin_idea_pipeline_path(@item), method: :post, class: "button" unless @item.aicoo_lab_landing_page %>
         </div>
       </div>

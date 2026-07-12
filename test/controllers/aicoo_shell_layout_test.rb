@@ -16,7 +16,7 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "今日どのBusinessを改善するか"
     assert_includes response.body, "Home"
     assert_includes response.body, "Today"
-    assert_includes response.body, "SERP"
+    assert_includes response.body, "新規事業探索"
     assert_includes response.body, "Business"
     assert_includes response.body, "Overview"
     assert_not_includes response.body, "Action Candidates"
@@ -29,7 +29,7 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, "Pipeline E2E"
     assert_not_includes response.body, "Execution Profiles"
     assert_includes response.body, "現在位置"
-    assert_select "a[href='#{admin_serp_settings_path}']", text: /SERP/
+    assert_select "a[href='#{admin_serp_settings_path}']", text: /新規事業探索/
     assert_select "a[href='#{owner_auto_revision_loop_path}']", text: /Overview/
   end
 
@@ -43,7 +43,7 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Daily Runs"
     assert_includes response.body, "Cron Health"
     assert_includes response.body, "Google"
-    assert_includes response.body, "SERP"
+    assert_select ".aicoo-sidebar a[href='#{admin_serp_settings_path}']", false
     assert_includes response.body, "Pipeline E2E"
     assert_includes response.body, "Activity Learning"
     assert_includes response.body, "DataHub"

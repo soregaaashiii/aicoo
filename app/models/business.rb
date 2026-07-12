@@ -23,10 +23,12 @@ class Business < ApplicationRecord
   NEW_LP_AUTO_DEPLOY_EXCLUDED_NAMES = [
     "吸えログ",
     "AICOO",
-    "AICOO Analytics Import"
+    "AICOO Analytics Import",
+    "AICOO Market Exploration"
   ].freeze
   SYSTEM_BUSINESS_NAMES = [
-    "AICOO Analytics Import"
+    "AICOO Analytics Import",
+    "AICOO Market Exploration"
   ].freeze
 
   has_many :action_candidates, dependent: :destroy

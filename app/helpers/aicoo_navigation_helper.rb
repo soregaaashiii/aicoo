@@ -126,7 +126,6 @@ module AicooNavigationHelper
     return :system_cron_health if path.start_with?("/admin/cron_health")
     return :system_google if path.start_with?("/admin/google_credentials", "/admin/google_api_imports", "/admin/analytics")
     return :system_traffic_channels if path.start_with?("/admin/traffic_channels")
-    return :system_serp if path.start_with?("/admin/serp_settings", "/admin/serp_e2e_check", "/admin/serp_queries", "/admin/integrated_decision")
     return :system_pipeline_e2e if path.start_with?("/admin/pipeline_e2e_check")
     return :system_activity_learning if path.start_with?("/admin/activity_learning_e2e_check", "/admin/business_activity_logs")
     return :system_datahub if path.start_with?("/admin/aicoo_datahub", "/business_metric_dailies")
@@ -253,7 +252,7 @@ module AicooNavigationHelper
         children: [
           { key: :ceo_home, label: "Home", description: "全体入口", path: owner_dashboard_path, matchers: [ %r{\A/owner(?:/dashboard)?\z} ] },
           { key: :ceo_today, label: "Today", description: "今日やる仕事", path: owner_focus_path, matchers: [ %r{\A/owner/focus}, %r{\A/actions/} ] },
-          { key: :ceo_serp, label: "SERP", description: "新規事業探索", path: admin_serp_settings_path, matchers: [ %r{\A/admin/serp_settings} ] },
+          { key: :ceo_serp, label: "新規事業探索", description: "SERPで市場探索", path: admin_serp_settings_path, matchers: [ %r{\A/admin/serp_settings} ] },
           { key: :ceo_businesses, label: "Business", description: "事業一覧", path: businesses_path, matchers: [ %r{\A/businesses} ] },
           { key: :ceo_overview, label: "Overview", description: "自動改修ループ", path: owner_auto_revision_loop_path, matchers: [ %r{\A/owner/(auto_revision_loop|new_business_pipeline)}, %r{\A/action_candidates}, %r{\A/auto_revision_tasks}, %r{\A/revenue_events}, %r{\A/action_results} ] }
         ]
@@ -281,7 +280,6 @@ module AicooNavigationHelper
           { key: :system_cron_health, label: "Cron Health", description: "Cron稼働確認", path: admin_cron_health_path, matchers: [ %r{\A/admin/cron_health} ] },
           { key: :system_google, label: "Google", description: "OAuthとGA4/GSC取得", path: admin_google_credentials_path, matchers: [ %r{\A/admin/(google_credentials|google_api_imports|analytics)} ] },
           { key: :system_traffic_channels, label: "Traffic", description: "集客チャネル全体", path: admin_traffic_channels_path, matchers: [ %r{\A/admin/traffic_channels} ] },
-          { key: :system_serp, label: "SERP", description: "市場観測・検索API", path: admin_serp_settings_path, matchers: [ %r{\A/admin/(serp_settings|serp_e2e_check|serp_queries|integrated_decision)} ] },
           { key: :system_pipeline_e2e, label: "Pipeline E2E", description: "自動ループ診断", path: admin_pipeline_e2e_check_path, matchers: [ %r{\A/admin/pipeline_e2e_check} ] },
           { key: :system_activity_learning, label: "Activity Learning", description: "Activity検知と評価", path: admin_activity_learning_e2e_check_path, matchers: [ %r{\A/admin/(activity_learning_e2e_check|business_activity_logs)} ] },
           { key: :system_datahub, label: "DataHub", description: "データ収集基盤", path: admin_aicoo_datahub_path, matchers: [ %r{\A/admin/aicoo_datahub}, %r{\A/business_metric_dailies} ] },

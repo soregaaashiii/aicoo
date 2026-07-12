@@ -18,7 +18,15 @@ module Aicoo
         :analyses
       )
 
-      def self.queries_for_business(business, max_queries_per_business: 3)
+      def self.queries_for_business(business, max_queries_per_business: 3, exploration_mode: "ai_auto", exploration_query: nil)
+        if market_exploration_business?(business)
+          return market_exploration_queries_for(
+            business,
+            exploration_mode:,
+            exploration_query:
+          ).first(max_queries_per_business)
+        end
+
         serp_queries = business.serp_queries
                                .enabled
                                .by_priority
@@ -47,23 +55,47 @@ module Aicoo
           .first(max_queries_per_business)
       end
 
-      def self.market_exploration_queries_for(business)
+      def self.market_exploration_queries_for(business, exploration_mode: "ai_auto", exploration_query: nil)
+        explicit_seed = exploration_query.to_s.strip
+        if explicit_seed.present?
+          return [
+            explicit_seed,
+            "#{explicit_seed} 困る",
+            "#{explicit_seed} 比較",
+            "#{explicit_seed} 料金",
+            "#{explicit_seed} 自動化"
+          ].uniq
+        end
+
         theme = [
           business.respond_to?(:category) ? business.category : nil,
           business.respond_to?(:business_type) ? business.business_type.presence&.humanize : nil
         ].compact_blank.first
 
-        seed = theme.presence || "個人事業主 業務"
+        seed =
+          case exploration_mode.to_s
+          when "industry"
+            theme.presence || "中小企業 業務"
+          when "category"
+            theme.presence || "店舗 管理"
+          when "keyword"
+            theme.presence || "個人事業主 業務"
+          else
+            "個人事業主 業務"
+          end
+
         [
           "#{seed} 自動化",
           "#{seed} 代行",
           "#{seed} 料金 比較",
           "#{seed} 管理 テンプレート",
-          "#{seed} 困る 面倒"
+          "#{seed} 困る 面倒",
+          "#{seed} おすすめ",
+          "#{seed} できない"
         ]
       end
 
-      def self.query_plans_for_business(business, max_queries_per_business: 3, force: false)
+      def self.query_plans_for_business(business, max_queries_per_business: 3, force: false, exploration_mode: "ai_auto", exploration_query: nil)
         all_serp_queries = business.serp_queries.enabled.by_priority.to_a
         serp_queries = all_serp_queries.select do |serp_query|
           force || (serp_query.runnable_today? && !serp_query.recently_successful?)
@@ -71,12 +103,16 @@ module Aicoo
         return serp_queries.map { |serp_query| QueryPlan.new(serp_query.query, serp_query, serp_query.country, serp_query.language) } if serp_queries.present?
         return [] if all_serp_queries.present?
 
-        queries_for_business(business, max_queries_per_business:).map do |query|
+        queries_for_business(business, max_queries_per_business:, exploration_mode:, exploration_query:).map do |query|
           QueryPlan.new(query, nil, "jp", "ja")
         end
       end
 
-      def initialize(provider: nil, location: "Japan", language: "ja", limit: nil, max_queries_per_business: 3, target_businesses: nil, serp_run: nil, force: false, max_total_queries: nil, single_serp_query: nil, allowed_serp_query_ids: nil)
+      def self.market_exploration_business?(business)
+        business.name == "AICOO Market Exploration"
+      end
+
+      def initialize(provider: nil, location: "Japan", language: "ja", limit: nil, max_queries_per_business: 3, target_businesses: nil, serp_run: nil, force: false, max_total_queries: nil, single_serp_query: nil, allowed_serp_query_ids: nil, exploration_mode: "ai_auto", exploration_query: nil)
         @provider = (provider.presence || ENV["AICOO_SERP_PROVIDER"].presence || "serper").to_s
         @location = location.presence || "Japan"
         @language = language.presence || "ja"
@@ -88,6 +124,8 @@ module Aicoo
         @max_total_queries = max_total_queries.present? && max_total_queries.to_i.positive? ? max_total_queries.to_i : nil
         @single_serp_query = single_serp_query
         @allowed_serp_query_ids = allowed_serp_query_ids
+        @exploration_mode = exploration_mode.presence || "ai_auto"
+        @exploration_query = exploration_query
         @scan_batch_id = SecureRandom.uuid
       end
 
@@ -119,7 +157,7 @@ module Aicoo
 
       private
 
-      attr_reader :provider, :location, :language, :limit, :max_queries_per_business, :scan_batch_id, :serp_run, :single_serp_query
+      attr_reader :provider, :location, :language, :limit, :max_queries_per_business, :scan_batch_id, :serp_run, :single_serp_query, :exploration_mode, :exploration_query
 
       def target_businesses
         return [ single_serp_query.business ] if single_serp_query
@@ -132,6 +170,14 @@ module Aicoo
       end
 
       def queries_for(business)
+        if market_exploration_business?(business)
+          return self.class.market_exploration_queries_for(
+            business,
+            exploration_mode:,
+            exploration_query:
+          ).first(max_queries_per_business)
+        end
+
         self.class.queries_for_business(business, max_queries_per_business:)
       end
 
@@ -139,7 +185,17 @@ module Aicoo
         return [ QueryPlan.new(single_serp_query.query, single_serp_query, single_serp_query.country, single_serp_query.language) ] if single_serp_query
         return allowed_query_plans_for(business) if @allowed_serp_query_ids
 
-        self.class.query_plans_for_business(business, max_queries_per_business:, force: @force)
+        self.class.query_plans_for_business(
+          business,
+          max_queries_per_business:,
+          force: @force,
+          exploration_mode:,
+          exploration_query:
+        )
+      end
+
+      def market_exploration_business?(business)
+        self.class.market_exploration_business?(business)
       end
 
       def allowed_query_plans_for(business)

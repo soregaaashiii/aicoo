@@ -1,12 +1,14 @@
 module Aicoo
   module Serp
     class RunExecutor
-      def initialize(executed_by: "manual", force: false, serp_query: nil, target_businesses: nil, ignore_limit: false)
+      def initialize(executed_by: "manual", force: false, serp_query: nil, target_businesses: nil, ignore_limit: false, exploration_mode: "ai_auto", exploration_query: nil)
         @executed_by = executed_by
         @force = force
         @serp_query = serp_query
         @target_businesses = target_businesses
         @ignore_limit = ignore_limit
+        @exploration_mode = exploration_mode.presence || "ai_auto"
+        @exploration_query = exploration_query
       end
 
       def call
@@ -24,7 +26,10 @@ module Aicoo
             "force" => force,
             "ignore_limit" => ignore_limit,
             "serp_query_id" => serp_query&.id,
-            "target_business_ids" => target_businesses.map(&:id)
+            "target_business_ids" => target_businesses.map(&:id),
+            "purpose" => "new_business_exploration",
+            "exploration_mode" => exploration_mode,
+            "exploration_query" => exploration_query
           ).compact
         )
 
@@ -33,14 +38,16 @@ module Aicoo
           force:,
           single_serp_query: serp_query,
           target_businesses: target_businesses,
-          allowed_serp_query_ids: planner.run_query_ids,
+          allowed_serp_query_ids: planner.run_query_ids.presence,
           max_total_queries: ignore_limit ? nil : max_total_queries,
-          max_queries_per_business: max_queries_per_business
+          max_queries_per_business: max_queries_per_business,
+          exploration_mode:,
+          exploration_query:
         ).call
         run_priority_learning!
         serp_run.finish_from_result!(result)
         discovery_result = run_new_business_discovery!(serp_run)
-        existing_candidates = run_integrated_decision!(serp_run)
+        existing_candidates = []
         candidates = discovery_result.candidates + existing_candidates
         publication_result = publish_new_business_candidates!(serp_run, candidates)
         serp_run.update!(
@@ -59,7 +66,7 @@ module Aicoo
 
       private
 
-      attr_reader :executed_by, :force, :serp_query, :ignore_limit
+      attr_reader :executed_by, :force, :serp_query, :ignore_limit, :exploration_mode, :exploration_query
 
       def settings
         Aicoo::Serp::Scheduler.settings
@@ -68,11 +75,28 @@ module Aicoo
       def target_businesses
         @target_businesses ||= begin
           return [ serp_query.business ] if serp_query
+          return [ market_exploration_business ] unless @target_businesses
 
-          Business.real_businesses.where(status: "launched", serp_enabled: true)
-                  .includes(:business_data_source_settings, :business_serp_keywords, :serp_queries)
-                  .order(:name)
-                  .to_a
+          Array(@target_businesses)
+        end
+      end
+
+      def market_exploration_business
+        Business.find_or_create_by!(name: "AICOO Market Exploration") do |business|
+          business.description = "SERP新規事業探索の保存用システムBusiness"
+          business.status = "launched"
+          business.lifecycle_stage = "idea"
+          business.business_type = "exploration"
+          business.category = "market_exploration" if business.respond_to?(:category=)
+          business.source = "system"
+          business.created_by_aicoo = true
+          business.launched = false
+          business.daily_run_enabled = false
+          business.serp_enabled = true
+          business.auto_revision_mode = "manual"
+          business.auto_build_enabled = false
+          business.auto_deploy_mode = "manual"
+          business.resource_status = "active"
         end
       end
 
@@ -92,13 +116,6 @@ module Aicoo
         Aicoo::Serp::PriorityUpdater.update_all!
       rescue StandardError => e
         Rails.logger.warn("[SERP] priority learning skipped #{e.class}: #{e.message}")
-      end
-
-      def run_integrated_decision!(serp_run)
-        Aicoo::IntegratedDecisionEngine.new(serp_run:).generate_unified_candidates!
-      rescue StandardError => e
-        Rails.logger.warn("[SERP] integrated decision skipped serp_run_id=#{serp_run.id} #{e.class}: #{e.message}")
-        []
       end
 
       def run_new_business_discovery!(serp_run)

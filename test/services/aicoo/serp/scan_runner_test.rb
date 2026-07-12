@@ -74,6 +74,24 @@ module Aicoo
         assert queries.none? { |query| query == "#{business.name} 比較" }
       end
 
+      test "market exploration business uses exploration queries instead of business name" do
+        business = Business.create!(
+          name: "AICOO Market Exploration",
+          description: "SERP新規事業探索の保存用システムBusiness",
+          status: "launched"
+        )
+
+        queries = ScanRunner.queries_for_business(
+          business,
+          max_queries_per_business: 3,
+          exploration_mode: "keyword",
+          exploration_query: "フリーランス 請求"
+        )
+
+        assert_equal [ "フリーランス 請求", "フリーランス 請求 困る", "フリーランス 請求 比較" ], queries
+        assert queries.none? { |query| query.include?(business.name) }
+      end
+
       test "uses serp queries before keyword records and updates query counters" do
         business = businesses(:suelog)
         business.update!(status: "launched", serp_enabled: true)

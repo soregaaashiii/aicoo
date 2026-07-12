@@ -1583,7 +1583,7 @@
 <section class="dashboard-section" id="business-serp">
   <div class="section-heading">
     <h2>SERP競合分析</h2>
-    <p>SERPの検索クエリ管理・AI候補・取得操作はSERP設定画面に集約しています。</p>
+    <p>SERPは新規事業探索専用です。既存Business改善はGSC・GA4・内部データで判断します。</p>
   </div>
 
   <% serp_cost = Aicoo::CostEngine.new(business: @business).estimate("serp") %>
@@ -1646,7 +1646,6 @@
     </div>
     <div class="actions compact-actions">
       <%= link_to "追加・編集", admin_serp_queries_path(business_id: @business.id), class: "button" %>
-      <%= link_to "SERP設定を開く", admin_serp_settings_path(business_id: @business.id, anchor: "serp-business-detail"), class: "button secondary" %>
     </div>
   </div>
 
@@ -1658,10 +1657,7 @@
       期待利益 <%= number_to_currency(serp_cost.expected_profit_yen, unit: "¥", precision: 0) %> /
       ROI <%= serp_cost.roi ? number_with_precision(serp_cost.roi, precision: 1) : "無料/未計算" %>
     </p>
-    <div class="actions compact-actions">
-      <%= link_to "SERP設定を開く", admin_serp_settings_path(business_id: @business.id, anchor: "serp-business-detail"), class: "button" %>
-      <%= link_to "市場分析結果を見る", admin_serp_settings_path(business_id: @business.id, anchor: "serp-market-results"), class: "button secondary" %>
-    </div>
+    <p class="muted">既存Business改善はGSC・GA4・内部データを使います。SERPはCEO MODEの新規事業探索専用です。</p>
   </div>
 </section>
 

@@ -1,8 +1,6 @@
 <% content_for :title, "SERP Run ##{@serp_run.id}" %>
 
 <% header_actions = capture do %>
-  <%= link_to "SERP設定", admin_serp_settings_path(anchor: "serp-execution"), class: "button secondary" %>
-  <%= link_to "新規事業候補を確認する", admin_serp_settings_path(anchor: "serp-new-business-candidates"), class: "button" %>
   <%= link_to "SERP検索クエリ", admin_serp_queries_path, class: "button secondary" %>
   <%= link_to "総合判断", admin_integrated_decision_path, class: "button secondary" %>
   <%= link_to "LP検証へ進める", admin_integrated_decision_path(anchor: "new-business-candidates"), class: "button secondary" %>

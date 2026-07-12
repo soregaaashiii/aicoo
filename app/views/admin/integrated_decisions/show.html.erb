@@ -1,7 +1,6 @@
 <% content_for :title, "総合判断" %>
 
 <% header_actions = capture do %>
-  <%= link_to "SERP設定", admin_serp_settings_path, class: "button secondary" %>
   <%= link_to "Daily Run", aicoo_daily_runs_path, class: "button secondary" %>
   <%= link_to "Owner Home", owner_focus_path, class: "button secondary" %>
 <% end %>
@@ -19,7 +18,6 @@
         <h2>開始すべき新規事業 TOP10</h2>
         <p>SERP市場観測とDaily Runの内部データを統合して、LP検証へ進める候補を期待値順に表示します。</p>
       </div>
-      <%= link_to "SERP設定", admin_serp_settings_path, class: "button secondary" %>
     </div>
 
     <% if @new_business_candidate_board.candidates.any? %>

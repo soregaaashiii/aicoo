@@ -34,27 +34,23 @@ module Admin
     end
 
     def run_now
-      result =
-        if params[:business_id].present?
-          serp_run = Aicoo::Serp::RunExecutor.new(
-            executed_by: "manual",
-            target_businesses: [ find_business ],
-            force: ActiveModel::Type::Boolean.new.cast(params[:force])
-          ).call
-          Aicoo::Serp::Scheduler::Result.new(serp_run.status, nil, serp_run)
-        else
-          Aicoo::Serp::Scheduler.run!(executed_by: "manual", force: ActiveModel::Type::Boolean.new.cast(params[:force]))
-        end
+      serp_run = Aicoo::Serp::RunExecutor.new(
+        executed_by: "manual",
+        force: ActiveModel::Type::Boolean.new.cast(params[:force]),
+        exploration_mode: params.dig(:serp_exploration, :mode),
+        exploration_query: params.dig(:serp_exploration, :query)
+      ).call
+      result = Aicoo::Serp::Scheduler::Result.new(serp_run.status, nil, serp_run)
 
       if result.serp_run
-        redirect_to admin_serp_settings_path(serp_run_id: result.serp_run.id, business_id: params[:business_id]),
-                    notice: "SERP走査が完了しました。取得 #{result.serp_run.query_count}件 / 新規事業候補 #{result.serp_run.candidate_count}件"
+        redirect_to admin_serp_settings_path(serp_run_id: result.serp_run.id),
+                    notice: "新規事業探索が完了しました。取得 #{result.serp_run.query_count}件 / 新規事業候補 #{result.serp_run.candidate_count}件"
       else
         redirect_to admin_serp_settings_path,
-                    alert: "SERP走査は実行されませんでした: #{result.reason}"
+                    alert: "新規事業探索は実行されませんでした: #{result.reason}"
       end
     rescue StandardError => e
-      redirect_to admin_serp_settings_path, alert: "SERP走査に失敗しました: #{e.message}"
+      redirect_to admin_serp_settings_path, alert: "新規事業探索に失敗しました: #{e.message}"
     end
 
     def run_selected_business

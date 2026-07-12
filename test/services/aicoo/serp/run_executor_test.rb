@@ -113,6 +113,39 @@ module Aicoo
         end
       end
 
+      test "manual serp run uses market exploration business without business input" do
+        seed = "フリーランス 請求 #{SecureRandom.hex(4)}"
+
+        with_adapter_result(query: seed) do
+          assert_difference("Business.real_businesses.count", 1) do
+            run = Aicoo::Serp::RunExecutor.new(
+              executed_by: "manual",
+              force: true,
+              exploration_mode: "keyword",
+              exploration_query: seed
+            ).call
+
+            assert_equal "success", run.status
+            assert_equal "new_business_exploration", run.metadata["purpose"]
+            assert_equal "keyword", run.metadata["exploration_mode"]
+            assert_equal seed, run.metadata["exploration_query"]
+
+            system_business = Business.find_by!(name: "AICOO Market Exploration")
+            assert Business.system_businesses.exists?(id: system_business.id)
+            assert_equal 1, system_business.serp_analyses.where(serp_run: run).count
+
+            discovery = run.metadata.to_h["new_business_discovery"].to_h
+            candidate = ActionCandidate.find(discovery.fetch("candidate_ids").first)
+            assert_equal "new_business", candidate.department
+            assert_equal "serp", candidate.generation_source
+            assert_equal "done", candidate.status
+            assert candidate.business
+            assert_equal "exploring", candidate.business.status
+            assert Business.real_businesses.exists?(id: candidate.business_id)
+          end
+        end
+      end
+
       private
 
       def with_adapter_result(query: "大阪 喫煙")
