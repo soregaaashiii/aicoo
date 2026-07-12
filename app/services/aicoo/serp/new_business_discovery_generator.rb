@@ -18,6 +18,31 @@ module Aicoo
       )
 
       MARKET_INTENT_PATTERN = /困る|面倒|代行|比較|料金|おすすめ|できない|自動化|管理|テンプレート|法人|個人事業主|AI|SaaS|ツール|アプリ|予約|確認|チェック|作成|生成/i
+      QUERY_NAME_SUFFIX_PATTERN = /の検証事業|比較|料金|おすすめ|困る|面倒|できない|大阪|東京|日本|法人|個人事業主|代行|自動化|管理|テンプレート/i
+      REGION_WORDS = %w[大阪 東京 日本 全国 京都 神戸 梅田 難波 名古屋 福岡 横浜 札幌 仙台].freeze
+      INTENT_WORDS = %w[代行 困る 面倒 比較 料金 おすすめ できない 自動化 管理 テンプレート 法人 個人事業主 AI SaaS ツール アプリ 予約 確認 チェック 作成 生成].freeze
+      CUSTOMER_KEYWORDS = {
+        /飲食店|レストラン|居酒屋|カフェ|バー/ => "飲食店",
+        /個人事業主|フリーランス/ => "個人事業主",
+        /中小企業|法人|会社/ => "中小企業",
+        /不動産|賃貸/ => "不動産会社",
+        /美容室|サロン/ => "美容サロン",
+        /クリニック|病院|歯科/ => "クリニック",
+        /士業|税理士|行政書士|社労士/ => "士業事務所",
+        /採用|求人/ => "採用担当者"
+      }.freeze
+      SERVICE_FOCUS_RULES = [
+        [ /Googleマップ|MEO|マップ|口コミ|レビュー/, "Googleマップ運用" ],
+        [ /SNS|Instagram|インスタ|X|TikTok|LINE|集客/, "SNS集客" ],
+        [ /予約|電話|受付|問い合わせ/, "予約受付" ],
+        [ /メニュー|チラシ|デザイン|制作/, "メニュー制作" ],
+        [ /採用|求人|人材/, "採用支援" ],
+        [ /請求|経理|会計|領収書|バックオフィス/, "請求管理" ],
+        [ /在庫|発注|仕入/, "在庫管理" ],
+        [ /FAQ|問い合わせ|カスタマーサポート/, "問い合わせ対応" ],
+        [ /比較|選び方|おすすめ/, "比較ナビ" ],
+        [ /困る|面倒|できない|トラブル|不満/, "業務改善" ]
+      ].freeze
 
       def initialize(serp_run:, limit: 10, backfill: false)
         @serp_run = serp_run
@@ -143,10 +168,11 @@ module Aicoo
       end
 
       def candidate_attributes(analysis)
+        idea = business_idea_for(analysis)
         {
           business: nil,
-          title: business_idea_title(analysis),
-          description: business_idea_description(analysis),
+          title: idea.fetch("business_name"),
+          description: business_idea_description(analysis, idea),
           action_type: "new_business",
           department: "new_business",
           generation_source: "serp",
@@ -158,27 +184,35 @@ module Aicoo
           confidence_score: confidence_for(analysis),
           data_confidence_score: confidence_for(analysis),
           priority_score: [ market_score(analysis), 95 ].min,
-          execution_prompt: validation_plan_for(analysis),
+          execution_prompt: validation_plan_for(analysis, idea),
           evaluation_reason: "serp:new_business_discovery",
-          metadata: candidate_metadata(analysis)
+          metadata: candidate_metadata(analysis, idea)
         }
       end
 
-      def candidate_metadata(analysis)
+      def candidate_metadata(analysis, idea = business_idea_for(analysis))
         {
           "source" => "serp",
           "candidate_kind" => "new_business",
           "business_flow" => "serp_auto_added",
-          "market" => market_label_for(analysis),
-          "business_name" => business_idea_title(analysis),
-          "problem" => problem_for(analysis),
-          "target_customer" => target_customer_for(analysis),
+          "market" => idea.fetch("market"),
+          "market_category" => idea.fetch("market_category"),
+          "business_name" => idea.fetch("business_name"),
+          "problem" => idea.fetch("problem"),
+          "target_customer" => idea.fetch("target_customer"),
           "search_demand" => search_demand_for(analysis),
           "competition" => competition_for(analysis),
-          "monetization" => monetization_for(analysis),
-          "revenue_model" => monetization_for(analysis),
-          "validation_plan" => validation_plan_for(analysis),
-          "validation_step" => validation_plan_for(analysis),
+          "monetization" => monetization_for(analysis, idea),
+          "revenue_model" => monetization_for(analysis, idea),
+          "solution" => idea.fetch("solution"),
+          "lp_concept" => lp_concept_for(analysis, idea),
+          "validation_plan" => validation_plan_for(analysis, idea),
+          "validation_step" => validation_plan_for(analysis, idea),
+          "market_analysis" => idea.fetch("market_analysis"),
+          "existing_competitors" => idea.fetch("existing_competitors"),
+          "differentiation" => idea.fetch("differentiation"),
+          "business_name_reason" => idea.fetch("business_name_reason"),
+          "business_name_quality" => idea.fetch("business_name_quality"),
           "source_queries" => [ analysis.keyword ],
           "source_query" => analysis.keyword,
           "serp_run_id" => serp_run.id,
@@ -220,7 +254,7 @@ module Aicoo
       end
 
       def normalized_market_theme(analysis)
-        analysis.keyword.to_s.unicode_normalize(:nfkc).downcase.gsub(/\s+/, " ").strip
+        business_idea_for(analysis).fetch("business_name").to_s.unicode_normalize(:nfkc).downcase.gsub(/\s+/, " ").strip
       end
 
       def canonical_source_urls(analysis)
@@ -278,23 +312,23 @@ module Aicoo
       end
 
       def market_label_for(analysis)
-        analysis.keyword.to_s.squish
+        business_idea_for(analysis).fetch("market")
       end
 
       def business_idea_title(analysis)
-        "#{market_label_for(analysis)}の検証事業"
+        business_idea_for(analysis).fetch("business_name")
       end
 
-      def business_idea_description(analysis)
-        "検索需要「#{analysis.keyword}」を起点に、LP/MVPで小さく検証する新規事業候補です。"
+      def business_idea_description(analysis, idea = business_idea_for(analysis))
+        "#{idea.fetch("target_customer")}向けに、#{idea.fetch("problem")}を#{idea.fetch("solution")}で解決する新規事業候補です。根拠検索クエリ: #{analysis.keyword}。"
       end
 
       def problem_for(analysis)
-        "検索ユーザーは「#{analysis.keyword}」に関する比較、料金、代替、方法、困りごとの解決策を探しています。"
+        business_idea_for(analysis).fetch("problem")
       end
 
       def target_customer_for(analysis)
-        "「#{analysis.keyword}」で検索し、既存サービスでは解決策を選び切れていない個人または法人"
+        business_idea_for(analysis).fetch("target_customer")
       end
 
       def search_demand_for(analysis)
@@ -321,26 +355,181 @@ module Aicoo
         }
       end
 
-      def monetization_for(_analysis)
-        "初期はLPでリード獲得を検証し、反応があれば紹介、成果報酬、月額課金、代行の順に収益化を検討する。"
+      def monetization_for(_analysis, idea = nil)
+        solution = idea.to_h["solution"].presence || "業務支援サービス"
+        "#{solution}の初期相談、月額運用、成果報酬、テンプレート販売を組み合わせて収益化する。"
       end
 
-      def validation_plan_for(analysis)
-        "7日以内に「#{analysis.keyword}」向けLPを公開し、CTAクリック、問い合わせ、検索流入、広告テスト反応を確認する。"
+      def validation_plan_for(analysis, idea = business_idea_for(analysis))
+        "7日以内に「#{idea.fetch("business_name")}」のLPとMVP登録導線を公開し、#{idea.fetch("target_customer")}からの登録、相談内容、CTAクリック、検索流入を確認する。根拠検索クエリはmetadata.source_queryに保存する。"
       end
 
-      def missing_fields_for(_analysis)
-        %w[market problem target_customer monetization validation_plan]
+      def missing_fields_for(analysis)
+        idea = business_idea_for(analysis)
+        values = idea.slice("market", "problem", "target_customer", "solution").merge(
+          "revenue_model" => monetization_for(analysis, idea),
+          "validation_plan" => validation_plan_for(analysis, idea)
+        )
+        values.select { |_field, value| value.blank? }.keys
       end
 
-      def requires_enrichment?(_analysis)
-        true
+      def requires_enrichment?(analysis)
+        missing_fields_for(analysis).any? || business_name_query_like?(business_idea_title(analysis), analysis.keyword)
       end
 
       def data_quality_for(analysis)
         return "sufficient" if analysis.keyword.match?(MARKET_INTENT_PATTERN) && analysis.serp_results.size >= 5
 
         "insufficient"
+      end
+
+      def business_idea_for(analysis)
+        @business_idea_by_analysis_id ||= {}
+        @business_idea_by_analysis_id[analysis.id] ||= build_business_idea(analysis)
+      end
+
+      def build_business_idea(analysis)
+        query = analysis.keyword.to_s.squish
+        corpus = ([ query ] + analysis.serp_results.order(:position).limit(5).flat_map { |result| [ result.title, result.snippet ] }).compact.join(" ")
+        customer = infer_customer(corpus)
+        service_focus = infer_service_focus(corpus, query)
+        solution = solution_for(query, customer, service_focus)
+        business_name = service_name_for(customer, service_focus, query)
+        business_name = fallback_service_name(customer, service_focus) if business_name_query_like?(business_name, query)
+        market = "#{customer}向け#{service_focus}市場"
+        competitors = competitor_summaries_for(analysis)
+
+        {
+          "business_name" => business_name,
+          "market" => market,
+          "market_category" => market_category_for(customer, service_focus),
+          "target_customer" => "#{customer}の運営者・担当者",
+          "problem" => problem_statement_for(query, customer, service_focus),
+          "solution" => solution,
+          "market_analysis" => market_analysis_for(query, market, competitors),
+          "existing_competitors" => competitors,
+          "differentiation" => differentiation_for(customer, service_focus),
+          "business_name_reason" => "検索語をそのまま使わず、SERP上位のtitle/snippetから顧客=#{customer}、解決策=#{service_focus}を抽出してサービス名化した。",
+          "business_name_quality" => business_name_quality_for(business_name, query)
+        }
+      end
+
+      def infer_customer(text)
+        CUSTOMER_KEYWORDS.each do |pattern, customer|
+          return customer if text.match?(pattern)
+        end
+
+        cleaned_query_tokens(text).first.presence || "小規模事業者"
+      end
+
+      def infer_service_focus(text, query)
+        SERVICE_FOCUS_RULES.each do |pattern, focus|
+          return focus if text.match?(pattern)
+        end
+
+        return "業務代行" if query.match?(/代行/)
+        return "業務改善" if query.match?(/困る|面倒|できない/)
+
+        "課題解決"
+      end
+
+      def solution_for(query, customer, service_focus)
+        if query.match?(/代行/) || service_focus.match?(/運用|受付|制作|採用|対応/)
+          "#{service_focus}代行"
+        elsif query.match?(/自動化|管理|ツール|SaaS|アプリ/)
+          "#{service_focus}SaaS"
+        else
+          "#{customer}向け#{service_focus}支援"
+        end
+      end
+
+      def service_name_for(customer, service_focus, query)
+        suffix = if query.match?(/代行/)
+          "代行"
+        elsif query.match?(/自動化|管理|ツール|SaaS|アプリ/)
+          "ツール"
+        elsif query.match?(/比較|おすすめ/)
+          "比較ナビ"
+        else
+          "支援"
+        end
+
+        focus = service_focus.sub(/代行\z/, "")
+        "#{customer}#{focus}#{suffix}".squish
+      end
+
+      def fallback_service_name(customer, service_focus)
+        "#{customer}#{service_focus}支援"
+      end
+
+      def problem_statement_for(query, customer, service_focus)
+        if query.match?(/困る|面倒|できない/)
+          "#{customer}が#{service_focus}を自力で運用できず、時間と機会損失が発生している"
+        elsif query.match?(/比較|料金|おすすめ/)
+          "#{customer}が#{service_focus}の外注先やツールを比較しても、自社に合う選択肢を判断しづらい"
+        else
+          "#{customer}が#{service_focus}に必要な作業を継続できず、集客・予約・売上改善につながっていない"
+        end
+      end
+
+      def market_analysis_for(query, market, competitors)
+        {
+          "source_query" => query,
+          "market" => market,
+          "serp_result_count" => competitors.size,
+          "observed_competitor_titles" => competitors.map { |competitor| competitor["title"] }.first(5)
+        }
+      end
+
+      def competitor_summaries_for(analysis)
+        analysis.serp_results.order(:position).limit(5).map do |result|
+          {
+            "position" => result.position,
+            "title" => result.title.to_s.squish,
+            "url" => result.url.to_s,
+            "snippet" => result.snippet.to_s.squish
+          }
+        end
+      end
+
+      def differentiation_for(customer, service_focus)
+        "#{customer}に対象を絞り、#{service_focus}の相談受付から初期実行までを小さく代行して、汎用比較サイトより実行完了に近い導線を提供する。"
+      end
+
+      def lp_concept_for(_analysis, idea)
+        "#{idea.fetch("target_customer")}に、#{idea.fetch("problem")}を明示し、#{idea.fetch("solution")}の事前相談・MVP登録を受け付ける。"
+      end
+
+      def market_category_for(customer, service_focus)
+        [ customer, service_focus ].join("/")
+      end
+
+      def business_name_quality_for(name, query)
+        {
+          "query_reused_as_name" => business_name_query_like?(name, query),
+          "understandable_service_name" => understandable_service_name?(name),
+          "checked_at" => Time.current.iso8601
+        }
+      end
+
+      def business_name_query_like?(name, query)
+        normalized_name = normalize_name_for_comparison(name.to_s.sub(QUERY_NAME_SUFFIX_PATTERN, ""))
+        normalized_query = normalize_name_for_comparison(query)
+        normalized_name == normalized_query || name.to_s.include?("の検証事業")
+      end
+
+      def understandable_service_name?(name)
+        name.match?(/代行|支援|ツール|SaaS|受付|制作|運用|管理|ナビ|相談|改善|採用|集客/)
+      end
+
+      def normalize_name_for_comparison(value)
+        value.to_s.unicode_normalize(:nfkc).downcase.gsub(/[[:space:]]+/, "").strip
+      end
+
+      def cleaned_query_tokens(text)
+        text.to_s.unicode_normalize(:nfkc).split(/[\s　]+/).map(&:squish).reject do |token|
+          token.blank? || REGION_WORDS.include?(token) || INTENT_WORDS.include?(token) || token.match?(/https?:/)
+        end
       end
     end
   end
