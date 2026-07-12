@@ -66,6 +66,7 @@ module Aicoo
               landing_page = Aicoo::Owner::NewBusinessLandingPageBuilder.new(candidate).call
               created_landing_page = landing_page.id != before_lp_id
               landing_page.publish! unless landing_page.publicly_visible?
+              business_service = ensure_business_service!(business, landing_page, candidate)
 
               candidate.update!(
                 status: "done",
@@ -78,6 +79,8 @@ module Aicoo
                     "serp_run_id" => serp_run&.id,
                     "business_id" => business.id,
                     "landing_page_id" => landing_page.id,
+                    "business_service_id" => business_service.id,
+                    "service_url" => business_service.url,
                     "published_slug" => landing_page.published_slug,
                     "published_at" => landing_page.published_at&.iso8601,
                     "completed_at" => Time.current.iso8601
@@ -252,6 +255,35 @@ module Aicoo
           )
         )
         Aicoo::NewBusinessAutomationDefaults.apply!(business)
+      end
+
+      def ensure_business_service!(business, landing_page, candidate)
+        raise ArgumentError, "削除済みBusinessにはServiceを作成できません。" if business.deleted?
+
+        service_url = "/lp/#{landing_page.published_slug}"
+        service_name = "#{business.name} LP"
+        service = business.business_services.find_by(url: service_url) ||
+                  business.business_services.find_or_initialize_by(name: service_name)
+
+        service.assign_attributes(
+          name: service.name.presence || service_name,
+          url: service_url,
+          domain: nil,
+          deploy_target: "aicoo_public_lp",
+          status: "live",
+          metadata: service.metadata.to_h.merge(
+            "auto_created" => true,
+            "source" => source,
+            "source_action_candidate_id" => candidate.id,
+            "landing_page_id" => landing_page.id,
+            "published_slug" => landing_page.published_slug,
+            "public_url" => service_url,
+            "created_by_service" => "Aicoo::Serp::AutoNewBusinessPublisher",
+            "updated_at" => Time.current.iso8601
+          )
+        )
+        service.save!
+        service
       end
 
       def auto_created_business?(business)

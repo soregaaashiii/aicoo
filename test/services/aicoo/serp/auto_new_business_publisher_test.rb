@@ -38,15 +38,22 @@ class Aicoo::Serp::AutoNewBusinessPublisherTest < ActiveSupport::TestCase
     assert_equal "lp_validation", candidate.business.lifecycle_stage
     assert_equal "active", candidate.business.resource_status
     assert candidate.business.aicoo_lab_landing_pages.publicly_available.exists?
+    service = candidate.business.business_services.find_by!(deploy_target: "aicoo_public_lp")
+    assert_equal "live", service.status
+    assert_match %r{\A/lp/}, service.url
+    assert_equal candidate.metadata.dig("auto_new_business_publication", "landing_page_id"), service.metadata["landing_page_id"]
+    assert_equal service.id, candidate.metadata.dig("auto_new_business_publication", "business_service_id")
     assert_equal true, candidate.metadata.dig("auto_new_business_publication", "completed")
     assert Business.real_businesses.where(id: candidate.business_id).exists?
 
     assert_no_difference -> { Business.real_businesses.count } do
       assert_no_difference -> { AicooLabLandingPage.publicly_available.count } do
-        result = Aicoo::Serp::AutoNewBusinessPublisher.call(candidates: [ candidate ])
-        assert_equal 0, result.business_created_count
-        assert_equal 0, result.lp_published_count
-        assert_equal 0, result.failed_count
+        assert_no_difference -> { BusinessService.count } do
+          result = Aicoo::Serp::AutoNewBusinessPublisher.call(candidates: [ candidate ])
+          assert_equal 0, result.business_created_count
+          assert_equal 0, result.lp_published_count
+          assert_equal 0, result.failed_count
+        end
       end
     end
 
@@ -57,6 +64,7 @@ class Aicoo::Serp::AutoNewBusinessPublisherTest < ActiveSupport::TestCase
     assert_not candidate.business.launched?
     assert_equal "lp_validation", candidate.business.lifecycle_stage
     assert candidate.business.aicoo_lab_landing_pages.publicly_available.exists?
+    assert candidate.business.business_services.where(status: "live").where.not(url: [ nil, "" ]).exists?
     assert_equal true, candidate.metadata.dig("auto_new_business_publication", "completed")
   end
 

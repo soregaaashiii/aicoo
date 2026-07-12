@@ -96,8 +96,9 @@ module Aicoo
         end
 
         candidate = ActionCandidate.create!(candidate_attributes(analysis))
+        publish_candidate!(candidate)
         candidate.reload
-        return candidate if candidate.business_id.present?
+        return candidate if candidate.business_id.present? && candidate.metadata.to_h.dig("auto_new_business_publication", "completed")
 
         mark_publication_failed!(candidate, "business_auto_publish_failed")
         nil
@@ -128,6 +129,16 @@ module Aicoo
             }
           ),
           updated_at: Time.current
+        )
+      end
+
+      def publish_candidate!(candidate)
+        return if candidate.metadata.to_h.dig("auto_new_business_publication", "completed")
+
+        Aicoo::Serp::AutoNewBusinessPublisher.call(
+          serp_run:,
+          candidates: [ candidate ],
+          source: backfill ? "serp_backfill_discovery" : "serp_discovery"
         )
       end
 
