@@ -5,7 +5,7 @@
   <div class="section-heading">
     <div>
       <h2>今日処理するAction</h2>
-      <p>緊急障害、Owner判断が必要な自動改修、Codexでは実行できない作業を同じ優先順位で表示します。</p>
+      <p>未実行の有効な施策を、施策期待値が高い順に表示します。</p>
     </div>
   </div>
 
@@ -14,7 +14,7 @@
   <% else %>
     <div class="aicoo-lab-help">
       <strong><%= empty_message %></strong>
-      <p>緊急障害、判断待ちの自動改修、またはCodexでは実行できない具体作業だけがここに表示されます。</p>
+      <p>未実行の有効な施策がある場合だけここに表示されます。</p>
     </div>
   <% end %>
 </section>

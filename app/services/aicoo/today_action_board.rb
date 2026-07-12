@@ -2,11 +2,10 @@ module Aicoo
   class TodayActionBoard
     include Rails.application.routes.url_helpers
 
-    DESCRIPTION = "Todayは、自動改修が止まって承認が必要なもの、またはCodexでは実行できない手作業・記事作成・データ入力を、期待値順に処理する画面です。".freeze
+    DESCRIPTION = "Todayは、未実行の有効な施策を、施策期待値が高い順に処理する画面です。".freeze
     MODES = %w[revenue learning balanced].freeze
     APPROVAL_REQUIRED_STATUSES = %w[draft waiting_approval approved].freeze
     CODEX_QUEUE_STATUSES = %w[queued ready_for_codex sent_to_codex running].freeze
-    OWNER_EXECUTION_MODES = %w[manual_operation content_creation data_operation owner_decision].freeze
     PER_PAGE = Aicoo::ActionExpectedValueRanking::DEFAULT_PER_PAGE
     HIGH_VALUE_REVIEW_THRESHOLD_YEN = 1_000_000
     DAILY_RUN_MINIMUM_AVOIDED_LOSS_YEN = 15_000
@@ -161,7 +160,7 @@ module Aicoo
     def action_candidate_items
       ActionCandidate
         .active_for_ranking
-        .includes(:business, :auto_revision_tasks)
+        .includes(:business, :action_result, :action_execution, :auto_revision_tasks)
         .order(updated_at: :desc)
         .filter_map { |candidate| build_item(candidate) }
     end
@@ -228,7 +227,7 @@ module Aicoo
         action_expected_value_delta_yen: valuation.fetch(:action_expected_value_delta_yen),
         valuation_period_days: valuation.fetch(:valuation_period_days),
         calculation_method: valuation.fetch(:calculation_method),
-        confidence: valuation.fetch(:confidence),
+        confidence: success_probability,
         valuation_status: valuation.fetch(:valuation_status),
         expected_hours: expected_hours.to_f,
         expected_hourly_value_yen: expected_hours.positive? ? (expected_value_yen.to_d / expected_hours).round.to_i : 0,
@@ -390,11 +389,11 @@ module Aicoo
     end
 
     def today_exclusion_reason(candidate, execution_mode, approval_task)
+      return "executed" if candidate.executed?
       return "inactive_business" if candidate.business.blank? || candidate.business.deleted? || candidate.business.resource_status == "archived"
       return "no_score" unless minimum_fields_present?(candidate, execution_mode)
       valuation = action_candidate_valuation(candidate)
       return "unvalued" if valuation.fetch(:valuation_status) == "unvalued"
-      return "zero_expected_value" if valuation.fetch(:action_expected_value_delta_yen).zero? && approval_task.blank?
       return "fallback_action" if candidate.metadata.to_h["today_fallback"]
       return "needs_refinement" if candidate.metadata.to_h["concretization_status"] == "needs_refinement"
       return "abstract_concrete_task" unless concrete_text_allowed?(candidate)
@@ -403,13 +402,7 @@ module Aicoo
       return invalid_target_path_reason(candidate) if invalid_target_path_reason(candidate).present?
       return "unrealistic_expected_profit" if unrealistic_expected_profit?(candidate)
 
-      owner_work = OWNER_EXECUTION_MODES.include?(execution_mode)
-      approval_waiting_code_revision = execution_mode == "code_revision" && approval_task.present?
-
-      return nil if owner_work || approval_waiting_code_revision
-      return "code_revision_auto_executable" if execution_mode == "code_revision"
-
-      "unsupported_execution_mode"
+      nil
     end
 
     def minimum_fields_present?(candidate, execution_mode)

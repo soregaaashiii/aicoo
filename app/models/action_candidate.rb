@@ -131,6 +131,43 @@ class ActionCandidate < ApplicationRecord
     )
   end
 
+  def executed?
+    status == "done" || action_result.present? || action_execution&.status == "completed"
+  end
+
+  def mark_executed!(executed_by: "owner", executed_at: Time.current)
+    transaction do
+      execution = ensure_action_execution!
+      execution.complete!(
+        result_summary: "施策詳細から実行済みにしました。"
+      ) unless execution.status == "completed"
+
+      create_action_result!(
+        action_execution: execution,
+        business: business,
+        executed_on: executed_at.to_date,
+        evaluated_on: executed_at.to_date,
+        evaluation_status: "pending",
+        note: "施策詳細から実行済みにしました。詳細評価は未入力です。",
+        metadata: {
+          "marked_executed_from" => "action_candidate_detail",
+          "executed_by" => executed_by,
+          "executed_at" => executed_at.iso8601
+        }
+      ) unless action_result
+
+      update!(
+        status: "done",
+        metadata: metadata.to_h.merge(
+          "executed" => true,
+          "executed_at" => executed_at.iso8601,
+          "executed_by" => executed_by,
+          "execution_record_source" => "action_candidate_detail"
+        )
+      )
+    end
+  end
+
   def revenue_ratio
     value_ratio(expected_revenue_value_yen)
   end

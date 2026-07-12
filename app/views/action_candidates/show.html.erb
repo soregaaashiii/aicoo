@@ -1,18 +1,21 @@
 <% display_action_title = @evidence_presenter.summary.presence || @action_candidate.title %>
 <% content_for :title, display_action_title %>
 
-<% workspace_return_params = @action_workspace ? { return_to: action_workspace_path(@action_candidate) } : {} %>
 <% today_return_params = @action_workspace ? { return_to: owner_focus_path } : {} %>
-<% start_label = @action_workspace ? "実行する" : "承認する" %>
+<% executed_at = @action_candidate.action_execution&.completed_at || @action_candidate.action_result&.created_at || @action_candidate.metadata.to_h["executed_at"].presence %>
 
 <% header_actions = capture do %>
   <% if @action_workspace %>
     <%= link_to "戻る", owner_focus_path, class: "button secondary" %>
   <% end %>
-  <% if !%w[approved created running completed done rejected archived].include?(@action_candidate.status) %>
-    <%= button_to start_label, approve_action_candidate_path(@action_candidate, workspace_return_params), method: :patch, class: "button" %>
-  <% elsif @action_candidate.action_result.blank? %>
-    <%= link_to "完了", new_action_result_path({ action_result: { action_candidate_id: @action_candidate.id } }.merge(today_return_params)), class: "button" %>
+  <% if @action_candidate.executed? %>
+    <span class="pill">実行済み<%= executed_at.present? ? " #{l(Time.zone.parse(executed_at.to_s), format: :short) rescue ""}" : "" %></span>
+  <% elsif !%w[rejected archived].include?(@action_candidate.status) %>
+    <%= button_to "実行済みにする",
+                  mark_executed_action_candidate_path(@action_candidate),
+                  method: :patch,
+                  class: "button",
+                  data: { turbo_confirm: "この施策を実行済みにしますか？\n実行済みにすると、今日処理するActionから除外されます。" } %>
   <% end %>
   <% unless %w[rejected archived completed done].include?(@action_candidate.status) %>
     <%= button_to "却下する", reject_action_candidate_path(@action_candidate, today_return_params), method: :patch, class: "button danger" %>
@@ -119,12 +122,17 @@
     <% end %>
 
     <div class="actions compact-actions">
-      <% if !%w[approved created running completed done rejected archived].include?(@action_candidate.status) %>
-        <%= button_to start_label, approve_action_candidate_path(@action_candidate, workspace_return_params), method: :patch, class: "button" %>
-      <% elsif @action_candidate.action_result.blank? %>
-        <%= link_to @action_workspace ? "完了" : "実行する", new_action_result_path({ action_result: { action_candidate_id: @action_candidate.id } }.merge(today_return_params)), class: "button" %>
-      <% else %>
-        <%= link_to "詳細を見る", "#developer-mode", class: "button secondary" %>
+      <% if @action_candidate.executed? %>
+        <span class="pill">実行済み</span>
+        <% if executed_at.present? %>
+          <span class="muted">実行日時: <%= l(Time.zone.parse(executed_at.to_s), format: :short) rescue executed_at %></span>
+        <% end %>
+      <% elsif !%w[rejected archived].include?(@action_candidate.status) %>
+        <%= button_to "実行済みにする",
+                      mark_executed_action_candidate_path(@action_candidate),
+                      method: :patch,
+                      class: "button",
+                      data: { turbo_confirm: "この施策を実行済みにしますか？\n実行済みにすると、今日処理するActionから除外されます。" } %>
       <% end %>
       <% if @action_workspace && !%w[rejected archived completed done].include?(@action_candidate.status) %>
         <%= button_to "保留", defer_owner_focus_path(task_key: "action_candidate:#{@action_candidate.id}"), method: :patch, class: "button secondary" %>

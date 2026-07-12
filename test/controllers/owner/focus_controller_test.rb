@@ -324,7 +324,7 @@ module Owner
       assert_equal "unrealistic_expected_profit", candidate.reload.metadata.fetch("today_exclusion_reason")
     end
 
-    test "excludes normal zero value action candidates from Today" do
+    test "shows zero value action candidates when they are unexecuted and otherwise valid" do
       candidate = create_today_candidate!(
         title: "梅田の店舗一覧を確認する",
         immediate_value_yen: 0,
@@ -336,8 +336,8 @@ module Owner
       get owner_focus_url
 
       assert_response :success
-      assert_not_includes response.body, candidate.title
-      assert_equal "zero_expected_value", candidate.reload.metadata.fetch("today_exclusion_reason")
+      assert_includes response.body, candidate.title
+      assert_nil candidate.reload.metadata["today_exclusion_reason"]
     end
 
     test "groups similar new businesses and hides non actionable exploring businesses" do
@@ -486,7 +486,7 @@ module Owner
       assert_not_includes response.body, "#{business.name}の分析データから次のTODOを1件具体化する"
     end
 
-    test "stores exclusion reason when candidate is not eligible for Today" do
+    test "shows code revision candidate when it is unexecuted" do
       candidate = ActionCandidate.create!(
         business: businesses(:suelog),
         title: "自動で実行できるコード改修",
@@ -512,7 +512,18 @@ module Owner
       get owner_focus_url
 
       assert_response :success
-      assert_equal "code_revision_auto_executable", candidate.reload.metadata.fetch("today_exclusion_reason")
+      assert_includes response.body, candidate.title
+      assert_nil candidate.reload.metadata["today_exclusion_reason"]
+    end
+
+    test "does not show executed action candidates in Today" do
+      candidate = create_today_candidate!(title: "実行済みの店舗確認")
+      candidate.mark_executed!(executed_by: "test")
+
+      get owner_focus_url
+
+      assert_response :success
+      assert_not_includes response.body, candidate.title
     end
 
     test "shows multiple suelog site insight candidates ordered by expected value" do
@@ -546,6 +557,39 @@ module Owner
       assert_includes response.body, low.title
       assert_operator response.body.index(high.title), :<, response.body.index(middle.title)
       assert_operator response.body.index(middle.title), :<, response.body.index(low.title)
+    end
+
+    test "orders unexecuted actions by expected value then success probability" do
+      lower_probability = create_today_candidate!(
+        title: "同期待値で成功率が低い施策",
+        immediate_value_yen: 100_000,
+        success_probability: 0.4,
+        metadata: today_metadata(title: "同期待値で成功率が低い施策").merge(
+          "action_value_model" => {
+            "expected_value_if_action_yen" => 40_000,
+            "expected_value_if_no_action_yen" => 0,
+            "execution_cost_yen" => 0
+          }
+        )
+      )
+      higher_probability = create_today_candidate!(
+        title: "同期待値で成功率が高い施策",
+        immediate_value_yen: 50_000,
+        success_probability: 0.8,
+        metadata: today_metadata(title: "同期待値で成功率が高い施策").merge(
+          "action_value_model" => {
+            "expected_value_if_action_yen" => 40_000,
+            "expected_value_if_no_action_yen" => 0,
+            "execution_cost_yen" => 0
+          }
+        )
+      )
+
+      get owner_focus_url
+
+      assert_response :success
+      ids = today_item_ids(response.body)
+      assert_operator ids.index("action_candidate:#{higher_probability.id}"), :<, ids.index("action_candidate:#{lower_probability.id}")
     end
 
     private

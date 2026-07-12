@@ -6,6 +6,7 @@ class ActionCandidatesController < ApplicationController
     destroy
     approve
     reject
+    mark_executed
     reevaluate_ai
     send_to_executor
     generate_codex_prompt_draft
@@ -118,6 +119,31 @@ class ActionCandidatesController < ApplicationController
     else
       redirect_back fallback_location: owner_tasks_path, notice: message
     end
+  end
+
+  def mark_executed
+    if @action_candidate.executed?
+      redirect_to action_workspace_path(@action_candidate), notice: "この施策はすでに実行済みです。"
+      return
+    end
+
+    @action_candidate.mark_executed!(executed_by: "owner")
+    OwnerTaskCompletionLog.record_success!(
+      task_type: "action_candidate_execution",
+      target: @action_candidate,
+      action_label: "実行済み",
+      message: "ActionCandidate『#{@action_candidate.title}』を実行済みにしました。",
+      metadata: {
+        status: @action_candidate.status,
+        action_candidate_id: @action_candidate.id,
+        action_execution_id: @action_candidate.action_execution&.id,
+        action_result_id: @action_candidate.action_result&.id,
+        executed_at: @action_candidate.metadata.to_h["executed_at"]
+      }
+    )
+    redirect_to owner_focus_path, notice: "実行済みにしました。今日処理するActionから除外されます。"
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to action_workspace_path(@action_candidate), alert: "実行済み保存に失敗しました: #{e.record.errors.full_messages.to_sentence}"
   end
 
   def reevaluate_ai

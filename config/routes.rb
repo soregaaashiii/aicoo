@@ -90,6 +90,7 @@ Rails.application.routes.draw do
   resources :action_candidates do
     patch :approve, on: :member
     patch :reject, on: :member
+    patch :mark_executed, on: :member
     post :reevaluate_ai, on: :member
     post :send_to_executor, on: :member
     post :generate_codex_prompt_draft, on: :member

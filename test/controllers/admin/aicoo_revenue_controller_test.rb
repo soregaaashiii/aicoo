@@ -33,7 +33,7 @@ module Admin
       assert_not_includes response.body, business_path(candidate.business)
     end
 
-    test "does not show code revision that can run without owner approval" do
+    test "shows code revision that has not been executed yet" do
       candidate = create_today_candidate(
         title: "CTA表示文言を修正する",
         execution_mode: "code_revision",
@@ -53,10 +53,11 @@ module Admin
       get admin_aicoo_revenue_url
 
       assert_response :success
-      assert_not_includes response.body, "CTA表示文言を修正する"
+      assert_includes response.body, "CTA表示文言を修正する"
+      assert_includes response.body, action_workspace_path(candidate)
     end
 
-    test "shows code revision only when auto revision is waiting for owner judgment" do
+    test "shows code revision waiting for owner judgment with approval reason" do
       candidate = create_today_candidate(
         title: "認証まわりの改修を確認する",
         execution_mode: "code_revision",

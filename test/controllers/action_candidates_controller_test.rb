@@ -133,7 +133,7 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Judge補正スコア履歴"
     assert_includes response.body, "Judge補正で順位低下"
     assert_includes response.body, "部門"
-    assert_includes response.body, "承認する"
+    assert_includes response.body, "実行済みにする"
     assert_includes response.body, "Developer Mode"
     assert_includes response.body, "実行指示書"
     assert_includes response.body, "現在"
@@ -155,7 +155,8 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Today"
     assert_includes response.body, "Action"
     assert_includes response.body, "戻る"
-    assert_includes response.body, "実行する"
+    assert_includes response.body, "実行済みにする"
+    assert_includes response.body, "この施策を実行済みにしますか？"
     assert_includes response.body, "保留"
     assert_includes response.body, "却下する"
     assert_includes response.body, "Businessを見る"
@@ -259,7 +260,7 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_not_includes response.body, "Executorへ送る"
-    assert_includes response.body, "承認する"
+    assert_includes response.body, "実行済みにする"
   end
 
   test "sends data preparation action candidate to executor" do
@@ -358,6 +359,49 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
 
     assert_redirected_to action_workspace_url(@action_candidate)
     assert_equal "approved", @action_candidate.reload.status
+  end
+
+  test "mark executed creates execution and result then hides repeated button" do
+    @action_candidate.update!(status: "approved")
+
+    assert_difference("ActionExecution.count", 1) do
+      assert_difference("ActionResult.count", 1) do
+        assert_difference("OwnerTaskCompletionLog.count", 1) do
+          patch mark_executed_action_candidate_url(@action_candidate)
+        end
+      end
+    end
+
+    assert_redirected_to owner_focus_url
+    assert_equal "done", @action_candidate.reload.status
+    assert @action_candidate.executed?
+    assert_equal "completed", @action_candidate.action_execution.status
+    assert_not_nil @action_candidate.action_execution.completed_at
+    assert_equal Date.current, @action_candidate.action_result.executed_on
+    assert_equal "owner", @action_candidate.metadata["executed_by"]
+    assert_not_nil @action_candidate.metadata["executed_at"]
+  end
+
+  test "mark executed is idempotent for already executed action" do
+    @action_candidate.mark_executed!(executed_by: "test")
+
+    assert_no_difference([ "ActionExecution.count", "ActionResult.count", "OwnerTaskCompletionLog.count" ]) do
+      patch mark_executed_action_candidate_url(@action_candidate)
+    end
+
+    assert_redirected_to action_workspace_url(@action_candidate)
+    assert_includes flash[:notice], "すでに実行済み"
+  end
+
+  test "executed action detail shows executed timestamp and hides mark executed button" do
+    @action_candidate.mark_executed!(executed_by: "test")
+
+    get action_workspace_url(@action_candidate)
+
+    assert_response :success
+    assert_includes response.body, "実行済み"
+    assert_includes response.body, "実行日時"
+    assert_not_includes response.body, "実行済みにする"
   end
 
   test "rejects from action workspace and returns to today" do
