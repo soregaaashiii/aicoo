@@ -10,6 +10,18 @@ module Owner
       assert_includes response.body, "新規事業候補"
     end
 
+    test "show does not auto publish candidates as a side effect" do
+      publisher = ->(**) { raise "AutoNewBusinessPublisher must not run from new_business_pipeline#show" }
+
+      Aicoo::Serp::AutoNewBusinessPublisher.stub(:call, publisher) do
+        assert_no_difference([ "Business.count", "AicooLabLandingPage.count", "ActionCandidate.count" ]) do
+          get owner_new_business_pipeline_url
+        end
+      end
+
+      assert_response :success
+    end
+
     test "new business candidate automatically creates business and makes it listable" do
       candidate = nil
 

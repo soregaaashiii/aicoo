@@ -7,6 +7,7 @@ module Aicoo
 
       def call
         raise ArgumentError, "Business化してからLPを作成してください。" unless business
+        raise ArgumentError, "削除済みBusinessにはLPを作成できません。" if business.deleted?
 
         existing = business.aicoo_lab_landing_pages.order(updated_at: :desc).first
         return existing if existing

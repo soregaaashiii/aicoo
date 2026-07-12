@@ -39,7 +39,6 @@ class BusinessesController < ApplicationController
 
   # GET /businesses/1 or /businesses/1.json
   def show
-    auto_link_business_google_defaults!
     @action_candidates = @business.action_candidates.by_recommendation
     @ai_improvement_action_candidates = @business.action_candidates
                                                    .active_for_ranking
@@ -90,10 +89,8 @@ class BusinessesController < ApplicationController
     @data_source_policy = Aicoo::DataSourcePolicy.for(@business)
     load_suelog_database_status
     @auto_revision_run_logs = @business.auto_revision_run_logs.includes(:auto_revision_task).recent.limit(8)
-    @pipeline_run = Aicoo::PipelineEngine.new(@business).call
-    Aicoo::PipelineStuckDetector.new(scope: AicooPipelineRun.where(id: @pipeline_run.id), auto_recover: false).call
-    @pipeline_run.reload
-    @pipeline_recovery_logs = @pipeline_run.pipeline_recovery_logs.recent.limit(20)
+    @pipeline_run = latest_pipeline_run_for(@business)
+    @pipeline_recovery_logs = @pipeline_run.persisted? ? @pipeline_run.pipeline_recovery_logs.recent.limit(20) : PipelineRecoveryLog.none
     load_data_source_settings_context
   end
 
@@ -111,7 +108,6 @@ class BusinessesController < ApplicationController
   end
 
   def google_settings
-    auto_link_business_google_defaults!
     load_business_google_settings_context
   end
 
@@ -667,6 +663,20 @@ class BusinessesController < ApplicationController
 
     def business_system_statuses(business, keys)
       keys.index_with { |key| Aicoo::SystemStatusResolver.call(key, business:) }
+    end
+
+    def latest_pipeline_run_for(business)
+      AicooPipelineRun.where(pipeline_type: "business", business:).recent.first ||
+        AicooPipelineRun.new(
+          pipeline_type: "business",
+          business:,
+          status: "waiting",
+          current_stage: "discovery",
+          next_stage: "score",
+          started_at: business.created_at,
+          stage_states: {},
+          metadata: {}
+        )
     end
 
     def auto_link_business_google_defaults!(source_types: %w[gsc ga4])

@@ -56,11 +56,18 @@ class AicooLabLandingPage < ApplicationRecord
 
   scope :with_public_slug, -> { where.not(published_slug: [ nil, "" ]) }
   scope :publicly_available, -> {
-    with_public_slug.where(public_status: "published").where("published_at IS NULL OR published_at <= ?", Time.current)
+    with_public_slug.left_outer_joins(:business)
+                    .where(public_status: "published")
+                    .where("published_at IS NULL OR published_at <= ?", Time.current)
+                    .where("businesses.id IS NULL OR businesses.deleted_at IS NULL")
   }
   scope :paused_public_pages, -> { with_public_slug.where(public_status: "paused") }
   scope :scheduled_for_publication, -> {
-    where(public_status: "scheduled").where.not(scheduled_publish_at: nil).where(scheduled_publish_at: ..Time.current)
+    left_outer_joins(:business)
+      .where(public_status: "scheduled")
+      .where.not(scheduled_publish_at: nil)
+      .where(scheduled_publish_at: ..Time.current)
+      .where("businesses.id IS NULL OR businesses.deleted_at IS NULL")
   }
 
   def self.build_from_experiment(experiment)

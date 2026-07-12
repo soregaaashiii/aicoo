@@ -1,6 +1,11 @@
 module Aicoo
   module Serp
     class AutoNewBusinessPublisher
+      BLOCKING_DELETION_REASONS = %w[
+        SERP誤生成
+        既存事業との重複
+      ].freeze
+
       Result = Data.define(
         :checked_count,
         :business_created_count,
@@ -35,6 +40,11 @@ module Aicoo
           counters[:checked_count] += 1
 
           if already_published?(candidate)
+            counters[:skipped_count] += 1
+            next
+          end
+
+          if republish_blocked?(candidate)
             counters[:skipped_count] += 1
             next
           end
@@ -151,7 +161,62 @@ module Aicoo
         business.aicoo_lab_landing_pages.publicly_available.exists?
       end
 
+      def republish_blocked?(candidate)
+        metadata = candidate.metadata.to_h
+        return mark_republish_blocked!(candidate, reason: metadata["deletion_reason"].presence || "blocked_by_candidate") if metadata["do_not_recreate"] || metadata["auto_republish_blocked"]
+
+        if candidate.business&.deleted?
+          return mark_republish_blocked!(candidate, reason: candidate.business.deletion_reason.presence || "business_deleted")
+        end
+
+        deleted_business = deleted_business_for(candidate)
+        return false unless deleted_business
+
+        mark_republish_blocked!(candidate, reason: deleted_business.deletion_reason.presence || "deleted_business_match", deleted_business:)
+      end
+
+      def deleted_business_for(candidate)
+        metadata = candidate.metadata.to_h
+        business_id = metadata.dig("auto_new_business_publication", "business_id").presence ||
+                      metadata.dig("business_promotion", "business_id").presence ||
+                      metadata["deleted_business_id"].presence ||
+                      candidate.business_id
+        if business_id.present?
+          business = Business.deleted.find_by(id: business_id)
+          return business if business
+        end
+
+        fingerprint = metadata["discovery_fingerprint"].presence || metadata["fingerprint"].presence
+        if fingerprint
+          business = Business.deleted.find_by("metadata ->> 'discovery_fingerprint' = ?", fingerprint)
+          return business if business
+        end
+
+        name = metadata["business_name"].presence || metadata["service_name"].presence || candidate.title.to_s
+        return if name.blank?
+
+        Business.deleted.where("LOWER(name) = ?", name.squish.downcase)
+                .where(deletion_reason: BLOCKING_DELETION_REASONS)
+                .first
+      end
+
+      def mark_republish_blocked!(candidate, reason:, deleted_business: nil)
+        candidate.update_columns(
+          metadata: candidate.metadata.to_h.merge(
+            "auto_republish_blocked" => true,
+            "do_not_recreate" => true,
+            "business_deleted_at" => deleted_business&.deleted_at&.iso8601 || candidate.metadata.to_h["business_deleted_at"],
+            "deleted_business_id" => deleted_business&.id || candidate.metadata.to_h["deleted_business_id"],
+            "deletion_reason" => reason
+          ).compact,
+          updated_at: Time.current
+        )
+        true
+      end
+
       def prepare_business!(business)
+        raise ArgumentError, "削除済みBusinessは自動公開できません。" if business.deleted?
+
         business.update!(
           status: "exploring",
           launched: false,

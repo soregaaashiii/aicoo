@@ -10,6 +10,18 @@ module Owner
       Business.where(created_by_aicoo: true).update_all(resource_status: "archived")
     end
 
+    test "owner dashboard does not auto publish new businesses as a side effect" do
+      publisher = ->(**) { raise "AutoNewBusinessPublisher must not run from owner dashboard" }
+
+      Aicoo::Serp::AutoNewBusinessPublisher.stub(:call, publisher) do
+        assert_no_difference([ "Business.count", "AicooLabLandingPage.count", "ActionCandidate.count" ]) do
+          get owner_dashboard_url
+        end
+      end
+
+      assert_response :success
+    end
+
     test "owner dashboard uses the same TodayActionBoard items as focus" do
       high = create_today_candidate!(
         title: "梅田の未確認店舗を30件確認済みにする",

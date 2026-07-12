@@ -122,19 +122,47 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
   test "index does not repair or publish new businesses as a side effect" do
     repairer = ->(**) { raise "ApprovedNewBusinessCandidateRepairer must not run from businesses#index" }
     publisher = ->(**) { raise "AutoNewBusinessPublisher must not run from businesses#index" }
+    candidate = ActionCandidate.create!(
+      business: @business,
+      title: "GETで更新されない候補",
+      status: "idea",
+      action_type: "seo_improvement",
+      generation_source: "business_analyzer"
+    )
+    original_updated_at = candidate.updated_at
 
     Aicoo::ApprovedNewBusinessCandidateRepairer.stub(:call, repairer) do
       Aicoo::Serp::AutoNewBusinessPublisher.stub(:call, publisher) do
-        assert_no_difference([ "Business.count", "AicooLabLandingPage.count", "ActionCandidate.count" ]) do
+        assert_no_difference([ "Business.count", "AicooLabLandingPage.count", "ActionCandidate.count", "AicooPipelineRun.count" ]) do
           get businesses_url
         end
       end
     end
 
     assert_response :success
+    assert_equal original_updated_at.to_i, candidate.reload.updated_at.to_i
     assert_not_includes response.body, "Business化しました"
     assert_not_includes response.body, "新規事業を作成"
     assert_not_includes response.body, "LPを"
+  end
+
+  test "index remains read only across repeated reloads" do
+    before_counts = {
+      businesses: Business.count,
+      lab_lps: AicooLabLandingPage.count,
+      candidates: ActionCandidate.count,
+      pipelines: AicooPipelineRun.count
+    }
+
+    2.times do
+      get businesses_url
+      assert_response :success
+    end
+
+    assert_equal before_counts[:businesses], Business.count
+    assert_equal before_counts[:lab_lps], AicooLabLandingPage.count
+    assert_equal before_counts[:candidates], ActionCandidate.count
+    assert_equal before_counts[:pipelines], AicooPipelineRun.count
   end
 
   test "index shows serp new business candidate tab" do
@@ -342,6 +370,18 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "AI改善提案テスト"
     assert_includes response.body, "Codex用プロンプト作成"
     assert_includes response.body, "このBusinessの送信待ちTask"
+  end
+
+  test "show does not create pipeline or auto link defaults" do
+    linker = ->(*) { raise "BusinessGoogleDefaultLinker must not run from businesses#show" }
+
+    Aicoo::BusinessGoogleDefaultLinker.stub(:call, linker) do
+      assert_no_difference([ "Business.count", "AicooLabLandingPage.count", "ActionCandidate.count", "AicooPipelineRun.count", "PipelineRecoveryLog.count" ]) do
+        get business_url(@business)
+      end
+    end
+
+    assert_response :success
   end
 
   test "business google section shows reauthentication actions" do
@@ -879,6 +919,32 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes Business.real_businesses, @business
   end
 
+  test "soft delete marks serp new business candidate as do not recreate" do
+    business = Business.create!(name: "SERP誤生成テスト", status: "exploring", source: "serp")
+    candidate = ActionCandidate.create!(
+      business: businesses(:suelog),
+      title: "SERP誤生成テスト",
+      status: "done",
+      action_type: "new_business",
+      department: "new_business",
+      generation_source: "serp",
+      metadata: {
+        "candidate_kind" => "new_business",
+        "business_name" => "SERP誤生成テスト"
+      }
+    )
+    candidate.update_columns(business_id: business.id)
+
+    delete business_url(business), params: { deletion_reason: "SERP誤生成" }
+
+    assert_redirected_to businesses_url
+    candidate.reload
+    assert_equal true, candidate.metadata["do_not_recreate"]
+    assert_equal true, candidate.metadata["auto_republish_blocked"]
+    assert_equal business.id, candidate.metadata["deleted_business_id"]
+    assert_equal "SERP誤生成", candidate.metadata["deletion_reason"]
+  end
+
   test "deleted businesses are shown on deleted list and can be restored" do
     @business.soft_delete!(reason: "既存事業との重複", actor: "owner", source: "test")
 
@@ -920,6 +986,35 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "SERP誤生成", business.deletion_reason
     assert_equal "2件の事業を削除しました。", flash[:notice]
     assert_not_match(/Business化|新規事業を作成|LPを.*公開|承認しました|Pipelineを開始/, flash[:notice].to_s)
+  end
+
+  test "bulk delete redirect does not recreate deleted business or landing page" do
+    business = Business.create!(name: "削除後再生成禁止", status: "exploring", source: "serp")
+    candidate = ActionCandidate.create!(
+      business: business,
+      title: "削除後再生成禁止",
+      status: "done",
+      action_type: "new_business",
+      department: "new_business",
+      generation_source: "serp",
+      metadata: {
+        "candidate_kind" => "new_business",
+        "business_name" => "削除後再生成禁止"
+      }
+    )
+
+    assert_no_difference([ "Business.count", "AicooLabLandingPage.count" ]) do
+      patch bulk_delete_businesses_url, params: {
+        business_ids: [ business.id ],
+        deletion_reason: "SERP誤生成"
+      }
+      follow_redirect!
+    end
+
+    assert_response :success
+    assert business.reload.deleted?
+    assert_equal true, candidate.reload.metadata["do_not_recreate"]
+    assert_equal 0, Business.real_businesses.where(name: "削除後再生成禁止").count
   end
 
   test "business index bulk delete form posts only to bulk delete route" do

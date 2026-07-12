@@ -100,4 +100,74 @@ class Aicoo::Serp::AutoNewBusinessPublisherTest < ActiveSupport::TestCase
     assert Business.real_businesses.where(id: candidate.business_id).exists?
     assert_equal true, candidate.metadata.dig("auto_new_business_publication", "completed")
   end
+
+  test "skips candidate when matching deleted serp business is blocked" do
+    deleted_business = Business.create!(
+      name: "削除済み重複候補",
+      status: "exploring",
+      source: "serp",
+      metadata: { "discovery_fingerprint" => "duplicate-fingerprint" }
+    )
+    deleted_business.soft_delete!(reason: "SERP誤生成", actor: "owner", source: "test")
+    candidate = ActionCandidate.create!(
+      business: businesses(:suelog),
+      title: "削除済み重複候補",
+      description: "削除済み候補と同じ",
+      action_type: "other",
+      department: "general",
+      generation_source: "manual",
+      status: "idea",
+      immediate_value_yen: 30_000,
+      success_probability: 0.2
+    )
+    candidate.update_columns(
+      action_type: "new_business",
+      department: "new_business",
+      generation_source: "serp",
+      metadata: {
+        "candidate_kind" => "new_business",
+        "business_name" => "削除済み重複候補",
+        "discovery_fingerprint" => "duplicate-fingerprint"
+      }
+    )
+
+    assert_no_difference([ "Business.count", "AicooLabLandingPage.count" ]) do
+      result = Aicoo::Serp::AutoNewBusinessPublisher.call(candidates: [ candidate ])
+      assert_equal 1, result.skipped_count
+      assert_equal 0, result.business_created_count
+      assert_equal 0, result.lp_created_count
+    end
+
+    candidate.reload
+    assert_equal true, candidate.metadata["do_not_recreate"]
+    assert_equal true, candidate.metadata["auto_republish_blocked"]
+    assert_equal deleted_business.id, candidate.metadata["deleted_business_id"]
+  end
+
+  test "landing page builder rejects deleted business" do
+    business = Business.create!(name: "削除済みLP禁止", status: "exploring", source: "serp")
+    candidate = ActionCandidate.create!(
+      business: business,
+      title: "削除済みLP禁止",
+      description: "LPを作らない",
+      action_type: "new_business",
+      department: "new_business",
+      generation_source: "serp",
+      status: "done",
+      immediate_value_yen: 30_000,
+      success_probability: 0.2,
+      metadata: {
+        "candidate_kind" => "new_business",
+        "business_name" => "削除済みLP禁止"
+      }
+    )
+    business.soft_delete!(reason: "SERP誤生成", actor: "owner", source: "test")
+
+    assert_no_difference("AicooLabLandingPage.count") do
+      error = assert_raises(ArgumentError) do
+        Aicoo::Owner::NewBusinessLandingPageBuilder.new(candidate).call
+      end
+      assert_match "削除済みBusiness", error.message
+    end
+  end
 end

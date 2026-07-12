@@ -27,6 +27,7 @@ module Aicoo
           message: "既存Businessに紐付けました: #{existing.name}"
         )
       end
+      raise ArgumentError, "削除済みBusinessと同一候補のため自動再作成しません。" if deleted_business_recreation_blocked?
 
       business = Business.create!(business_attributes)
       Aicoo::NewBusinessAutomationDefaults.apply!(business)
@@ -55,6 +56,17 @@ module Aicoo
 
     def existing_business
       Business.real_businesses.find_by("LOWER(name) = ?", business_name.downcase)
+    end
+
+    def deleted_business_recreation_blocked?
+      metadata = action_candidate.metadata.to_h
+      return true if metadata["do_not_recreate"] || metadata["auto_republish_blocked"]
+
+      blocking_reasons = Aicoo::Serp::AutoNewBusinessPublisher::BLOCKING_DELETION_REASONS
+      Business.deleted
+              .where("LOWER(name) = ?", business_name.downcase)
+              .where(deletion_reason: blocking_reasons)
+              .exists?
     end
 
     def link_candidate!(business, created:)
@@ -140,6 +152,7 @@ module Aicoo
         "source_query" => action_candidate.metadata.to_h["source_query"],
         "serp_run_id" => action_candidate.metadata.to_h["serp_run_id"],
         "serp_analysis_id" => action_candidate.metadata.to_h["serp_analysis_id"],
+        "discovery_fingerprint" => action_candidate.metadata.to_h["discovery_fingerprint"].presence || action_candidate.metadata.to_h["fingerprint"],
         "expected_profit_yen" => action_candidate.expected_profit_yen,
         "expected_hours" => action_candidate.expected_hours&.to_s
       }.compact

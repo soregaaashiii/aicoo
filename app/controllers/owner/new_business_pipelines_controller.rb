@@ -1,7 +1,6 @@
 module Owner
   class NewBusinessPipelinesController < ApplicationController
     def show
-      Aicoo::Serp::AutoNewBusinessPublisher.call(source: "new_business_pipeline_auto_publish")
       @board = Aicoo::Owner::NewBusinessPipelineBoard.new(selected_id: params[:selected_id]).call
     end
 

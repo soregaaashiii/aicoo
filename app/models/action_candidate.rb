@@ -417,6 +417,7 @@ class ActionCandidate < ApplicationRecord
     return unless Aicoo::ActionCandidateBusinessPromoter.new_business_candidate?(self)
     return if status.in?(%w[rejected archived done])
     return if metadata.to_h.dig("auto_new_business_publication", "completed")
+    return if metadata.to_h["do_not_recreate"] || metadata.to_h["auto_republish_blocked"]
 
     Aicoo::Serp::AutoNewBusinessPublisher.call(candidates: [ self ], source: "action_candidate_auto_publish")
   rescue StandardError => e

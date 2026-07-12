@@ -146,6 +146,7 @@ class Business < ApplicationRecord
       )
     )
     record_deletion_audit!("delete", previous_status:, previous_resource_status:, actor:, reason:)
+    block_auto_republish_for_deleted_business!(actor:, reason:)
   end
 
   def restore_from_soft_delete!(actor: "owner")
@@ -174,6 +175,7 @@ class Business < ApplicationRecord
       resource_status_changed_at: Time.current,
       metadata: metadata.to_h.except("deleted_at")
     )
+    unblock_auto_republish_for_restored_business!
     record_deletion_audit!("restore", previous_status: "deleted", previous_resource_status: "archived", actor:, reason: "復元")
   end
 
@@ -406,6 +408,46 @@ class Business < ApplicationRecord
   end
 
   private
+
+  AUTO_REPUBLISH_BLOCKING_DELETION_REASONS = [
+    "SERP誤生成",
+    "既存事業との重複"
+  ].freeze
+
+  def block_auto_republish_for_deleted_business!(actor:, reason:)
+    return unless deletion_reason.in?(AUTO_REPUBLISH_BLOCKING_DELETION_REASONS) || serp_generated?
+
+    linked_candidates = ActionCandidate.where(business_id: id)
+    linked_candidates.find_each do |candidate|
+      candidate.update_columns(
+        metadata: candidate.metadata.to_h.merge(
+          "business_deleted_at" => deleted_at&.iso8601 || Time.current.iso8601,
+          "deleted_business_id" => id,
+          "auto_republish_blocked" => true,
+          "do_not_recreate" => true,
+          "deletion_reason" => deletion_reason.presence || reason.presence || "その他",
+          "deletion_actor" => actor.presence || deleted_by.presence || "owner"
+        ),
+        updated_at: Time.current
+      )
+    end
+  end
+
+  def unblock_auto_republish_for_restored_business!
+    ActionCandidate.where(business_id: id).find_each do |candidate|
+      candidate.update_columns(
+        metadata: candidate.metadata.to_h.except(
+          "business_deleted_at",
+          "deleted_business_id",
+          "auto_republish_blocked",
+          "do_not_recreate",
+          "deletion_reason",
+          "deletion_actor"
+        ),
+        updated_at: Time.current
+      )
+    end
+  end
 
   def set_default_status
     self.status = "idea" if status.blank?
