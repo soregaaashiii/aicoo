@@ -1,0 +1,50 @@
+<% content_for :title, @business_service.name %>
+
+<main class="public-lp-page">
+  <section class="public-lp-hero">
+    <p class="public-lp-eyebrow">MVP Service</p>
+    <h1><%= @business_service.name %></h1>
+    <p class="public-lp-lead"><%= @business.description.presence || "このサービスは現在、最小機能で検証中です。" %></p>
+    <div class="public-lp-actions">
+      <a class="public-lp-button" href="#service-signup">使ってみたい</a>
+    </div>
+  </section>
+
+  <section class="public-lp-section">
+    <div class="public-lp-section-inner">
+      <h2>できること</h2>
+      <ul class="public-lp-list">
+        <li>困っている内容を登録できます。</li>
+        <li>運営側が登録内容を確認し、手動MVPとして対応できます。</li>
+        <li>登録や反応はAICOOへ記録され、サービス改善の学習に使われます。</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="public-lp-section" id="service-signup">
+    <div class="public-lp-section-inner">
+      <% if @signup_completed %>
+        <div class="public-lp-complete">
+          <h2>登録しました</h2>
+          <p>ありがとうございます。準備ができ次第ご連絡します。</p>
+        </div>
+      <% else %>
+        <h2>事前登録</h2>
+        <%= form_with scope: :service_signup,
+                      url: public_business_service_signup_path(@business_service),
+                      local: true,
+                      class: "public-lp-form" do |form| %>
+          <label>
+            メールアドレス
+            <%= form.email_field :email, required: true, placeholder: "you@example.com" %>
+          </label>
+          <label>
+            相談したいこと
+            <%= form.text_area :note, rows: 5, placeholder: "今困っていること、使いたい場面など" %>
+          </label>
+          <%= form.submit "登録する", class: "public-lp-button" %>
+        <% end %>
+      <% end %>
+    </div>
+  </section>
+</main>

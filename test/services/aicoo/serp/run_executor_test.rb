@@ -37,7 +37,7 @@ module Aicoo
             assert_equal "exploring", candidate.business.status
             assert Business.real_businesses.exists?(id: candidate.business_id)
             assert candidate.business.aicoo_lab_landing_pages.publicly_available.exists?
-            assert candidate.business.business_services.where(status: "live").where.not(url: [ nil, "" ]).exists?
+            assert candidate.business.business_services.where(deploy_target: "aicoo_mvp_service").where.not(url: [ nil, "" ]).exists?
           end
         end
       end

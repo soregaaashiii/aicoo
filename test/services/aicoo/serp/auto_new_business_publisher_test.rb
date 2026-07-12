@@ -38,11 +38,13 @@ class Aicoo::Serp::AutoNewBusinessPublisherTest < ActiveSupport::TestCase
     assert_equal "lp_validation", candidate.business.lifecycle_stage
     assert_equal "active", candidate.business.resource_status
     assert candidate.business.aicoo_lab_landing_pages.publicly_available.exists?
-    service = candidate.business.business_services.find_by!(deploy_target: "aicoo_public_lp")
-    assert_equal "live", service.status
-    assert_match %r{\A/lp/}, service.url
-    assert_equal candidate.metadata.dig("auto_new_business_publication", "landing_page_id"), service.metadata["landing_page_id"]
+    service = candidate.business.business_services.find_by!(deploy_target: "aicoo_mvp_service")
+    assert_equal "building", service.status
+    assert_match %r{\A/mvp/\d+\z}, service.url
+    assert_equal "saas_mvp_foundation", service.metadata["service_kind"]
+    assert_equal candidate.metadata.dig("auto_new_business_publication", "landing_page_id"), service.metadata["validation_landing_page_id"]
     assert_equal service.id, candidate.metadata.dig("auto_new_business_publication", "business_service_id")
+    assert_equal service.url, candidate.metadata.dig("auto_new_business_publication", "service_url")
     assert_equal true, candidate.metadata.dig("auto_new_business_publication", "completed")
     assert Business.real_businesses.where(id: candidate.business_id).exists?
 
@@ -64,7 +66,7 @@ class Aicoo::Serp::AutoNewBusinessPublisherTest < ActiveSupport::TestCase
     assert_not candidate.business.launched?
     assert_equal "lp_validation", candidate.business.lifecycle_stage
     assert candidate.business.aicoo_lab_landing_pages.publicly_available.exists?
-    assert candidate.business.business_services.where(status: "live").where.not(url: [ nil, "" ]).exists?
+    assert candidate.business.business_services.where(deploy_target: "aicoo_mvp_service").where.not(url: [ nil, "" ]).exists?
     assert_equal true, candidate.metadata.dig("auto_new_business_publication", "completed")
   end
 

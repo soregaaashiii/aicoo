@@ -260,29 +260,39 @@ module Aicoo
       def ensure_business_service!(business, landing_page, candidate)
         raise ArgumentError, "削除済みBusinessにはServiceを作成できません。" if business.deleted?
 
-        service_url = "/lp/#{landing_page.published_slug}"
-        service_name = "#{business.name} LP"
-        service = business.business_services.find_by(url: service_url) ||
+        service_name = "#{business.name} SaaS"
+        service = business.business_services.find_by("metadata ->> 'service_kind' = ?", "saas_mvp_foundation") ||
                   business.business_services.find_or_initialize_by(name: service_name)
 
         service.assign_attributes(
           name: service.name.presence || service_name,
-          url: service_url,
+          url: service.url.presence,
           domain: nil,
-          deploy_target: "aicoo_public_lp",
-          status: "live",
+          deploy_target: "aicoo_mvp_service",
+          status: service.status.presence == "production" ? "production" : "building",
           metadata: service.metadata.to_h.merge(
             "auto_created" => true,
+            "service_kind" => "saas_mvp_foundation",
             "source" => source,
             "source_action_candidate_id" => candidate.id,
-            "landing_page_id" => landing_page.id,
-            "published_slug" => landing_page.published_slug,
-            "public_url" => service_url,
+            "validation_landing_page_id" => landing_page.id,
+            "validation_lp_slug" => landing_page.published_slug,
+            "public_url" => service.url.presence,
+            "minimum_features" => [
+              "ユーザーの課題登録フォーム",
+              "登録内容のAICOO Activity Logging",
+              "Ownerが反応を確認してMVP改善へ進める導線"
+            ],
             "created_by_service" => "Aicoo::Serp::AutoNewBusinessPublisher",
             "updated_at" => Time.current.iso8601
           )
         )
         service.save!
+        service_url = "/mvp/#{service.id}"
+        service.update!(
+          url: service_url,
+          metadata: service.metadata.to_h.merge("public_url" => service_url)
+        ) if service.url != service_url
         service
       end
 

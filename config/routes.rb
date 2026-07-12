@@ -20,6 +20,8 @@ Rails.application.routes.draw do
   post "lp/:published_slug/scroll", to: "public_landing_pages#scroll", as: :public_lp_scroll
   get "lp/:published_slug/signup", to: "public_landing_pages#new_signup", as: :public_lp_signup
   post "lp/:published_slug/signup", to: "public_landing_pages#create_signup"
+  get "mvp/:id", to: "public_business_services#show", as: :public_business_service
+  post "mvp/:id", to: "public_business_services#create_signup", as: :public_business_service_signup
 
   get "owner", to: "owner/dashboard#show", as: :owner_dashboard
   get "owner/dashboard", to: redirect("/owner")
