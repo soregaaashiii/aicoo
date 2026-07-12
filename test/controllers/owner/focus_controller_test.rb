@@ -114,9 +114,11 @@ module Owner
 
       assert_response :success
       assert_includes response.body, concrete.title
-      assert_not_includes response.body, incomplete.title
-      assert_select "a[href='#{action_workspace_path(incomplete)}']", text: "詳細を見る", count: 0
-      assert_equal "abstract_concrete_task", incomplete.reload.metadata.fetch("today_exclusion_reason")
+      assert_includes response.body, incomplete.title
+      assert_select "a[href='#{action_workspace_path(incomplete)}']", text: "詳細を見る", count: 1
+      assert_includes response.body, "作業名要確認"
+      assert_nil incomplete.reload.metadata["today_exclusion_reason"]
+      assert_includes incomplete.metadata.fetch("today_quality_warnings"), "作業名要確認"
     end
 
     test "does not show dashboard in sidebar" do
@@ -250,7 +252,7 @@ module Owner
       assert_operator grouped.avoided_loss_yen, :<, single.avoided_loss_yen * 2
     end
 
-    test "excludes action candidates with external target urls" do
+    test "shows action candidates with external target urls with warning" do
       external = create_today_candidate!(
         title: "外部サイトを改善する",
         metadata: {
@@ -270,11 +272,36 @@ module Owner
       get owner_focus_url
 
       assert_response :success
-      assert_not_includes response.body, "https://it-trend.jp/log_management/article/84-0008"
-      assert_equal "external_target_url", external.reload.metadata.fetch("today_exclusion_reason")
+      assert_includes response.body, "https://it-trend.jp/log_management/article/84-0008"
+      assert_includes response.body, "外部URL"
+      assert_nil external.reload.metadata["today_exclusion_reason"]
+      assert_includes external.metadata.fetch("today_quality_warnings"), "外部URL"
     end
 
-    test "excludes tabelog target url and broken article path" do
+    test "shows candidates with missing target and missing owner next step with warnings" do
+      candidate = create_today_candidate!(
+        title: "対象が未確定の施策",
+        metadata: {
+          "execution_mode" => "manual_operation",
+          "concrete_task" => "対象が未確定の施策",
+          "action_plan" => {
+            "summary" => "対象が未確定の施策"
+          }
+        }
+      )
+
+      get owner_focus_url
+
+      assert_response :success
+      assert_includes response.body, candidate.title
+      assert_includes response.body, "対象未特定"
+      assert_includes response.body, "次の行動要具体化"
+      assert_nil candidate.reload.metadata["today_exclusion_reason"]
+      assert_includes candidate.metadata.fetch("today_quality_warnings"), "対象未特定"
+      assert_includes candidate.metadata.fetch("today_quality_warnings"), "次の行動要具体化"
+    end
+
+    test "shows tabelog target url and broken article path with warnings" do
       tabelog = create_today_candidate!(
         title: "食べログを改善する",
         metadata: today_metadata(
@@ -293,13 +320,17 @@ module Owner
       get owner_focus_url
 
       assert_response :success
-      assert_not_includes response.body, "https://s.tabelog.com/rstLst/cond13-00-01/"
-      assert_not_includes response.body, "/articles/-smoking"
-      assert_equal "external_target_url", tabelog.reload.metadata.fetch("today_exclusion_reason")
-      assert_equal "invalid_target_path", broken.reload.metadata.fetch("today_exclusion_reason")
+      assert_includes response.body, "https://s.tabelog.com/rstLst/cond13-00-01/"
+      assert_includes response.body, "/articles/-smoking"
+      assert_includes response.body, "外部URL"
+      assert_includes response.body, "対象URL要確認"
+      assert_nil tabelog.reload.metadata["today_exclusion_reason"]
+      assert_nil broken.reload.metadata["today_exclusion_reason"]
+      assert_includes tabelog.metadata.fetch("today_quality_warnings"), "外部URL"
+      assert_includes broken.metadata.fetch("today_quality_warnings"), "対象URL要確認"
     end
 
-    test "excludes unrealistic expected profit from Today" do
+    test "shows unrealistic expected profit from Today with warning" do
       candidate = create_today_candidate!(
         title: "SEOタイトルを1件修正する",
         immediate_value_yen: 14_468_211,
@@ -320,8 +351,10 @@ module Owner
       get owner_focus_url
 
       assert_response :success
-      assert_not_includes response.body, "SEOタイトルを1件修正する"
-      assert_equal "unrealistic_expected_profit", candidate.reload.metadata.fetch("today_exclusion_reason")
+      assert_includes response.body, "SEOタイトルを1件修正する"
+      assert_includes response.body, "期待値要確認"
+      assert_nil candidate.reload.metadata["today_exclusion_reason"]
+      assert_includes candidate.metadata.fetch("today_quality_warnings"), "期待値要確認"
     end
 
     test "shows zero value action candidates when they are unexecuted and otherwise valid" do

@@ -196,24 +196,20 @@ module Aicoo
       expected_value_yen = valuation.fetch(:action_expected_value_delta_yen)
       expected_hours = positive_decimal(candidate.expected_hours)
       success_probability = candidate.success_probability.to_d
-      concrete_task = concrete_task_for(candidate, presenter, action_plan)
-      target = target_for(presenter, action_plan)
-      owner_next_step = owner_next_step_for(presenter, action_plan, approval_task)
-
-      if concrete_task.blank?
-        mark_today_exclusion!(candidate, "missing_concrete_task")
-        return
-      end
-
-      if target.blank?
-        mark_today_exclusion!(candidate, "missing_target")
-        return
-      end
-
-      if owner_next_step.blank?
-        mark_today_exclusion!(candidate, "missing_owner_next_step")
-        return
-      end
+      raw_concrete_task = concrete_task_for(candidate, presenter, action_plan)
+      raw_target = target_for(presenter, action_plan)
+      raw_owner_next_step = owner_next_step_for(presenter, action_plan, approval_task)
+      concrete_task = raw_concrete_task.presence || candidate.title.presence || "施策内容を確認する"
+      target = raw_target.presence || detected_target_url_for(candidate).presence || "対象未特定"
+      owner_next_step = raw_owner_next_step.presence || "詳細を確認する"
+      quality_warnings = today_quality_warnings_for(
+        candidate,
+        execution_mode,
+        concrete_task: raw_concrete_task,
+        target: raw_target,
+        owner_next_step: raw_owner_next_step,
+        valuation:
+      )
 
       revenue_score = valuation_adjusted_revenue_score(
         candidate,
@@ -225,7 +221,7 @@ module Aicoo
       balanced_score = (revenue_score * 0.6) + (learning_score * 0.4)
       selected_score = score_for(revenue_score:, learning_score:, balanced_score:)
 
-      mark_today_included!(candidate)
+      mark_today_included!(candidate, quality_warnings:)
       Item.new(
         stable_id: "action_candidate:#{candidate.id}",
         rank: nil,
@@ -255,7 +251,7 @@ module Aicoo
         owner_next_step:,
         detail_url: action_workspace_path(candidate),
         reason: presenter.reason,
-        stopped_reason: stopped_reason_for(approval_task),
+        stopped_reason: today_warning_text(stopped_reason_for(approval_task), quality_warnings),
         group_count: 1,
         group_summary: nil,
         revenue_score: revenue_score.round(2),
@@ -410,16 +406,7 @@ module Aicoo
     def today_exclusion_reason(candidate, execution_mode, approval_task)
       return "executed" if candidate.executed?
       return "inactive_business" if candidate.business.blank? || candidate.business.deleted? || candidate.business.resource_status == "archived"
-      return "no_score" unless minimum_fields_present?(candidate, execution_mode)
-      valuation = action_candidate_valuation(candidate)
-      return "unvalued" if valuation.fetch(:valuation_status) == "unvalued"
-      return "fallback_action" if candidate.metadata.to_h["today_fallback"]
-      return "needs_refinement" if candidate.metadata.to_h["concretization_status"] == "needs_refinement"
-      return "abstract_concrete_task" unless concrete_text_allowed?(candidate)
-      return "external_data_source_disallowed" if external_data_source_used_for_existing_business?(candidate)
-      return "external_target_url" if external_target_url_for_existing_business?(candidate)
-      return invalid_target_path_reason(candidate) if invalid_target_path_reason(candidate).present?
-      return "unrealistic_expected_profit" if unrealistic_expected_profit?(candidate)
+      return "invalid_status" if candidate.status.to_s.in?(ActionCandidate::INACTIVE_STATUSES)
 
       nil
     end
@@ -429,6 +416,40 @@ module Aicoo
         candidate.expected_hours.present? &&
         candidate.success_probability.present? &&
         action_workspace_path(candidate).present?
+    end
+
+    def today_quality_warnings_for(candidate, execution_mode, concrete_task:, target:, owner_next_step:, valuation:)
+      warnings = []
+      warnings << "実行方法要確認" if execution_mode.blank?
+      warnings << "期待値要確認" if valuation.fetch(:valuation_status) == "unvalued"
+      warnings << "代替候補" if candidate.metadata.to_h["today_fallback"]
+      warnings << "次の行動要具体化" if candidate.metadata.to_h["concretization_status"] == "needs_refinement"
+      warnings << "作業名要確認" if concrete_task.blank? || !concrete_text_allowed?(candidate)
+      warnings << "対象未特定" if target.blank?
+      warnings << "次の行動要具体化" if owner_next_step.blank?
+      warnings << "外部データ由来" if external_data_source_used_for_existing_business?(candidate)
+      warnings << "外部URL" if external_target_url_for_existing_business?(candidate)
+      warnings << warning_label_for_invalid_target_path(candidate) if invalid_target_path_reason(candidate).present?
+      warnings << "期待値要確認" if unrealistic_expected_profit?(candidate)
+      warnings.compact.uniq
+    end
+
+    def warning_label_for_invalid_target_path(candidate)
+      case invalid_target_path_reason(candidate)
+      when "target_type_mismatch"
+        "対象URL要確認"
+      when "missing_slug", "invalid_target_path"
+        "対象URL要確認"
+      else
+        "対象要確認"
+      end
+    end
+
+    def today_warning_text(base_reason, warnings)
+      parts = []
+      parts << base_reason if base_reason.present?
+      parts << "警告: #{warnings.join(' / ')}" if warnings.present?
+      parts.join(" / ").presence
     end
 
     def concrete_task_for(candidate, presenter, action_plan)
@@ -555,14 +576,17 @@ module Aicoo
       )
     end
 
-    def mark_today_included!(candidate)
+    def mark_today_included!(candidate, quality_warnings: [])
       metadata = candidate.metadata.to_h
-      return if metadata["today_exclusion_reason"].blank? && metadata["today_included_at"].present?
+      return if metadata["today_exclusion_reason"].blank? &&
+        metadata["today_included_at"].present? &&
+        Array(metadata["today_quality_warnings"]) == quality_warnings
 
       candidate.update_columns(
         metadata: metadata.except("today_exclusion_reason", "today_excluded_at", "detected_target_url").merge(
           "today_included_at" => Time.current.iso8601,
-          "today_mode" => mode
+          "today_mode" => mode,
+          "today_quality_warnings" => quality_warnings
         ),
         updated_at: Time.current
       )
