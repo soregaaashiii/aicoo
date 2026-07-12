@@ -38,6 +38,16 @@
                detail_label: "改善案詳細" %>
   <% end %>
 
+<% metadata = @action_candidate.metadata.to_h %>
+<% action_plan = metadata["action_plan"].to_h %>
+<% article_plan = @action_candidate.execution_mode == "content_creation" ? @execution_brief.article_plan : {} %>
+<% expansion = metadata.fetch("action_expansion", {}) %>
+<% execution_steps = Array(action_plan["execution_steps"]).presence || Array(expansion["execution_steps"]).presence || @execution_brief.completion_criteria.first(4) %>
+<% reason_text = @evidence_presenter&.reason.presence || metadata.dig("evidence", "reason").presence || @action_candidate.evaluation_reason.presence || @action_candidate.description %>
+<% target_text = @evidence_presenter&.target_label.presence || @execution_brief.target[:url].presence || expansion["target"].presence || metadata["target"].presence || "対象はこの施策内の作業内容を確認してください。" %>
+<% concrete_task_text = metadata["concrete_task"].presence || metadata.dig("decision", "selected", "concrete_task").presence %>
+<% next_action_text = action_plan["owner_output"].presence || action_plan["summary"].presence || concrete_task_text || display_action_title %>
+
 <section class="dashboard-section aicoo-decision-hero">
   <div class="aicoo-decision-card">
     <p>
@@ -46,109 +56,163 @@
       <span class="pill"><%= @evidence_presenter.execution_mode_label %></span>
     </p>
     <h2><%= display_action_title %></h2>
-    <p class="aicoo-decision-reason"><%= @evidence_presenter&.reason.presence || @action_candidate.evaluation_reason.presence || @action_candidate.description %></p>
-
-    <div class="aicoo-decision-metrics">
-      <div><span>期待利益</span><strong><%= number_to_currency(@action_candidate.expected_profit_yen, unit: "¥", precision: 0) %></strong></div>
-      <div><span>成功率</span><strong><%= number_to_percentage(@action_candidate.success_probability.to_d * 100, precision: 0) %></strong></div>
-      <div><span>予想時間</span><strong><%= @action_candidate.expected_hours.present? ? "#{@action_candidate.expected_hours.to_f.round(1)}h" : "-" %></strong></div>
-      <div><span>期待時給</span><strong><%= @action_candidate.expected_hourly_value_yen.present? ? number_to_currency(@action_candidate.expected_hourly_value_yen, unit: "¥", precision: 0) : "-" %></strong></div>
-      <div><span>実行方法</span><strong><%= @evidence_presenter.execution_mode_label %></strong></div>
-      <div><span>根拠データ</span><strong><%= @evidence_presenter.source_label.presence || @action_candidate.generation_source %></strong></div>
-    </div>
-
-    <% value_model = @action_candidate.metadata.to_h["value_model"].to_h %>
-    <% business_value_model = @action_candidate.metadata.to_h["business_value_model"].to_h %>
-    <% if business_value_model.present? %>
-      <div class="aicoo-decision-subcard">
-        <strong>事業期待値での補正</strong>
-        <div class="metric-grid compact-metrics">
-          <div><span>生の期待値</span><strong><%= number_to_currency(business_value_model["raw_expected_value_yen"].to_i, unit: "¥", precision: 0) %></strong></div>
-          <div><span>最終期待値</span><strong><%= number_to_currency(business_value_model["final_expected_value_yen"].to_i, unit: "¥", precision: 0) %></strong></div>
-          <div><span>Opportunity</span><strong><%= business_value_model["opportunity_group"].presence || "-" %></strong></div>
-          <div><span>重複候補</span><strong><%= Array(business_value_model["duplicate_candidates"]).size %>件</strong></div>
-        </div>
-        <small>
-          流入制約補正: <%= number_to_currency(business_value_model["market_limit_adjustment_yen"].to_i, unit: "¥", precision: 0) %> /
-          信頼度補正: <%= number_to_currency(business_value_model["confidence_adjustment_yen"].to_i, unit: "¥", precision: 0) %> /
-          異常値: <%= business_value_model["anomaly_detected"] ? business_value_model["anomaly_reason"] : "なし" %>
-        </small>
-      </div>
-    <% end %>
-
-    <% if value_model["raw_expected_value_yen"].to_i > 1_000_000 || value_model["valuation_review_required"] %>
-      <div class="aicoo-decision-subcard">
-        <strong>高額期待値の検証</strong>
-        <div class="metric-grid compact-metrics">
-          <div><span>算出期待利益</span><strong><%= number_to_currency(value_model["raw_expected_value_yen"].to_i, unit: "¥", precision: 0) %></strong></div>
-          <div><span>補正後期待利益</span><strong><%= number_to_currency(value_model["adjusted_expected_value_yen"].to_i, unit: "¥", precision: 0) %></strong></div>
-          <div><span>confidence</span><strong><%= number_with_precision(value_model["confidence"].to_d, precision: 2) %></strong></div>
-          <div><span>根拠データ数</span><strong><%= value_model.dig("evidence", "data_points").to_i %></strong></div>
-          <div><span>過去類似施策</span><strong><%= value_model.dig("evidence", "similar_action_result_count").to_i %>件</strong></div>
-          <div><span>最大寄与要因</span><strong><%= value_model["max_contribution_factor"].presence || "-" %></strong></div>
-          <div><span>状態</span><strong><%= value_model["valuation_review_required"] ? "検証待ち" : "維持" %></strong></div>
-        </div>
-        <% if value_model["high_value_reason"].present? %>
-          <p><%= value_model["high_value_reason"] %></p>
-        <% end %>
-        <% assumptions = Array(value_model["assumptions"]) %>
-        <% if assumptions.any? %>
-          <small>検証が必要な仮定: <%= assumptions.join(" / ") %></small>
-        <% end %>
-      </div>
-    <% end %>
-
-    <% if @evidence_presenter&.execution_units? %>
-      <div class="aicoo-decision-subcard">
-        <strong>今日やる単位</strong>
-        <ol class="compact-list">
-          <% @evidence_presenter.execution_units.first(3).each do |unit| %>
-            <li><%= unit["label"] %><%= unit["estimated_minutes"].present? ? "（#{unit['estimated_minutes']}分）" : "" %></li>
-          <% end %>
-        </ol>
-      </div>
-    <% elsif @evidence_presenter&.target_label.present? %>
-      <div class="aicoo-decision-subcard">
-        <strong>対象</strong>
-        <p><%= @evidence_presenter.target_label %></p>
-      </div>
-    <% end %>
-
-    <% if @evidence_presenter&.amount_label.present? %>
-      <div class="aicoo-decision-subcard">
-        <strong>実施量</strong>
-        <p><%= @evidence_presenter.amount_label %></p>
-      </div>
-    <% end %>
-
-    <div class="actions compact-actions">
-      <% if @action_candidate.executed? %>
-        <span class="pill">実行済み</span>
-        <% if executed_at.present? %>
-          <span class="muted">実行日時: <%= l(Time.zone.parse(executed_at.to_s), format: :short) rescue executed_at %></span>
-        <% end %>
-      <% elsif !%w[rejected archived].include?(@action_candidate.status) %>
-        <%= button_to "実行済みにする",
-                      mark_executed_action_candidate_path(@action_candidate),
-                      method: :patch,
-                      class: "button",
-                      data: { turbo_confirm: "この施策を実行済みにしますか？\n実行済みにすると、今日処理するActionから除外されます。" } %>
-      <% end %>
-      <% if @action_workspace && !%w[rejected archived completed done].include?(@action_candidate.status) %>
-        <%= button_to "保留", defer_owner_focus_path(task_key: "action_candidate:#{@action_candidate.id}"), method: :patch, class: "button secondary" %>
-      <% end %>
-      <% unless %w[rejected archived completed done].include?(@action_candidate.status) %>
-        <%= button_to "却下する", reject_action_candidate_path(@action_candidate, today_return_params), method: :patch, class: "button secondary" %>
-      <% end %>
-      <% if @action_workspace %>
-        <%= link_to "Businessを見る", business_path(@action_candidate.business), class: "button secondary" %>
-      <% end %>
+    <div class="aicoo-decision-subcard">
+      <strong>次にやること</strong>
+      <p class="aicoo-decision-reason"><%= next_action_text %></p>
     </div>
   </div>
 </section>
 
+<section class="dashboard-section" id="why-action">
+  <div class="section-heading">
+    <div>
+      <h2>なぜやるのか</h2>
+      <p>現在の問題、根拠、期待される改善です。</p>
+    </div>
+  </div>
+  <div class="aicoo-grid aicoo-grid-2">
+    <div class="aicoo-card aicoo-card-compact">
+      <h3>現在の問題</h3>
+      <p><%= reason_text %></p>
+    </div>
+    <div class="aicoo-card aicoo-card-compact">
+      <h3>根拠</h3>
+      <p>
+        <%= @evidence_presenter.source_label.presence || @action_candidate.generation_source %> のデータから、
+        <%= target_text %> に対する改善余地があります。
+      </p>
+    </div>
+    <div class="aicoo-card aicoo-card-compact">
+      <h3>期待される改善</h3>
+      <p><%= @execution_brief.expected_effects[:profit] %> の期待利益、成功率 <%= number_to_percentage(@action_candidate.success_probability.to_d * 100, precision: 0) %> を見込んでいます。</p>
+    </div>
+    <div class="aicoo-card aicoo-card-compact">
+      <h3>対象</h3>
+      <p><%= target_text %></p>
+    </div>
+  </div>
+</section>
+
+<section class="dashboard-section" id="work-plan">
+  <div class="section-heading">
+    <div>
+      <h2>やること</h2>
+      <p>ユーザーが実際に進める作業です。</p>
+    </div>
+  </div>
+  <div class="aicoo-card aicoo-card-compact">
+    <ol class="compact-list">
+      <% execution_steps.each do |step| %>
+        <li><%= step %></li>
+      <% end %>
+      <% if execution_steps.empty? %>
+        <li><%= next_action_text %></li>
+      <% end %>
+    </ol>
+  </div>
+</section>
+
+<section class="dashboard-section" id="deliverables">
+  <div class="section-heading">
+    <div>
+      <h2>成果物</h2>
+      <p>実行に必要な具体情報です。</p>
+    </div>
+  </div>
+  <% if @action_candidate.execution_mode == "content_creation" %>
+    <div class="table-wrap">
+      <table>
+        <tbody>
+          <tr><td><strong>タイトル候補</strong></td><td class="wide-text"><%= article_plan[:title].presence || metadata["recommended_title"].presence || @action_candidate.title %></td></tr>
+          <tr><td><strong>URL</strong></td><td class="wide-text"><%= metadata["recommended_url"].presence || metadata["recommended_slug"].presence || @execution_brief.target[:url] %></td></tr>
+          <tr><td><strong>目的</strong></td><td class="wide-text"><%= article_plan[:reason].presence || action_plan["goal"].presence || reason_text %></td></tr>
+          <tr><td><strong>対象キーワード</strong></td><td class="wide-text"><%= article_plan[:keyword].presence || metadata["keyword"].presence || metadata["source_query"].presence || "-" %></td></tr>
+          <tr><td><strong>検索意図</strong></td><td class="wide-text"><%= article_plan[:search_intent].presence || metadata["search_intent"].presence || "-" %></td></tr>
+          <tr><td><strong>見出し</strong></td><td class="wide-text"><%= Array(article_plan[:recommended_sections]).presence&.join(" / ") || Array(metadata["recommended_sections"]).join(" / ").presence || "-" %></td></tr>
+        </tbody>
+      </table>
+    </div>
+  <% elsif @action_candidate.code_revision_execution_mode? %>
+    <div class="aicoo-grid aicoo-grid-2">
+      <div class="aicoo-card aicoo-card-compact">
+        <h3>修正対象</h3>
+        <ul class="compact-list">
+          <% @execution_brief.file_changes.each do |path| %>
+            <li><code><%= path %></code></li>
+          <% end %>
+        </ul>
+      </div>
+      <div class="aicoo-card aicoo-card-compact">
+        <h3>修正内容</h3>
+        <p><%= @action_candidate.execution_prompt.presence || @action_candidate.description.presence || next_action_text %></p>
+      </div>
+      <div class="aicoo-card aicoo-card-compact">
+        <h3>期待する結果</h3>
+        <ul class="compact-list">
+          <% @execution_brief.completion_criteria.each do |criterion| %>
+            <li><%= criterion %></li>
+          <% end %>
+        </ul>
+      </div>
+    </div>
+  <% else %>
+    <div class="aicoo-card aicoo-card-compact">
+      <p><%= @action_candidate.description.presence || next_action_text %></p>
+      <% if @evidence_presenter&.execution_units? %>
+        <ol class="compact-list">
+          <% @evidence_presenter.execution_units.first(5).each do |unit| %>
+            <li><%= unit["label"] %><%= unit["estimated_minutes"].present? ? "（#{unit['estimated_minutes']}分）" : "" %></li>
+          <% end %>
+        </ol>
+      <% end %>
+    </div>
+  <% end %>
+</section>
+
+<section class="dashboard-section" id="expected-effect">
+  <div class="section-heading">
+    <div>
+      <h2>期待効果</h2>
+      <p>実行判断に必要な最小限の数字です。</p>
+    </div>
+  </div>
+  <div class="metric-grid">
+    <div class="metric-card"><span>期待利益</span><strong><%= number_to_currency(@action_candidate.expected_profit_yen, unit: "¥", precision: 0) %></strong></div>
+    <div class="metric-card"><span>成功率</span><strong><%= number_to_percentage(@action_candidate.success_probability.to_d * 100, precision: 0) %></strong></div>
+    <div class="metric-card"><span>予想時間</span><strong><%= @action_candidate.expected_hours.present? ? "#{@action_candidate.expected_hours.to_f.round(1)}h" : "-" %></strong></div>
+    <div class="metric-card"><span>期待時給</span><strong><%= @action_candidate.expected_hourly_value_yen.present? ? number_to_currency(@action_candidate.expected_hourly_value_yen, unit: "¥", precision: 0) : "-" %></strong></div>
+  </div>
+</section>
+
+<section class="dashboard-section" id="execute-action">
+  <div class="section-heading">
+    <div>
+      <h2>実行</h2>
+      <p>完了したら実行済みにします。不要なら却下します。</p>
+    </div>
+  </div>
+  <div class="actions compact-actions">
+    <% if @action_candidate.executed? %>
+      <span class="pill">実行済み</span>
+      <% if executed_at.present? %>
+        <span class="muted">実行日時: <%= l(Time.zone.parse(executed_at.to_s), format: :short) rescue executed_at %></span>
+      <% end %>
+    <% elsif !%w[rejected archived].include?(@action_candidate.status) %>
+      <%= button_to "実行済みにする",
+                    mark_executed_action_candidate_path(@action_candidate),
+                    method: :patch,
+                    class: "button",
+                    data: { turbo_confirm: "この施策を実行済みにしますか？\n実行済みにすると、今日処理するActionから除外されます。" } %>
+    <% end %>
+    <% unless %w[rejected archived completed done].include?(@action_candidate.status) %>
+      <%= button_to "却下する", reject_action_candidate_path(@action_candidate, today_return_params), method: :patch, class: "button danger" %>
+    <% end %>
+  </div>
+</section>
+
 <details class="aicoo-developer-mode" id="developer-mode">
-  <summary>Developer Mode</summary>
+  <summary>開発者向け情報</summary>
+  <p class="muted">raw value、confidence補正、Opportunity、異常値、流入制約などの内部計算ログです。通常の実行判断では上の「なぜやるのか」「やること」「成果物」を見れば十分です。</p>
 
 <%= render @action_candidate %>
 

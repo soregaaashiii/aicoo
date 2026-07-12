@@ -134,7 +134,12 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Judge補正で順位低下"
     assert_includes response.body, "部門"
     assert_includes response.body, "実行済みにする"
-    assert_includes response.body, "Developer Mode"
+    assert_includes response.body, "なぜやるのか"
+    assert_includes response.body, "やること"
+    assert_includes response.body, "成果物"
+    assert_includes response.body, "期待効果"
+    assert_includes response.body, "開発者向け情報"
+    assert_includes response.body, "raw value、confidence補正、Opportunity、異常値、流入制約"
     assert_includes response.body, "実行指示書"
     assert_includes response.body, "現在"
     assert_includes response.body, "変更後"
@@ -536,6 +541,75 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "却下", OwnerTaskCompletionLog.last.action_label
     assert_equal "reject", OwnerDecisionLog.last.decision_type
     assert_equal "reject", ApprovalLog.last.action
+  end
+
+  test "content creation detail shows article deliverables before developer info" do
+    candidate = ActionCandidate.create!(
+      business: businesses(:suelog),
+      title: "吸えログ比較記事を作成する",
+      description: "GSCで比較意図があるが対応記事がないため新規記事を作る。",
+      action_type: "new_article_candidate",
+      department: "revenue",
+      generation_source: "business_analyzer",
+      immediate_value_yen: 12_000,
+      success_probability: 0.5,
+      expected_hours: 1.5,
+      metadata: {
+        "execution_mode" => "content_creation",
+        "source_query" => "吸えログ 比較",
+        "recommended_title" => "吸えログとは？食べログ・Googleマップとの違い",
+        "recommended_slug" => "/articles/suelog-comparison",
+        "search_intent" => "違いを知りたい",
+        "recommended_sections" => [ "吸えログとは", "他サービスとの違い", "FAQ" ],
+        "action_plan" => {
+          "summary" => "比較記事を作成する",
+          "goal" => "初めて吸えログを知る人へ違いを説明する",
+          "execution_steps" => [ "タイトルを決める", "記事構成を作る", "公開する" ]
+        }
+      }
+    )
+
+    get action_candidate_url(candidate)
+
+    assert_response :success
+    assert_includes response.body, "なぜやるのか"
+    assert_includes response.body, "やること"
+    assert_includes response.body, "成果物"
+    assert_includes response.body, "タイトル候補"
+    assert_includes response.body, "吸えログ 比較"
+    assert_includes response.body, "違いを知りたい"
+    assert_includes response.body, "開発者向け情報"
+  end
+
+  test "code revision detail shows implementation deliverables" do
+    candidate = ActionCandidate.create!(
+      business: businesses(:suelog),
+      title: "CTAボタンの文言を修正する",
+      description: "流入上位ページのCTAが弱いため修正する。",
+      action_type: "seo_improvement",
+      department: "revenue",
+      generation_source: "business_analyzer",
+      immediate_value_yen: 8_000,
+      success_probability: 0.6,
+      expected_hours: 1,
+      execution_prompt: "記事詳細ページのCTA文言を大阪で喫煙できるお店を探すへ変更する。",
+      metadata: {
+        "execution_mode" => "code_revision",
+        "target_files" => [ "app/views/articles/show.html.erb" ],
+        "completion_criteria" => [ "CTA文言が表示される", "既存導線が壊れていない" ]
+      }
+    )
+
+    get action_candidate_url(candidate)
+
+    assert_response :success
+    assert_includes response.body, "修正対象"
+    assert_includes response.body, "修正内容"
+    assert_includes response.body, "期待する結果"
+    assert_includes response.body, "app/views/articles/show.html.erb"
+    assert_includes response.body, "大阪で喫煙できるお店を探す"
+    assert_includes response.body, "実行済みにする"
+    assert_includes response.body, "却下する"
   end
 
   private
