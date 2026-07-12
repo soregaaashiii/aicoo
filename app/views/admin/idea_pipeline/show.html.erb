@@ -134,15 +134,14 @@
   <section class="dashboard-section">
     <div class="section-heading">
       <h2>Stage操作</h2>
-      <p>SERPやLP公開は高コスト/公開操作なので、必要な段階だけ進められます。</p>
+      <p>LP公開や反応評価など、必要な段階だけ進められます。</p>
     </div>
     <div class="actions">
       <%= button_to "期待値評価", score_admin_idea_pipeline_path(@item), method: :post, class: "button secondary" %>
-      <%= button_to "SERP判定", run_serp_admin_idea_pipeline_path(@item), method: :post, class: "button secondary" %>
       <% if @item.serp_passed? %>
-        <%= button_to "SERP後に生成", generate_lp_admin_idea_pipeline_path(@item), method: :post, class: "button secondary" %>
+        <%= button_to "LP生成", generate_lp_admin_idea_pipeline_path(@item), method: :post, class: "button secondary" %>
       <% else %>
-        <%= button_to "SERPなしでLP生成", generate_lp_admin_idea_pipeline_path(@item), method: :post, class: "button secondary" unless @item.lp_generation_blocked? %>
+        <%= button_to "LP生成", generate_lp_admin_idea_pipeline_path(@item), method: :post, class: "button secondary" unless @item.lp_generation_blocked? %>
       <% end %>
       <%= button_to "公開", publish_lp_admin_idea_pipeline_path(@item), method: :post, class: "button secondary" %>
       <%= button_to "反応評価", evaluate_learning_admin_idea_pipeline_path(@item), method: :post, class: "button secondary" %>

@@ -103,7 +103,7 @@
                 <%= discovery["duplicate_count"].to_i + discovery["failed_count"].to_i + publication["failed_count"].to_i %>
               </td>
               <td class="number"><%= discovery["existing_business_improvement_count"].to_i %></td>
-              <td><%= link_to "見る", admin_serp_run_path(serp_run), class: "button secondary" %></td>
+              <td><%= link_to "新規事業探索を見る", admin_serp_settings_path(serp_run_id: serp_run.id), class: "button secondary" %></td>
             </tr>
           <% end %>
           <% if @related_serp_runs.empty? %>

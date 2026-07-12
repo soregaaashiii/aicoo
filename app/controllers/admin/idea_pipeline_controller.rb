@@ -1,6 +1,6 @@
 module Admin
   class IdeaPipelineController < ApplicationController
-    before_action :set_item, only: %i[show score run_serp generate_lp publish_lp evaluate_learning build_mvp_spec recover_business run_pipeline]
+    before_action :set_item, only: %i[show score generate_lp publish_lp evaluate_learning build_mvp_spec recover_business run_pipeline]
 
     def index
       @items = IdeaPipelineItem.includes(:aicoo_lab_landing_page).by_priority
@@ -24,11 +24,6 @@ module Admin
     def score
       Aicoo::IdeaPipeline::IdeaScorer.new(@item).call
       redirect_to admin_idea_pipeline_path(@item), notice: "期待値評価を更新しました。"
-    end
-
-    def run_serp
-      Aicoo::IdeaPipeline::SerpEvaluator.new(@item).call
-      redirect_to admin_idea_pipeline_path(@item), notice: "SERP判定を実行しました。"
     end
 
     def generate_lp

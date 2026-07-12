@@ -38,11 +38,11 @@ module Aicoo
       def serp_gate
         serp_optional = Aicoo::Serp::OptionalMode.call
         score = idea_item&.final_score.to_d
-        return gate("pending", "score_pending", "Score後にSERP判定します。") if score.zero? && idea_item&.final_score.blank?
-        return gate("skipped", "score_below_serp_threshold", "scoreが閾値未満のためSERPは任意スキップです。") if score < SERP_SCORE_THRESHOLD
+        return gate("pending", "score_pending", "Score後に市場検証方針を確認します。") if score.zero? && idea_item&.final_score.blank?
+        return gate("skipped", "score_below_serp_threshold", "scoreが閾値未満のため市場探索は任意スキップです。") if score < SERP_SCORE_THRESHOLD
         return gate("skipped", serp_optional.reason, serp_optional.message) if serp_optional.missing_key?
 
-        gate("open", "score_passed", "scoreが閾値以上のためSERP実行できます。")
+        gate("open", "score_passed", "scoreが閾値以上のためCEO MODEの新規事業探索で市場検証できます。")
       end
 
       def lp_gate

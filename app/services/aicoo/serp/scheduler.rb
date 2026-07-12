@@ -6,7 +6,15 @@ module Aicoo
         "frequency" => "daily",
         "run_time" => "07:00",
         "daily_query_limit" => 30,
-        "max_concurrency" => 1
+        "max_concurrency" => 1,
+        "exploration_mode" => "ai_auto",
+        "exploration_query" => "",
+        "exploration_country" => "日本",
+        "exploration_region" => "",
+        "learning_enabled" => true,
+        "new_field_ratio" => 70,
+        "proven_field_ratio" => 30,
+        "exclusion_rules" => %w[existing_businesses deleted_businesses duplicate_markets]
       }.freeze
 
       Result = Data.define(:status, :reason, :serp_run)

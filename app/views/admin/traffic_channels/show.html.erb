@@ -57,11 +57,9 @@
         <% serp_status = @system_statuses&.fetch("serp", nil) %>
         <div class="metric-grid">
           <div class="metric-card status-<%= serp_status&.status_level || "warning" %>"><span>SERP Health</span><strong><%= serp_status&.status || @serp_summary.health %></strong><small><%= serp_status&.reason %></small></div>
-          <div class="metric-card"><span>追加待ち検索クエリ</span><strong><%= @serp_summary.pending_keyword_count %></strong></div>
+          <div class="metric-card"><span>探索候補の準備状況</span><strong><%= @serp_summary.pending_keyword_count %>件</strong><small>実行はCEO MODEで管理</small></div>
         </div>
-        <div class="actions compact-actions">
-          <%= link_to "SERP E2E診断", admin_serp_e2e_check_path, class: "button secondary" %>
-        </div>
+        <p class="muted">新規事業探索の実行画面はCEO MODEにあります。システムモードでは実行導線を表示しません。</p>
       </div>
     </div>
   </section>

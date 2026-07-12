@@ -128,7 +128,7 @@
                       <small>
                         <%= serp_run.started_at ? l(serp_run.started_at, format: :short) : "-" %>
                         SERP Run
-                        <%= link_to "##{serp_run.id}", admin_serp_run_path(serp_run) %>
+                        <%= link_to "##{serp_run.id}", admin_serp_settings_path(serp_run_id: serp_run.id) %>
                         <span class="pill"><%= serp_run.status %></span>
                       </small>
                     </div>

@@ -1,23 +1,20 @@
 module Aicoo
   module Serp
     class RunExecutor
-      def initialize(executed_by: "manual", force: false, serp_query: nil, target_businesses: nil, ignore_limit: false, exploration_mode: "ai_auto", exploration_query: nil)
+      def initialize(executed_by: "manual", force: false, ignore_limit: false, exploration_mode: "ai_auto", exploration_query: nil, exploration_region: nil, learning_enabled: true, new_field_ratio: 70, proven_field_ratio: 30)
         @executed_by = executed_by
         @force = force
-        @serp_query = serp_query
-        @target_businesses = target_businesses
         @ignore_limit = ignore_limit
         @exploration_mode = exploration_mode.presence || "ai_auto"
         @exploration_query = exploration_query
+        @exploration_region = exploration_region
+        @learning_enabled = learning_enabled
+        @new_field_ratio = new_field_ratio
+        @proven_field_ratio = proven_field_ratio
       end
 
       def call
-        planner = Aicoo::Serp::RunPlanner.new(
-          target_businesses: target_businesses,
-          max_total_queries: ignore_limit ? 0 : max_total_queries,
-          force:,
-          single_serp_query: serp_query
-        )
+        planner = Aicoo::Serp::RunPlanner.new(max_total_queries: ignore_limit ? 0 : max_total_queries, force:)
         serp_run = SerpRun.create!(
           status: "running",
           started_at: Time.current,
@@ -25,26 +22,27 @@ module Aicoo
           metadata: planner.metadata.merge(
             "force" => force,
             "ignore_limit" => ignore_limit,
-            "serp_query_id" => serp_query&.id,
-            "target_business_ids" => target_businesses.map(&:id),
+            "target_business_ids" => [],
             "purpose" => "new_business_exploration",
             "exploration_mode" => exploration_mode,
-            "exploration_query" => exploration_query
+            "exploration_query" => exploration_query,
+            "exploration_region" => exploration_region,
+            "learning_enabled" => ActiveModel::Type::Boolean.new.cast(learning_enabled),
+            "new_field_ratio" => new_field_ratio.to_i,
+            "proven_field_ratio" => proven_field_ratio.to_i,
+            "legacy_business_serp_disabled" => true
           ).compact
         )
 
         result = Aicoo::Serp::ScanRunner.new(
           serp_run:,
           force:,
-          single_serp_query: serp_query,
-          target_businesses: target_businesses,
-          allowed_serp_query_ids: planner.run_query_ids.presence,
           max_total_queries: ignore_limit ? nil : max_total_queries,
           max_queries_per_business: max_queries_per_business,
           exploration_mode:,
-          exploration_query:
+          exploration_query:,
+          exploration_region:
         ).call
-        run_priority_learning!
         serp_run.finish_from_result!(result)
         discovery_result = run_new_business_discovery!(serp_run)
         existing_candidates = []
@@ -66,19 +64,10 @@ module Aicoo
 
       private
 
-      attr_reader :executed_by, :force, :serp_query, :ignore_limit, :exploration_mode, :exploration_query
+      attr_reader :executed_by, :force, :ignore_limit, :exploration_mode, :exploration_query, :exploration_region, :learning_enabled, :new_field_ratio, :proven_field_ratio
 
       def settings
         Aicoo::Serp::Scheduler.settings
-      end
-
-      def target_businesses
-        @target_businesses ||= begin
-          return [ serp_query.business ] if serp_query
-          return [ market_exploration_business ] unless @target_businesses
-
-          Array(@target_businesses)
-        end
       end
 
       def market_exploration_business
@@ -96,26 +85,16 @@ module Aicoo
           business.auto_revision_mode = "manual"
           business.auto_build_enabled = false
           business.auto_deploy_mode = "manual"
-          business.resource_status = "active"
+          business.resource_status = "archived"
         end
       end
 
       def max_total_queries
-        return 1 if serp_query
-
         settings["daily_query_limit"].to_i.positive? ? settings["daily_query_limit"].to_i : 30
       end
 
       def max_queries_per_business
-        return 1 if serp_query
-
         Aicoo::Serp::ScanPlan.configured_limit
-      end
-
-      def run_priority_learning!
-        Aicoo::Serp::PriorityUpdater.update_all!
-      rescue StandardError => e
-        Rails.logger.warn("[SERP] priority learning skipped #{e.class}: #{e.message}")
       end
 
       def run_new_business_discovery!(serp_run)

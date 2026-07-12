@@ -4,55 +4,113 @@
 <% current_candidates = Array(@current_run_candidates) %>
 <% publication = current_run&.metadata.to_h["auto_new_business_publication"].to_h %>
 <% businessized_count = publication["business_created_count"].to_i + publication["business_linked_count"].to_i %>
-<% result_count = current_run&.metadata.to_h["result_count"].to_i %>
+<% result_count = current_run&.result_count.to_i %>
+<% settings = @serp_settings.to_h %>
 
 <div class="aicoo-page">
   <%= render "shared/aicoo_header",
              title: "新規事業探索",
-             description: "市場・検索需要・競合・未充足ニーズから新規事業候補を発見します。既存Business改善には使用しません。",
+             description: "市場・検索需要・競合・未充足ニーズから新規事業候補を発見します。既存事業改善には使用しません。",
              mode: :ceo %>
 
   <section class="dashboard-section" id="serp-settings">
     <div class="section-heading">
       <div>
         <h2>設定</h2>
-        <p>走査前に見る設定だけを残しています。</p>
+        <p>一度保存した設定を、次回以降の新規事業探索にも使います。</p>
       </div>
     </div>
 
     <div class="metric-grid">
       <div class="metric-card">
-        <span>Provider</span>
+        <span>提供元</span>
         <strong><%= @current_provider %></strong>
       </div>
       <div class="metric-card">
-        <span>API Key</span>
+        <span>APIキー</span>
         <strong><%= @api_key_configured ? "設定済み" : "未設定" %></strong>
         <small><%= @serp_optional_mode.reason %></small>
       </div>
       <div class="metric-card">
-        <span>検索件数</span>
-        <strong><%= @serp_scheduler_settings["daily_query_limit"].to_i %>件</strong>
-      </div>
-      <div class="metric-card">
         <span>用途</span>
         <strong>新規事業探索専用</strong>
-        <small>Business入力なし</small>
+        <small>既存事業改善には使いません</small>
+      </div>
+      <div class="metric-card">
+        <span>1日の探索件数</span>
+        <strong><%= settings["daily_query_limit"].to_i %>件</strong>
       </div>
     </div>
 
     <div class="aicoo-card aicoo-card-compact">
-      <%= form_with url: update_scheduler_admin_serp_settings_path, scope: :serp_scheduler, method: :patch, class: "form" do |form| %>
-        <%= hidden_field_tag "serp_scheduler[scheduler_enabled]", @serp_scheduler_settings["scheduler_enabled"] %>
-        <%= hidden_field_tag "serp_scheduler[frequency]", @serp_scheduler_settings["frequency"] %>
-        <%= hidden_field_tag "serp_scheduler[run_time]", @serp_scheduler_settings["run_time"] %>
-        <%= hidden_field_tag "serp_scheduler[max_concurrency]", @serp_scheduler_settings["max_concurrency"] %>
+      <%= form_with url: update_scheduler_admin_serp_settings_path, scope: :serp_exploration, method: :patch, class: "form" do |form| %>
         <div class="form-grid">
           <div>
-            <%= form.label :daily_query_limit, "検索件数" %>
-            <%= form.number_field :daily_query_limit, value: @serp_scheduler_settings["daily_query_limit"], min: 1, max: 100 %>
+            <%= form.label :mode, "探索方法" %>
+            <%= form.select :mode,
+                            options_for_select([
+                              [ "AI自動探索", "ai_auto" ],
+                              [ "業界指定", "industry" ],
+                              [ "キーワード指定", "keyword" ]
+                            ], settings["exploration_mode"]) %>
+          </div>
+
+          <div>
+            <%= form.label :query, "業界・キーワード（任意）" %>
+            <%= form.text_field :query,
+                                value: settings["exploration_query"],
+                                placeholder: "例: フリーランス 請求、飲食店 予約、士業 顧客管理" %>
+          </div>
+
+          <div>
+            <%= form.label :country, "対象地域" %>
+            <%= form.select :country, options_for_select([ "日本" ], settings["exploration_country"].presence || "日本") %>
+          </div>
+
+          <div>
+            <%= form.label :region, "地域指定" %>
+            <%= form.text_field :region, value: settings["exploration_region"], placeholder: "例: 東京、大阪、福岡。空欄なら全国" %>
+          </div>
+
+          <div>
+            <%= form.label :daily_query_limit, "1日の探索件数" %>
+            <%= form.number_field :daily_query_limit, value: settings["daily_query_limit"], min: 1, max: 100 %>
+          </div>
+
+          <div>
+            <%= form.label :learning_enabled, "学習" %>
+            <%= form.select :learning_enabled,
+                            options_for_select([ [ "ON", "1" ], [ "OFF", "0" ] ], ActiveModel::Type::Boolean.new.cast(settings["learning_enabled"]) ? "1" : "0") %>
+          </div>
+
+          <div>
+            <%= form.label :new_field_ratio, "新しい分野を探す割合" %>
+            <%= form.number_field :new_field_ratio, value: settings["new_field_ratio"], min: 0, max: 100 %>
+          </div>
+
+          <div>
+            <%= form.label :proven_field_ratio, "実績のある分野を深掘りする割合" %>
+            <%= form.number_field :proven_field_ratio, value: settings["proven_field_ratio"], min: 0, max: 100 %>
           </div>
         </div>
+
+        <fieldset class="aicoo-card aicoo-card-compact">
+          <legend>除外</legend>
+          <% exclusion_rules = Array(settings["exclusion_rules"]) %>
+          <label class="checkbox-label">
+            <%= check_box_tag "serp_exploration[exclusion_rules][]", "existing_businesses", exclusion_rules.include?("existing_businesses") %>
+            既存事業
+          </label>
+          <label class="checkbox-label">
+            <%= check_box_tag "serp_exploration[exclusion_rules][]", "deleted_businesses", exclusion_rules.include?("deleted_businesses") %>
+            削除済み事業
+          </label>
+          <label class="checkbox-label">
+            <%= check_box_tag "serp_exploration[exclusion_rules][]", "duplicate_markets", exclusion_rules.include?("duplicate_markets") %>
+            重複市場
+          </label>
+        </fieldset>
+
         <div class="actions compact-actions">
           <%= form.submit "設定を保存", class: "button secondary" %>
         </div>
@@ -64,32 +122,18 @@
     <div class="aicoo-card aicoo-card-compact">
       <div class="section-heading">
         <div>
-          <h2>新規事業探索</h2>
-          <p>押すと、市場探索、SERP取得、分析、新規事業候補生成、Business化まで同じ画面で完了します。</p>
+          <h2>探索実行</h2>
+          <p>市場探索、需要発見、競合分析、新規事業候補生成、事業化までを自動で進めます。</p>
         </div>
       </div>
 
       <%= form_with url: run_now_admin_serp_settings_path, method: :post, class: "form" do %>
-        <div class="form-grid">
-          <div>
-            <%= label_tag "serp_exploration_mode", "探索方法" %>
-            <%= select_tag "serp_exploration[mode]",
-                           options_for_select([
-                             [ "AI自動探索", "ai_auto" ],
-                             [ "業界指定", "industry" ],
-                             [ "キーワード指定", "keyword" ],
-                             [ "カテゴリ指定", "category" ]
-                           ], params.dig(:serp_exploration, :mode).presence || "ai_auto"),
-                           id: "serp_exploration_mode" %>
-          </div>
-          <div>
-            <%= label_tag "serp_exploration_query", "探索キーワード（任意）" %>
-            <%= text_field_tag "serp_exploration[query]",
-                               params.dig(:serp_exploration, :query),
-                               id: "serp_exploration_query",
-                               placeholder: "例: フリーランス 請求、飲食店 予約、士業 顧客管理" %>
-          </div>
-        </div>
+        <% settings.slice("exploration_mode", "exploration_query", "exploration_country", "exploration_region", "daily_query_limit", "learning_enabled", "new_field_ratio", "proven_field_ratio").each do |key, value| %>
+          <%= hidden_field_tag "serp_exploration[#{key.sub('exploration_', '')}]", value %>
+        <% end %>
+        <% Array(settings["exclusion_rules"]).each do |rule| %>
+          <%= hidden_field_tag "serp_exploration[exclusion_rules][]", rule %>
+        <% end %>
         <div class="actions compact-actions">
           <%= submit_tag "新規事業探索を実行", class: "button", data: { aicoo_loading_label: "新規事業探索中..." } %>
         </div>
@@ -114,7 +158,7 @@
         <div class="metric-card"><span>解析完了</span><strong><%= current_run.success_count %>件</strong></div>
         <div class="metric-card"><span>今回発見した新規事業候補</span><strong><%= current_candidates.size %>件</strong></div>
         <div class="metric-card"><span>新しくActionへ反映</span><strong><%= current_run.candidate_count %>件</strong></div>
-        <div class="metric-card"><span>Business化</span><strong><%= businessized_count %>件</strong></div>
+        <div class="metric-card"><span>事業化</span><strong><%= businessized_count %>件</strong></div>
         <div class="metric-card"><span>保存結果</span><strong><%= result_count %>件</strong></div>
       </div>
 
@@ -133,7 +177,7 @@
                   <th>期待利益</th>
                   <th>成功率</th>
                   <th>学習価値</th>
-                  <th>操作</th>
+                  <th>状態</th>
                 </tr>
               </thead>
               <tbody>
@@ -152,7 +196,7 @@
                     <td><%= number_to_currency(candidate.expected_learning_value_yen.to_i, unit: "¥", precision: 0) %></td>
                     <td>
                       <% if publication_metadata["completed"] || candidate.business_id.present? %>
-                        <span class="pill">Business化済み</span>
+                        <span class="pill">事業化済み</span>
                       <% else %>
                         <span class="pill">自動追加待ち</span>
                       <% end %>
@@ -166,13 +210,13 @@
       <% else %>
         <div class="aicoo-card aicoo-empty-state">
           <h3>今回の新規事業候補は0件です。</h3>
-          <p>保存済みSERP結果から新規事業候補を生成できませんでした。Business改善候補はここには表示しません。</p>
+          <p>保存済み結果から新規事業候補を生成できませんでした。既存事業改善候補はここには表示しません。</p>
         </div>
       <% end %>
     <% else %>
       <div class="aicoo-card aicoo-empty-state">
         <h3>まだ新規事業探索はありません。</h3>
-        <p>上の「新規事業探索」を実行すると、今回の探索結果がここに表示されます。</p>
+        <p>上の「新規事業探索を実行」を押すと、今回の探索結果がここに表示されます。</p>
       </div>
     <% end %>
   </section>
@@ -181,7 +225,7 @@
     <div class="section-heading">
       <div>
         <h2>事業化した一覧</h2>
-        <p>SERP経由でBusiness化したものだけを表示します。</p>
+        <p>SERP経由で事業化したものだけを表示します。</p>
       </div>
     </div>
 
@@ -207,7 +251,7 @@
                 <td><%= business.lifecycle_stage.presence || business.status %></td>
                 <td><%= number_to_currency(metadata["expected_profit_yen"].to_i, unit: "¥", precision: 0) %></td>
                 <td><%= number_to_currency(business.revenue_amount(30.days.ago..Time.current), unit: "¥", precision: 0) %></td>
-                <td><%= link_to "Businessを見る", business_path(business), class: "button secondary" %></td>
+                <td><%= link_to "事業を見る", business_path(business), class: "button secondary" %></td>
               </tr>
             <% end %>
           </tbody>
@@ -215,8 +259,8 @@
       </div>
     <% else %>
       <div class="aicoo-card aicoo-empty-state">
-        <h3>SERP経由で事業化したBusinessはまだありません。</h3>
-        <p>探索で候補が見つかると、自動でBusinessとしてここに追加されます。</p>
+        <h3>SERP経由で事業化したものはまだありません。</h3>
+        <p>探索で候補が見つかると、自動で事業としてここに追加されます。</p>
       </div>
     <% end %>
   </section>

@@ -16,7 +16,7 @@ module Admin
       assert_includes response.body, "Business設定"
       assert_includes response.body, "実行履歴"
       assert_includes response.body, "成果分析"
-      assert_includes response.body, "SERP探索実行はCEO MODEに分離しています"
+      assert_includes response.body, "新規事業探索の実行画面はCEO MODEにあります"
     end
 
     test "serp row uses serp runs instead of traffic channel runs" do
@@ -45,7 +45,7 @@ module Admin
         assert_includes html, "latest: scheduler"
         assert_includes html, "12回"
         assert_includes html, "0件"
-        assert_includes html, "SERP探索実行はCEO MODEで管理"
+        assert_includes html, "実行はCEO MODEで管理"
         assert_not_includes html, "未実行"
       end
     end

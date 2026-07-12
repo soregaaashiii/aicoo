@@ -44,8 +44,6 @@ Rails.application.routes.draw do
   patch "owner/focus/restore", to: "owner/focus#restore", as: :restore_owner_focus
   get "actions/:id", to: "action_candidates#show", as: :action_workspace
   get "owner/tasks", to: "owner/tasks#index", as: :owner_tasks
-  post "owner/serp_scan", to: "owner/serp_scans#create", as: :owner_serp_scan
-  patch "owner/serp_scan_settings", to: "owner/serp_scans#update_settings", as: :owner_serp_scan_settings
   patch "owner/execution_queue_items/:id/complete", to: "owner/execution_queue_items#complete", as: :complete_owner_execution_queue_item
   patch "owner/execution_queue_items/:id/skip", to: "owner/execution_queue_items#skip", as: :skip_owner_execution_queue_item
   patch "owner/execution_queue_items/:id/restore", to: "owner/execution_queue_items#restore", as: :restore_owner_execution_queue_item
@@ -167,7 +165,6 @@ Rails.application.routes.draw do
     patch :google_settings, action: :update_google_settings, on: :member
     patch :update_data_source_settings, on: :member
     resources :data_imports, only: :create
-    resources :serp_analyses, only: :create
   end
 
   namespace :aicoo_lab do
@@ -236,8 +233,6 @@ Rails.application.routes.draw do
     get "aicoo_daily_run_health", to: "aicoo_daily_run_health#show", as: :aicoo_daily_run_health
     get "pipeline_e2e_check", to: "pipeline_e2e_checks#show", as: :pipeline_e2e_check
     post "pipeline_e2e_check/repair", to: "pipeline_e2e_checks#repair", as: :pipeline_e2e_check_repair
-    get "serp_e2e_check", to: "serp_e2e_checks#show", as: :serp_e2e_check
-    post "serp_e2e_check/repair", to: "serp_e2e_checks#repair", as: :serp_e2e_check_repair
     get "integrated_decision", to: "integrated_decisions#show", as: :integrated_decision
     get "traffic_channels", to: "traffic_channels#show", as: :traffic_channels
     patch "traffic_channels/:channel_key", to: "traffic_channels#update_channel", as: :traffic_channel
@@ -253,7 +248,6 @@ Rails.application.routes.draw do
       post :generate, on: :collection
       member do
         post :score
-        post :run_serp
         post :generate_lp
         post :publish_lp
         post :evaluate_learning
@@ -264,34 +258,8 @@ Rails.application.routes.draw do
     end
     resource :serp_settings, only: %i[show update] do
       post :run_now
-      post :run_selected_business
-      post :run_all_businesses
       patch :update_scheduler
-      post :test_search
-      patch "businesses/:business_id", action: :update_business, as: :business
-      post "businesses/:business_id/keywords", action: :add_keywords, as: :business_keywords
-      post "businesses/:business_id/suggestions", action: :regenerate_suggestions, as: :business_suggestions
-      get "businesses/:business_id/suggestions", action: :regenerate_suggestions_hint
-      post "businesses/:business_id/approve_pending", action: :approve_pending_keywords, as: :business_approve_pending
-      get "businesses/:business_id/approve_pending", action: :approve_pending_keywords_hint
-      post "businesses/:business_id/scan", action: :scan_business, as: :business_scan
-      patch "keywords/:id", action: :update_keyword, as: :keyword
-      patch "keywords/:id/approve", action: :approve_keyword, as: :approve_keyword
-      patch "keywords/:id/exclude", action: :exclude_keyword, as: :exclude_keyword
-      patch "keywords/:id/pause", action: :pause_keyword, as: :pause_keyword
-      patch "keywords/:id/resume", action: :resume_keyword, as: :resume_keyword
-      patch "keywords/:id/archive", action: :archive_keyword, as: :archive_keyword
-      patch "keywords/:id/restore", action: :restore_keyword, as: :restore_keyword
-      delete "keywords/:id", action: :destroy_keyword, as: :destroy_keyword
     end
-    resources :serp_queries, except: %i[show] do
-      patch :toggle, on: :member
-      patch :pause, on: :member
-      patch :resume, on: :member
-      patch :archive, on: :member
-      post :run_now, on: :member
-    end
-    resources :serp_runs, only: %i[show]
     resources :analytics_imports, only: %i[index create] do
       post :reprocess, on: :member
     end
@@ -373,9 +341,6 @@ Rails.application.routes.draw do
       patch "public_landing_pages/:id", to: "public_landing_pages#update", as: :public_landing_page
       patch "public_landing_pages/:id/publish", to: "public_landing_pages#publish", as: :publish_public_landing_page
       post "public_landing_pages/:id/recover_business", to: "public_landing_pages#recover_business", as: :recover_public_landing_page_business
-      get "serp_landing_page_candidates", to: "serp_landing_page_candidates#index", as: :serp_landing_page_candidates
-      post "serp_landing_page_candidates", to: "serp_landing_page_candidates#create"
-      post "serp_landing_page_candidates/:id/create_landing_page", to: "serp_landing_page_candidates#create_landing_page", as: :serp_landing_page_candidate_create_landing_page
       resource :setting, only: %i[ show update ]
       resources :generation_runs, only: %i[ index show ]
       resources :ai_candidate_imports, only: %i[ new create ]

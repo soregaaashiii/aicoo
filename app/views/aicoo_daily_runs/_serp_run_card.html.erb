@@ -34,7 +34,7 @@
     <% end %>
 
     <div class="actions compact-actions">
-      <%= link_to "詳細を見る", admin_serp_run_path(serp_run), class: "button" %>
+      <%= link_to "新規事業探索を見る", admin_serp_settings_path(serp_run_id: serp_run.id), class: "button" %>
     </div>
   </div>
 <% else %>

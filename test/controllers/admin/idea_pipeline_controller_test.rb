@@ -33,7 +33,7 @@ module Admin
       assert_includes response.body, "SERP結果評価"
       assert_includes response.body, "SERP状態"
       assert_includes response.body, "未実行"
-      assert_includes response.body, "SERPなしでLP生成"
+      assert_includes response.body, "LP生成"
       assert_includes response.body, "MVP仕様書"
     end
 

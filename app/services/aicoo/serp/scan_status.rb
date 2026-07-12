@@ -36,7 +36,7 @@ module Aicoo
           api_key_configured: api_key_configured?,
           last_scanned_at: latest_analysis&.analyzed_at,
           last_duration_seconds: latest_duration_seconds,
-          target_business_count: target_businesses.size,
+          target_business_count: exploration_businesses.size,
           candidate_keyword_count: plan.candidate_keyword_count,
           estimated_api_calls: plan.estimated_api_calls,
           estimated_cost_yen: plan.estimated_cost_yen,
@@ -68,19 +68,21 @@ module Aicoo
         ENV["SERPER_API_KEY"].present? || DataSourceCostProfile.find_by(source_key: "serp")&.api_key.present?
       end
 
-      def target_businesses
-        @target_businesses ||= Business.real_businesses
-                                      .where(status: "launched", serp_enabled: true)
-                                      .includes(:business_data_source_settings, :business_serp_keywords, :serp_queries)
-                                      .order(:name)
-                                      .to_a
+      def exploration_businesses
+        @exploration_businesses ||= [ Business.find_or_initialize_by(name: "AICOO Market Exploration") ]
       end
 
       def latest_analysis
-        @latest_analysis ||= SerpAnalysis.joins(:business)
-                                         .merge(Business.real_businesses)
-                                         .order(analyzed_at: :desc, created_at: :desc)
-                                         .first
+        @latest_analysis ||= begin
+          ids = exploration_business_ids
+          if ids.empty?
+            nil
+          else
+            SerpAnalysis.where(business_id: ids)
+                        .order(analyzed_at: :desc, created_at: :desc)
+                        .first
+          end
+        end
       end
 
       def execution_status
@@ -96,7 +98,14 @@ module Aicoo
       end
 
       def running_analyses
-        @running_analyses ||= SerpAnalysis.running.joins(:business).merge(Business.real_businesses)
+        @running_analyses ||= begin
+          ids = exploration_business_ids
+          ids.empty? ? SerpAnalysis.none : SerpAnalysis.running.where(business_id: ids)
+        end
+      end
+
+      def exploration_business_ids
+        exploration_businesses.filter_map(&:id)
       end
 
       def latest_batch_id

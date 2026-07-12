@@ -128,56 +128,7 @@ module Aicoo
       attr_reader :business
 
       def suggestion_rows
-        [
-          business_name_keyword,
-          category_keyword,
-          intent_keyword("比較", "比較検討"),
-          intent_keyword("おすすめ", "店舗・サービス探索"),
-          latest_serp_related_keyword
-        ].compact.uniq { |attrs| BusinessSerpKeyword.normalize(attrs.fetch(:keyword)) }
-      end
-
-      def business_name_keyword
-        return if business.name.blank?
-
-        {
-          keyword: business.name,
-          source: "ai_suggested",
-          priority_score: 55,
-          opportunity_score: 50,
-          confidence: 50,
-          reason: "Business名から生成",
-          search_intent: "指名検索・カテゴリ確認"
-        }
-      end
-
-      def category_keyword
-        tokens = [ business.name, business.category.presence || business.business_type ].compact_blank
-        return if tokens.blank?
-
-        {
-          keyword: tokens.join(" "),
-          source: "ai_suggested",
-          priority_score: 60,
-          opportunity_score: 55,
-          confidence: 45,
-          reason: "Businessカテゴリから生成",
-          search_intent: "カテゴリ検索"
-        }
-      end
-
-      def intent_keyword(suffix, intent)
-        return if business.name.blank?
-
-        {
-          keyword: "#{business.name} #{suffix}",
-          source: "ai_suggested",
-          priority_score: 50,
-          opportunity_score: 45,
-          confidence: 40,
-          reason: "検索意図テンプレートから生成",
-          search_intent: intent
-        }
+        []
       end
 
       def latest_serp_related_keyword

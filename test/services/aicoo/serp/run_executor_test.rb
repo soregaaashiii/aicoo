@@ -3,117 +3,7 @@ require "test_helper"
 module Aicoo
   module Serp
     class RunExecutorTest < ActiveSupport::TestCase
-      test "creates serp run and links analyses" do
-        business = businesses(:suelog)
-        business.update!(status: "launched", serp_enabled: true)
-        serp_query = business.serp_queries.create!(
-          query: "大阪 喫煙 テスト #{SecureRandom.hex(4)}",
-          category: "existing_business",
-          status: "active",
-          enabled: true,
-          priority: 1,
-          daily_limit: 1
-        )
-
-        with_adapter_result do
-          run = Aicoo::Serp::RunExecutor.new(executed_by: "manual", force: true, serp_query:).call
-
-          assert_equal "success", run.status
-          assert_equal "manual", run.executed_by
-          assert_equal 1, run.query_count
-          assert_equal 1, run.success_count
-          assert_equal run, business.serp_analyses.order(:created_at).last.serp_run
-        end
-      end
-
-      test "selected business run does not execute other business fallback queries" do
-        business = businesses(:suelog)
-        other_business = businesses(:cards)
-        business.update!(status: "launched", serp_enabled: true)
-        other_business.update!(status: "launched", serp_enabled: true)
-        business_query = business.serp_queries.create!(
-          query: "梅田 喫煙 選択 #{SecureRandom.hex(4)}",
-          category: "existing_business",
-          status: "active",
-          enabled: true,
-          priority: 1,
-          daily_limit: 5
-        )
-        other_business.serp_queries.create!(
-          query: "名刺 共有 対象外 #{SecureRandom.hex(4)}",
-          category: "existing_business",
-          status: "active",
-          enabled: true,
-          priority: 1,
-          daily_limit: 5
-        )
-
-        with_adapter_result do
-          run = Aicoo::Serp::RunExecutor.new(executed_by: "manual", target_businesses: [ business ]).call
-
-          assert_equal "success", run.status
-          assert_equal [ business_query.id ], run.run_plan_rows.map { |row| row["serp_query_id"] }
-          assert_equal 1, business.serp_analyses.where(serp_run: run).count
-          assert_equal 0, other_business.serp_analyses.where(serp_run: run).count
-          assert run.plan_rows.all? { |row| row["business_id"] == business.id }
-        end
-      end
-
-      test "serp run discovers new business candidate and auto adds exploring business" do
-        business = businesses(:cards)
-        business.update!(status: "launched", serp_enabled: true)
-        serp_query = business.serp_queries.create!(
-          query: "請求 管理 個人事業主 自動化 #{SecureRandom.hex(4)}",
-          category: "new_business",
-          status: "active",
-          enabled: true,
-          priority: 1,
-          daily_limit: 5
-        )
-
-        with_adapter_result(query: serp_query.query) do
-          assert_difference("Business.real_businesses.count", 1) do
-            run = Aicoo::Serp::RunExecutor.new(executed_by: "manual", force: true, serp_query:).call
-
-            discovery = run.metadata.to_h["new_business_discovery"].to_h
-            assert_equal 1, discovery["new_business_candidate_count"]
-            assert_equal 0, discovery["failed_count"]
-
-            candidate = ActionCandidate.find(discovery.fetch("candidate_ids").first)
-            assert_equal "serp", candidate.generation_source
-            assert_equal "new_business", candidate.department
-            assert_equal "new_business", candidate.action_type
-            assert_equal "new_business", candidate.metadata["candidate_kind"]
-            assert_equal serp_query.query, candidate.metadata["source_query"]
-            assert_equal "done", candidate.status
-            assert candidate.business
-            assert_equal "exploring", candidate.business.status
-            assert Business.real_businesses.where(id: candidate.business_id).exists?
-          end
-        end
-      end
-
-      test "existing business serp query with results is still assetized as exploring business" do
-        business = businesses(:suelog)
-        business.update!(status: "launched", serp_enabled: true)
-        serp_query = business.serp_queries.create!(
-          query: "大阪 喫煙 居酒屋 #{SecureRandom.hex(4)}",
-          category: "existing_business",
-          status: "active",
-          enabled: true,
-          priority: 1,
-          daily_limit: 5
-        )
-
-        with_adapter_result(query: serp_query.query) do
-          assert_difference("Business.real_businesses.count", 1) do
-            run = Aicoo::Serp::RunExecutor.new(executed_by: "manual", force: true, serp_query:).call
-            assert_equal 1, run.metadata.to_h.dig("new_business_discovery", "new_business_candidate_count").to_i
-          end
-        end
-      end
-
-      test "manual serp run uses market exploration business without business input" do
+      test "manual serp run explores markets without business input and creates exploring business" do
         seed = "フリーランス 請求 #{SecureRandom.hex(4)}"
 
         with_adapter_result(query: seed) do
@@ -122,13 +12,17 @@ module Aicoo
               executed_by: "manual",
               force: true,
               exploration_mode: "keyword",
-              exploration_query: seed
+              exploration_query: seed,
+              exploration_region: "大阪"
             ).call
 
             assert_equal "success", run.status
             assert_equal "new_business_exploration", run.metadata["purpose"]
+            assert_equal [], run.metadata["target_business_ids"]
             assert_equal "keyword", run.metadata["exploration_mode"]
             assert_equal seed, run.metadata["exploration_query"]
+            assert_equal "大阪", run.metadata["exploration_region"]
+            assert_equal true, run.metadata["legacy_business_serp_disabled"]
 
             system_business = Business.find_by!(name: "AICOO Market Exploration")
             assert Business.system_businesses.exists?(id: system_business.id)
@@ -146,9 +40,23 @@ module Aicoo
         end
       end
 
+      test "run executor does not accept business scoped serp arguments" do
+        business = businesses(:suelog)
+        business.update!(status: "launched", serp_enabled: true)
+
+        assert_raises(ArgumentError) do
+          Aicoo::Serp::RunExecutor.new(
+            executed_by: "manual",
+            force: true,
+            business_id: business.id,
+            exploration_mode: "ai_auto"
+          )
+        end
+      end
+
       private
 
-      def with_adapter_result(query: "大阪 喫煙")
+      def with_adapter_result(query: "個人事業主 業務 自動化")
         payload = {
           provider: "serper",
           type: "google_search",
@@ -159,10 +67,10 @@ module Aicoo
           organic_results: [
             {
               position: 1,
-              title: "大阪の喫煙カフェ",
+              title: "#{query}を解決するサービス",
               url: "https://example.com",
               displayed_url: "example.com",
-              snippet: "喫煙情報",
+              snippet: "業務課題を解決します",
               source: "example",
               raw: {}
             }

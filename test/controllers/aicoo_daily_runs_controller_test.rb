@@ -36,7 +36,7 @@ class AicooDailyRunsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "SERP Run"
     assert_includes response.body, "最新SERP Run"
     assert_includes response.body, "関連SERP Run"
-    assert_includes response.body, admin_serp_run_path(serp_run)
+    assert_includes response.body, admin_serp_settings_path(serp_run_id: serp_run.id)
     assert_includes response.body, "Daily Run調査履歴"
     assert_includes response.body, "検索・絞り込み"
     assert_not_includes response.body, "直近10Run比較"
@@ -235,7 +235,7 @@ class AicooDailyRunsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Auto Revision生成"
     assert_includes response.body, "SERP Run"
     assert_includes response.body, "同時間帯のSERP Run"
-    assert_includes response.body, admin_serp_run_path(serp_run)
+    assert_includes response.body, admin_serp_settings_path(serp_run_id: serp_run.id)
     assert_includes response.body, "使用クレジット"
     assert_includes response.body, "基本情報"
     assert_includes response.body, "Run ID"

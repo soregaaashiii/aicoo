@@ -33,15 +33,14 @@ module Aicoo
         value
       end
 
-      def initialize(profile: DataSourceCostProfile.for_source("serp"), provider: nil, target_businesses: nil)
+      def initialize(profile: DataSourceCostProfile.for_source("serp"), provider: nil)
         @profile = profile
         @provider = (provider.presence || ENV["AICOO_SERP_PROVIDER"].presence || "serper").to_s
-        @target_businesses = target_businesses
       end
 
       def call(limit: nil)
         resolved_limit = (limit.presence || self.class.configured_limit(profile)).to_i
-        query_count = target_businesses.sum { |business| queries_for(business).size }
+        query_count = exploration_businesses.sum { |business| queries_for(business).size }
         estimated_api_calls = query_count * resolved_limit
         estimated_cost = (estimated_api_calls * unit_result_cost_yen).round
         projected_spend = profile.monthly_spend_yen.to_i + estimated_cost
@@ -49,7 +48,7 @@ module Aicoo
         Result.new(
           provider:,
           limit: resolved_limit,
-          target_business_count: target_businesses.size,
+          target_business_count: exploration_businesses.size,
           candidate_keyword_count: query_count,
           estimated_api_calls:,
           estimated_cost_yen: estimated_cost,
@@ -66,12 +65,8 @@ module Aicoo
 
       attr_reader :profile, :provider
 
-      def target_businesses
-        @target_businesses ||= Business.real_businesses
-                                      .where(status: "launched", serp_enabled: true)
-                                      .includes(:business_data_source_settings, :business_serp_keywords, :serp_queries)
-                                      .order(:name)
-                                      .to_a
+      def exploration_businesses
+        @exploration_businesses ||= [ market_exploration_business ]
       end
 
       def unit_result_cost_yen
@@ -79,7 +74,21 @@ module Aicoo
       end
 
       def queries_for(business)
-        Aicoo::Serp::ScanRunner.queries_for_business(business)
+        Aicoo::Serp::ScanRunner.queries_for_business(
+          business,
+          max_queries_per_business: Aicoo::Serp::Scheduler.settings["daily_query_limit"].to_i
+        )
+      end
+
+      def market_exploration_business
+        Business.find_or_initialize_by(name: "AICOO Market Exploration") do |business|
+          business.status = "launched"
+          business.lifecycle_stage = "idea"
+          business.business_type = "exploration"
+          business.source = "system"
+          business.created_by_aicoo = true
+          business.resource_status = "archived"
+        end
       end
 
       def limit_warning(limit)

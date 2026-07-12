@@ -1090,12 +1090,11 @@
   <div class="section-heading">
     <div>
       <h2>LP</h2>
-      <p>公開LPの作成、公開停止、SERPからのLP候補生成をこのBusinessの運用導線として扱います。</p>
+      <p>公開LPの作成と公開停止をこのBusinessの運用導線として扱います。</p>
     </div>
     <div class="actions compact-actions">
       <%= link_to "公開LP管理", admin_aicoo_lab_public_landing_pages_path, class: "button secondary" %>
       <%= link_to "LPを新規作成", admin_aicoo_lab_new_public_landing_page_path, class: "button" %>
-      <%= link_to "SERPからLP候補生成", admin_aicoo_lab_serp_landing_page_candidates_path, class: "button secondary" %>
     </div>
   </div>
   <div class="metric-grid">
@@ -1644,8 +1643,8 @@
         </tbody>
       </table>
     </div>
-    <div class="actions compact-actions">
-      <%= link_to "追加・編集", admin_serp_queries_path(business_id: @business.id), class: "button" %>
+    <div class="notice compact-notice">
+      SERPは新規事業探索専用になりました。既存Businessの改善はGSC・GA4・内部データで判定します。
     </div>
   </div>
 
