@@ -1,50 +1,374 @@
 <% content_for :title, @business_service.name %>
 
-<main class="public-lp-page">
-  <section class="public-lp-hero">
-    <p class="public-lp-eyebrow">MVP Service</p>
-    <h1><%= @business_service.name %></h1>
-    <p class="public-lp-lead"><%= @business.description.presence || "このサービスは現在、最小機能で検証中です。" %></p>
-    <div class="public-lp-actions">
-      <a class="public-lp-button" href="#service-signup">使ってみたい</a>
-    </div>
-  </section>
+<style>
+  .mvp-service-page {
+    min-height: 100vh;
+    background: #f6f7f9;
+    color: #15171a;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
 
-  <section class="public-lp-section">
-    <div class="public-lp-section-inner">
-      <h2>できること</h2>
-      <ul class="public-lp-list">
-        <li>困っている内容を登録できます。</li>
-        <li>運営側が登録内容を確認し、手動MVPとして対応できます。</li>
-        <li>登録や反応はAICOOへ記録され、サービス改善の学習に使われます。</li>
-      </ul>
-    </div>
-  </section>
+  .mvp-service-shell {
+    display: grid;
+    grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+    gap: 24px;
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 32px 20px 48px;
+  }
 
-  <section class="public-lp-section" id="service-signup">
-    <div class="public-lp-section-inner">
-      <% if @signup_completed %>
-        <div class="public-lp-complete">
-          <h2>登録しました</h2>
-          <p>ありがとうございます。準備ができ次第ご連絡します。</p>
+  .mvp-sidebar,
+  .mvp-panel {
+    background: #ffffff;
+    border: 1px solid #e4e7eb;
+    border-radius: 8px;
+  }
+
+  .mvp-sidebar {
+    align-self: start;
+    padding: 20px;
+    position: sticky;
+    top: 20px;
+  }
+
+  .mvp-logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+
+  .mvp-logo-mark {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: #111827;
+    color: #ffffff;
+    font-weight: 700;
+  }
+
+  .mvp-logo strong,
+  .mvp-panel h2,
+  .mvp-panel h3,
+  .mvp-workspace h1 {
+    letter-spacing: 0;
+  }
+
+  .mvp-sidebar small,
+  .mvp-muted {
+    color: #667085;
+  }
+
+  .mvp-nav {
+    display: grid;
+    gap: 8px;
+    margin-top: 20px;
+  }
+
+  .mvp-nav a,
+  .mvp-status-row {
+    padding: 10px 12px;
+    border-radius: 8px;
+    color: #344054;
+    text-decoration: none;
+    background: #f9fafb;
+  }
+
+  .mvp-nav a:first-child {
+    color: #0f172a;
+    background: #e8eefc;
+    font-weight: 700;
+  }
+
+  .mvp-workspace {
+    display: grid;
+    gap: 18px;
+  }
+
+  .mvp-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 18px;
+    align-items: flex-start;
+  }
+
+  .mvp-header h1 {
+    margin: 4px 0 8px;
+    font-size: clamp(28px, 5vw, 44px);
+    line-height: 1.05;
+  }
+
+  .mvp-badge {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    background: #ecfdf3;
+    color: #027a48;
+    padding: 6px 10px;
+    font-size: 13px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .mvp-panel {
+    padding: 20px;
+  }
+
+  .mvp-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .mvp-stat {
+    padding: 14px;
+    border: 1px solid #eaecf0;
+    border-radius: 8px;
+    background: #fbfcfd;
+  }
+
+  .mvp-stat span {
+    display: block;
+    color: #667085;
+    font-size: 12px;
+    margin-bottom: 6px;
+  }
+
+  .mvp-stat strong {
+    display: block;
+    font-size: 22px;
+  }
+
+  .mvp-form {
+    display: grid;
+    gap: 14px;
+  }
+
+  .mvp-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .mvp-form label {
+    display: grid;
+    gap: 7px;
+    color: #344054;
+    font-weight: 650;
+  }
+
+  .mvp-form input,
+  .mvp-form select,
+  .mvp-form textarea {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid #d0d5dd;
+    border-radius: 8px;
+    padding: 11px 12px;
+    font: inherit;
+    background: #ffffff;
+  }
+
+  .mvp-form textarea {
+    resize: vertical;
+  }
+
+  .mvp-button {
+    border: 0;
+    border-radius: 8px;
+    background: #111827;
+    color: #ffffff;
+    padding: 12px 16px;
+    font: inherit;
+    font-weight: 750;
+    cursor: pointer;
+    justify-self: start;
+  }
+
+  .mvp-steps {
+    display: grid;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .mvp-steps li {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 12px;
+    border: 1px solid #eaecf0;
+    border-radius: 8px;
+  }
+
+  .mvp-step-index {
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    width: 24px;
+    height: 24px;
+    border-radius: 999px;
+    background: #eef4ff;
+    color: #3538cd;
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .mvp-complete {
+    border: 1px solid #abefc6;
+    background: #ecfdf3;
+    border-radius: 8px;
+    padding: 16px;
+  }
+
+  @media (max-width: 800px) {
+    .mvp-service-shell,
+    .mvp-form-grid,
+    .mvp-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .mvp-sidebar {
+      position: static;
+    }
+  }
+</style>
+
+<main class="mvp-service-page">
+  <div class="mvp-service-shell">
+    <aside class="mvp-sidebar">
+      <div class="mvp-logo">
+        <div class="mvp-logo-mark"><%= @service_title.first %></div>
+        <div>
+          <strong><%= @service_title %></strong>
+          <small>β版サービス</small>
         </div>
-      <% else %>
-        <h2>事前登録</h2>
-        <%= form_with scope: :service_signup,
-                      url: public_business_service_signup_path(@business_service),
-                      local: true,
-                      class: "public-lp-form" do |form| %>
-          <label>
-            メールアドレス
-            <%= form.email_field :email, required: true, placeholder: "you@example.com" %>
-          </label>
-          <label>
-            相談したいこと
-            <%= form.text_area :note, rows: 5, placeholder: "今困っていること、使いたい場面など" %>
-          </label>
-          <%= form.submit "登録する", class: "public-lp-button" %>
+      </div>
+
+      <div class="mvp-status-row">
+        <strong>状態</strong><br>
+        <span>受付中</span>
+      </div>
+
+      <nav class="mvp-nav" aria-label="MVP navigation">
+        <a href="#request">依頼を作成</a>
+        <a href="#workflow">処理フロー</a>
+        <a href="#activity">利用状況</a>
+      </nav>
+    </aside>
+
+    <section class="mvp-workspace">
+      <header class="mvp-header">
+        <div>
+          <span class="mvp-badge">MVP SaaS</span>
+          <h1><%= @service_title %></h1>
+          <p class="mvp-muted"><%= @service_summary %></p>
+        </div>
+      </header>
+
+      <section class="mvp-panel" id="activity">
+        <h2>現在の利用状況</h2>
+        <div class="mvp-grid">
+          <div class="mvp-stat">
+            <span>受付済みリクエスト</span>
+            <strong><%= number_with_delimiter(@recent_request_count) %></strong>
+          </div>
+          <div class="mvp-stat">
+            <span>最終受付</span>
+            <strong><%= @latest_request_at ? l(@latest_request_at, format: :short) : "未受付" %></strong>
+          </div>
+          <div class="mvp-stat">
+            <span>次の処理</span>
+            <strong>内容確認</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="mvp-panel" id="request">
+        <% if @signup_completed %>
+          <div class="mvp-complete">
+            <h2>依頼を受け付けました</h2>
+            <p>登録内容を確認し、必要に応じて運営側から連絡します。この反応はAICOOに記録され、サービス改善の学習に使われます。</p>
+          </div>
+        <% else %>
+          <h2>依頼を作成</h2>
+          <p class="mvp-muted">課題、現状、希望する成果を登録してください。今は手動MVPとして運営側が内容を確認します。</p>
+          <%= form_with scope: :service_signup,
+                        url: public_business_service_signup_path(@business_service),
+                        local: true,
+                        class: "mvp-form" do |form| %>
+            <div class="mvp-form-grid">
+              <label>
+                メールアドレス
+                <%= form.email_field :email, required: true, placeholder: "you@example.com" %>
+              </label>
+              <label>
+                店舗名・会社名
+                <%= form.text_field :company_name, placeholder: "例: 〇〇食堂" %>
+              </label>
+              <label>
+                Webサイト・SNS
+                <%= form.url_field :website_url, placeholder: "https://..." %>
+              </label>
+              <label>
+                依頼タイプ
+                <%= form.select :request_type,
+                                [
+                                  ["現状診断", "diagnosis"],
+                                  ["運用代行の相談", "operation_request"],
+                                  ["改善案が欲しい", "improvement_plan"],
+                                  ["料金を知りたい", "pricing_question"]
+                                ],
+                                {},
+                                {} %>
+              </label>
+              <label>
+                いま使っている集客手段
+                <%= form.text_field :current_channel, placeholder: "例: Instagram / Googleマップ / なし" %>
+              </label>
+              <label>
+                1か月の目標
+                <%= form.text_field :monthly_goal, placeholder: "例: 予約を20件増やしたい" %>
+              </label>
+            </div>
+            <label>
+              困っていること
+              <%= form.text_area :note, rows: 5, placeholder: "現状、困っていること、任せたい作業、期待する成果を書いてください。" %>
+            </label>
+            <%= form.submit "依頼を作成する", class: "mvp-button" %>
+          <% end %>
         <% end %>
-      <% end %>
-    </div>
-  </section>
+      </section>
+
+      <section class="mvp-panel" id="workflow">
+        <h2>処理フロー</h2>
+        <ol class="mvp-steps">
+          <li>
+            <span class="mvp-step-index">1</span>
+            <div>
+              <strong>依頼内容を登録</strong><br>
+              <span class="mvp-muted">課題、店舗情報、目標を送信します。</span>
+            </div>
+          </li>
+          <li>
+            <span class="mvp-step-index">2</span>
+            <div>
+              <strong>運営側が手動で診断</strong><br>
+              <span class="mvp-muted">初期MVPとして、内容確認と対応可否を判断します。</span>
+            </div>
+          </li>
+          <li>
+            <span class="mvp-step-index">3</span>
+            <div>
+              <strong>AICOOへ反応を記録</strong><br>
+              <span class="mvp-muted">登録・相談内容を学習し、サービス改善や継続判断に使います。</span>
+            </div>
+          </li>
+        </ol>
+      </section>
+    </section>
+  </div>
 </main>
