@@ -95,34 +95,49 @@ module Aicoo
       end
 
       def call
-        started_at = Time.current
-        analyses = scan_plans.map { |business, query_plan| scan_query(business, query_plan) }
-        finished_at = Time.current
-        query_count = analyses.size
-        result_count = analyses.sum { |analysis| analysis.result_count.to_i }
-        estimated_cost_yen = estimated_cost_for(query_count)
-        record_cost!(query_count:, estimated_cost_yen:)
+        Aicoo::MemoryDiagnostics.measure("Aicoo::Serp::ScanRunner#call", context: memory_context) do
+          started_at = Time.current
+          plans = scan_plans
+          analyses = plans.map { |business, query_plan| scan_query(business, query_plan) }
+          finished_at = Time.current
+          query_count = analyses.size
+          result_count = analyses.sum { |analysis| analysis.result_count.to_i }
+          estimated_cost_yen = estimated_cost_for(query_count)
+          record_cost!(query_count:, estimated_cost_yen:)
 
-        Result.new(
-          started_at:,
-          finished_at:,
-          provider:,
-          target_business_count: exploration_businesses.size,
-          query_count:,
-          success_count: analyses.count { |analysis| analysis.status == "success" },
-          failed_count: analyses.count { |analysis| analysis.status == "failed" },
-          result_count:,
-          duration_seconds: (finished_at - started_at).round(2),
-          estimated_cost_yen:,
-          limit:,
-          scan_batch_id:,
-          analyses:
-        )
+          Result.new(
+            started_at:,
+            finished_at:,
+            provider:,
+            target_business_count: exploration_businesses.size,
+            query_count:,
+            success_count: analyses.count { |analysis| analysis.status == "success" },
+            failed_count: analyses.count { |analysis| analysis.status == "failed" },
+            result_count:,
+            duration_seconds: (finished_at - started_at).round(2),
+            estimated_cost_yen:,
+            limit:,
+            scan_batch_id:,
+            analyses:
+          )
+        end
       end
 
       private
 
       attr_reader :provider, :location, :language, :limit, :max_queries_per_business, :scan_batch_id, :serp_run, :exploration_mode, :exploration_query, :exploration_region
+
+      def memory_context(extra = {})
+        {
+          serp_run_id: serp_run&.id,
+          provider:,
+          limit:,
+          max_queries_per_business:,
+          scan_batch_id:,
+          exploration_mode:,
+          exploration_region:
+        }.merge(extra).compact
+      end
 
       def exploration_businesses
         @exploration_businesses ||= [ market_exploration_business ]

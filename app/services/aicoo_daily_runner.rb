@@ -11,6 +11,7 @@ class AicooDailyRunner
   end
 
   def run!
+    run = nil
     existing_run = AicooDailyRun.running.find_by(target_date:)
     return existing_run if existing_run
 
@@ -22,16 +23,18 @@ class AicooDailyRunner
     )
     run.update!(status: "running", started_at: Time.current)
 
-    execute_steps!(run)
-    final_status = partial_failures.empty? ? "success" : "partial_failed"
-    run.update!(status: final_status, finished_at: Time.current, run_log: log_text)
-    if auto_revision_queueable_status?(final_status)
-      run_auto_revision_queue!(run)
-      run_pipeline_stuck_detector!(run)
-      run.update!(run_log: log_text)
-    end
-    if final_status == "success"
-      AicooDailyRunSetting.current.update!(last_success_at: run.finished_at)
+    Aicoo::MemoryDiagnostics.measure("AicooDailyRunner#run!", context: daily_run_memory_context(run)) do
+      execute_steps!(run)
+      final_status = partial_failures.empty? ? "success" : "partial_failed"
+      run.update!(status: final_status, finished_at: Time.current, run_log: log_text)
+      if auto_revision_queueable_status?(final_status)
+        run_auto_revision_queue!(run)
+        run_pipeline_stuck_detector!(run)
+        run.update!(run_log: log_text)
+      end
+      if final_status == "success"
+        AicooDailyRunSetting.current.update!(last_success_at: run.finished_at)
+      end
     end
     run
   rescue StandardError => e
@@ -51,43 +54,45 @@ class AicooDailyRunner
     log!("Daily Run started target_date=#{target_date}")
 
     analytics_step = start_step!(run, "analytics_fetch")
-    analytics_runs = fetch_analytics!
-    analytics_success_count = analytics_runs.count { |analytics_run| analytics_run.status == "success" }
-    analytics_failed_runs = analytics_runs.select { |analytics_run| analytics_run.status == "failed" }
-    analytics_failed_count = analytics_failed_runs.size
-    analytics_blocking_failures = analytics_failed_runs.reject { |analytics_run| non_blocking_analytics_failure?(analytics_run) }
-    run.update!(analytics_fetch_count: analytics_success_count)
-    partial_failures << "analytics_failed=#{analytics_blocking_failures.size}" if analytics_blocking_failures.any?
-    if analytics_blocking_failures.any?
-      fail_step!(
-        analytics_step,
-        "analytics_failed=#{analytics_blocking_failures.size}",
-        metadata: analytics_metadata(
-          success_count: analytics_success_count,
-          failed_runs: analytics_failed_runs,
-          blocking_failures: analytics_blocking_failures
+    Aicoo::MemoryDiagnostics.measure("AicooDailyRunner.step.analytics_fetch", context: daily_run_memory_context(run, step_name: "analytics_fetch", step_id: analytics_step.id)) do
+      analytics_runs = fetch_analytics!
+      analytics_success_count = analytics_runs.count { |analytics_run| analytics_run.status == "success" }
+      analytics_failed_runs = analytics_runs.select { |analytics_run| analytics_run.status == "failed" }
+      analytics_failed_count = analytics_failed_runs.size
+      analytics_blocking_failures = analytics_failed_runs.reject { |analytics_run| non_blocking_analytics_failure?(analytics_run) }
+      run.update!(analytics_fetch_count: analytics_success_count)
+      partial_failures << "analytics_failed=#{analytics_blocking_failures.size}" if analytics_blocking_failures.any?
+      if analytics_blocking_failures.any?
+        fail_step!(
+          analytics_step,
+          "analytics_failed=#{analytics_blocking_failures.size}",
+          metadata: analytics_metadata(
+            success_count: analytics_success_count,
+            failed_runs: analytics_failed_runs,
+            blocking_failures: analytics_blocking_failures
+          )
         )
-      )
-    elsif analytics_failed_count.positive?
-      skip_step!(
-        analytics_step,
-        metadata: analytics_metadata(
-          success_count: analytics_success_count,
-          failed_runs: analytics_failed_runs,
-          blocking_failures: analytics_blocking_failures
-        ).merge(
-          warning: true,
-          reason: "analytics_optional_unavailable",
-          message: "GA4/GSC取得は失敗しましたが、内部データによるDaily Runは継続しました。Google再認証またはProperty設定を確認してください。"
+      elsif analytics_failed_count.positive?
+        skip_step!(
+          analytics_step,
+          metadata: analytics_metadata(
+            success_count: analytics_success_count,
+            failed_runs: analytics_failed_runs,
+            blocking_failures: analytics_blocking_failures
+          ).merge(
+            warning: true,
+            reason: "analytics_optional_unavailable",
+            message: "GA4/GSC取得は失敗しましたが、内部データによるDaily Runは継続しました。Google再認証またはProperty設定を確認してください。"
+          )
         )
-      )
-    else
-      finish_step!(
-        analytics_step,
-        metadata: { success_count: analytics_success_count, failed_count: analytics_failed_count }
-      )
+      else
+        finish_step!(
+          analytics_step,
+          metadata: { success_count: analytics_success_count, failed_count: analytics_failed_count }
+        )
+      end
+      log!("Analytics fetched success=#{analytics_success_count} failed=#{analytics_failed_count}")
     end
-    log!("Analytics fetched success=#{analytics_success_count} failed=#{analytics_failed_count}")
 
     datahub_run = record_step!(run, "datahub_collect") do
       AicooDataHub::DailyCollector.new.call
@@ -229,32 +234,34 @@ class AicooDailyRunner
 
   def run_business_metrics_import!(run)
     step = start_step!(run, "business_metrics_import")
-    log!("business_metrics_import start target_date=#{target_date}")
-    imported_results = BusinessMetricDailyImporter.import_all!(
-      date: target_date,
-      progress: business_metrics_progress_callback(step)
-    )
-    metadata = step.metadata.to_h
-    run.update!(business_metrics_imported_count: imported_results.size)
-    if metadata["error_count"].to_i.positive? || metadata["skipped_count"].to_i.positive?
-      partial_failures << "business_metrics_import_partial"
-      finish_step!(
-        step,
-        metadata: metadata.merge(
-          warning: true,
-          reason: "business_metrics_import_partial",
-          message: "BusinessMetricDaily importは完了しましたが、一部Businessで失敗またはtimeoutしました。"
-        )
+    Aicoo::MemoryDiagnostics.measure("AicooDailyRunner.step.business_metrics_import", context: daily_run_memory_context(run, step_name: "business_metrics_import", step_id: step.id)) do
+      log!("business_metrics_import start target_date=#{target_date}")
+      imported_results = BusinessMetricDailyImporter.import_all!(
+        date: target_date,
+        progress: business_metrics_progress_callback(step)
       )
-    else
-      finish_step!(step, metadata:)
+      metadata = step.metadata.to_h
+      run.update!(business_metrics_imported_count: imported_results.size)
+      if metadata["error_count"].to_i.positive? || metadata["skipped_count"].to_i.positive?
+        partial_failures << "business_metrics_import_partial"
+        finish_step!(
+          step,
+          metadata: metadata.merge(
+            warning: true,
+            reason: "business_metrics_import_partial",
+            message: "BusinessMetricDaily importは完了しましたが、一部Businessで失敗またはtimeoutしました。"
+          )
+        )
+      else
+        finish_step!(step, metadata:)
+      end
+      log!(
+        "business_metrics_import finish processed=#{metadata['processed_business_count'].to_i} " \
+        "created=#{metadata['created_count'].to_i} updated=#{metadata['updated_count'].to_i} " \
+        "skipped=#{metadata['skipped_count'].to_i} errors=#{metadata['error_count'].to_i}"
+      )
+      imported_results
     end
-    log!(
-      "business_metrics_import finish processed=#{metadata['processed_business_count'].to_i} " \
-      "created=#{metadata['created_count'].to_i} updated=#{metadata['updated_count'].to_i} " \
-      "skipped=#{metadata['skipped_count'].to_i} errors=#{metadata['error_count'].to_i}"
-    )
-    imported_results
   rescue StandardError => e
     error_message = "#{e.class}: #{e.message}"
     Rails.logger.error("AICOO Daily Run business metrics import failed: #{error_message}")
@@ -479,24 +486,26 @@ class AicooDailyRunner
 
   def run_action_generation!(run)
     step = start_step!(run, "action_generation")
-    results = MetricActionCandidateGenerator.generate_all!
-    generated_count = results.sum(&:created_count)
-    skipped_reasons = results.flat_map(&:skipped)
-    metadata = {
-      created_count: generated_count,
-      skipped_count: results.sum(&:skipped_count),
-      result_count: results.size,
-      skipped_reasons: skipped_reasons.first(20)
-    }
-    if generated_count.zero?
-      metadata = metadata.merge(
-        warning: true,
-        reason: "no_action_candidates_generated",
-        message: action_generation_zero_message(skipped_reasons)
-      )
+    Aicoo::MemoryDiagnostics.measure("AicooDailyRunner.step.action_generation", context: daily_run_memory_context(run, step_name: "action_generation", step_id: step.id)) do
+      results = MetricActionCandidateGenerator.generate_all!
+      generated_count = results.sum(&:created_count)
+      skipped_reasons = results.flat_map(&:skipped)
+      metadata = {
+        created_count: generated_count,
+        skipped_count: results.sum(&:skipped_count),
+        result_count: results.size,
+        skipped_reasons: skipped_reasons.first(20)
+      }
+      if generated_count.zero?
+        metadata = metadata.merge(
+          warning: true,
+          reason: "no_action_candidates_generated",
+          message: action_generation_zero_message(skipped_reasons)
+        )
+      end
+      finish_step!(step, metadata:)
+      results
     end
-    finish_step!(step, metadata:)
-    results
   rescue StandardError => e
     fail_step!(step, "#{e.class}: #{e.message}") if step
     raise
@@ -510,22 +519,24 @@ class AicooDailyRunner
 
   def run_insight_generation!(run)
     step = start_step!(run, "insight_generation")
-    result = AicooInsight::Generator.generate_all!(source: "daily_run")
-    skipped_reasons = result.skipped.map(&:to_s)
-    metadata = {
-      created_count: result.created_count,
-      skipped_count: result.skipped_count,
-      skipped_reasons: skipped_reasons.first(20)
-    }
-    if result.created_count.zero?
-      metadata = metadata.merge(
-        warning: true,
-        reason: "no_insights_generated",
-        message: insight_generation_zero_message(skipped_reasons)
-      )
+    Aicoo::MemoryDiagnostics.measure("AicooDailyRunner.step.insight_generation", context: daily_run_memory_context(run, step_name: "insight_generation", step_id: step.id)) do
+      result = AicooInsight::Generator.generate_all!(source: "daily_run")
+      skipped_reasons = result.skipped.map(&:to_s)
+      metadata = {
+        created_count: result.created_count,
+        skipped_count: result.skipped_count,
+        skipped_reasons: skipped_reasons.first(20)
+      }
+      if result.created_count.zero?
+        metadata = metadata.merge(
+          warning: true,
+          reason: "no_insights_generated",
+          message: insight_generation_zero_message(skipped_reasons)
+        )
+      end
+      finish_step!(step, metadata:)
+      result
     end
-    finish_step!(step, metadata:)
-    result
   rescue StandardError => e
     fail_step!(step, "#{e.class}: #{e.message}") if step
     raise
@@ -706,9 +717,11 @@ class AicooDailyRunner
 
   def record_step!(run, step_name)
     step = start_step!(run, step_name)
-    result = yield
-    finish_step!(step)
-    result
+    Aicoo::MemoryDiagnostics.measure("AicooDailyRunner.step.#{step_name}", context: daily_run_memory_context(run, step_name:, step_id: step.id)) do
+      result = yield
+      finish_step!(step)
+      result
+    end
   rescue StandardError => e
     fail_step!(step, "#{e.class}: #{e.message}") if step
     raise
@@ -791,7 +804,7 @@ class AicooDailyRunner
   end
 
   def current_rss_kb
-    linux_rss_kb || ps_rss_kb
+    Aicoo::MemoryDiagnostics.current_rss_mb&.*(1024)&.to_i || linux_rss_kb || ps_rss_kb
   rescue StandardError => e
     Rails.logger.debug("AICOO Daily Run memory sampling skipped: #{e.class}: #{e.message}")
     nil
@@ -813,6 +826,14 @@ class AicooDailyRunner
     return if ENV["AICOO_DAILY_RUN_GC_BETWEEN_STEPS"] == "false"
 
     GC.start
+  end
+
+  def daily_run_memory_context(run = nil, extra = {})
+    {
+      daily_run_id: run&.id,
+      target_date: target_date.to_s,
+      source:
+    }.merge(extra).compact
   end
 
   def retry_count_for_today

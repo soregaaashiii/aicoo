@@ -250,25 +250,27 @@ class DashboardSummaryService
   end
 
   def owner_business_rankings
-    Business.real_businesses.includes(:action_candidates).order(:name).map do |business|
-      value = Aicoo::BusinessExpectedValue.call(business)
-      BusinessRanking.new(
-        business:,
-        expected_total_value_yen: value.expected_total_value_yen,
-        expected_revenue_value_yen: value.expected_revenue_value_yen,
-        expected_learning_value_yen: value.expected_learning_value_yen,
-        raw_candidate_sum_yen: value.raw_candidate_sum_yen,
-        unique_opportunity_count: value.unique_opportunity_count,
-        duplicate_candidate_count: value.duplicate_candidate_count,
-        duplicate_adjustment_yen: value.duplicate_adjustment_yen,
-        market_limit_adjustment_yen: value.market_limit_adjustment_yen,
-        cannibalization_adjustment_yen: value.cannibalization_adjustment_yen,
-        confidence_adjustment_yen: value.confidence_adjustment_yen,
-        cost_yen: value.cost_yen,
-        calculation_method: value.calculation_method,
-        confidence: value.confidence
-      )
-    end.sort_by { |ranking| [ -ranking.expected_total_value_yen.to_i, ranking.business.name ] }
+    Aicoo::MemoryDiagnostics.measure("DashboardSummaryService#owner_business_rankings", context: { owner_mode:, current_mode: }) do
+      Business.real_businesses.includes(:action_candidates).order(:name).map do |business|
+        value = Aicoo::BusinessExpectedValue.call(business)
+        BusinessRanking.new(
+          business:,
+          expected_total_value_yen: value.expected_total_value_yen,
+          expected_revenue_value_yen: value.expected_revenue_value_yen,
+          expected_learning_value_yen: value.expected_learning_value_yen,
+          raw_candidate_sum_yen: value.raw_candidate_sum_yen,
+          unique_opportunity_count: value.unique_opportunity_count,
+          duplicate_candidate_count: value.duplicate_candidate_count,
+          duplicate_adjustment_yen: value.duplicate_adjustment_yen,
+          market_limit_adjustment_yen: value.market_limit_adjustment_yen,
+          cannibalization_adjustment_yen: value.cannibalization_adjustment_yen,
+          confidence_adjustment_yen: value.confidence_adjustment_yen,
+          cost_yen: value.cost_yen,
+          calculation_method: value.calculation_method,
+          confidence: value.confidence
+        )
+      end.sort_by { |ranking| [ -ranking.expected_total_value_yen.to_i, ranking.business.name ] }
+    end
   end
 
   def approval_queue_summary

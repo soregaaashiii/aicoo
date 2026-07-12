@@ -111,33 +111,44 @@ module Aicoo
     end
 
     def call
-      items = candidate_items
-      ranking = ActionExpectedValueRanking.new(
-        items: select_today_items(items),
-        mode:,
-        page:,
-        per_page:
-      ).call
+      Aicoo::MemoryDiagnostics.measure("Aicoo::TodayActionBoard#call", context: memory_context) do
+        items = candidate_items
+        ranking = ActionExpectedValueRanking.new(
+          items: select_today_items(items),
+          mode:,
+          page:,
+          per_page:
+        ).call
 
-      log_business_diagnostics!(items, ranking.items)
+        log_business_diagnostics!(items, ranking.items)
 
-      Board.new(
-        mode:,
-        tabs:,
-        items: ranking.items,
-        description: DESCRIPTION,
-        total_count: ranking.total_count,
-        current_page: ranking.current_page,
-        total_pages: ranking.total_pages,
-        per_page: ranking.per_page,
-        offset: ranking.offset,
-        page_param:
-      )
+        Board.new(
+          mode:,
+          tabs:,
+          items: ranking.items,
+          description: DESCRIPTION,
+          total_count: ranking.total_count,
+          current_page: ranking.current_page,
+          total_pages: ranking.total_pages,
+          per_page: ranking.per_page,
+          offset: ranking.offset,
+          page_param:
+        )
+      end
     end
 
     private
 
     attr_reader :mode, :page, :page_param, :per_page
+
+    def memory_context(extra = {})
+      {
+        mode:,
+        page: page.presence,
+        page_param:,
+        per_page:
+      }.merge(extra).compact
+    end
 
     def tabs
       [
@@ -148,9 +159,11 @@ module Aicoo
     end
 
     def candidate_items
-      daily_run_issue_items +
-        action_candidate_items +
-        new_business_items
+      Aicoo::MemoryDiagnostics.measure("Aicoo::TodayActionBoard#candidate_items", context: memory_context) do
+        daily_run_issue_items +
+          action_candidate_items +
+          new_business_items
+      end
     end
 
     def select_today_items(items)
@@ -158,11 +171,13 @@ module Aicoo
     end
 
     def action_candidate_items
-      ActionCandidate
-        .active_for_ranking
-        .includes(:business, :action_result, :action_execution, :auto_revision_tasks)
-        .order(updated_at: :desc)
-        .filter_map { |candidate| build_item(candidate) }
+      Aicoo::MemoryDiagnostics.measure("Aicoo::TodayActionBoard#action_candidate_items", context: memory_context) do
+        ActionCandidate
+          .active_for_ranking
+          .includes(:business, :action_result, :action_execution, :auto_revision_tasks)
+          .order(updated_at: :desc)
+          .filter_map { |candidate| build_item(candidate) }
+      end
     end
 
     def build_item(candidate)
@@ -251,18 +266,20 @@ module Aicoo
     end
 
     def daily_run_issue_items
-      runs = AicooDailyRun
-        .actual_runs
-        .where(created_at: 7.days.ago..Time.current)
-        .where(status: %w[failed partial_failed stuck])
-        .includes(:aicoo_daily_run_steps)
-        .recent
-        .limit(100)
-        .to_a
+      Aicoo::MemoryDiagnostics.measure("Aicoo::TodayActionBoard#daily_run_issue_items", context: memory_context) do
+        runs = AicooDailyRun
+          .actual_runs
+          .where(created_at: 7.days.ago..Time.current)
+          .where(status: %w[failed partial_failed stuck])
+          .includes(:aicoo_daily_run_steps)
+          .recent
+          .limit(100)
+          .to_a
 
-      runs.group_by { |run| daily_run_dedupe_key(run) }
-          .values
-          .map { |grouped_runs| build_daily_run_issue_item(grouped_runs) }
+        runs.group_by { |run| daily_run_dedupe_key(run) }
+            .values
+            .map { |grouped_runs| build_daily_run_issue_item(grouped_runs) }
+      end
     end
 
     def build_daily_run_issue_item(runs)
@@ -321,18 +338,20 @@ module Aicoo
     end
 
     def new_business_items
-      businesses = Business
-        .real_businesses
-        .where(status: %w[discovered draft exploring])
-        .where(resource_status: %w[active watch])
-        .where("created_by_aicoo = ? OR business_type = ?", true, "exploration")
-        .order(created_at: :desc)
-        .limit(100)
-        .select { |business| new_business_today_actionable?(business) }
+      Aicoo::MemoryDiagnostics.measure("Aicoo::TodayActionBoard#new_business_items", context: memory_context) do
+        businesses = Business
+          .real_businesses
+          .where(status: %w[discovered draft exploring])
+          .where(resource_status: %w[active watch])
+          .where("created_by_aicoo = ? OR business_type = ?", true, "exploration")
+          .order(created_at: :desc)
+          .limit(100)
+          .select { |business| new_business_today_actionable?(business) }
 
-      businesses.group_by { |business| new_business_group_key(business) }
-                .values
-                .map { |group| build_new_business_item(group) }
+        businesses.group_by { |business| new_business_group_key(business) }
+                  .values
+                  .map { |group| build_new_business_item(group) }
+      end
     end
 
     def build_new_business_item(group)

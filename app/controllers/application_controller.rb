@@ -79,6 +79,29 @@ class ApplicationController < ActionController::Base
     request.path.start_with?("/admin/execution_runs")
   end
 
+  def memory_diagnostics_context(extra = {})
+    {
+      controller: controller_path,
+      action: action_name,
+      path: request.path,
+      request_id: request.request_id,
+      params: safe_memory_diagnostics_params
+    }.merge(extra).compact
+  end
+
+  def safe_memory_diagnostics_params
+    params.to_unsafe_h.slice(
+      "id",
+      "business_id",
+      "mode",
+      "filter",
+      "tab",
+      "page",
+      "today_actions_page",
+      "home_actions_page"
+    )
+  end
+
   def secure_basic_auth_match?(provided_value, expected_value)
     ActiveSupport::SecurityUtils.secure_compare(
       Digest::SHA256.hexdigest(provided_value.to_s),

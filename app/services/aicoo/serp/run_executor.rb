@@ -14,48 +14,53 @@ module Aicoo
       end
 
       def call
-        planner = Aicoo::Serp::RunPlanner.new(max_total_queries: ignore_limit ? 0 : max_total_queries, force:)
-        serp_run = SerpRun.create!(
-          status: "running",
-          started_at: Time.current,
-          executed_by: executed_by,
-          metadata: planner.metadata.merge(
-            "force" => force,
-            "ignore_limit" => ignore_limit,
-            "target_business_ids" => [],
-            "purpose" => "new_business_exploration",
-            "exploration_mode" => exploration_mode,
-            "exploration_query" => exploration_query,
-            "exploration_region" => exploration_region,
-            "learning_enabled" => ActiveModel::Type::Boolean.new.cast(learning_enabled),
-            "new_field_ratio" => new_field_ratio.to_i,
-            "proven_field_ratio" => proven_field_ratio.to_i,
-            "legacy_business_serp_disabled" => true
-          ).compact
-        )
-
-        result = Aicoo::Serp::ScanRunner.new(
-          serp_run:,
-          force:,
-          max_total_queries: ignore_limit ? nil : max_total_queries,
-          max_queries_per_business: max_queries_per_business,
-          exploration_mode:,
-          exploration_query:,
-          exploration_region:
-        ).call
-        serp_run.finish_from_result!(result)
-        discovery_result = run_new_business_discovery!(serp_run)
-        existing_candidates = []
-        candidates = discovery_result.candidates + existing_candidates
-        publication_result = publish_new_business_candidates!(serp_run, candidates)
-        serp_run.update!(
-          candidate_count: candidates.size,
-          metadata: serp_run.metadata.to_h.merge(
-            "new_business_discovery" => discovery_metadata(discovery_result),
-            "existing_business_improvement_count" => existing_candidates.size,
-            "auto_new_business_publication" => publication_metadata(publication_result)
+        serp_run = nil
+        Aicoo::MemoryDiagnostics.measure("Aicoo::Serp::RunExecutor#call", context: memory_context) do
+          planner = Aicoo::MemoryDiagnostics.measure("Aicoo::Serp::RunPlanner", context: memory_context) do
+            Aicoo::Serp::RunPlanner.new(max_total_queries: ignore_limit ? 0 : max_total_queries, force:)
+          end
+          serp_run = SerpRun.create!(
+            status: "running",
+            started_at: Time.current,
+            executed_by: executed_by,
+            metadata: planner.metadata.merge(
+              "force" => force,
+              "ignore_limit" => ignore_limit,
+              "target_business_ids" => [],
+              "purpose" => "new_business_exploration",
+              "exploration_mode" => exploration_mode,
+              "exploration_query" => exploration_query,
+              "exploration_region" => exploration_region,
+              "learning_enabled" => ActiveModel::Type::Boolean.new.cast(learning_enabled),
+              "new_field_ratio" => new_field_ratio.to_i,
+              "proven_field_ratio" => proven_field_ratio.to_i,
+              "legacy_business_serp_disabled" => true
+            ).compact
           )
-        ) if candidates
+
+          result = Aicoo::Serp::ScanRunner.new(
+            serp_run:,
+            force:,
+            max_total_queries: ignore_limit ? nil : max_total_queries,
+            max_queries_per_business: max_queries_per_business,
+            exploration_mode:,
+            exploration_query:,
+            exploration_region:
+          ).call
+          serp_run.finish_from_result!(result)
+          discovery_result = run_new_business_discovery!(serp_run)
+          existing_candidates = []
+          candidates = discovery_result.candidates + existing_candidates
+          publication_result = publish_new_business_candidates!(serp_run, candidates)
+          serp_run.update!(
+            candidate_count: candidates.size,
+            metadata: serp_run.metadata.to_h.merge(
+              "new_business_discovery" => discovery_metadata(discovery_result),
+              "existing_business_improvement_count" => existing_candidates.size,
+              "auto_new_business_publication" => publication_metadata(publication_result)
+            )
+          ) if candidates
+        end
         serp_run
       rescue StandardError => e
         serp_run&.fail!(e)
@@ -65,6 +70,19 @@ module Aicoo
       private
 
       attr_reader :executed_by, :force, :ignore_limit, :exploration_mode, :exploration_query, :exploration_region, :learning_enabled, :new_field_ratio, :proven_field_ratio
+
+      def memory_context(extra = {})
+        {
+          executed_by:,
+          force:,
+          ignore_limit:,
+          exploration_mode:,
+          exploration_region:,
+          learning_enabled: ActiveModel::Type::Boolean.new.cast(learning_enabled),
+          new_field_ratio: new_field_ratio.to_i,
+          proven_field_ratio: proven_field_ratio.to_i
+        }.merge(extra).compact
+      end
 
       def settings
         Aicoo::Serp::Scheduler.settings
@@ -98,7 +116,9 @@ module Aicoo
       end
 
       def run_new_business_discovery!(serp_run)
-        Aicoo::Serp::NewBusinessDiscoveryGenerator.new(serp_run:).call
+        Aicoo::MemoryDiagnostics.measure("Aicoo::Serp::NewBusinessDiscoveryGenerator#call", context: memory_context(serp_run_id: serp_run.id)) do
+          Aicoo::Serp::NewBusinessDiscoveryGenerator.new(serp_run:).call
+        end
       rescue StandardError => e
         Rails.logger.warn("[SERP] new business discovery skipped serp_run_id=#{serp_run.id} #{e.class}: #{e.message}")
         Aicoo::Serp::NewBusinessDiscoveryGenerator::Result.new(
@@ -116,7 +136,9 @@ module Aicoo
       end
 
       def publish_new_business_candidates!(serp_run, candidates)
-        Aicoo::Serp::AutoNewBusinessPublisher.call(serp_run:, candidates:, source: "serp_run")
+        Aicoo::MemoryDiagnostics.measure("Aicoo::Serp::AutoNewBusinessPublisher.call", context: memory_context(serp_run_id: serp_run.id, candidate_count: candidates.size)) do
+          Aicoo::Serp::AutoNewBusinessPublisher.call(serp_run:, candidates:, source: "serp_run")
+        end
       rescue StandardError => e
         Rails.logger.warn("[SERP] auto new business publication skipped serp_run_id=#{serp_run.id} #{e.class}: #{e.message}")
         nil

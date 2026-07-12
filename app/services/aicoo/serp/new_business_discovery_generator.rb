@@ -30,25 +30,35 @@ module Aicoo
       end
 
       def call
-        candidates = discoverable_analyses.first(limit).filter_map { |analysis| create_candidate_for(analysis) }
-        Result.new(
-          candidates:,
-          created_count: candidates.size,
-          duplicate_count: duplicate_count,
-          blank_query_count: blank_query_count,
-          no_result_count: no_result_count,
-          failed_count: errors.size,
-          existing_improvement_count: existing_improvement_count,
-          serp_analyses_checked: source_analyses.size,
-          serp_results_checked: source_analyses.sum { |analysis| analysis.serp_results.size },
-          errors: errors.first(10)
-        )
+        Aicoo::MemoryDiagnostics.measure("Aicoo::Serp::NewBusinessDiscoveryGenerator#call", context: memory_context) do
+          candidates = discoverable_analyses.first(limit).filter_map { |analysis| create_candidate_for(analysis) }
+          Result.new(
+            candidates:,
+            created_count: candidates.size,
+            duplicate_count: duplicate_count,
+            blank_query_count: blank_query_count,
+            no_result_count: no_result_count,
+            failed_count: errors.size,
+            existing_improvement_count: existing_improvement_count,
+            serp_analyses_checked: source_analyses.size,
+            serp_results_checked: source_analyses.sum { |analysis| analysis.serp_results.size },
+            errors: errors.first(10)
+          )
+        end
       end
 
       private
 
       attr_reader :serp_run, :limit, :errors, :backfill
       attr_accessor :duplicate_count, :blank_query_count, :no_result_count
+
+      def memory_context(extra = {})
+        {
+          serp_run_id: serp_run&.id,
+          limit:,
+          backfill:
+        }.merge(extra).compact
+      end
 
       def discoverable_analyses
         source_analyses

@@ -19,26 +19,37 @@ module Aicoo
     end
 
     def call
-      ranked = items.reject { |item| item.respond_to?(:valuation_status) && item.valuation_status.to_s == "unvalued" }
-                    .sort_by { |item| sort_key(item) }
-      total_count = ranked.size
-      offset = (current_page - 1) * per_page
-      page_items = ranked.slice(offset, per_page).to_a
-      page_items = page_items.map.with_index(offset + 1) { |item, rank| item.with(rank:) }
+      Aicoo::MemoryDiagnostics.measure("Aicoo::ActionExpectedValueRanking#call", context: memory_context) do
+        ranked = items.reject { |item| item.respond_to?(:valuation_status) && item.valuation_status.to_s == "unvalued" }
+                      .sort_by { |item| sort_key(item) }
+        total_count = ranked.size
+        offset = (current_page - 1) * per_page
+        page_items = ranked.slice(offset, per_page).to_a
+        page_items = page_items.map.with_index(offset + 1) { |item, rank| item.with(rank:) }
 
-      Result.new(
-        items: page_items,
-        total_count:,
-        current_page:,
-        total_pages: [ (total_count.to_f / per_page).ceil, 1 ].max,
-        per_page:,
-        offset:
-      )
+        Result.new(
+          items: page_items,
+          total_count:,
+          current_page:,
+          total_pages: [ (total_count.to_f / per_page).ceil, 1 ].max,
+          per_page:,
+          offset:
+        )
+      end
     end
 
     private
 
     attr_reader :items, :mode, :current_page, :per_page
+
+    def memory_context
+      {
+        mode:,
+        input_count: items.size,
+        current_page:,
+        per_page:
+      }
+    end
 
     def sort_key(item)
       [

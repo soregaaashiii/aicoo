@@ -17,19 +17,30 @@ class BusinessesController < ApplicationController
 
   # GET /businesses or /businesses.json
   def index
-    @businesses = Business.real_businesses.includes(:business_execution_profile).order(:name)
-    @businesses = @businesses.where(status: "exploring") if params[:filter] == "exploring"
-    @businesses = @businesses.select(&:serp_generated?) if params[:filter] == "serp"
-    @active_tab = params[:tab].presence_in(%w[businesses serp_candidates]) || "businesses"
-    @deletion_reasons = DELETION_REASONS
-    @serp_new_business_board = Aicoo::NewBusinessCandidateBoard.call(limit: 50)
-    @business_integration_health = Aicoo::BusinessIntegrationHealth.new.call
-    @data_source_settings_presenter = Aicoo::DataSourceSettingsPresenter.new
-    @business_analytics_summaries = Aicoo::BusinessAnalyticsSummary.for_businesses(
-      @businesses,
-      health_result: @business_integration_health
-    )
-    @business_expected_values = @businesses.index_with { |business| Aicoo::BusinessExpectedValue.call(business) }
+    Aicoo::MemoryDiagnostics.measure("BusinessesController#index", context: memory_diagnostics_context) do
+      @businesses = Aicoo::MemoryDiagnostics.measure("BusinessesController#index.business_list", context: memory_diagnostics_context) do
+        businesses = Business.real_businesses.includes(:business_execution_profile).order(:name)
+        businesses = businesses.where(status: "exploring") if params[:filter] == "exploring"
+        businesses = businesses.select(&:serp_generated?) if params[:filter] == "serp"
+        businesses
+      end
+      @active_tab = params[:tab].presence_in(%w[businesses serp_candidates]) || "businesses"
+      @deletion_reasons = DELETION_REASONS
+      @serp_new_business_board = Aicoo::NewBusinessCandidateBoard.call(limit: 50)
+      @business_integration_health = Aicoo::MemoryDiagnostics.measure("Aicoo::BusinessIntegrationHealth#call", context: memory_diagnostics_context) do
+        Aicoo::BusinessIntegrationHealth.new.call
+      end
+      @data_source_settings_presenter = Aicoo::DataSourceSettingsPresenter.new
+      @business_analytics_summaries = Aicoo::MemoryDiagnostics.measure("Aicoo::BusinessAnalyticsSummary.for_businesses", context: memory_diagnostics_context(business_count: @businesses.size)) do
+        Aicoo::BusinessAnalyticsSummary.for_businesses(
+          @businesses,
+          health_result: @business_integration_health
+        )
+      end
+      @business_expected_values = Aicoo::MemoryDiagnostics.measure("BusinessesController#index.business_expected_values", context: memory_diagnostics_context(business_count: @businesses.size)) do
+        @businesses.index_with { |business| Aicoo::BusinessExpectedValue.call(business) }
+      end
+    end
   end
 
   def deleted

@@ -31,95 +31,106 @@ module Aicoo
       end
 
       def call
-        counters = Hash.new(0)
-        business_ids = []
-        landing_page_ids = []
-        errors = []
+        Aicoo::MemoryDiagnostics.measure("Aicoo::Serp::AutoNewBusinessPublisher#call", context: memory_context) do
+          counters = Hash.new(0)
+          business_ids = []
+          landing_page_ids = []
+          errors = []
 
-        candidate_scope.find_each do |candidate|
-          counters[:checked_count] += 1
+          candidate_scope.find_each do |candidate|
+            counters[:checked_count] += 1
 
-          if already_published?(candidate)
-            counters[:skipped_count] += 1
-            next
-          end
+            if already_published?(candidate)
+              counters[:skipped_count] += 1
+              next
+            end
 
-          if republish_blocked?(candidate)
-            counters[:skipped_count] += 1
-            next
-          end
+            if republish_blocked?(candidate)
+              counters[:skipped_count] += 1
+              next
+            end
 
-          created_business = false
-          created_landing_page = false
-          business = nil
-          landing_page = nil
+            created_business = false
+            created_landing_page = false
+            business = nil
+            landing_page = nil
 
-          ActiveRecord::Base.transaction do
-            promotion = Aicoo::ActionCandidateBusinessPromoter.new(candidate).call
-            business = promotion.business
-            created_business = promotion.created
+            ActiveRecord::Base.transaction do
+              promotion = Aicoo::ActionCandidateBusinessPromoter.new(candidate).call
+              business = promotion.business
+              created_business = promotion.created
 
-            prepare_business!(business) if created_business || auto_created_business?(business)
+              prepare_business!(business) if created_business || auto_created_business?(business)
 
-            before_lp_id = business.aicoo_lab_landing_pages.order(updated_at: :desc).first&.id
-            landing_page = Aicoo::Owner::NewBusinessLandingPageBuilder.new(candidate).call
-            created_landing_page = landing_page.id != before_lp_id
-            landing_page.publish! unless landing_page.publicly_visible?
+              before_lp_id = business.aicoo_lab_landing_pages.order(updated_at: :desc).first&.id
+              landing_page = Aicoo::Owner::NewBusinessLandingPageBuilder.new(candidate).call
+              created_landing_page = landing_page.id != before_lp_id
+              landing_page.publish! unless landing_page.publicly_visible?
 
-            candidate.update!(
-              status: "done",
-              approved_at: candidate.approved_at || Time.current,
-              approved_by: candidate.approved_by.presence || "system",
-              metadata: candidate.metadata.to_h.merge(
-                "auto_new_business_publication" => {
-                  "completed" => true,
-                  "source" => source,
-                  "serp_run_id" => serp_run&.id,
-                  "business_id" => business.id,
-                  "landing_page_id" => landing_page.id,
-                  "published_slug" => landing_page.published_slug,
-                  "published_at" => landing_page.published_at&.iso8601,
-                  "completed_at" => Time.current.iso8601
-                }
+              candidate.update!(
+                status: "done",
+                approved_at: candidate.approved_at || Time.current,
+                approved_by: candidate.approved_by.presence || "system",
+                metadata: candidate.metadata.to_h.merge(
+                  "auto_new_business_publication" => {
+                    "completed" => true,
+                    "source" => source,
+                    "serp_run_id" => serp_run&.id,
+                    "business_id" => business.id,
+                    "landing_page_id" => landing_page.id,
+                    "published_slug" => landing_page.published_slug,
+                    "published_at" => landing_page.published_at&.iso8601,
+                    "completed_at" => Time.current.iso8601
+                  }
+                )
               )
+            end
+
+            counters[:business_created_count] += 1 if created_business
+            counters[:business_linked_count] += 1 unless created_business
+            counters[:lp_created_count] += 1 if created_landing_page
+            counters[:lp_published_count] += 1
+            business_ids << business.id
+            landing_page_ids << landing_page.id
+          rescue StandardError => e
+            counters[:failed_count] += 1
+            errors << {
+              action_candidate_id: candidate.id,
+              error_class: e.class.name,
+              message: e.message
+            }
+            Rails.logger.warn(
+              "[SERP AutoNewBusinessPublisher] failed action_candidate_id=#{candidate.id} #{e.class}: #{e.message}"
             )
           end
 
-          counters[:business_created_count] += 1 if created_business
-          counters[:business_linked_count] += 1 unless created_business
-          counters[:lp_created_count] += 1 if created_landing_page
-          counters[:lp_published_count] += 1
-          business_ids << business.id
-          landing_page_ids << landing_page.id
-        rescue StandardError => e
-          counters[:failed_count] += 1
-          errors << {
-            action_candidate_id: candidate.id,
-            error_class: e.class.name,
-            message: e.message
-          }
-          Rails.logger.warn(
-            "[SERP AutoNewBusinessPublisher] failed action_candidate_id=#{candidate.id} #{e.class}: #{e.message}"
+          Result.new(
+            checked_count: counters[:checked_count],
+            business_created_count: counters[:business_created_count],
+            business_linked_count: counters[:business_linked_count],
+            lp_created_count: counters[:lp_created_count],
+            lp_published_count: counters[:lp_published_count],
+            skipped_count: counters[:skipped_count],
+            failed_count: counters[:failed_count],
+            business_ids: business_ids.uniq,
+            landing_page_ids: landing_page_ids.uniq,
+            errors:
           )
         end
-
-        Result.new(
-          checked_count: counters[:checked_count],
-          business_created_count: counters[:business_created_count],
-          business_linked_count: counters[:business_linked_count],
-          lp_created_count: counters[:lp_created_count],
-          lp_published_count: counters[:lp_published_count],
-          skipped_count: counters[:skipped_count],
-          failed_count: counters[:failed_count],
-          business_ids: business_ids.uniq,
-          landing_page_ids: landing_page_ids.uniq,
-          errors:
-        )
       end
 
       private
 
       attr_reader :serp_run, :candidates, :limit, :source
+
+      def memory_context(extra = {})
+        {
+          serp_run_id: serp_run&.id,
+          candidate_count: candidates ? Array(candidates).size : nil,
+          limit:,
+          source:
+        }.merge(extra).compact
+      end
 
       def candidate_scope
         base = if candidates

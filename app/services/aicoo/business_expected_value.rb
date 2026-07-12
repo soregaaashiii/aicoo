@@ -50,7 +50,18 @@ module Aicoo
     )
 
     def self.call(business)
-      new(business).call
+      Aicoo::MemoryDiagnostics.measure(
+        "Aicoo::BusinessExpectedValue.call",
+        context: {
+          business_id: business&.id,
+          business_name: business&.name,
+          business_type: business&.business_type,
+          status: business&.status
+        },
+        finish: :warning_only
+      ) do
+        new(business).call
+      end
     end
 
     def initialize(business)
