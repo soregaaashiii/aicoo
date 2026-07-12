@@ -81,8 +81,8 @@ module Aicoo
       baseline_range = (occurred_on - 7.days)...occurred_on
       result_range = (occurred_on + 1.day)..(occurred_on + window.days)
       {
-        baseline: aggregate(activity_log.business, baseline_range),
-        result: aggregate(activity_log.business, result_range)
+        baseline: aggregate(activity_log.business, baseline_range).merge(resource_snapshot(activity_log, baseline_range)),
+        result: aggregate(activity_log.business, result_range).merge(resource_snapshot(activity_log, result_range))
       }
     end
 
@@ -102,8 +102,57 @@ module Aicoo
       )
     end
 
+    def resource_snapshot(activity_log, range)
+      return {} unless suelog_shop_activity?(activity_log)
+
+      suelog_shop_click_snapshot(activity_log, range)
+    rescue StandardError => e
+      {
+        "resource_metric_error" => "#{e.class}: #{e.message}".truncate(180),
+        "resource_metric_source" => "suelog_shop_clicks"
+      }
+    end
+
+    def suelog_shop_activity?(activity_log)
+      activity_log.source_app.to_s == "suelog" &&
+        activity_log.resource_type.to_s == "Shop" &&
+        activity_log.resource_id.present?
+    end
+
+    def suelog_shop_click_snapshot(activity_log, range)
+      return {} unless defined?(::Suelog::ShopClick)
+
+      scope = ::Suelog::ShopClick.where(shop_id: activity_log.resource_id.to_s)
+      scope = scope.where(created_at: range)
+      snapshot = {
+        "resource_metric_source" => "suelog_shop_clicks",
+        "resource_type" => activity_log.resource_type,
+        "resource_id" => activity_log.resource_id,
+        "shop_clicks" => scope.count.to_f
+      }
+      click_type_column = suelog_shop_click_type_column
+      if click_type_column
+        scope.group(click_type_column).count.each do |type, count|
+          key = type.to_s.presence || "unknown"
+          snapshot["shop_clicks_#{key.parameterize(separator: '_')}"] = count.to_f
+        end
+      end
+      snapshot
+    end
+
+    def suelog_shop_click_type_column
+      @suelog_shop_click_type_column ||= begin
+        columns = ::Suelog::ShopClick.column_names
+        %w[click_type kind event_type action].find { |column| columns.include?(column) }
+      rescue StandardError
+        nil
+      end
+    end
+
     def delta_for(baseline, result)
       result.index_with do |metric, value|
+        next non_numeric_delta(baseline[metric], value) unless numeric_like?(value) && numeric_like?(baseline[metric])
+
         before = baseline[metric].to_f
         after = value.to_f
         {
@@ -113,6 +162,19 @@ module Aicoo
           change_rate: before.zero? ? nil : ((after - before) / before).round(4)
         }
       end
+    end
+
+    def numeric_like?(value)
+      value.is_a?(Numeric) || value.to_s.match?(/\A-?\d+(\.\d+)?\z/)
+    end
+
+    def non_numeric_delta(before, after)
+      {
+        before:,
+        after:,
+        delta: nil,
+        change_rate: nil
+      }
     end
 
     def refresh_activity_status(activity_log)

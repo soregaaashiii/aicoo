@@ -99,10 +99,48 @@ module Api
         assert_response :created
         activity_log = BusinessActivityLog.last
         assert_equal businesses(:suelog), activity_log.business
-        assert_equal "data_added", activity_log.activity_type
+        assert_equal "shop_created", activity_log.activity_type
         assert_equal "123", activity_log.resource_id
         assert_equal "梅田の喫煙可能店舗を追加", activity_log.diff_summary
         assert_equal "梅田", activity_log.metadata["area"]
+        assert_equal "data_added", activity_log.metadata["raw_activity_type"]
+        assert_equal "shop_created", activity_log.metadata["normalized_activity_type"]
+        assert_equal "123", activity_log.metadata["shop_id"]
+      end
+
+      test "normalizes suelog smoking verification payload" do
+        ENV.delete("AICOO_ACTIVITY_API_KEY")
+        ENV["AICOO_ACTIVITY_API_TOKEN"] = "activity-token"
+        SourceAppConnection.ensure_suelog_defaults!
+
+        assert_difference -> { BusinessActivityLog.where(resource_type: "Shop", source_app: "suelog").count }, 1 do
+          post api_aicoo_activity_logs_url,
+               params: {
+                 business_key: "suelog",
+                 activity_type: "data_updated",
+                 source_type: "shop",
+                 source_id: "456",
+                 title: "喫煙情報を確認",
+                 occurred_at: Time.current.iso8601,
+                 changed_fields: %w[smoking_area smoking_type last_confirmed_on],
+                 metadata: {
+                   area: "難波",
+                   smoking_area: 1,
+                   smoking_type: 0,
+                   last_confirmed_on: Date.current.to_s
+                 }
+               },
+               headers: { "Authorization" => "Bearer activity-token" },
+               as: :json
+        end
+
+        assert_response :created
+        activity_log = BusinessActivityLog.last
+        assert_equal "smoking_verified", activity_log.activity_type
+        assert_equal true, activity_log.metadata["verified"]
+        assert_equal true, activity_log.metadata["smoking_verified"]
+        assert_equal "456", activity_log.metadata["shop_id"]
+        assert_equal "難波", activity_log.metadata["area"]
       end
     end
   end

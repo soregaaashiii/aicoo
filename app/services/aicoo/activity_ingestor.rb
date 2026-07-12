@@ -109,10 +109,19 @@ module Aicoo
       attrs = hash_for(payload).symbolize_keys
       source_type = attrs[:source_type].presence || attrs[:resource_type].presence || "activity"
       source_id = attrs[:source_id].presence || attrs[:resource_id].presence || "unknown"
-      activity_type = attrs[:activity_type].presence || "#{source_type.to_s.underscore}_updated"
+      raw_activity_type = attrs[:activity_type].presence || "#{source_type.to_s.underscore}_updated"
       occurred_at = attrs[:occurred_at].presence || Time.current
-      metadata = hash_for(attrs[:metadata])
+      metadata = normalized_external_metadata(attrs)
       metadata = metadata.merge("business_key" => attrs[:business_key]) if attrs[:business_key].present?
+      activity_type = normalized_external_activity_type(
+        attrs.merge(
+          source_type:,
+          resource_type: attrs[:resource_type].presence || source_type.to_s.camelize,
+          activity_type: raw_activity_type,
+          metadata:
+        )
+      )
+      metadata = metadata.merge("normalized_activity_type" => activity_type, "raw_activity_type" => raw_activity_type)
 
       {
         source_app: attrs[:source_app].presence || attrs[:business_key].presence || DEFAULT_SOURCE_APP,
@@ -130,6 +139,113 @@ module Aicoo
         estimated_work_seconds: attrs[:estimated_work_seconds],
         idempotency_key: attrs[:idempotency_key]
       }
+    end
+
+    def normalized_external_activity_type(attrs)
+      return attrs[:activity_type] unless suelog_payload?(attrs)
+
+      resource_type = attrs[:resource_type].to_s
+      activity_type = attrs[:activity_type].to_s
+      metadata = attrs[:metadata].to_h
+
+      case resource_type
+      when "Shop"
+        case activity_type
+        when "data_added"
+          "shop_created"
+        when "data_updated"
+          if smoking_verification_payload?(attrs)
+            "smoking_verified"
+          elsif smoking_status_payload?(attrs)
+            "smoking_status_updated"
+          else
+            "shop_profile_updated"
+          end
+        else
+          activity_type
+        end
+      when "Article"
+        { "data_added" => "article_created", "data_updated" => "article_updated" }.fetch(activity_type, activity_type)
+      else
+        metadata["resource_type"].to_s == "shop" && activity_type == "data_added" ? "shop_created" : activity_type
+      end
+    end
+
+    def normalized_external_metadata(attrs)
+      metadata = hash_for(attrs[:metadata]).deep_stringify_keys
+      before_snapshot = hash_for(attrs[:before_snapshot]).deep_stringify_keys
+      after_snapshot = hash_for(attrs[:after_snapshot]).deep_stringify_keys
+      resource_id = attrs[:resource_id].presence || attrs[:source_id]
+
+      %w[
+        area
+        station
+        smoking_status
+        smoking_area
+        smoking_type
+        last_confirmed_on
+        confirmed_at
+        phone
+        address
+        opening_hours
+        regular_holiday
+        tabelog_url
+      ].each do |key|
+        metadata[key] = after_snapshot[key] if metadata[key].blank? && after_snapshot[key].present?
+      end
+
+      metadata["shop_id"] ||= resource_id.to_s if suelog_shop_payload?(attrs)
+      metadata["verified"] = true if suelog_payload?(attrs) && smoking_verification_payload?(attrs.merge(metadata:, before_snapshot:, after_snapshot:))
+      metadata["smoking_verified"] = true if metadata["verified"] == true
+      metadata["changed_fields"] ||= normalized_changed_fields(attrs)
+      metadata
+    end
+
+    def suelog_payload?(attrs)
+      source_app = attrs[:source_app].presence || attrs[:business_key]
+      source_app.to_s.in?(%w[suelog sue-log 吸えログ])
+    end
+
+    def suelog_shop_payload?(attrs)
+      suelog_payload?(attrs) &&
+        (attrs[:resource_type].to_s == "Shop" || attrs[:source_type].to_s == "shop")
+    end
+
+    def smoking_verification_payload?(attrs)
+      metadata = attrs[:metadata].to_h
+      fields = normalized_changed_fields(attrs)
+      return true if truthy?(metadata["verified"]) || truthy?(metadata[:verified]) || truthy?(metadata["smoking_verified"])
+      return true if metadata["last_confirmed_on"].present? || metadata[:last_confirmed_on].present?
+
+      (fields & %w[smoking_area smoking_type last_confirmed_on smoking_unverified]).any? ||
+        metadata.key?("smoking_area") ||
+        metadata.key?("smoking_type")
+    end
+
+    def smoking_status_payload?(attrs)
+      metadata = attrs[:metadata].to_h
+      fields = normalized_changed_fields(attrs)
+      fields.include?("smoking_status") ||
+        metadata.key?("smoking_status") ||
+        metadata.key?(:smoking_status)
+    end
+
+    def normalized_changed_fields(attrs)
+      raw = attrs[:changed_fields]
+      case raw
+      when ActionController::Parameters
+        raw.to_unsafe_h.keys
+      when Hash
+        raw.keys
+      when Array
+        raw
+      else
+        []
+      end.map(&:to_s)
+    end
+
+    def truthy?(value)
+      ActiveModel::Type::Boolean.new.cast(value)
     end
 
     def hash_for(value)
