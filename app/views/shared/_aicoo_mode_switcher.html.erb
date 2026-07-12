@@ -1,19 +1,19 @@
 <% current_mode = local_assigns.fetch(:current_mode).to_s %>
 
-<nav class="aicoo-mode-switch <%= current_mode == 'ceo' ? 'ceo-mode-switch' : 'system-mode-switch' %>" aria-label="AICOO mode navigation">
+<nav class="aicoo-mode-switch <%= current_mode == 'ceo' ? 'ceo-mode-switch' : 'system-mode-switch' %>" aria-label="AICOOモード切替">
   <div class="aicoo-current-mode">
     <span>現在</span>
-    <strong><%= current_mode == "ceo" ? "CEO MODE" : "SYSTEM MODE" %></strong>
+    <strong><%= current_mode == "ceo" ? "CEOモード" : "システムモード" %></strong>
   </div>
 
   <% if current_mode == "ceo" %>
     <%= link_to aicoo_daily_runs_path, class: "aicoo-mode-link system-link" do %>
-      <strong>SYSTEM MODEへ</strong>
+      <strong>システムモードへ</strong>
       <span>分析・運用・設定を見る</span>
     <% end %>
   <% else %>
     <%= link_to owner_focus_path, class: "aicoo-mode-link ceo-link" do %>
-      <strong>CEO MODEへ</strong>
+      <strong>CEOモードへ</strong>
       <span>今日やることへ戻る</span>
     <% end %>
   <% end %>

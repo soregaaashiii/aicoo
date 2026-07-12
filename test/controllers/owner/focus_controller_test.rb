@@ -123,11 +123,11 @@ module Owner
       get owner_focus_url
 
       assert_response :success
-      assert_includes response.body, "CEO MODE"
-      assert_includes response.body, "Today"
-      assert_includes response.body, "SERP"
-      assert_includes response.body, "Business"
-      assert_includes response.body, "Overview"
+      assert_includes response.body, "CEOモード"
+      assert_includes response.body, "今日やること"
+      assert_includes response.body, "新規事業探索"
+      assert_includes response.body, "事業一覧"
+      assert_includes response.body, "運用状況"
       assert_not_includes response.body, ">Dashboard<"
       assert_not_includes response.body, ">操作盤<"
       assert_not_includes response.body, ">Auto Build<"

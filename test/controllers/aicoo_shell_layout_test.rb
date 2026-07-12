@@ -7,18 +7,18 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes response.body, "AICOO"
-    assert_includes response.body, "CEO MODE"
-    assert_includes response.body, "SYSTEM MODE"
+    assert_includes response.body, "CEOモード"
+    assert_includes response.body, "システムモード"
     assert_not_includes response.body, "Search"
     assert_not_includes response.body, "Notifications"
     assert_not_includes response.body, "Profile"
     assert_includes response.body, "目的から探す"
-    assert_includes response.body, "今日どのBusinessを改善するか"
-    assert_includes response.body, "Home"
-    assert_includes response.body, "Today"
+    assert_includes response.body, "今日どの事業を進めるか"
+    assert_includes response.body, "ホーム"
+    assert_includes response.body, "今日やること"
     assert_includes response.body, "新規事業探索"
-    assert_includes response.body, "Business"
-    assert_includes response.body, "Overview"
+    assert_includes response.body, "事業一覧"
+    assert_includes response.body, "運用状況"
     assert_not_includes response.body, "Action Candidates"
     assert_not_includes response.body, "Auto Revision"
     assert_not_includes response.body, "New Business"
@@ -30,7 +30,7 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, "Execution Profiles"
     assert_includes response.body, "現在位置"
     assert_select "a[href='#{admin_serp_settings_path}']", text: /新規事業探索/
-    assert_select "a[href='#{owner_auto_revision_loop_path}']", text: /Overview/
+    assert_select "a[href='#{owner_auto_revision_loop_path}']", text: /運用状況/
   end
 
   test "system mode uses purpose sidebar and breadcrumb" do
@@ -38,23 +38,24 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes response.body, "AICOO"
-    assert_includes response.body, "SYSTEM MODE"
+    assert_includes response.body, "システムモード"
     assert_includes response.body, "AICOOの運用・復旧"
-    assert_includes response.body, "Daily Runs"
-    assert_includes response.body, "Cron Health"
-    assert_includes response.body, "Google"
+    assert_includes response.body, "日次実行"
+    assert_includes response.body, "Cron監視"
+    assert_includes response.body, "Google連携"
     assert_select ".aicoo-sidebar a[href='#{admin_serp_settings_path}']", false
-    assert_includes response.body, "Pipeline E2E"
-    assert_includes response.body, "Activity Learning"
-    assert_includes response.body, "DataHub"
-    assert_includes response.body, "Calibration"
-    assert_includes response.body, "Judge"
-    assert_includes response.body, "Resource Budget"
-    assert_includes response.body, "Source App"
-    assert_includes response.body, "Settings"
-    assert_includes response.body, "Execution Profiles"
-    assert_includes response.body, "Codex Rules"
-    assert_not_includes response.body, "今日どのBusinessを改善するか"
+    assert_not_select ".aicoo-sidebar", text: /新規事業探索/
+    assert_includes response.body, "自動ループ診断"
+    assert_includes response.body, "活動学習"
+    assert_includes response.body, "データ基盤"
+    assert_includes response.body, "期待値補正"
+    assert_includes response.body, "判断精度"
+    assert_includes response.body, "AI予算"
+    assert_includes response.body, "外部DB連携"
+    assert_includes response.body, "全体設定"
+    assert_includes response.body, "実行先設定"
+    assert_includes response.body, "Codexルール"
+    assert_not_includes response.body, "今日どの事業を進めるか"
     assert_includes response.body, "現在位置"
   end
 
@@ -62,8 +63,8 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
     get business_url(businesses(:suelog))
 
     assert_response :success
-    assert_includes response.body, "CEO MODE"
-    assert_includes response.body, "Business"
+    assert_includes response.body, "CEOモード"
+    assert_includes response.body, "事業一覧"
     assert_includes response.body, "Google連携"
     assert_includes response.body, "現在位置"
   end
@@ -74,8 +75,8 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
     get action_candidate_url(action_candidate)
 
     assert_response :success
-    assert_select ".aicoo-sidebar-group.active .aicoo-sidebar-category strong", text: "CEO MODE"
-    assert_select ".aicoo-sidebar-child.active strong", text: "Business"
+    assert_select ".aicoo-sidebar-group.active .aicoo-sidebar-category strong", text: "CEOモード"
+    assert_select ".aicoo-sidebar-child.active strong", text: "事業一覧"
     assert_select ".purpose-context-bar", text: /改善案/
     assert_includes response.body, "この事業へ戻る"
   end
@@ -86,10 +87,10 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
     get action_workspace_url(action_candidate)
 
     assert_response :success
-    assert_select ".aicoo-sidebar-group.active .aicoo-sidebar-category strong", text: "CEO MODE"
-    assert_select ".aicoo-sidebar-child.active strong", text: "Today"
-    assert_not_select ".aicoo-sidebar-child.active strong", text: "Businesses"
-    assert_select ".aicoo-breadcrumb", text: /Today.*Action/m
+    assert_select ".aicoo-sidebar-group.active .aicoo-sidebar-category strong", text: "CEOモード"
+    assert_select ".aicoo-sidebar-child.active strong", text: "今日やること"
+    assert_not_select ".aicoo-sidebar-child.active strong", text: "事業一覧"
+    assert_select ".aicoo-breadcrumb", text: /今日やること.*作業/m
     assert_not_includes response.body, "この事業へ戻る"
   end
 
@@ -109,8 +110,8 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
     get auto_revision_task_url(task)
 
     assert_response :success
-    assert_select ".aicoo-sidebar-group.active .aicoo-sidebar-category strong", text: "CEO MODE"
-    assert_select ".aicoo-sidebar-child strong", text: "Overview"
+    assert_select ".aicoo-sidebar-group.active .aicoo-sidebar-category strong", text: "CEOモード"
+    assert_select ".aicoo-sidebar-child strong", text: "運用状況"
     assert_not_select ".aicoo-sidebar-child strong", text: "Auto Revision"
     assert_not_select ".aicoo-sidebar-child strong", text: "Auto Build"
   end
@@ -126,8 +127,8 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
     get revenue_event_url(revenue_event)
 
     assert_response :success
-    assert_select ".aicoo-sidebar-group.active .aicoo-sidebar-category strong", text: "CEO MODE"
-    assert_select ".aicoo-sidebar-child.active strong", text: "Business"
+    assert_select ".aicoo-sidebar-group.active .aicoo-sidebar-category strong", text: "CEOモード"
+    assert_select ".aicoo-sidebar-child.active strong", text: "事業一覧"
     assert_select ".purpose-context-bar", text: /売上/
     assert_includes response.body, "この事業へ戻る"
   end

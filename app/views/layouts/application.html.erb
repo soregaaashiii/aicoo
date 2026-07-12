@@ -33,23 +33,23 @@
 
       <nav class="aicoo-mode-nav" aria-label="Mode navigation">
         <%= link_to owner_focus_path, class: ["aicoo-mode-pill", ("active" if aicoo_ceo_mode?)] do %>
-          CEO MODE<br><small>今日動く</small>
+          CEOモード<br><small>今日動く</small>
         <% end %>
         <%= link_to aicoo_daily_runs_path, class: ["aicoo-mode-pill", ("active" unless aicoo_ceo_mode?)] do %>
-          SYSTEM MODE<br><small>監視室</small>
+          システムモード<br><small>監視室</small>
         <% end %>
         <%= link_to businesses_path, class: "aicoo-header-link" do %>
-          Business<br><small>事業一覧</small>
+          事業一覧<br><small>事業を見る</small>
         <% end %>
       </nav>
 
       <% unless aicoo_ceo_mode? %>
         <div class="aicoo-header-tools">
           <%= form_with url: action_candidates_path, method: :get, class: "aicoo-global-search", data: { turbo: false } do |form| %>
-            <%= form.search_field :q, placeholder: "Search", aria: { label: "Search" } %>
+            <%= form.search_field :q, placeholder: "検索", aria: { label: "検索" } %>
           <% end %>
-          <%= link_to "Notifications", owner_tasks_path, class: "aicoo-notification-chip" %>
-          <span class="aicoo-profile-chip">Profile</span>
+          <%= link_to "通知", owner_tasks_path, class: "aicoo-notification-chip" %>
+          <span class="aicoo-profile-chip">プロフィール</span>
         </div>
       <% end %>
     </header>

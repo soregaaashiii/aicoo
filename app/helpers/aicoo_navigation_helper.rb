@@ -5,7 +5,7 @@ module AicooNavigationHelper
   end
 
   def aicoo_mode_label
-    aicoo_ceo_mode? ? "CEO MODE" : "SYSTEM MODE"
+    aicoo_ceo_mode? ? "CEOモード" : "システムモード"
   end
 
   def aicoo_mode_description
@@ -155,8 +155,8 @@ module AicooNavigationHelper
 
   def aicoo_action_workspace_breadcrumb_items
     [
-      { label: "Today", path: owner_focus_path },
-      { label: "Action", path: request.path }
+      { label: "今日やること", path: owner_focus_path },
+      { label: "作業", path: request.path }
     ]
   end
 
@@ -237,8 +237,8 @@ module AicooNavigationHelper
     [
       {
         key: :ceo_mode,
-        label: "CEO MODE",
-        description: "今日どのBusinessを改善するか",
+        label: "CEOモード",
+        description: "今日どの事業を進めるか",
         path: owner_focus_path,
         matchers: [
           %r{\A/owner},
@@ -250,11 +250,11 @@ module AicooNavigationHelper
           %r{\A/action_results}
         ],
         children: [
-          { key: :ceo_home, label: "Home", description: "全体入口", path: owner_dashboard_path, matchers: [ %r{\A/owner(?:/dashboard)?\z} ] },
-          { key: :ceo_today, label: "Today", description: "今日やる仕事", path: owner_focus_path, matchers: [ %r{\A/owner/focus}, %r{\A/actions/} ] },
+          { key: :ceo_home, label: "ホーム", description: "全体入口", path: owner_dashboard_path, matchers: [ %r{\A/owner(?:/dashboard)?\z} ] },
+          { key: :ceo_today, label: "今日やること", description: "今日やる仕事", path: owner_focus_path, matchers: [ %r{\A/owner/focus}, %r{\A/actions/} ] },
           { key: :ceo_serp, label: "新規事業探索", description: "SERPで市場探索", path: admin_serp_settings_path, matchers: [ %r{\A/admin/serp_settings} ] },
-          { key: :ceo_businesses, label: "Business", description: "事業一覧", path: businesses_path, matchers: [ %r{\A/businesses} ] },
-          { key: :ceo_overview, label: "Overview", description: "自動改修ループ", path: owner_auto_revision_loop_path, matchers: [ %r{\A/owner/(auto_revision_loop|new_business_pipeline)}, %r{\A/action_candidates}, %r{\A/auto_revision_tasks}, %r{\A/revenue_events}, %r{\A/action_results} ] }
+          { key: :ceo_businesses, label: "事業一覧", description: "作成済み事業", path: businesses_path, matchers: [ %r{\A/businesses} ] },
+          { key: :ceo_overview, label: "運用状況", description: "自動改修ループ", path: owner_auto_revision_loop_path, matchers: [ %r{\A/owner/(auto_revision_loop|new_business_pipeline)}, %r{\A/action_candidates}, %r{\A/auto_revision_tasks}, %r{\A/revenue_events}, %r{\A/action_results} ] }
         ]
       }
     ]
@@ -264,7 +264,7 @@ module AicooNavigationHelper
     [
       {
         key: :system_mode,
-        label: "SYSTEM MODE",
+        label: "システムモード",
         description: "AICOOの運用・復旧",
         path: aicoo_daily_runs_path,
         matchers: [
@@ -276,22 +276,22 @@ module AicooNavigationHelper
           %r{\A/aicoo_setting}
         ],
         children: [
-          { key: :system_daily_runs, label: "Daily Runs", description: "日次実行とStep", path: aicoo_daily_runs_path, matchers: [ %r{\A/aicoo_daily_runs}, %r{\A/admin/aicoo_daily_run_health} ] },
-          { key: :system_cron_health, label: "Cron Health", description: "Cron稼働確認", path: admin_cron_health_path, matchers: [ %r{\A/admin/cron_health} ] },
-          { key: :system_google, label: "Google", description: "OAuthとGA4/GSC取得", path: admin_google_credentials_path, matchers: [ %r{\A/admin/(google_credentials|google_api_imports|analytics)} ] },
-          { key: :system_traffic_channels, label: "Traffic", description: "集客チャネル全体", path: admin_traffic_channels_path, matchers: [ %r{\A/admin/traffic_channels} ] },
-          { key: :system_pipeline_e2e, label: "Pipeline E2E", description: "自動ループ診断", path: admin_pipeline_e2e_check_path, matchers: [ %r{\A/admin/pipeline_e2e_check} ] },
-          { key: :system_activity_learning, label: "Activity Learning", description: "Activity検知と評価", path: admin_activity_learning_e2e_check_path, matchers: [ %r{\A/admin/(activity_learning_e2e_check|business_activity_logs)} ] },
-          { key: :system_datahub, label: "DataHub", description: "データ収集基盤", path: admin_aicoo_datahub_path, matchers: [ %r{\A/admin/aicoo_datahub}, %r{\A/business_metric_dailies} ] },
-          { key: :system_calibration, label: "Calibration", description: "判断補正", path: admin_aicoo_calibration_path, matchers: [ %r{\A/admin/aicoo/calibration} ] },
-          { key: :system_judge, label: "Judge", description: "AI判断精度", path: judge_action_predictions_path, matchers: [ %r{\A/judge}, %r{\A/admin/aicoo_judge}, %r{\A/department_rankings} ] },
-          { key: :system_resource_budget, label: "Resource Budget", description: "AI予算とBuild制御", path: admin_aicoo_resource_budget_path, matchers: [ %r{\A/admin/aicoo_resource_budget} ] },
-          { key: :system_source_app, label: "Source App", description: "外部DB差分検知", path: admin_source_app_connections_path, matchers: [ %r{\A/admin/source_app_(connections|diff_rules)} ] },
-          { key: :system_codex_connection, label: "Codex Connection", description: "Codex/GitHub/PR連携", path: admin_codex_connection_path, matchers: [ %r{\A/admin/codex_connection} ] },
-          { key: :system_approval_logs, label: "Approval Logs", description: "承認履歴", path: admin_approval_logs_path, matchers: [ %r{\A/admin/approval_logs} ] },
-          { key: :system_settings, label: "Settings", description: "全体設定", path: aicoo_setting_path, matchers: [ %r{\A/aicoo_setting}, %r{\A/admin/(aicoo_daily_run_settings|aicoo_auto_revision_settings)} ] },
-          { key: :system_execution_profiles, label: "Execution Profiles", description: "実行先設定", path: admin_business_execution_profiles_path, matchers: [ %r{\A/admin/business_execution_profiles} ] },
-          { key: :system_codex_rules, label: "Codex Rules", description: "Prompt共通ルール", path: admin_codex_prompt_rules_path, matchers: [ %r{\A/admin/codex_prompt_rules} ] }
+          { key: :system_daily_runs, label: "日次実行", description: "Daily RunとStep", path: aicoo_daily_runs_path, matchers: [ %r{\A/aicoo_daily_runs}, %r{\A/admin/aicoo_daily_run_health} ] },
+          { key: :system_cron_health, label: "Cron監視", description: "Cron稼働確認", path: admin_cron_health_path, matchers: [ %r{\A/admin/cron_health} ] },
+          { key: :system_google, label: "Google連携", description: "OAuthとGA4/GSC取得", path: admin_google_credentials_path, matchers: [ %r{\A/admin/(google_credentials|google_api_imports|analytics)} ] },
+          { key: :system_traffic_channels, label: "集客監視", description: "集客チャネル全体", path: admin_traffic_channels_path, matchers: [ %r{\A/admin/traffic_channels} ] },
+          { key: :system_pipeline_e2e, label: "自動ループ診断", description: "処理経路の診断", path: admin_pipeline_e2e_check_path, matchers: [ %r{\A/admin/pipeline_e2e_check} ] },
+          { key: :system_activity_learning, label: "活動学習", description: "Activity検知と評価", path: admin_activity_learning_e2e_check_path, matchers: [ %r{\A/admin/(activity_learning_e2e_check|business_activity_logs)} ] },
+          { key: :system_datahub, label: "データ基盤", description: "収集データ確認", path: admin_aicoo_datahub_path, matchers: [ %r{\A/admin/aicoo_datahub}, %r{\A/business_metric_dailies} ] },
+          { key: :system_calibration, label: "期待値補正", description: "判断の補正", path: admin_aicoo_calibration_path, matchers: [ %r{\A/admin/aicoo/calibration} ] },
+          { key: :system_judge, label: "判断精度", description: "AI判断の成績", path: judge_action_predictions_path, matchers: [ %r{\A/judge}, %r{\A/admin/aicoo_judge}, %r{\A/department_rankings} ] },
+          { key: :system_resource_budget, label: "AI予算", description: "AI予算とBuild制御", path: admin_aicoo_resource_budget_path, matchers: [ %r{\A/admin/aicoo_resource_budget} ] },
+          { key: :system_source_app, label: "外部DB連携", description: "外部DB差分検知", path: admin_source_app_connections_path, matchers: [ %r{\A/admin/source_app_(connections|diff_rules)} ] },
+          { key: :system_codex_connection, label: "Codex連携", description: "GitHub/PR連携", path: admin_codex_connection_path, matchers: [ %r{\A/admin/codex_connection} ] },
+          { key: :system_approval_logs, label: "操作履歴", description: "承認・操作ログ", path: admin_approval_logs_path, matchers: [ %r{\A/admin/approval_logs} ] },
+          { key: :system_settings, label: "全体設定", description: "AICOO設定", path: aicoo_setting_path, matchers: [ %r{\A/aicoo_setting}, %r{\A/admin/(aicoo_daily_run_settings|aicoo_auto_revision_settings)} ] },
+          { key: :system_execution_profiles, label: "実行先設定", description: "実行環境の設定", path: admin_business_execution_profiles_path, matchers: [ %r{\A/admin/business_execution_profiles} ] },
+          { key: :system_codex_rules, label: "Codexルール", description: "Prompt共通ルール", path: admin_codex_prompt_rules_path, matchers: [ %r{\A/admin/codex_prompt_rules} ] }
         ]
       }
     ]
