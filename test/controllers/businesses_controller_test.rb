@@ -119,33 +119,22 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, "AICOO Analytics Import"
   end
 
-  test "index repairs approved new business candidates into visible businesses" do
-    ActionCandidate.create!(
-      business: @business,
-      title: "一覧表示時にBusiness化される新規事業",
-      description: "SERP由来の承認済み候補",
-      action_type: "build_lp",
-      generation_source: "integrated_decision",
-      department: "new_business",
-      status: "approved",
-      approved_at: 1.day.ago,
-      approved_by: "owner",
-      metadata: {
-        "candidate_kind" => "new_business",
-        "business_name" => "一覧自動復旧Business"
-      },
-      immediate_value_yen: 50_000,
-      success_probability: 0.4,
-      expected_hours: 2
-    )
+  test "index does not repair or publish new businesses as a side effect" do
+    repairer = ->(**) { raise "ApprovedNewBusinessCandidateRepairer must not run from businesses#index" }
+    publisher = ->(**) { raise "AutoNewBusinessPublisher must not run from businesses#index" }
 
-    assert_difference("Business.real_businesses.count", 1) do
-      get businesses_url
+    Aicoo::ApprovedNewBusinessCandidateRepairer.stub(:call, repairer) do
+      Aicoo::Serp::AutoNewBusinessPublisher.stub(:call, publisher) do
+        assert_no_difference([ "Business.count", "AicooLabLandingPage.count", "ActionCandidate.count" ]) do
+          get businesses_url
+        end
+      end
     end
 
     assert_response :success
-    assert_includes response.body, "一覧自動復旧Business"
-    assert_includes response.body, "承認済み新規事業候補を1件Business化しました。"
+    assert_not_includes response.body, "Business化しました"
+    assert_not_includes response.body, "新規事業を作成"
+    assert_not_includes response.body, "LPを"
   end
 
   test "index shows serp new business candidate tab" do
@@ -911,15 +900,39 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
   test "bulk delete selected businesses" do
     business = Business.create!(name: "一括削除対象", status: "exploring")
 
-    patch bulk_delete_businesses_url, params: {
-      business_ids: [ @business.id, business.id ],
-      deletion_reason: "SERP誤生成"
-    }
+    repairer = ->(**) { raise "ApprovedNewBusinessCandidateRepairer must not run from bulk_delete" }
+    publisher = ->(**) { raise "AutoNewBusinessPublisher must not run from bulk_delete" }
+
+    Aicoo::ApprovedNewBusinessCandidateRepairer.stub(:call, repairer) do
+      Aicoo::Serp::AutoNewBusinessPublisher.stub(:call, publisher) do
+        assert_no_difference([ "Business.count", "AicooLabLandingPage.count", "ActionCandidate.count", "SerpRun.count", "AicooPipelineRun.count" ]) do
+          patch bulk_delete_businesses_url, params: {
+            business_ids: [ @business.id, business.id ],
+            deletion_reason: "SERP誤生成"
+          }
+        end
+      end
+    end
 
     assert_redirected_to businesses_url
     assert @business.reload.deleted?
     assert business.reload.deleted?
     assert_equal "SERP誤生成", business.deletion_reason
+    assert_equal "2件の事業を削除しました。", flash[:notice]
+    assert_not_match(/Business化|新規事業を作成|LPを.*公開|承認しました|Pipelineを開始/, flash[:notice].to_s)
+  end
+
+  test "business index bulk delete form posts only to bulk delete route" do
+    get businesses_url
+
+    assert_response :success
+    assert_select "form#bulk-business-delete-form[action='#{bulk_delete_businesses_path}'][method='post']", count: 1 do
+      assert_select "input[name='_method'][value='patch']", count: 1
+      assert_select "input[name='business_ids[]']", minimum: 1
+      assert_select "input[type='submit'][value='選択した事業を削除'][form='bulk-business-delete-form']", count: 1
+    end
+    form_html = Nokogiri::HTML(response.body).at_css("form#bulk-business-delete-form").to_html
+    assert_no_match(%r{owner/new_business_pipeline|approve|create_lp|publish|pipeline_e2e_check/repair}, form_html)
   end
 
   test "permanent delete requires soft deleted business name confirmation" do

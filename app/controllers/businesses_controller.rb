@@ -17,8 +17,6 @@ class BusinessesController < ApplicationController
 
   # GET /businesses or /businesses.json
   def index
-    repair_approved_new_business_candidates!
-    publish_serp_new_business_candidates!
     @businesses = Business.real_businesses.includes(:business_execution_profile).order(:name)
     @businesses = @businesses.where(status: "exploring") if params[:filter] == "exploring"
     @businesses = @businesses.select(&:serp_generated?) if params[:filter] == "serp"
@@ -229,15 +227,19 @@ class BusinessesController < ApplicationController
     end
 
     businesses = Business.real_businesses.where(id: ids)
-    businesses.find_each do |business|
-      business.soft_delete!(
-        reason: deletion_reason,
-        actor: "owner",
-        source: "business_bulk_delete"
-      )
+    deleted_count = 0
+    Business.transaction do
+      businesses.find_each do |business|
+        business.soft_delete!(
+          reason: deletion_reason,
+          actor: "owner",
+          source: "business_bulk_delete"
+        )
+        deleted_count += 1
+      end
     end
 
-    redirect_to businesses_path, notice: "#{businesses.count}件のBusinessを削除しました。"
+    redirect_to businesses_path, notice: "#{deleted_count}件の事業を削除しました。"
   end
 
   def bulk_restore
@@ -671,35 +673,6 @@ class BusinessesController < ApplicationController
       Aicoo::BusinessGoogleDefaultLinker.call(@business, source_types:)
     rescue StandardError => e
       Rails.logger.warn("[BusinessesController] google default auto link failed business_id=#{@business.id}: #{e.class}: #{e.message}")
-    end
-
-    def repair_approved_new_business_candidates!
-      result = Aicoo::ApprovedNewBusinessCandidateRepairer.call(
-        limit: 50,
-        source: "businesses_index_auto_repair"
-      )
-      return unless result.repaired_count.positive?
-
-      flash.now[:notice] = "承認済み新規事業候補を#{result.repaired_count}件Business化しました。"
-    rescue StandardError => e
-      Rails.logger.warn("[BusinessesController] approved new business repair failed: #{e.class}: #{e.message}")
-      flash.now[:alert] = "承認済み新規事業候補のBusiness化確認に失敗しました: #{e.message}"
-    end
-
-    def publish_serp_new_business_candidates!
-      result = Aicoo::Serp::AutoNewBusinessPublisher.call(
-        limit: 50,
-        source: "businesses_index_auto_publish"
-      )
-      return unless result.business_created_count.positive? || result.lp_published_count.positive?
-
-      messages = []
-      messages << "SERP由来新規事業を#{result.business_created_count}件作成" if result.business_created_count.positive?
-      messages << "LPを#{result.lp_published_count}件公開" if result.lp_published_count.positive?
-      flash.now[:notice] = [ flash.now[:notice], "#{messages.join(' / ')}しました。" ].compact.join(" ")
-    rescue StandardError => e
-      Rails.logger.warn("[BusinessesController] serp new business auto publish failed: #{e.class}: #{e.message}")
-      flash.now[:alert] = "SERP新規事業の自動作成確認に失敗しました: #{e.message}"
     end
 
     def log_google_api_import_credential!(event, run:, credential:, source_types:, setting_sources: {})

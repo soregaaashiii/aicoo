@@ -45,4 +45,91 @@ namespace :aicoo do
       business.soft_delete!(reason:, actor: "rake", source: "aicoo:archive_serp_generated_businesses")
     end
   end
+
+  desc "Diagnose Business/LP/candidate records created around a mistaken Business delete operation"
+  task diagnose_business_delete_side_effects: :environment do
+    since_time = ENV["SINCE"].present? ? Time.zone.parse(ENV["SINCE"]) : 30.minutes.ago
+    until_time = ENV["UNTIL"].present? ? Time.zone.parse(ENV["UNTIL"]) : Time.current
+    range = since_time..until_time
+
+    businesses = Business.where(created_at: range).order(:created_at)
+    landing_pages = AicooLabLandingPage.where(created_at: range).order(:created_at)
+    candidates = ActionCandidate.where(created_at: range).order(:created_at)
+
+    puts "window=#{since_time.iso8601}..#{until_time.iso8601}"
+    puts "businesses_created=#{businesses.count}"
+    businesses.find_each do |business|
+      puts [
+        "business_id=#{business.id}",
+        "name=#{business.name}",
+        "status=#{business.status}",
+        "source=#{business.source.presence || "-"}",
+        "created_at=#{business.created_at.iso8601}",
+        "serp_generated=#{business.serp_generated?}",
+        "source_action_candidate_id=#{business.metadata.to_h["source_action_candidate_id"].presence || business.metadata.to_h.dig("auto_new_business_publication", "action_candidate_id").presence || "-"}"
+      ].join(" ")
+    end
+
+    puts "landing_pages_created=#{landing_pages.count}"
+    landing_pages.find_each do |landing_page|
+      puts [
+        "lp_id=#{landing_page.id}",
+        "business_id=#{landing_page.business_id || "-"}",
+        "headline=#{landing_page.headline.to_s.inspect}",
+        "public_status=#{landing_page.public_status}",
+        "published_slug=#{landing_page.published_slug.presence || "-"}",
+        "published_at=#{landing_page.published_at&.iso8601 || "-"}",
+        "created_at=#{landing_page.created_at.iso8601}",
+        "source_action_candidate_id=-"
+      ].join(" ")
+    end
+
+    puts "action_candidates_created=#{candidates.count}"
+    candidates.find_each do |candidate|
+      puts [
+        "candidate_id=#{candidate.id}",
+        "business_id=#{candidate.business_id || "-"}",
+        "title=#{candidate.title.to_s.inspect}",
+        "action_type=#{candidate.action_type}",
+        "status=#{candidate.status}",
+        "generation_source=#{candidate.generation_source}",
+        "department=#{candidate.department}",
+        "created_at=#{candidate.created_at.iso8601}"
+      ].join(" ")
+    end
+  end
+
+  desc "Dry-run rollback helper for mistaken Business delete side effects. APPLY=1 required to archive selected records"
+  task rollback_business_delete_side_effects: :environment do
+    business_ids = ENV.fetch("BUSINESS_IDS", "").split(",").filter_map { |id| Integer(id.strip, exception: false) }.uniq
+    lp_ids = ENV.fetch("LP_IDS", "").split(",").filter_map { |id| Integer(id.strip, exception: false) }.uniq
+    apply = ENV["APPLY"] == "1"
+
+    puts "apply=#{apply}"
+    puts "business_ids=#{business_ids.join(",").presence || "-"}"
+    puts "lp_ids=#{lp_ids.join(",").presence || "-"}"
+
+    Business.where(id: business_ids).find_each do |business|
+      puts "business id=#{business.id} name=#{business.name} deleted=#{business.deleted?}"
+      next unless apply
+      next if business.deleted?
+
+      business.soft_delete!(
+        reason: "誤操作による副作用",
+        actor: "rake",
+        source: "aicoo:rollback_business_delete_side_effects"
+      )
+    end
+
+    AicooLabLandingPage.where(id: lp_ids).find_each do |landing_page|
+      puts "landing_page id=#{landing_page.id} public_status=#{landing_page.public_status} slug=#{landing_page.published_slug.presence || "-"}"
+      next unless apply
+
+      landing_page.update!(
+        status: "unpublished",
+        public_status: "archived",
+        notes: [ landing_page.notes, "business_delete_side_effect rollback at #{Time.current.iso8601}" ].compact_blank.join("\n")
+      )
+    end
+  end
 end

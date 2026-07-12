@@ -109,13 +109,19 @@
   <%= link_to "exploringのみ", businesses_path(tab: "businesses", filter: "exploring"), class: "button secondary" %>
 </div>
 
-<%= form_with url: bulk_delete_businesses_path, method: :patch, local: true do %>
+<%= form_with url: bulk_delete_businesses_path,
+              method: :patch,
+              local: true,
+              html: { id: "bulk-business-delete-form" },
+              data: { turbo: false } do %>
 <div class="actions compact-actions">
   <%= select_tag :deletion_reason,
                  options_for_select(@deletion_reasons, "SERP誤生成"),
+                 form: "bulk-business-delete-form",
                  aria: { label: "削除理由" } %>
   <%= submit_tag "選択した事業を削除",
                  class: "button danger",
+                 form: "bulk-business-delete-form",
                  data: {
                    turbo_confirm: "選択した事業を削除しますか？\n事業一覧・ランキング・Daily Run・自動改修の対象外になります。\n関連データは保持され、後から復元できます。"
                  } %>
@@ -154,7 +160,7 @@
         <% period_7d = summary.periods.fetch(7) %>
         <% period_30d = summary.periods.fetch(30) %>
         <tr>
-          <td><%= check_box_tag "business_ids[]", business.id, false, id: "business_ids_#{business.id}" %></td>
+          <td><%= check_box_tag "business_ids[]", business.id, false, id: "business_ids_#{business.id}", form: "bulk-business-delete-form" %></td>
           <td>
             <%= link_to business.name, business %>
             <% if business.serp_generated? %>
