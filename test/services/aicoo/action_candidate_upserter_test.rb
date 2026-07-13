@@ -24,8 +24,8 @@ module Aicoo
       )
 
       metadata = candidate.reload.metadata
-      assert_equal "https://suelog.jp/", metadata["target_url"]
-      assert_equal "owner_page", metadata["target_url_type"]
+      assert_nil metadata["target_url"]
+      assert_equal "unknown", metadata["target_url_type"]
       assert_includes metadata["reference_urls"], "https://it-trend.jp/log_management/article/84-0008"
       assert_includes metadata["competitor_urls"], "https://it-trend.jp/log_management/article/84-0008"
     end
@@ -69,6 +69,81 @@ module Aicoo
       assert_equal 0.6, first.success_probability
       assert_equal "second", first.evaluation_reason
       assert_equal 1, first.metadata["dedupe_merged_count"]
+    end
+
+    test "keeps different action types for same opportunity as separate actions" do
+      business = businesses(:suelog)
+      base_attributes = {
+        title: "吸えログ比較記事を1本作成する",
+        description: "検索需要に対応する",
+        generation_source: "business_analyzer",
+        immediate_value_yen: 10_000,
+        success_probability: 0.4,
+        expected_hours: 2,
+        metadata: {
+          "opportunity_key" => "gsc:query:suelog-comparison",
+          "source_query" => "吸えログ 比較",
+          "concrete_task" => "吸えログ比較記事を1本作成する",
+          "execution_mode" => "content_creation"
+        }
+      }
+
+      first = Aicoo::ActionCandidateUpserter.call(
+        business:,
+        attributes: base_attributes.merge(action_type: "new_article_candidate")
+      )
+      second = Aicoo::ActionCandidateUpserter.call(
+        business:,
+        attributes: base_attributes.merge(
+          title: "吸えログ比較ページのtitle/metaを改善する",
+          action_type: "seo_improvement",
+          metadata: base_attributes[:metadata].merge("concrete_task" => "吸えログ比較ページのtitle/metaを改善する")
+        )
+      )
+
+      assert_not_equal first.id, second.id
+    end
+
+    test "dedupe key includes execution mode department and generation source" do
+      business = businesses(:suelog)
+      base_attributes = {
+        title: "吸えログ比較記事を1本作成する",
+        description: "検索需要に対応する記事を作る",
+        action_type: "new_article_candidate",
+        immediate_value_yen: 10_000,
+        success_probability: 0.4,
+        expected_hours: 2,
+        metadata: {
+          "opportunity_key" => "gsc:query:suelog-comparison",
+          "source_query" => "吸えログ 比較",
+          "concrete_task" => "吸えログ比較記事を1本作成する",
+          "execution_mode" => "content_creation"
+        }
+      }
+
+      first = Aicoo::ActionCandidateUpserter.call(
+        business:,
+        attributes: base_attributes.merge(generation_source: "business_analyzer", department: "revenue")
+      )
+      second = Aicoo::ActionCandidateUpserter.call(
+        business:,
+        attributes: base_attributes.deep_merge(
+          generation_source: "suelog_db",
+          department: "revenue",
+          metadata: { "execution_mode" => "content_creation" }
+        )
+      )
+      third = Aicoo::ActionCandidateUpserter.call(
+        business:,
+        attributes: base_attributes.deep_merge(
+          generation_source: "business_analyzer",
+          department: "revenue",
+          metadata: { "execution_mode" => "manual_operation" }
+        )
+      )
+
+      assert_not_equal first.id, second.id
+      assert_not_equal first.id, third.id
     end
   end
 end

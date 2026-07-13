@@ -9,24 +9,26 @@ module Aicoo
       return unless business_ready?
       return unless practical_enough?
 
-      candidate = ActionCandidate.create!(
+      candidate = Aicoo::ActionCandidateUpserter.call(
         business: opportunity.business,
-        title: candidate_title,
-        description: opportunity.summary.presence || opportunity.description,
-        action_type: action_type,
-        generation_source: "opportunity_discovery",
-        department: "lab",
-        status: "idea",
-        immediate_value_yen: opportunity.expected_value_yen.to_i,
-        expected_profit_yen: expected_profit_yen,
-        success_probability: success_probability,
-        expected_hours: expected_hours,
-        cost_yen: cost_yen,
-        confidence_score: opportunity.confidence.to_i,
-        data_confidence_score: opportunity.confidence.to_i,
-        evaluation_reason: evaluation_reason,
-        execution_prompt: execution_prompt,
-        metadata: candidate_metadata
+        attributes: {
+          title: candidate_title,
+          description: opportunity.summary.presence || opportunity.description,
+          action_type: action_type,
+          generation_source: "opportunity_discovery",
+          department: "lab",
+          status: "idea",
+          immediate_value_yen: opportunity.expected_value_yen.to_i,
+          expected_profit_yen: expected_profit_yen,
+          success_probability: success_probability,
+          expected_hours: expected_hours,
+          cost_yen: cost_yen,
+          confidence_score: opportunity.confidence.to_i,
+          data_confidence_score: opportunity.confidence.to_i,
+          evaluation_reason: evaluation_reason,
+          execution_prompt: execution_prompt,
+          metadata: candidate_metadata
+        }
       )
       opportunity.update!(action_candidate: candidate, status: "converted")
       candidate

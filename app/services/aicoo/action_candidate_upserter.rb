@@ -14,6 +14,16 @@ module Aicoo
       evaluation_reason
       source_query
       target_query
+      target_keyword
+      query
+      search_query
+      gsc
+      gsc_metrics
+      ga4
+      ga4_metrics
+      business_db
+      business_db_metrics
+      supporting_metrics
       data_sources_used
       raw_immediate_value_yen
     ].freeze
@@ -31,18 +41,73 @@ module Aicoo
         Digest::SHA256.hexdigest(
           [
             business_id,
-            metadata.dig("opportunity", "key").presence || metadata["opportunity_key"].presence || metadata["opportunity_type"].presence || metadata["suelog_insight_key"].presence || metadata["external_record_id"].presence || metadata["source_query"].presence || metadata["target_query"].presence || candidate.title,
+            opportunity_key_for(candidate, metadata),
             candidate.action_type,
-            metadata["target_url"].presence || metadata["target_url_or_identifier"].presence,
-            metadata["planned_url"].presence || metadata["recommended_url"].presence,
-            metadata["target_query"].presence || metadata["source_query"].presence || metadata.dig("evidence", "query"),
-            metadata["concrete_task"].presence || metadata.dig("action_plan", "owner_output").presence || candidate.title
+            target_url_for(metadata),
+            planned_url_for(metadata),
+            target_keyword_for(metadata),
+            work_content_for(candidate, metadata),
+            execution_mode_for(metadata),
+            candidate.department.presence || metadata["department"],
+            candidate.generation_source.presence || metadata["generation_source"]
           ].map { |value| normalize(value) }.join("::")
         )
       end
 
       def normalize(value)
         value.to_s.unicode_normalize(:nfkc).downcase.gsub(%r{https?://www\.}, "https://").gsub(/[[:space:]　]+/, " ").strip
+      end
+
+      def opportunity_key_for(candidate, metadata)
+        metadata.dig("opportunity", "key").presence ||
+          metadata["opportunity_key"].presence ||
+          metadata["opportunity_type"].presence ||
+          metadata["suelog_insight_key"].presence ||
+          metadata["external_record_id"].presence ||
+          metadata["issue_key"].presence ||
+          metadata["metric_rule"].presence ||
+          metadata["source_query"].presence ||
+          metadata["target_query"].presence ||
+          candidate.title
+      end
+
+      def target_url_for(metadata)
+        metadata["target_url"].presence ||
+          metadata["target_url_or_identifier"].presence ||
+          metadata["target_identifier"].presence ||
+          metadata.dig("evidence", "page_path").presence ||
+          metadata.dig("action_plan", "target").presence
+      end
+
+      def planned_url_for(metadata)
+        metadata["planned_url"].presence ||
+          metadata["recommended_url"].presence ||
+          metadata["recommended_slug"].presence ||
+          metadata["recommended_url_slug"].presence ||
+          metadata.dig("article_candidate", "recommended_url_slug").presence
+      end
+
+      def target_keyword_for(metadata)
+        metadata["target_keyword"].presence ||
+          metadata["target_query"].presence ||
+          metadata["source_query"].presence ||
+          metadata["query"].presence ||
+          metadata["search_query"].presence ||
+          metadata.dig("evidence", "query").presence ||
+          metadata.dig("article_candidate", "search_query").presence
+      end
+
+      def work_content_for(candidate, metadata)
+        metadata["concrete_task"].presence ||
+          metadata["recommended_action"].presence ||
+          metadata.dig("action_plan", "owner_output").presence ||
+          metadata.dig("action_plan", "summary").presence ||
+          candidate.title
+      end
+
+      def execution_mode_for(metadata)
+        metadata["execution_mode"].presence ||
+          metadata.dig("action_plan", "execution_mode").presence
       end
     end
 
@@ -80,17 +145,29 @@ module Aicoo
         business:,
         title: attributes[:title],
         action_type: attributes[:action_type],
+        department: attributes[:department],
+        generation_source: attributes[:generation_source],
         metadata: attributes[:metadata]
       )
       self.class.dedupe_key_for(candidate)
     end
 
     def existing_candidate
-      ActionCandidate
+      by_key = ActionCandidate
         .where(business:)
         .active_for_ranking
         .where("metadata ->> 'dedupe_key' = ?", attributes[:metadata]["dedupe_key"])
         .first
+      return by_key if by_key
+
+      scope = ActionCandidate
+        .where(business:)
+        .active_for_ranking
+        .where(action_type: attributes[:action_type])
+        .where(generation_source: attributes[:generation_source])
+      scope = scope.where(department: attributes[:department]) if attributes[:department].present?
+      scope.find_each
+        .find { |candidate| self.class.dedupe_key_for(candidate) == attributes[:metadata]["dedupe_key"] }
     end
 
     def update_existing!(candidate)
@@ -105,6 +182,9 @@ module Aicoo
 
       candidate.update!(
         immediate_value_yen: attributes[:immediate_value_yen] || candidate.immediate_value_yen,
+        expected_profit_yen: attributes[:expected_profit_yen] || candidate.expected_profit_yen,
+        expected_hours: attributes[:expected_hours] || candidate.expected_hours,
+        cost_yen: attributes[:cost_yen] || candidate.cost_yen,
         success_probability: attributes[:success_probability] || candidate.success_probability,
         confidence_score: attributes[:confidence_score] || candidate.confidence_score,
         data_confidence_score: attributes[:data_confidence_score] || candidate.data_confidence_score,

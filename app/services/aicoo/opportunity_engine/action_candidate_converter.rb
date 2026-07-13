@@ -46,23 +46,26 @@ module Aicoo
           "codex_eligible" => decision.execution_mode == "code_revision"
         ))
 
-        candidate = business.action_candidates.create!(
-          title: plan.summary,
-          description: plan.goal,
-          action_type: action_type_for(issue, decision),
-          immediate_value_yen: decision.expected_profit_yen,
-          success_probability: decision.success_probability,
-          strategic_value_score: issue.strategic_value_score,
-          risk_reduction_score: issue.risk_reduction_score,
-          confidence_score: opportunity.confidence,
-          data_confidence_score: opportunity.confidence,
-          expected_hours: decision.expected_hours,
-          cost_yen: decision.cost_yen,
-          status: status_for(issue, decision),
-          generation_source: "business_analyzer",
-          metadata:,
-          evaluation_reason: evaluation_reason_for(plan),
-          execution_prompt: execution_prompt_for(plan)
+        candidate = Aicoo::ActionCandidateUpserter.call(
+          business:,
+          attributes: {
+            title: plan.summary,
+            description: plan.goal,
+            action_type: action_type_for(issue, decision),
+            immediate_value_yen: decision.expected_profit_yen,
+            success_probability: decision.success_probability,
+            strategic_value_score: issue.strategic_value_score,
+            risk_reduction_score: issue.risk_reduction_score,
+            confidence_score: opportunity.confidence,
+            data_confidence_score: opportunity.confidence,
+            expected_hours: decision.expected_hours,
+            cost_yen: decision.cost_yen,
+            status: status_for(issue, decision),
+            generation_source: "business_analyzer",
+            metadata:,
+            evaluation_reason: evaluation_reason_for(plan),
+            execution_prompt: execution_prompt_for(plan)
+          }
         )
         Aicoo::ActionCandidateInstructionStabilizer.call(candidate)
         candidate.reload.update_columns(
