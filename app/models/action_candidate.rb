@@ -165,6 +165,7 @@ class ActionCandidate < ApplicationRecord
           "execution_record_source" => "action_candidate_detail"
         )
       )
+      Aicoo::OpportunityProgressUpdater.call(self)
     end
   end
 

@@ -128,6 +128,7 @@ module Aicoo
         end
 
         candidate = ActionCandidate.create!(candidate_attributes(analysis))
+        Aicoo::OpportunityLinker.call(candidate)
         publish_candidate!(candidate)
         candidate.reload
         return candidate if manual_edit_required?(candidate)

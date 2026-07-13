@@ -30,6 +30,9 @@ class ActionCandidatesController < ApplicationController
     @codex_prompt_draft = @action_candidate.codex_prompt_drafts.recent.first
     @execution_brief = Aicoo::ActionCandidateExecutionBrief.new(@action_candidate)
     @evidence_presenter = Aicoo::ActionCandidateEvidencePresenter.new(@action_candidate)
+    @opportunity = OpportunityDiscoveryItem.find_by(id: @action_candidate.metadata.to_h["opportunity_id"]) ||
+      @action_candidate.opportunity_discovery_items.order(updated_at: :desc).first
+    @opportunity_related_candidates = related_opportunity_candidates(@opportunity)
   end
 
   # GET /action_candidates/new
@@ -181,6 +184,15 @@ class ActionCandidatesController < ApplicationController
     # Use callbacks to share common setup or constraints between actions.
     def set_action_candidate
       @action_candidate = ActionCandidate.find(params.expect(:id))
+    end
+
+    def related_opportunity_candidates(opportunity)
+      return ActionCandidate.none unless opportunity
+
+      ids = Array(opportunity.metadata.to_h["related_action_candidate_ids"]).map(&:to_i)
+      ids |= [ opportunity.action_candidate_id ].compact
+      ids |= ActionCandidate.where("metadata ->> 'opportunity_id' = ?", opportunity.id.to_s).pluck(:id)
+      ActionCandidate.where(id: ids.uniq).order(Arel.sql("status = 'done' ASC, updated_at DESC"))
     end
 
     # Only allow a list of trusted parameters through.

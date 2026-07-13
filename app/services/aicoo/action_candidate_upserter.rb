@@ -121,11 +121,13 @@ module Aicoo
       attributes[:metadata] = sanitized_metadata(attributes[:metadata], attributes[:action_type])
       attributes[:metadata]["dedupe_key"] = dedupe_key_for_attributes
 
-      if (existing = existing_candidate)
+      candidate = if (existing = existing_candidate)
         update_existing!(existing)
       else
         ActionCandidate.create!(attributes)
       end
+      Aicoo::OpportunityLinker.call(candidate)
+      candidate.reload
     end
 
     private

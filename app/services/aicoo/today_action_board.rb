@@ -407,6 +407,7 @@ module Aicoo
       return "executed" if candidate.executed?
       return "inactive_business" if candidate.business.blank? || candidate.business.deleted? || candidate.business.resource_status == "archived"
       return "invalid_status" if candidate.status.to_s.in?(ActionCandidate::INACTIVE_STATUSES)
+      return "blocked_by_prerequisite" if candidate.metadata.to_h["blocked"] && candidate.metadata.to_h["prerequisite_action_candidate_id"].present?
 
       nil
     end

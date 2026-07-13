@@ -222,6 +222,61 @@ end %>
   </div>
 </section>
 
+<% if @opportunity %>
+  <section class="dashboard-section" id="opportunity-context">
+    <div class="section-heading">
+      <div>
+        <h2>この施策が解決する改善機会</h2>
+        <p>同じ改善機会に対する関連施策と進捗です。</p>
+      </div>
+      <span class="pill"><%= @opportunity.metadata.to_h["progress_status"].presence || "未対応" %></span>
+    </div>
+    <div class="aicoo-card aicoo-card-compact">
+      <h3><%= @opportunity.title %></h3>
+      <p><%= @opportunity.summary.presence || @opportunity.description.presence || @opportunity.metadata.to_h["problem"].presence || "改善機会の説明は未整理です。" %></p>
+      <dl class="compact-definition">
+        <dt>Opportunity状態</dt>
+        <dd><%= @opportunity.metadata.to_h["progress_status"].presence || "未対応" %></dd>
+        <dt>Opportunity期待値</dt>
+        <dd><%= number_to_currency(@opportunity.expected_value_yen.to_i, unit: "¥", precision: 0) %></dd>
+        <dt>対象キーワード</dt>
+        <dd><%= @opportunity.metadata.to_h["target_keyword"].presence || "-" %></dd>
+      </dl>
+    </div>
+
+    <% if @opportunity_related_candidates.any? %>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>関連施策</th>
+              <th>状態</th>
+              <th>実行可否</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @opportunity_related_candidates.each do |candidate| %>
+              <tr>
+                <td><%= link_to candidate.title, action_candidate_path(candidate) %></td>
+                <td><%= candidate.executed? ? "完了済み" : candidate.status %></td>
+                <td>
+                  <% if candidate.metadata.to_h["blocked"] %>
+                    先行施策待ち
+                  <% elsif candidate.executed? %>
+                    完了
+                  <% else %>
+                    次に実行可能
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% end %>
+  </section>
+<% end %>
+
 <section class="dashboard-section" id="execute-action">
   <div class="section-heading">
     <div>
