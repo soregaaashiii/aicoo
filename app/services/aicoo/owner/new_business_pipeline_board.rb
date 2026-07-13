@@ -30,6 +30,9 @@ module Aicoo
         :success_condition,
         :rejection_condition,
         :public_lp_path,
+        :quality_status,
+        :quality_reasons,
+        :launch_asset_type,
         :updated_at
       )
       Summary = Data.define(
@@ -80,7 +83,10 @@ module Aicoo
             sources: %w[serp integrated_decision ai_business ai_cross_business]
           )
           .where.not(status: %w[archived rejected])
-          .where("status <> 'done' OR metadata -> 'auto_new_business_publication' ->> 'completed' = 'true'")
+          .where("status IN ('idea', 'pending', 'planning', 'proposal')")
+          .where(
+            "metadata ->> 'requires_human_edit' = 'true' OR metadata ->> 'manual_approval_required' = 'true' OR metadata -> 'business_idea_quality' ->> 'status' = 'needs_edit' OR metadata -> 'business_idea_quality' IS NULL"
+          )
           .order(Arel.sql("final_score DESC NULLS LAST, expected_hourly_value_yen DESC NULLS LAST, expected_profit_yen DESC NULLS LAST, updated_at DESC"))
       end
 
@@ -117,6 +123,9 @@ module Aicoo
           success_condition: metadata["success_condition"].presence || "7日以内にCTAクリックまたはCVが発生する",
           rejection_condition: metadata["rejection_condition"].presence || "30日で検索流入・CTAクリック・CVがすべて弱い",
           public_lp_path: landing_page&.published_slug.present? ? Rails.application.routes.url_helpers.public_lp_path(landing_page.published_slug) : nil,
+          quality_status: metadata.dig("business_idea_quality", "status").presence || "needs_edit",
+          quality_reasons: Array(metadata.dig("business_idea_quality", "reasons")).presence || [ "品質判定が未実行です" ],
+          launch_asset_type: metadata["launch_asset_type"].presence || metadata["lp_or_saas"].presence || "lp",
           updated_at: candidate.updated_at
         )
       end
@@ -156,6 +165,15 @@ module Aicoo
         routes = Rails.application.routes.url_helpers
         state = state_for(candidate, business, landing_page)
         if state.in?(%w[候補 Business未作成])
+          if candidate.metadata.to_h["requires_human_edit"] || candidate.metadata.to_h.dig("business_idea_quality", "status") == "needs_edit"
+            return action(
+              "内容を編集",
+              nil,
+              nil,
+              "不足情報を編集するとBusiness作成へ進めます。"
+            )
+          end
+
           return action(
             "Business作成",
             routes.approve_owner_new_business_pipeline_candidate_path(candidate),

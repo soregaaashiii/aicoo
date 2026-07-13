@@ -37,6 +37,7 @@ Rails.application.routes.draw do
   get "owner/auto_revision_loop/auto_revision_tasks/:id/create_github_issue", to: "owner/auto_revision_loops#create_github_issue_hint"
   patch "owner/auto_revision_loop/auto_revision_tasks/:id/record_result", to: "owner/auto_revision_loops#record_task_result", as: :record_result_owner_auto_revision_loop_task
   get "owner/new_business_pipeline", to: "owner/new_business_pipelines#show", as: :owner_new_business_pipeline
+  patch "owner/new_business_pipeline/action_candidates/:id", to: "owner/new_business_pipelines#update_candidate", as: :update_owner_new_business_pipeline_candidate
   patch "owner/new_business_pipeline/action_candidates/:id/approve", to: "owner/new_business_pipelines#approve_candidate", as: :approve_owner_new_business_pipeline_candidate
   patch "owner/new_business_pipeline/action_candidates/:id/reject", to: "owner/new_business_pipelines#reject_candidate", as: :reject_owner_new_business_pipeline_candidate
   post "owner/new_business_pipeline/action_candidates/:id/create_lp", to: "owner/new_business_pipelines#create_landing_page", as: :create_lp_owner_new_business_pipeline_candidate

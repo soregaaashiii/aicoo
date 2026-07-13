@@ -4,7 +4,7 @@
   <div>
     <p class="eyebrow">CEO MODE</p>
     <h1>新規事業作成</h1>
-    <p class="muted">候補確認、Business化、LP作成、LP公開、検証開始までをこの1ページで進めます。</p>
+    <p class="muted">品質不足の候補だけを編集し、Business化、LPまたはSaaS叩き台作成へ進めます。品質十分な候補は自動で事業化されます。</p>
   </div>
   <div class="button-row">
     <%= link_to "Owner Home", owner_focus_path, class: "button secondary" %>
@@ -31,7 +31,7 @@
   <div class="metric-card"><span>SERP由来候補</span><strong><%= @board.summary.serp_count %></strong></div>
   <div class="metric-card"><span>総合判断候補</span><strong><%= @board.summary.integrated_decision_count %></strong></div>
   <div class="metric-card"><span>Business作成待ち</span><strong><%= @board.summary.pending_count %></strong></div>
-  <div class="metric-card"><span>Business化済み</span><strong><%= @board.summary.business_created_count %></strong></div>
+  <div class="metric-card"><span>自動Business化済み</span><strong><%= @board.summary.business_created_count %></strong></div>
   <div class="metric-card"><span>LP作成待ち</span><strong><%= @board.summary.lp_waiting_count %></strong></div>
   <div class="metric-card"><span>LP公開済み</span><strong><%= @board.summary.lp_published_count %></strong></div>
   <div class="metric-card"><span>検証中</span><strong><%= @board.summary.validating_count %></strong></div>
@@ -84,10 +84,18 @@
       <p class="eyebrow"><%= row.current_state %> / <%= row.progress_label %> <%= row.progress_percent %>%</p>
       <h3><%= row.title %></h3>
       <p><strong>止まっている理由:</strong> <%= row.stuck_reason %></p>
+      <p><strong>品質判定:</strong> <%= row.quality_status == "auto_publishable" ? "Business化できます" : "編集が必要" %></p>
+      <% if row.quality_reasons.any? %>
+        <ul class="compact-list">
+          <% row.quality_reasons.each do |reason| %>
+            <li><%= reason %></li>
+          <% end %>
+        </ul>
+      <% end %>
       <div class="progress-line"><span style="width: <%= row.progress_percent %>%"></span></div>
 
       <div class="button-row">
-        <% if row.next_action_path.present? %>
+        <% if row.next_action_path.present? && row.quality_status == "auto_publishable" %>
           <%= button_to row.next_action_label, row.next_action_path, method: row.next_action_method, class: "button primary" %>
         <% end %>
         <% if row.action_candidate.status.in?(%w[idea pending]) %>
@@ -111,6 +119,35 @@
           <dt>成功条件</dt><dd><%= row.success_condition %></dd>
           <dt>撤退条件</dt><dd><%= row.rejection_condition %></dd>
         </dl>
+      </details>
+
+      <details open>
+        <summary>候補を編集</summary>
+        <% metadata = row.action_candidate.metadata.to_h %>
+        <%= form_with url: update_owner_new_business_pipeline_candidate_path(row.action_candidate), method: :patch, scope: :action_candidate, local: true do |form| %>
+          <div class="form-grid">
+            <label>事業名 <%= form.text_field :business_name, value: metadata["business_name"].presence || row.title %></label>
+            <label>顧客 <%= form.text_field :target_customer, value: metadata["target_customer"].presence || row.target_customer %></label>
+            <label>課題 <%= form.text_area :problem, rows: 2, value: metadata["problem"].presence || row.problem %></label>
+            <label>提供サービス <%= form.text_field :offering, value: metadata["offering"].presence || metadata["solution"] %></label>
+            <label>提供価値 <%= form.text_area :value_proposition, rows: 2, value: metadata["value_proposition"].presence || metadata["differentiation"] %></label>
+            <label>収益モデル <%= form.text_area :revenue_model, rows: 2, value: metadata["revenue_model"].presence || row.revenue_model %></label>
+            <label>検証方法 <%= form.text_area :validation_method, rows: 2, value: metadata["validation_method"].presence || row.validation_method %></label>
+            <label>市場 <%= form.text_field :market, value: metadata["market"] %></label>
+            <label>カテゴリ <%= form.text_field :market_category, value: metadata["market_category"] %></label>
+            <label>地域 <%= form.text_field :region, value: metadata["region"] %></label>
+            <label>作成する叩き台
+              <%= form.select :launch_asset_type,
+                              options_for_select([["LP", "lp"], ["SaaS仕様書", "saas"]], row.launch_asset_type) %>
+            </label>
+          </div>
+          <div class="button-row">
+            <%= form.submit "候補を保存", class: "button" %>
+          </div>
+        <% end %>
+        <% if row.quality_status == "auto_publishable" %>
+          <%= button_to "Business作成", approve_owner_new_business_pipeline_candidate_path(row.action_candidate), method: :patch, class: "button primary" %>
+        <% end %>
       </details>
 
       <details open>

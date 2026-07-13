@@ -12,10 +12,12 @@ module Aicoo
         :business_linked_count,
         :lp_created_count,
         :lp_published_count,
+        :service_created_count,
         :skipped_count,
         :failed_count,
         :business_ids,
         :landing_page_ids,
+        :business_service_ids,
         :errors
       )
 
@@ -35,6 +37,7 @@ module Aicoo
           counters = Hash.new(0)
           business_ids = []
           landing_page_ids = []
+          business_service_ids = []
           errors = []
 
           candidate_scope.find_each do |candidate|
@@ -50,10 +53,18 @@ module Aicoo
               next
             end
 
+            unless auto_publishable?(candidate)
+              mark_quality_review_required!(candidate)
+              counters[:skipped_count] += 1
+              next
+            end
+
             created_business = false
             created_landing_page = false
+            created_service = false
             business = nil
             landing_page = nil
+            business_service = nil
 
             ActiveRecord::Base.transaction do
               promotion = Aicoo::ActionCandidateBusinessPromoter.new(candidate).call
@@ -62,11 +73,16 @@ module Aicoo
 
               prepare_business!(business) if created_business || auto_created_business?(business)
 
-              before_lp_id = business.aicoo_lab_landing_pages.order(updated_at: :desc).first&.id
-              landing_page = Aicoo::Owner::NewBusinessLandingPageBuilder.new(candidate).call
-              created_landing_page = landing_page.id != before_lp_id
-              landing_page.publish! unless landing_page.publicly_visible?
-              business_service = ensure_business_service!(business, landing_page, candidate)
+              if launch_asset_type(candidate) == "saas"
+                before_service_id = business.business_services.order(updated_at: :desc).first&.id
+                business_service = ensure_business_service!(business, nil, candidate)
+                created_service = business_service.id != before_service_id
+              else
+                before_lp_id = business.aicoo_lab_landing_pages.order(updated_at: :desc).first&.id
+                landing_page = Aicoo::Owner::NewBusinessLandingPageBuilder.new(candidate).call
+                created_landing_page = landing_page.id != before_lp_id
+                landing_page.publish! unless landing_page.publicly_visible?
+              end
 
               candidate.update!(
                 status: "done",
@@ -78,13 +94,14 @@ module Aicoo
                     "source" => source,
                     "serp_run_id" => serp_run&.id,
                     "business_id" => business.id,
-                    "landing_page_id" => landing_page.id,
-                    "business_service_id" => business_service.id,
-                    "service_url" => business_service.url,
-                    "published_slug" => landing_page.published_slug,
-                    "published_at" => landing_page.published_at&.iso8601,
+                    "created_asset_type" => launch_asset_type(candidate),
+                    "landing_page_id" => landing_page&.id,
+                    "business_service_id" => business_service&.id,
+                    "service_url" => business_service&.url,
+                    "published_slug" => landing_page&.published_slug,
+                    "published_at" => landing_page&.published_at&.iso8601,
                     "completed_at" => Time.current.iso8601
-                  }
+                  }.compact
                 )
               )
             end
@@ -92,9 +109,11 @@ module Aicoo
             counters[:business_created_count] += 1 if created_business
             counters[:business_linked_count] += 1 unless created_business
             counters[:lp_created_count] += 1 if created_landing_page
-            counters[:lp_published_count] += 1
+            counters[:lp_published_count] += 1 if landing_page
+            counters[:service_created_count] += 1 if created_service
             business_ids << business.id
-            landing_page_ids << landing_page.id
+            landing_page_ids << landing_page.id if landing_page
+            business_service_ids << business_service.id if business_service
           rescue StandardError => e
             counters[:failed_count] += 1
             errors << {
@@ -113,10 +132,12 @@ module Aicoo
             business_linked_count: counters[:business_linked_count],
             lp_created_count: counters[:lp_created_count],
             lp_published_count: counters[:lp_published_count],
+            service_created_count: counters[:service_created_count],
             skipped_count: counters[:skipped_count],
             failed_count: counters[:failed_count],
             business_ids: business_ids.uniq,
             landing_page_ids: landing_page_ids.uniq,
+            business_service_ids: business_service_ids.uniq,
             errors:
           )
         end
@@ -158,6 +179,66 @@ module Aicoo
         base.order(Arel.sql("final_score DESC NULLS LAST, expected_hourly_value_yen DESC NULLS LAST, created_at ASC")).limit(limit)
       end
 
+      def auto_publishable?(candidate)
+        metadata = candidate.metadata.to_h
+        return false if metadata["manual_approval_required"] && source != "owner_new_business_pipeline"
+
+        quality = metadata["business_idea_quality"].to_h
+        return true if quality["auto_publishable"] == true
+
+        refreshed = quality_for(candidate)
+        candidate.update_columns(
+          metadata: metadata.merge(
+            "business_idea_quality" => refreshed.to_h,
+            "requires_human_edit" => !refreshed.auto_publishable,
+            "auto_business_publish_required" => refreshed.auto_publishable
+          ),
+          updated_at: Time.current
+        ) if quality.blank? || quality != refreshed.to_h
+
+        refreshed.auto_publishable
+      end
+
+      def quality_for(candidate)
+        metadata = candidate.metadata.to_h
+        Aicoo::Serp::BusinessIdeaQualityJudge.call(
+          attributes: {
+            "business_name" => metadata["business_name"].presence || metadata["service_name"].presence || candidate.title,
+            "target_customer" => metadata["target_customer"].presence || metadata["customer"].presence || metadata["target_user"],
+            "problem" => metadata["problem"],
+            "offering" => metadata["offering"].presence || metadata["solution"].presence || metadata["provided_service"],
+            "revenue_model" => metadata["revenue_model"].presence || metadata["monetization"],
+            "validation_method" => metadata["validation_method"].presence || metadata["validation_plan"].presence || metadata["validation_step"]
+          },
+          source_query: metadata["source_query"]
+        )
+      end
+
+      def mark_quality_review_required!(candidate)
+        candidate.update_columns(
+          status: "planning",
+          metadata: candidate.metadata.to_h.merge(
+            "requires_human_edit" => true,
+            "manual_approval_required" => true,
+            "auto_business_publish_required" => false,
+            "auto_new_business_publication" => {
+              "completed" => false,
+              "skipped" => true,
+              "reason" => "business_idea_quality_needs_edit",
+              "skipped_at" => Time.current.iso8601
+            }
+          ),
+          updated_at: Time.current
+        )
+      end
+
+      def launch_asset_type(candidate)
+        value = candidate.metadata.to_h["launch_asset_type"].presence ||
+                candidate.metadata.to_h["lp_or_saas"].presence ||
+                candidate.metadata.to_h["validation_asset_type"].presence
+        value.to_s == "saas" ? "saas" : "lp"
+      end
+
       def already_published?(candidate)
         metadata = candidate.metadata.to_h["auto_new_business_publication"].to_h
         business_id = metadata["business_id"].presence || candidate.business_id
@@ -167,6 +248,9 @@ module Aicoo
 
         business = Business.real_businesses.find_by(id: business_id)
         return false unless business
+        return true if metadata["completed"] == true && metadata["created_asset_type"] == "saas" &&
+                       metadata["business_service_id"].present? &&
+                       business.business_services.exists?(id: metadata["business_service_id"])
 
         if landing_page_id.present?
           return AicooLabLandingPage.publicly_available.exists?(id: landing_page_id, business_id: business.id)
@@ -261,23 +345,25 @@ module Aicoo
         raise ArgumentError, "削除済みBusinessにはServiceを作成できません。" if business.deleted?
 
         service_name = "#{business.name} SaaS"
-        service = business.business_services.find_by("metadata ->> 'service_kind' = ?", "saas_mvp_foundation") ||
+        service_kind = launch_asset_type(candidate) == "saas" ? "saas_spec_draft" : "saas_mvp_foundation"
+        service = business.business_services.find_by("metadata ->> 'service_kind' = ?", service_kind) ||
                   business.business_services.find_or_initialize_by(name: service_name)
 
         service.assign_attributes(
           name: service.name.presence || service_name,
           url: service.url.presence,
           domain: nil,
-          deploy_target: "aicoo_mvp_service",
-          status: service.status.presence == "production" ? "production" : "building",
+          deploy_target: service_kind,
+          status: service.status.presence == "production" ? "production" : "planning",
           metadata: service.metadata.to_h.merge(
             "auto_created" => true,
-            "service_kind" => "saas_mvp_foundation",
+            "service_kind" => service_kind,
             "source" => source,
             "source_action_candidate_id" => candidate.id,
-            "validation_landing_page_id" => landing_page.id,
-            "validation_lp_slug" => landing_page.published_slug,
+            "validation_landing_page_id" => landing_page&.id,
+            "validation_lp_slug" => landing_page&.published_slug,
             "public_url" => service.url.presence,
+            "spec_draft" => saas_spec_draft_for(candidate),
             "minimum_features" => [
               "ユーザーの課題登録フォーム",
               "登録内容のAICOO Activity Logging",
@@ -288,12 +374,34 @@ module Aicoo
           )
         )
         service.save!
-        service_url = "/mvp/#{service.id}"
-        service.update!(
-          url: service_url,
-          metadata: service.metadata.to_h.merge("public_url" => service_url)
-        ) if service.url != service_url
+        if service_kind != "saas_spec_draft"
+          service_url = "/mvp/#{service.id}"
+          service.update!(
+            url: service_url,
+            metadata: service.metadata.to_h.merge("public_url" => service_url)
+          ) if service.url != service_url
+        end
         service
+      end
+
+      def saas_spec_draft_for(candidate)
+        metadata = candidate.metadata.to_h
+        {
+          "business_name" => metadata["business_name"].presence || candidate.title,
+          "target_customer" => metadata["target_customer"],
+          "problem" => metadata["problem"],
+          "offering" => metadata["offering"].presence || metadata["solution"],
+          "value_proposition" => metadata["value_proposition"].presence || metadata["differentiation"],
+          "revenue_model" => metadata["revenue_model"].presence || metadata["monetization"],
+          "validation_method" => metadata["validation_method"].presence || metadata["validation_plan"].presence || metadata["validation_step"],
+          "mvp_scope" => [
+            "課題登録",
+            "相談内容の管理",
+            "Ownerへの通知",
+            "反応データのAICOO Activity Logging"
+          ],
+          "created_at" => Time.current.iso8601
+        }.compact
       end
 
       def auto_created_business?(business)

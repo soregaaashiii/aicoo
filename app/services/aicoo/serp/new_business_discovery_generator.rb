@@ -130,6 +130,7 @@ module Aicoo
         candidate = ActionCandidate.create!(candidate_attributes(analysis))
         publish_candidate!(candidate)
         candidate.reload
+        return candidate if manual_edit_required?(candidate)
         return candidate if candidate.business_id.present? && candidate.metadata.to_h.dig("auto_new_business_publication", "completed")
 
         mark_publication_failed!(candidate, "business_auto_publish_failed")
@@ -166,6 +167,7 @@ module Aicoo
 
       def publish_candidate!(candidate)
         return if candidate.metadata.to_h.dig("auto_new_business_publication", "completed")
+        return unless auto_publishable?(candidate)
 
         Aicoo::Serp::AutoNewBusinessPublisher.call(
           serp_run:,
@@ -174,8 +176,17 @@ module Aicoo
         )
       end
 
+      def manual_edit_required?(candidate)
+        candidate.metadata.to_h.dig("business_idea_quality", "status") == "needs_edit"
+      end
+
+      def auto_publishable?(candidate)
+        candidate.metadata.to_h.dig("business_idea_quality", "auto_publishable") == true
+      end
+
       def candidate_attributes(analysis)
         idea = business_idea_for(analysis)
+        quality = business_idea_quality_for(analysis, idea)
         {
           business: nil,
           title: idea.fetch("business_name"),
@@ -183,7 +194,7 @@ module Aicoo
           action_type: "new_business",
           department: "new_business",
           generation_source: "serp",
-          status: "idea",
+          status: quality.auto_publishable ? "idea" : "planning",
           immediate_value_yen: expected_market_value_yen(analysis),
           success_probability: success_probability_for(analysis),
           expected_hours: 2.0,
@@ -193,33 +204,41 @@ module Aicoo
           priority_score: [ market_score(analysis), 95 ].min,
           execution_prompt: validation_plan_for(analysis, idea),
           evaluation_reason: "serp:new_business_discovery",
-          metadata: candidate_metadata(analysis, idea)
+          metadata: candidate_metadata(analysis, idea, quality)
         }
       end
 
-      def candidate_metadata(analysis, idea = business_idea_for(analysis))
+      def candidate_metadata(analysis, idea = business_idea_for(analysis), quality = business_idea_quality_for(analysis, idea))
         {
           "source" => "serp",
           "candidate_kind" => "new_business",
-          "business_flow" => "serp_auto_added",
+          "business_flow" => quality.auto_publishable ? "serp_auto_added" : "serp_manual_edit_required",
           "market" => idea.fetch("market"),
           "market_category" => idea.fetch("market_category"),
           "business_name" => idea.fetch("business_name"),
           "problem" => idea.fetch("problem"),
           "target_customer" => idea.fetch("target_customer"),
+          "customer" => idea.fetch("target_customer"),
+          "offering" => idea.fetch("offering"),
+          "provided_service" => idea.fetch("offering"),
+          "value_proposition" => idea.fetch("value_proposition"),
           "search_demand" => search_demand_for(analysis),
           "competition" => competition_for(analysis),
           "monetization" => monetization_for(analysis, idea),
           "revenue_model" => monetization_for(analysis, idea),
           "solution" => idea.fetch("solution"),
+          "launch_asset_type" => idea.fetch("launch_asset_type"),
+          "lp_or_saas" => idea.fetch("launch_asset_type"),
           "lp_concept" => lp_concept_for(analysis, idea),
           "validation_plan" => validation_plan_for(analysis, idea),
           "validation_step" => validation_plan_for(analysis, idea),
+          "validation_method" => validation_plan_for(analysis, idea),
           "market_analysis" => idea.fetch("market_analysis"),
           "existing_competitors" => idea.fetch("existing_competitors"),
           "differentiation" => idea.fetch("differentiation"),
           "business_name_reason" => idea.fetch("business_name_reason"),
           "business_name_quality" => idea.fetch("business_name_quality"),
+          "business_idea_quality" => quality.to_h,
           "source_queries" => [ analysis.keyword ],
           "source_query" => analysis.keyword,
           "serp_run_id" => serp_run.id,
@@ -230,10 +249,24 @@ module Aicoo
           "data_sources_used" => [ "serp" ],
           "data_quality" => data_quality_for(analysis),
           "missing_fields" => missing_fields_for(analysis),
-          "requires_enrichment" => requires_enrichment?(analysis),
+          "requires_enrichment" => requires_enrichment?(analysis) || !quality.auto_publishable,
+          "requires_human_edit" => !quality.auto_publishable,
+          "manual_approval_required" => !quality.auto_publishable,
           "execution_mode" => "owner_decision",
-          "auto_business_publish_required" => true
+          "auto_business_publish_required" => quality.auto_publishable
         }
+      end
+
+      def business_idea_quality_for(analysis, idea)
+        Aicoo::Serp::BusinessIdeaQualityJudge.call(
+          attributes: idea.merge(
+            "revenue_model" => monetization_for(analysis, idea),
+            "monetization" => monetization_for(analysis, idea),
+            "validation_method" => validation_plan_for(analysis, idea),
+            "validation_plan" => validation_plan_for(analysis, idea)
+          ),
+          source_query: analysis.keyword
+        )
       end
 
       def duplicate_candidate?(analysis)
@@ -413,6 +446,9 @@ module Aicoo
           "target_customer" => "#{customer}の運営者・担当者",
           "problem" => problem_statement_for(query, customer, service_focus),
           "solution" => solution,
+          "offering" => solution,
+          "value_proposition" => differentiation_for(customer, service_focus),
+          "launch_asset_type" => launch_asset_type_for(query, service_focus),
           "market_analysis" => market_analysis_for(query, market, competitors),
           "existing_competitors" => competitors,
           "differentiation" => differentiation_for(customer, service_focus),
@@ -509,6 +545,12 @@ module Aicoo
 
       def market_category_for(customer, service_focus)
         [ customer, service_focus ].join("/")
+      end
+
+      def launch_asset_type_for(query, service_focus)
+        return "saas" if query.match?(/SaaS|ツール|アプリ|自動化|管理/) || service_focus.match?(/管理|自動化|予約受付|問い合わせ対応/)
+
+        "lp"
       end
 
       def business_name_quality_for(name, query)

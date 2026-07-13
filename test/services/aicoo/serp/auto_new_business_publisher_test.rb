@@ -24,7 +24,10 @@ class Aicoo::Serp::AutoNewBusinessPublisherTest < ActiveSupport::TestCase
             "source_query" => "請求前 チェックリスト",
             "problem" => "請求前のミスを減らしたい",
             "target_customer" => "フリーランス",
-            "revenue_model" => "テンプレート販売"
+            "offering" => "請求前チェックリストテンプレート",
+            "revenue_model" => "テンプレート販売と月額チェック支援",
+            "validation_method" => "LPを公開し、事前登録とテンプレート購入意向を確認する",
+            "launch_asset_type" => "lp"
           }
         )
       end
@@ -38,24 +41,16 @@ class Aicoo::Serp::AutoNewBusinessPublisherTest < ActiveSupport::TestCase
     assert_equal "lp_validation", candidate.business.lifecycle_stage
     assert_equal "active", candidate.business.resource_status
     assert candidate.business.aicoo_lab_landing_pages.publicly_available.exists?
-    service = candidate.business.business_services.find_by!(deploy_target: "aicoo_mvp_service")
-    assert_equal "building", service.status
-    assert_match %r{\A/mvp/\d+\z}, service.url
-    assert_equal "saas_mvp_foundation", service.metadata["service_kind"]
-    assert_equal candidate.metadata.dig("auto_new_business_publication", "landing_page_id"), service.metadata["validation_landing_page_id"]
-    assert_equal service.id, candidate.metadata.dig("auto_new_business_publication", "business_service_id")
-    assert_equal service.url, candidate.metadata.dig("auto_new_business_publication", "service_url")
+    assert_nil candidate.metadata.dig("auto_new_business_publication", "business_service_id")
     assert_equal true, candidate.metadata.dig("auto_new_business_publication", "completed")
     assert Business.real_businesses.where(id: candidate.business_id).exists?
 
     assert_no_difference -> { Business.real_businesses.count } do
       assert_no_difference -> { AicooLabLandingPage.publicly_available.count } do
-        assert_no_difference -> { BusinessService.count } do
-          result = Aicoo::Serp::AutoNewBusinessPublisher.call(candidates: [ candidate ])
-          assert_equal 0, result.business_created_count
-          assert_equal 0, result.lp_published_count
-          assert_equal 0, result.failed_count
-        end
+        result = Aicoo::Serp::AutoNewBusinessPublisher.call(candidates: [ candidate ])
+        assert_equal 0, result.business_created_count
+        assert_equal 0, result.lp_published_count
+        assert_equal 0, result.failed_count
       end
     end
 
@@ -66,8 +61,76 @@ class Aicoo::Serp::AutoNewBusinessPublisherTest < ActiveSupport::TestCase
     assert_not candidate.business.launched?
     assert_equal "lp_validation", candidate.business.lifecycle_stage
     assert candidate.business.aicoo_lab_landing_pages.publicly_available.exists?
-    assert candidate.business.business_services.where(deploy_target: "aicoo_mvp_service").where.not(url: [ nil, "" ]).exists?
     assert_equal true, candidate.metadata.dig("auto_new_business_publication", "completed")
+  end
+
+  test "auto creates saas spec draft when saas foundation is selected" do
+    candidate = ActionCandidate.create!(
+      title: "飲食店予約受付SaaS",
+      description: "飲食店の予約受付を自動化する新規事業候補。",
+      action_type: "new_business",
+      department: "new_business",
+      generation_source: "serp",
+      status: "idea",
+      immediate_value_yen: 80_000,
+      success_probability: 0.3,
+      expected_hours: 2,
+      execution_prompt: "SaaS仕様を作る。",
+      metadata: {
+        "candidate_kind" => "new_business",
+        "business_name" => "飲食店予約受付SaaS",
+        "source_query" => "飲食店 予約 自動化",
+        "problem" => "飲食店が営業時間中の電話予約に対応しきれない",
+        "target_customer" => "飲食店の運営者・担当者",
+        "offering" => "予約受付を自動化するSaaS",
+        "revenue_model" => "月額利用料で収益化する",
+        "validation_method" => "SaaS仕様書と登録導線で予約受付の相談数を確認する",
+        "launch_asset_type" => "saas"
+      }
+    )
+
+    candidate.reload
+    assert_equal "done", candidate.status
+    assert_equal "exploring", candidate.business.status
+    assert_not candidate.business.aicoo_lab_landing_pages.publicly_available.exists?
+    service = candidate.business.business_services.find_by!(deploy_target: "saas_spec_draft")
+    assert_equal "planning", service.status
+    assert_equal "saas_spec_draft", service.metadata["service_kind"]
+    assert_equal "飲食店予約受付SaaS", service.metadata.dig("spec_draft", "business_name")
+    assert_equal service.id, candidate.metadata.dig("auto_new_business_publication", "business_service_id")
+    assert_equal "saas", candidate.metadata.dig("auto_new_business_publication", "created_asset_type")
+  end
+
+  test "does not auto publish query named low quality candidate" do
+    assert_no_difference("Business.real_businesses.count") do
+      candidate = ActionCandidate.create!(
+        title: "飲食店 代行 大阪の検証事業",
+        description: "検索クエリをそのまま候補名にしている。",
+        action_type: "new_business",
+        department: "new_business",
+        generation_source: "serp",
+        status: "idea",
+        immediate_value_yen: 80_000,
+        success_probability: 0.3,
+        expected_hours: 2,
+        metadata: {
+          "candidate_kind" => "new_business",
+          "business_name" => "飲食店 代行 大阪の検証事業",
+          "source_query" => "飲食店 代行 大阪",
+          "problem" => "飲食店が代行先を選べない",
+          "target_customer" => "飲食店の運営者・担当者",
+          "offering" => "飲食店向け代行支援",
+          "revenue_model" => "月額支援で収益化する",
+          "validation_method" => "LPで相談登録を確認する"
+        }
+      )
+
+      candidate.reload
+      assert_equal "planning", candidate.status
+      assert_equal "needs_edit", candidate.metadata.dig("business_idea_quality", "status")
+      assert_equal true, candidate.metadata["requires_human_edit"]
+      assert_nil candidate.business_id
+    end
   end
 
   test "repairer restores approved serp candidate without owner approval" do
@@ -90,8 +153,13 @@ class Aicoo::Serp::AutoNewBusinessPublisherTest < ActiveSupport::TestCase
       status: "approved",
       metadata: {
         "candidate_kind" => "new_business",
-        "business_name" => "SERP復旧テスト事業",
-        "source_query" => "SERP 復旧 テスト"
+        "business_name" => "SERP復旧検証支援サービス",
+        "source_query" => "SERP 復旧 テスト",
+        "target_customer" => "小規模事業者の運営者",
+        "problem" => "SERPから見つけた市場の初期検証ができていない",
+        "offering" => "市場検証支援サービス",
+        "revenue_model" => "月額検証支援で収益化する",
+        "validation_method" => "LPを公開し相談登録を確認する"
       }
     )
 
@@ -105,7 +173,7 @@ class Aicoo::Serp::AutoNewBusinessPublisherTest < ActiveSupport::TestCase
 
     candidate.reload
     assert_equal "done", candidate.status
-    assert_equal "SERP復旧テスト事業", candidate.business.name
+    assert_equal "SERP復旧検証支援サービス", candidate.business.name
     assert_equal "exploring", candidate.business.status
     assert Business.real_businesses.where(id: candidate.business_id).exists?
     assert_equal true, candidate.metadata.dig("auto_new_business_publication", "completed")

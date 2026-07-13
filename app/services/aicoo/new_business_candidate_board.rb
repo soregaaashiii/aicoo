@@ -29,7 +29,7 @@ module Aicoo
 
     NEW_BUSINESS_ACTION_TYPES = %w[new_business lp_experiment market_test build_lp build_mvp market_research opportunity_validation].freeze
     PENDING_STATUSES = %w[idea pending].freeze
-    VISIBLE_STATUSES = %w[idea pending done].freeze
+    VISIBLE_STATUSES = %w[idea pending planning proposal].freeze
 
     def self.call(...)
       new(...).call
@@ -60,9 +60,9 @@ module Aicoo
       candidate_base
         .where(status: VISIBLE_STATUSES)
         .where(
-          "status IN (:pending_statuses) OR metadata -> 'auto_new_business_publication' ->> 'completed' = :completed",
-          pending_statuses: PENDING_STATUSES,
-          completed: "true"
+          "metadata ->> 'requires_human_edit' = :requires_human_edit OR metadata ->> 'manual_approval_required' = :requires_human_edit OR metadata -> 'business_idea_quality' ->> 'status' = :needs_edit OR metadata -> 'business_idea_quality' IS NULL",
+          requires_human_edit: "true",
+          needs_edit: "needs_edit"
         )
         .where.not(status: %w[rejected archived])
         .order(Arel.sql("final_score DESC NULLS LAST, expected_hourly_value_yen DESC NULLS LAST, expected_profit_yen DESC NULLS LAST, created_at DESC"))
