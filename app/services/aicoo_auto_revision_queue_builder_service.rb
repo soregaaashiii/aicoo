@@ -33,7 +33,7 @@ class AicooAutoRevisionQueueBuilderService
 
     self.class.candidate_scope.each do |candidate|
       candidate_count += 1
-      break if created_tasks.size >= limit
+      break if limit.present? && created_tasks.size >= limit
 
       stabilize_instruction(candidate)
       if (reason = skip_candidate_reason(candidate))
@@ -78,10 +78,22 @@ class AicooAutoRevisionQueueBuilderService
     return "below_minimum_final_score" if candidate.final_score.to_d < minimum_final_score
     return "active_auto_revision_task_exists" if candidate.auto_revision_tasks.any? { |task| AutoRevisionTask::ACTIVE_STATUSES.include?(task.status) }
     return "non_code_revision:#{candidate.execution_mode}" unless candidate.code_revision_execution_mode?
+    return "blocked_by_prerequisite" if prerequisite_blocked?(candidate)
     return "execution_instruction_missing_file_changes" if candidate.metadata.to_h.dig("execution_instruction", "quality", "has_file_changes") == false
     return "execution_instruction_missing_completion_criteria" if candidate.metadata.to_h.dig("execution_instruction", "quality", "has_completion_criteria") == false
 
     nil
+  end
+
+  def prerequisite_blocked?(candidate)
+    metadata = candidate.metadata.to_h
+    return true if metadata["blocked"] && metadata["prerequisite_action_candidate_id"].blank?
+
+    prerequisite_id = metadata["prerequisite_action_candidate_id"]
+    return false if prerequisite_id.blank?
+
+    prerequisite = ActionCandidate.find_by(id: prerequisite_id)
+    prerequisite.blank? || !prerequisite.executed?
   end
 
   def stabilize_instruction(candidate)

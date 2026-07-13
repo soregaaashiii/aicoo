@@ -124,6 +124,9 @@ Rails.application.routes.draw do
   end
   resources :auto_revision_tasks, only: %i[index show create] do
     get :codex_queue, on: :collection
+    post :process_codex_queue, on: :collection
+    patch :pause_codex_queue, on: :collection
+    patch :resume_codex_queue, on: :collection
     patch :approve, on: :member
     patch :cancel, on: :member
     patch :enqueue, on: :member

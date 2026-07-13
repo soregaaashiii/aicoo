@@ -22,6 +22,23 @@ class AutoRevisionTasksController < ApplicationController
   def codex_queue
     @status_filter = params[:status].presence
     @auto_revision_tasks = codex_queue_scope.includes(:business, :action_candidate).limit(100)
+    @codex_queue_summary = Aicoo::CodexActionQueueSummary.new.call
+  end
+
+  def process_codex_queue
+    result = Aicoo::CodexActionQueueProcessor.new(force: true).call
+    notice = result.started ? "次の1件をCodexへ送信しました。" : "Codex送信は開始されませんでした: #{result.reason}"
+    redirect_to codex_queue_auto_revision_tasks_path, notice:
+  end
+
+  def pause_codex_queue
+    AicooAutoRevisionSetting.current.pause_codex_queue!(reason: params[:reason].presence || "Ownerが手動で一時停止しました。")
+    redirect_to codex_queue_auto_revision_tasks_path, notice: "Codex Queueを一時停止しました。"
+  end
+
+  def resume_codex_queue
+    AicooAutoRevisionSetting.current.resume_codex_queue!
+    redirect_to codex_queue_auto_revision_tasks_path, notice: "Codex Queueを再開しました。"
   end
 
   def show

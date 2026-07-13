@@ -53,15 +53,16 @@ class AicooAutoRevisionDailyRunQueuerTest < ActiveSupport::TestCase
     assert_equal daily_run, result.queue_run.aicoo_daily_run
   end
 
-  test "respects max tasks per run" do
+  test "queues all eligible tasks without using dispatch start limit" do
     AicooAutoRevisionSetting.current.update!(enabled: true, max_tasks_per_run: 2)
     daily_run = create_daily_run
     4.times { |index| create_candidate(title: "SEOタイトル改善 #{index}", execution_prompt: "SEOタイトルを改善してください。") }
 
     result = AicooAutoRevisionDailyRunQueuer.new.call(daily_run:)
 
-    assert_equal 2, result.queue_run.generated_tasks_count
-    assert_equal 2, AutoRevisionTask.count
+    assert_equal 4, result.queue_run.generated_tasks_count
+    assert_equal 4, AutoRevisionTask.count
+    assert_equal "none", result.queue_run.metadata.fetch("queue_registration_limit")
   end
 
   test "respects minimum final score" do
@@ -108,7 +109,7 @@ class AicooAutoRevisionDailyRunQueuerTest < ActiveSupport::TestCase
     end
   end
 
-  test "dispatches ready codex tasks to github issue during queue run" do
+  test "does not dispatch ready codex tasks during daily run queueing" do
     AicooAutoRevisionSetting.current.update!(enabled: true, max_tasks_per_run: 2)
     daily_run = create_daily_run
     task = create_ready_codex_task
@@ -117,11 +118,11 @@ class AicooAutoRevisionDailyRunQueuerTest < ActiveSupport::TestCase
       result = AicooAutoRevisionDailyRunQueuer.new.call(daily_run:)
 
       assert_equal true, result.ran
-      assert_equal 1, result.queue_run.metadata.fetch("codex_issue_processed_count")
-      assert_equal 1, result.queue_run.metadata.fetch("codex_issue_created_count")
-      assert_equal "sent_to_codex", task.reload.status
-      assert_equal "submitted", task.codex_submission.status
-      assert_equal "https://github.com/example/suelog/issues/#{task.id}", task.codex_submission.github_issue_url
+      assert_equal 0, result.queue_run.metadata.fetch("codex_issue_processed_count")
+      assert_equal 0, result.queue_run.metadata.fetch("codex_issue_created_count")
+      assert_equal "separated_to_codex_action_queue_processor", result.queue_run.metadata.fetch("codex_issue_dispatch")
+      assert_equal "ready_for_codex", task.reload.status
+      assert_nil task.codex_submission.github_issue_url
     end
   end
 

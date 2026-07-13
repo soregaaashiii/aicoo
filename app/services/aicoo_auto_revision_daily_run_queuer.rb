@@ -12,11 +12,7 @@ class AicooAutoRevisionDailyRunQueuer
     result = AicooAutoRevisionQueueBuilderService.new(
       minimum_final_score: setting.minimum_final_score,
       allow_medium_risk: setting.allow_medium_risk
-    ).call(limit: setting.max_tasks_per_run)
-    codex_issue_result = Aicoo::AutoRevisionCodexIssueDispatcher.new.call(
-      tasks: result.created_tasks,
-      limit: setting.max_tasks_per_run
-    )
+    ).call(limit: nil)
 
     queue_run = AutoRevisionQueueRun.create!(
       aicoo_daily_run: daily_run,
@@ -35,13 +31,13 @@ class AicooAutoRevisionDailyRunQueuer
         "auto_revision_mode_counts" => result.logs.group_by(&:auto_revision_mode).transform_values(&:size),
         "auto_revision_status_counts" => result.logs.group_by(&:status).transform_values(&:size),
         "high_risk_candidate_ids" => result.high_risk_candidates.map(&:id),
-        "codex_issue_processed_count" => codex_issue_result.processed_count,
-        "codex_issue_created_count" => codex_issue_result.created_issue_count,
-        "codex_issue_skipped_count" => codex_issue_result.skipped_count,
-        "codex_issue_failed_count" => codex_issue_result.failed_count,
-        "codex_issue_details" => codex_issue_result.details.first(20),
+        "codex_issue_processed_count" => 0,
+        "codex_issue_created_count" => 0,
+        "codex_issue_skipped_count" => 0,
+        "codex_issue_failed_count" => 0,
+        "codex_issue_dispatch" => "separated_to_codex_action_queue_processor",
         "minimum_final_score" => setting.minimum_final_score.to_s,
-        "max_tasks_per_run" => setting.max_tasks_per_run,
+        "queue_registration_limit" => "none",
         "allow_medium_risk" => setting.allow_medium_risk
       }
     )
@@ -67,7 +63,7 @@ class AicooAutoRevisionDailyRunQueuer
   def queue_message(result)
     case queue_reason(result)
     when "created_tasks"
-      "AutoRevisionTaskを#{result.created_count}件生成しました。"
+      "AutoRevisionTaskを#{result.created_count}件キュー登録しました。Codex送信は専用キュー処理が1件ずつ実行します。"
     when "no_eligible_candidates"
       "AutoRevision Queueは実行されましたが、対象ステータス・実行プロンプト・スコア条件を満たすActionCandidateがありませんでした。診断: #{diagnostic_summary(result)}"
     when "all_candidates_skipped"

@@ -13,6 +13,40 @@
              actions: header_actions %>
 
   <section class="dashboard-section">
+    <% if @codex_queue_summary %>
+      <div class="dashboard-grid">
+        <div class="metric-card"><span>待機中</span><strong><%= @codex_queue_summary.queued_count + @codex_queue_summary.ready_count %>件</strong></div>
+        <div class="metric-card"><span>実行中</span><strong><%= @codex_queue_summary.sent_count + @codex_queue_summary.running_count %>件</strong></div>
+        <div class="metric-card"><span>完了</span><strong><%= @codex_queue_summary.completed_count %>件</strong></div>
+        <div class="metric-card"><span>失敗</span><strong><%= @codex_queue_summary.failed_count %>件</strong></div>
+      </div>
+
+      <div class="decision-card">
+        <h2>Codex Queue状態</h2>
+        <p>
+          <% if @codex_queue_summary.paused %>
+            <span class="pill danger">一時停止中</span>
+            <%= @codex_queue_summary.pause_reason.presence || "停止理由未記録" %>
+          <% else %>
+            <span class="pill">稼働中</span>
+            1回の処理で1件だけCodexへ送信します。
+          <% end %>
+        </p>
+        <p>次に実行するAction: <%= @codex_queue_summary.next_task ? link_to(@codex_queue_summary.next_task.title, @codex_queue_summary.next_task) : "なし" %></p>
+        <p>直近の実行開始: <%= @codex_queue_summary.last_started_at ? l(@codex_queue_summary.last_started_at, format: :short) : "-" %></p>
+        <p>直近の失敗理由: <%= @codex_queue_summary.last_failure_reason.presence || "-" %></p>
+        <p>連続失敗: <%= @codex_queue_summary.consecutive_failures %>件</p>
+        <div class="actions compact-actions">
+          <% if @codex_queue_summary.paused %>
+            <%= button_to "キューを再開", resume_codex_queue_auto_revision_tasks_path, method: :patch, class: "button" %>
+          <% else %>
+            <%= button_to "キューを一時停止", pause_codex_queue_auto_revision_tasks_path, method: :patch, class: "button secondary" %>
+          <% end %>
+          <%= button_to "次の1件を実行", process_codex_queue_auto_revision_tasks_path, method: :post, class: "button" %>
+        </div>
+      </div>
+    <% end %>
+
     <div class="actions compact-actions">
       <% [
         [ "すべて", nil ],
