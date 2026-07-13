@@ -56,14 +56,37 @@ class ActionCandidateTest < ActiveSupport::TestCase
     )
 
     metadata = action_candidate.reload.metadata
-    assert_equal "https://suelog.jp/", metadata["target_url"]
-    assert_equal "https://suelog.jp/", metadata.dig("action_plan", "target")
-    assert_equal "https://suelog.jp/", metadata.dig("evidence", "page_path")
-    assert_equal "owner_page", metadata["target_url_type"]
+    assert_nil metadata["target_url"]
+    assert_nil metadata.dig("action_plan", "target")
+    assert_nil metadata.dig("evidence", "page_path")
+    assert_equal "unknown", metadata["target_url_type"]
+    assert_equal "自社対象ページ未特定", metadata["target_url_warning"]
     assert_includes metadata["competitor_urls"], "https://it-trend.jp/log_management/article/84-0008"
     assert_includes metadata["competitor_features"], "比較表"
     assert_includes metadata["missing_features"], "検索条件リンク"
     assert_equal "external_url_moved_to_competitor_urls", metadata["invalid_target_url_reason"]
+  end
+
+  test "does not use tabelog url as suelog target url" do
+    action_candidate = ActionCandidate.create!(
+      business: businesses(:suelog),
+      title: "喫煙可能な飲食店検索サービスのtitle/metaを改善する",
+      action_type: "seo_improvement",
+      generation_source: "business_analyzer",
+      immediate_value_yen: 18_000,
+      success_probability: 0.4,
+      expected_hours: 1.5,
+      metadata: {
+        "target_url" => "https://s.tabelog.com/rstLst/cond13-00-01/",
+        "source_query" => "喫煙可能な飲食店検索サービス"
+      }
+    )
+
+    metadata = action_candidate.reload.metadata
+    assert_nil metadata["target_url"]
+    assert_equal "unknown", metadata["target_url_type"]
+    assert_includes metadata["reference_urls"], "https://s.tabelog.com/rstLst/cond13-00-01/"
+    assert_includes metadata["competitor_urls"], "https://s.tabelog.com/rstLst/cond13-00-01/"
   end
 
   test "stores external url as reference and planned url for new article candidates" do

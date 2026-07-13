@@ -20,7 +20,7 @@ module Aicoo
       sanitize_top_level_targets
       sanitize_nested_targets
       collect_serp_competitors
-      ensure_owner_target_when_competitor_reference
+      mark_unresolved_target_when_competitor_reference
       apply_competitor_metadata
       metadata.compact
     end
@@ -71,7 +71,7 @@ module Aicoo
       if new_content_action? && url_like?(hash[key].to_s)
         result = Aicoo::BusinessOwnedUrlPolicy.call(business:, url: hash[key])
         competitor_urls << result.reference_url if result.reference_url.present?
-        hash[key] = planned_owner_url.presence || hash[key]
+        hash[key] = planned_owner_url
         return
       end
 
@@ -95,6 +95,9 @@ module Aicoo
       if result.reference_url.present?
         competitor_urls << result.reference_url
         metadata["invalid_target_url_reason"] ||= "external_url_moved_to_competitor_urls"
+        metadata["target_url_warning"] ||= "自社対象ページ未特定"
+        metadata["target_url_type"] = "unknown"
+        return nil
       end
       metadata["target_url_type"] = result.target_url_type
       result.url.presence || value
@@ -128,20 +131,14 @@ module Aicoo
       metadata["improvement_reason"] ||= improvement_reason if urls.any?
     end
 
-    def ensure_owner_target_when_competitor_reference
+    def mark_unresolved_target_when_competitor_reference
       return if new_content_action?
       return if competitor_urls.compact_blank.empty?
       return unless metadata["invalid_target_url_reason"].present?
 
-      fallback = Aicoo::BusinessOwnedUrlPolicy.call(business:, url: nil).url
-      return if fallback.blank?
-
-      metadata["target_url"] = fallback if metadata["target_url"].blank?
-      metadata["target_url_type"] = "owner_page"
-      metadata["action_plan"] ||= {}
-      metadata["action_plan"]["target"] = fallback if metadata["action_plan"].is_a?(Hash) && metadata["action_plan"]["target"].blank?
-      metadata["evidence"] ||= {}
-      metadata["evidence"]["page_path"] = fallback if metadata["evidence"].is_a?(Hash) && metadata["evidence"]["page_path"].blank?
+      metadata["target_url"] = nil if metadata["target_url"].blank? || external_url?(metadata["target_url"])
+      metadata["target_url_type"] = "unknown" if metadata["target_url"].blank?
+      metadata["target_url_warning"] ||= "自社対象ページ未特定"
     end
 
     def competitor_features
@@ -174,7 +171,7 @@ module Aicoo
     def planned_target_value(raw, fallback:)
       result = collect_reference_url(raw)
       metadata["invalid_target_url_reason"] ||= "external_url_moved_to_reference_urls" if result.reference_url.present?
-      planned_owner_url.presence || fallback
+      planned_owner_url
     end
 
     def collect_reference_url(value)
@@ -191,7 +188,7 @@ module Aicoo
           nil
         else
           result = Aicoo::BusinessOwnedUrlPolicy.call(business:, url: value)
-          result.owner_page? ? result.url : slug_url
+          result.reference_url.present? ? slug_url : (result.owner_page? ? result.url : slug_url)
         end
       end
     end
@@ -199,9 +196,16 @@ module Aicoo
     def recommended_url_from_slug(value)
       slug = value.to_s.strip
       return nil if slug.blank?
-      return slug if slug.start_with?("http://", "https://", "/")
+      return nil if slug.start_with?("http://", "https://")
+      return slug if slug.start_with?("/")
 
       "/articles/#{slug}"
+    end
+
+    def external_url?(value)
+      return false unless value.to_s.match?(/\Ahttps?:\/\//i)
+
+      Aicoo::BusinessOwnedUrlPolicy.call(business:, url: value.to_s).external_reference?
     end
   end
 end

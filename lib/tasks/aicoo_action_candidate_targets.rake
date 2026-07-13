@@ -1,80 +1,76 @@
 namespace :aicoo do
   desc "Repair ActionCandidate target/planned/reference URL metadata without deleting data."
   task repair_action_candidate_target_urls: :environment do
-    apply = ENV["APPLY"].to_s.casecmp("true").zero?
+    apply = ENV["APPLY"].to_s.in?(%w[1 true TRUE])
     checked = 0
-    target_url_repairs = 0
-    duplicate_groups = 0
-    duplicate_archived = 0
+    external_target_found = 0
+    moved_to_reference = 0
+    own_target_reassigned = 0
+    planned_url_assigned = 0
+    unresolved = 0
     failed = 0
-    groups = Hash.new { |hash, key| hash[key] = [] }
+    candidate_ids = []
 
     ActionCandidate.includes(:business).where.not(business_id: nil).find_each do |candidate|
       checked += 1
       before = candidate.metadata.to_h
+      before_refs = reference_urls(before)
+      had_external_target = external_target?(candidate.business, before)
       repaired = Aicoo::ActionCandidateTargetSanitizer.call(
         business: candidate.business,
         metadata: before,
         action_type: candidate.action_type
       )
 
-      dedupe_key = Aicoo::ActionCandidateUpserter.dedupe_key_for(
-        ActionCandidate.new(
-          id: candidate.id,
-          business: candidate.business,
-          title: candidate.title,
-          action_type: candidate.action_type,
-          metadata: repaired
-        )
-      )
-      repaired["dedupe_key"] ||= dedupe_key if dedupe_key.present?
+      after_refs = reference_urls(repaired)
+      changed = repaired != before
+      next unless changed || had_external_target
 
-      if repaired != before
-        target_url_repairs += 1
-        candidate.update_columns(metadata: repaired, updated_at: Time.current) if apply
-      end
-
-      groups[dedupe_key] << candidate.id if dedupe_key.present? && !candidate.status.in?(ActionCandidate::INACTIVE_STATUSES)
+      candidate_ids << candidate.id
+      external_target_found += 1 if had_external_target
+      moved_to_reference += 1 if (after_refs - before_refs).any?
+      own_target_reassigned += 1 if owner_target_assigned?(candidate.business, before, repaired)
+      planned_url_assigned += 1 if before["planned_url"].blank? && repaired["planned_url"].present?
+      unresolved += 1 if repaired["target_url"].blank? && repaired["planned_url"].blank?
+      candidate.update_columns(metadata: repaired, updated_at: Time.current) if apply && changed
     rescue StandardError => e
       failed += 1
       Rails.logger.warn("[aicoo:repair_action_candidate_target_urls] action_candidate_id=#{candidate&.id} failed: #{e.class}: #{e.message}")
     end
 
-    groups.each_value do |ids|
-      next if ids.size < 2
-
-      duplicate_groups += 1
-      candidates = ActionCandidate.where(id: ids).order(Arel.sql("final_score DESC NULLS LAST, expected_profit_yen DESC NULLS LAST, updated_at DESC"))
-      canonical = candidates.first
-      duplicates = candidates.where.not(id: canonical.id)
-      duplicate_archived += duplicates.count
-      next unless apply
-
-      canonical.update_columns(
-        metadata: canonical.metadata.to_h.merge(
-          "duplicate_candidate_ids" => Array(canonical.metadata.to_h["duplicate_candidate_ids"]).concat(duplicates.pluck(:id)).uniq,
-          "duplicate_repair_applied_at" => Time.current.iso8601
-        ),
-        updated_at: Time.current
-      )
-      duplicates.find_each do |duplicate|
-        duplicate.update_columns(
-          status: "archived",
-          metadata: duplicate.metadata.to_h.merge(
-            "archived_reason" => "duplicate_action_candidate",
-            "duplicate_of_action_candidate_id" => canonical.id,
-            "duplicate_repair_applied_at" => Time.current.iso8601
-          ),
-          updated_at: Time.current
-        )
-      end
-    end
-
     puts "mode=#{apply ? 'apply' : 'dry_run'}"
     puts "checked=#{checked}"
-    puts "target_url_repairs=#{target_url_repairs}"
-    puts "duplicate_groups=#{duplicate_groups}"
-    puts "duplicate_candidates_to_archive=#{duplicate_archived}"
+    puts "external_target_found=#{external_target_found}"
+    puts "moved_to_reference=#{moved_to_reference}"
+    puts "own_target_reassigned=#{own_target_reassigned}"
+    puts "planned_url_assigned=#{planned_url_assigned}"
+    puts "unresolved=#{unresolved}"
     puts "failed=#{failed}"
+    puts "candidate_ids=#{candidate_ids.uniq.join(',')}"
+  end
+
+  def reference_urls(metadata)
+    (
+      Array(metadata["reference_urls"]) +
+      Array(metadata["competitor_urls"]) +
+      Array(metadata["external_reference_urls"]) +
+      Array(metadata["source_urls"]) +
+      Array(metadata["serp_urls"])
+    ).compact_blank.uniq
+  end
+
+  def external_target?(business, metadata)
+    %w[target_url target_url_or_identifier target_identifier page_path].any? do |key|
+      value = metadata[key].to_s
+      next false unless value.match?(/\Ahttps?:\/\//i)
+
+      Aicoo::BusinessOwnedUrlPolicy.call(business:, url: value).reference_url.present?
+    end
+  end
+
+  def owner_target_assigned?(business, before, repaired)
+    before["target_url"] != repaired["target_url"] &&
+      repaired["target_url"].present? &&
+      Aicoo::BusinessOwnedUrlPolicy.call(business:, url: repaired["target_url"]).owner_page?
   end
 end
