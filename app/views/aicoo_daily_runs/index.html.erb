@@ -1,6 +1,12 @@
 <% content_for :title, "AICOO Daily Run" %>
 
 <% header_actions = capture do %>
+  <%= button_to "Daily Run実行",
+                aicoo_daily_runs_path,
+                method: :post,
+                params: { aicoo_daily_run: { target_date: Date.yesterday.to_s } },
+                class: "button",
+                data: { turbo_confirm: "#{Date.yesterday} のDaily Runを実行しますか？" } %>
   <%= link_to "Daily Runヘルス", admin_aicoo_daily_run_health_path, class: "button secondary" %>
   <%= link_to "SYSTEM MODE", aicoo_daily_runs_path, class: "button secondary" %>
 <% end %>

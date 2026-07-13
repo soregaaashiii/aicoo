@@ -1352,6 +1352,12 @@
       <p>このBusinessのデータ取得、提案、学習に関わる日次実行の状態を確認します。</p>
     </div>
     <div class="actions compact-actions">
+      <%= button_to "Daily Run実行",
+                    aicoo_daily_runs_path,
+                    method: :post,
+                    params: { aicoo_daily_run: { target_date: Date.yesterday.to_s } },
+                    class: "button",
+                    data: { turbo_confirm: "#{Date.yesterday} のDaily Runを実行しますか？" } %>
       <%= link_to "Daily Run一覧", aicoo_daily_runs_path, class: "button secondary" %>
       <% if @latest_daily_run %>
         <%= link_to "実行履歴", admin_execution_runs_path, class: "button secondary" %>
