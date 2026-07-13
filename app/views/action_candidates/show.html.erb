@@ -8,19 +8,7 @@
   <% if @action_workspace %>
     <%= link_to "戻る", owner_focus_path, class: "button secondary" %>
   <% end %>
-  <% if @action_candidate.executed? %>
-    <span class="pill">実行済み<%= executed_at.present? ? " #{l(Time.zone.parse(executed_at.to_s), format: :short) rescue ""}" : "" %></span>
-  <% elsif !%w[rejected archived].include?(@action_candidate.status) %>
-    <%= button_to "実行済みにする",
-                  mark_executed_action_candidate_path(@action_candidate),
-                  method: :patch,
-                  class: "button",
-                  data: { turbo_confirm: "この施策を実行済みにしますか？\n実行済みにすると、今日処理するActionから除外されます。" } %>
-  <% end %>
-  <% unless %w[rejected archived completed done].include?(@action_candidate.status) %>
-    <%= button_to "却下する", reject_action_candidate_path(@action_candidate, today_return_params), method: :patch, class: "button danger" %>
-  <% end %>
-  <%= link_to "詳細を見る", "#developer-mode", class: "button secondary" %>
+  <%= link_to "開発者向け情報", "#developer-mode", class: "button secondary" %>
 <% end %>
 
 <div class="aicoo-page">
@@ -43,10 +31,24 @@
 <% article_plan = @action_candidate.execution_mode == "content_creation" ? @execution_brief.article_plan : {} %>
 <% expansion = metadata.fetch("action_expansion", {}) %>
 <% execution_steps = Array(action_plan["execution_steps"]).presence || Array(expansion["execution_steps"]).presence || @execution_brief.completion_criteria.first(4) %>
+<% source_query = metadata["source_query"].presence || metadata["target_query"].presence || metadata["query"].presence || metadata["search_query"].presence || metadata.dig("evidence", "query").presence %>
 <% reason_text = @evidence_presenter&.reason.presence || metadata.dig("evidence", "reason").presence || @action_candidate.evaluation_reason.presence || @action_candidate.description %>
-<% target_text = @evidence_presenter&.target_label.presence || @execution_brief.target[:url].presence || expansion["target"].presence || metadata["target"].presence || "対象はこの施策内の作業内容を確認してください。" %>
+<% target_text = @evidence_presenter&.target_label.presence || metadata["target"].presence || expansion["target"].presence || "対象は下の「対象」で確認してください。" %>
 <% concrete_task_text = metadata["concrete_task"].presence || metadata.dig("decision", "selected", "concrete_task").presence %>
 <% next_action_text = action_plan["owner_output"].presence || action_plan["summary"].presence || concrete_task_text || display_action_title %>
+<% target_url = metadata["target_url"].presence %>
+<% planned_url = metadata["planned_url"].presence || metadata["recommended_url"].presence || metadata["recommended_slug"].presence || metadata["recommended_url_slug"].presence %>
+<% reference_urls = (Array(metadata["reference_urls"]) + Array(metadata["external_reference_urls"]) + Array(metadata["competitor_urls"]) + Array(metadata["source_urls"]) + Array(metadata["serp_urls"])).compact_blank.uniq %>
+<% article_metadata = metadata["article_candidate"].to_h %>
+<% article_action = @action_candidate.execution_mode == "content_creation" || @action_candidate.action_type.in?(%w[new_article_candidate article_create article_update seo_article]) || article_metadata.present? %>
+<% lp_action = @action_candidate.action_type.in?(%w[build_lp lp_experiment market_test]) || metadata["lp_name"].present? || metadata["landing_page"].present? %>
+<% issue_sentence = if source_query.present?
+  "「#{source_query}」に関連する需要があります。#{reason_text}"
+else
+  reason_text
+end %>
+<% evidence_sentence = @evidence_presenter&.source_label.present? ? "#{@evidence_presenter.source_label} のデータを根拠にしています。" : "保存済みの事業データと施策メモを根拠にしています。" %>
+<% expected_sentence = "実行すると #{number_to_currency(@action_candidate.expected_profit_yen, unit: "¥", precision: 0)} の期待利益、成功率 #{number_to_percentage(@action_candidate.success_probability.to_d * 100, precision: 0)} を見込んでいます。" %>
 
 <section class="dashboard-section aicoo-decision-hero">
   <div class="aicoo-decision-card">
@@ -70,25 +72,18 @@
       <p>現在の問題、根拠、期待される改善です。</p>
     </div>
   </div>
-  <div class="aicoo-grid aicoo-grid-2">
+  <div class="aicoo-grid aicoo-grid-3">
     <div class="aicoo-card aicoo-card-compact">
       <h3>現在の問題</h3>
-      <p><%= reason_text %></p>
+      <p><%= issue_sentence %></p>
     </div>
     <div class="aicoo-card aicoo-card-compact">
       <h3>根拠</h3>
-      <p>
-        <%= @evidence_presenter.source_label.presence || @action_candidate.generation_source %> のデータから、
-        <%= target_text %> に対する改善余地があります。
-      </p>
+      <p><%= evidence_sentence %><%= target_text.present? ? " 対象は #{target_text} です。" : "" %></p>
     </div>
     <div class="aicoo-card aicoo-card-compact">
       <h3>期待される改善</h3>
-      <p><%= @execution_brief.expected_effects[:profit] %> の期待利益、成功率 <%= number_to_percentage(@action_candidate.success_probability.to_d * 100, precision: 0) %> を見込んでいます。</p>
-    </div>
-    <div class="aicoo-card aicoo-card-compact">
-      <h3>対象</h3>
-      <p><%= target_text %></p>
+      <p><%= expected_sentence %></p>
     </div>
   </div>
 </section>
@@ -96,7 +91,7 @@
 <section class="dashboard-section" id="work-plan">
   <div class="section-heading">
     <div>
-      <h2>やること</h2>
+      <h2>今回やること</h2>
       <p>ユーザーが実際に進める作業です。</p>
     </div>
   </div>
@@ -112,6 +107,37 @@
   </div>
 </section>
 
+<section class="dashboard-section" id="action-targets">
+  <div class="section-heading">
+    <div>
+      <h2>対象</h2>
+      <p>修正対象、作成予定、参考情報を分けて表示します。参考URLは修正対象ではありません。</p>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <tbody>
+        <tr><td><strong>対象URL</strong></td><td class="wide-text"><%= target_url.presence || "未特定" %></td></tr>
+        <tr><td><strong>作成予定URL</strong></td><td class="wide-text"><%= planned_url.presence || "未作成" %></td></tr>
+        <tr>
+          <td><strong>参考URL</strong></td>
+          <td class="wide-text">
+            <% if reference_urls.any? %>
+              <ul class="compact-list">
+                <% reference_urls.each do |url| %>
+                  <li><%= url %></li>
+                <% end %>
+              </ul>
+            <% else %>
+              なし
+            <% end %>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
 <section class="dashboard-section" id="deliverables">
   <div class="section-heading">
     <div>
@@ -119,25 +145,16 @@
       <p>実行に必要な具体情報です。</p>
     </div>
   </div>
-  <div class="table-wrap">
-    <table>
-      <tbody>
-        <tr><td><strong>対象URL</strong></td><td class="wide-text"><%= metadata["target_url"].presence || "なし" %></td></tr>
-        <tr><td><strong>作成予定URL</strong></td><td class="wide-text"><%= metadata["planned_url"].presence || metadata["recommended_url"].presence || metadata["recommended_slug"].presence || "なし" %></td></tr>
-        <tr><td><strong>参考URL</strong></td><td class="wide-text"><%= Array(metadata["reference_urls"].presence || metadata["external_reference_urls"].presence || metadata["competitor_urls"]).compact_blank.join(" / ").presence || "なし" %></td></tr>
-      </tbody>
-    </table>
-  </div>
-  <% if @action_candidate.execution_mode == "content_creation" %>
+  <% if article_action %>
     <div class="table-wrap">
       <table>
         <tbody>
-          <tr><td><strong>タイトル候補</strong></td><td class="wide-text"><%= article_plan[:title].presence || metadata["recommended_title"].presence || @action_candidate.title %></td></tr>
-          <tr><td><strong>URL</strong></td><td class="wide-text"><%= metadata["planned_url"].presence || metadata["recommended_url"].presence || metadata["recommended_slug"].presence || @execution_brief.target[:url] %></td></tr>
-          <tr><td><strong>目的</strong></td><td class="wide-text"><%= article_plan[:reason].presence || action_plan["goal"].presence || reason_text %></td></tr>
-          <tr><td><strong>対象キーワード</strong></td><td class="wide-text"><%= article_plan[:keyword].presence || metadata["keyword"].presence || metadata["source_query"].presence || "-" %></td></tr>
-          <tr><td><strong>検索意図</strong></td><td class="wide-text"><%= article_plan[:search_intent].presence || metadata["search_intent"].presence || "-" %></td></tr>
-          <tr><td><strong>見出し</strong></td><td class="wide-text"><%= Array(article_plan[:recommended_sections]).presence&.join(" / ") || Array(metadata["recommended_sections"]).join(" / ").presence || "-" %></td></tr>
+          <tr><td><strong>タイトル案</strong></td><td class="wide-text"><%= article_plan[:title].presence || article_metadata["recommended_title"].presence || metadata["recommended_title"].presence || @action_candidate.title %></td></tr>
+          <tr><td><strong>URL</strong></td><td class="wide-text"><%= planned_url.presence || "記事タイトル決定後に作成" %></td></tr>
+          <tr><td><strong>対象キーワード</strong></td><td class="wide-text"><%= article_plan[:keyword].presence || article_metadata["search_query"].presence || metadata["keyword"].presence || source_query.presence || "キーワード未特定" %></td></tr>
+          <tr><td><strong>検索意図</strong></td><td class="wide-text"><%= article_plan[:search_intent].presence || article_metadata["search_intent"].presence || metadata["search_intent"].presence || "検索意図要確認" %></td></tr>
+          <tr><td><strong>記事の目的</strong></td><td class="wide-text"><%= article_plan[:reason].presence || article_metadata["article_reason"].presence || action_plan["goal"].presence || reason_text %></td></tr>
+          <tr><td><strong>見出し構成</strong></td><td class="wide-text"><%= Array(article_plan[:recommended_sections]).presence&.join(" / ") || Array(article_metadata["recommended_sections"]).presence&.join(" / ") || Array(metadata["recommended_sections"]).join(" / ").presence || "見出し未生成" %></td></tr>
         </tbody>
       </table>
     </div>
@@ -163,6 +180,18 @@
           <% end %>
         </ul>
       </div>
+    </div>
+  <% elsif lp_action %>
+    <% lp = metadata["landing_page"].to_h %>
+    <div class="table-wrap">
+      <table>
+        <tbody>
+          <tr><td><strong>LP名</strong></td><td class="wide-text"><%= metadata["lp_name"].presence || lp["name"].presence || @action_candidate.title %></td></tr>
+          <tr><td><strong>目的</strong></td><td class="wide-text"><%= lp["purpose"].presence || action_plan["goal"].presence || reason_text %></td></tr>
+          <tr><td><strong>改善内容</strong></td><td class="wide-text"><%= metadata["concrete_task"].presence || @action_candidate.description.presence || next_action_text %></td></tr>
+          <tr><td><strong>CTA</strong></td><td class="wide-text"><%= lp["cta"].presence || metadata["cta"].presence || "CTA要確認" %></td></tr>
+        </tbody>
+      </table>
     </div>
   <% else %>
     <div class="aicoo-card aicoo-card-compact">
@@ -221,7 +250,7 @@
 
 <details class="aicoo-developer-mode" id="developer-mode">
   <summary>開発者向け情報</summary>
-  <p class="muted">raw value、confidence補正、Opportunity、異常値、流入制約などの内部計算ログです。通常の実行判断では上の「なぜやるのか」「やること」「成果物」を見れば十分です。</p>
+  <p class="muted">補正前期待値、信頼度、改善機会、異常値、流入制約などの内部計算ログです。通常の実行判断では上の「なぜやるのか」「今回やること」「対象」「成果物」を見れば十分です。</p>
 
 <%= render @action_candidate %>
 
@@ -894,7 +923,7 @@
 
 <div class="actions">
   <%= link_to "行動候補一覧に戻る", action_candidates_path, class: "button secondary" %>
-  <%= button_to "Destroy", @action_candidate, method: :delete, class: "danger" %>
+  <%= button_to "削除", @action_candidate, method: :delete, class: "danger" %>
 </div>
 </details>
 </div>

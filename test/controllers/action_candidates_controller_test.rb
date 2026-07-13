@@ -136,10 +136,16 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "実行済みにする"
     assert_includes response.body, "なぜやるのか"
     assert_includes response.body, "やること"
+    assert_includes response.body, "今回やること"
+    assert_includes response.body, "対象"
+    assert_includes response.body, "対象URL"
+    assert_includes response.body, "作成予定URL"
+    assert_includes response.body, "参考URL"
     assert_includes response.body, "成果物"
     assert_includes response.body, "期待効果"
     assert_includes response.body, "開発者向け情報"
-    assert_includes response.body, "raw value、confidence補正、Opportunity、異常値、流入制約"
+    assert_includes response.body, "補正前期待値、信頼度、改善機会、異常値、流入制約"
+    assert_select "details#developer-mode"
     assert_includes response.body, "実行指示書"
     assert_includes response.body, "現在"
     assert_includes response.body, "変更後"
@@ -559,6 +565,7 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
         "source_query" => "吸えログ 比較",
         "recommended_title" => "吸えログとは？食べログ・Googleマップとの違い",
         "recommended_slug" => "/articles/suelog-comparison",
+        "reference_urls" => [ "https://it-trend.jp/log_management/article/84-0008" ],
         "search_intent" => "違いを知りたい",
         "recommended_sections" => [ "吸えログとは", "他サービスとの違い", "FAQ" ],
         "action_plan" => {
@@ -576,12 +583,18 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "対象URL"
     assert_includes response.body, "作成予定URL"
     assert_includes response.body, "参考URL"
+    assert_includes response.body, "/articles/suelog-comparison"
+    assert_includes response.body, "https://it-trend.jp/log_management/article/84-0008"
     assert_includes response.body, "やること"
+    assert_includes response.body, "今回やること"
     assert_includes response.body, "成果物"
-    assert_includes response.body, "タイトル候補"
+    assert_includes response.body, "タイトル案"
+    assert_includes response.body, "記事の目的"
+    assert_includes response.body, "見出し構成"
     assert_includes response.body, "吸えログ 比較"
     assert_includes response.body, "違いを知りたい"
     assert_includes response.body, "開発者向け情報"
+    assert_select "details#developer-mode"
   end
 
   test "code revision detail shows implementation deliverables" do
