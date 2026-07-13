@@ -41,29 +41,32 @@ module Aicoo
         next if relevant_analyses.empty?
 
         best_analysis = relevant_analyses.max_by { |analysis| analysis.result_count.to_i }
-        candidates << business.action_candidates.create!(
-          title: "#{business.name}の市場観測と内部データを統合して改善する",
-          description: "SERP市場観測とDaily Runの内部データを合わせ、検索意図・CTR・CV・改善履歴を見て優先改善を決めます。",
-          action_type: "seo_improvement",
-          department: "revenue",
-          generation_source: "integrated_decision",
-          status: "idea",
-          immediate_value_yen: 20_000,
-          success_probability: 0.35,
-          expected_hours: 1.5,
-          confidence_score: 45,
-          data_confidence_score: 50,
-          priority_score: 65,
-          execution_prompt: prompt_for(business, best_analysis),
-          evaluation_reason: "integrated_decision:serp_and_daily",
-          metadata: {
-            "source" => "integrated_decision",
-            "candidate_kind" => "existing_business_improvement",
-            "serp_run_id" => serp_run.id,
-            "aicoo_daily_run_id" => daily_run&.id,
-            "source_query" => best_analysis.keyword,
-            "serp_result_count" => best_analysis.result_count,
-            "daily_action_candidates_generated_count" => daily_run&.action_candidates_generated_count.to_i
+        candidates << Aicoo::ActionCandidateUpserter.call(
+          business:,
+          attributes: {
+            title: "#{business.name}の市場観測と内部データを統合して改善する",
+            description: "SERP市場観測とDaily Runの内部データを合わせ、検索意図・CTR・CV・改善履歴を見て優先改善を決めます。",
+            action_type: "seo_improvement",
+            department: "revenue",
+            generation_source: "integrated_decision",
+            status: "idea",
+            immediate_value_yen: 20_000,
+            success_probability: 0.35,
+            expected_hours: 1.5,
+            confidence_score: 45,
+            data_confidence_score: 50,
+            priority_score: 65,
+            execution_prompt: prompt_for(business, best_analysis),
+            evaluation_reason: "integrated_decision:serp_and_daily",
+            metadata: {
+              "source" => "integrated_decision",
+              "candidate_kind" => "existing_business_improvement",
+              "serp_run_id" => serp_run.id,
+              "aicoo_daily_run_id" => daily_run&.id,
+              "source_query" => best_analysis.keyword,
+              "serp_result_count" => best_analysis.result_count,
+              "daily_action_candidates_generated_count" => daily_run&.action_candidates_generated_count.to_i
+            }
           }
         )
       end

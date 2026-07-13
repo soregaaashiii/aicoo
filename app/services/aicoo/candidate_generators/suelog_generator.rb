@@ -284,38 +284,40 @@ module Aicoo
           success_probability:,
           metadata:
         )
-        ActionCandidate.create!(
+        Aicoo::ActionCandidateUpserter.call(
           business:,
-          title:,
-          description:,
-          action_type:,
-          status: value_model.fetch("valuation_review_required") ? "valuation_review_required" : "idea",
-          generation_source: "suelog_db",
-          immediate_value_yen: immediate_value_yen.to_i,
-          success_probability:,
-          strategic_value_score:,
-          risk_reduction_score: 20,
-          expected_hours:,
-          cost_yen: estimated_labor_cost_yen(expected_hours),
-          priority_score: candidate_priority_score(
-            value_yen: immediate_value_yen,
-            expected_hours:,
+          attributes: {
+            title:,
+            description:,
+            action_type:,
+            status: value_model.fetch("valuation_review_required") ? "valuation_review_required" : "idea",
+            generation_source: "suelog_db",
+            immediate_value_yen: immediate_value_yen.to_i,
             success_probability:,
             strategic_value_score:,
-            value_model:
-          ),
-          evaluation_reason:,
-          execution_prompt: nil,
-          metadata: metadata.merge(
-            "value_model" => value_model,
-            "external_source" => "suelog_db",
-            "external_record_id" => external_record_id.to_s,
-            "target_query" => target_query.to_s,
-            "execution_mode" => execution_mode_for(action_type),
-            "data_sources_used" => (Array(metadata["data_sources_used"]) + %w[suelog_db]).uniq,
-            "created_by" => self.class.name,
-            "raw_immediate_value_yen" => immediate_value_yen.to_i
-          )
+            risk_reduction_score: 20,
+            expected_hours:,
+            cost_yen: estimated_labor_cost_yen(expected_hours),
+            priority_score: candidate_priority_score(
+              value_yen: immediate_value_yen,
+              expected_hours:,
+              success_probability:,
+              strategic_value_score:,
+              value_model:
+            ),
+            evaluation_reason:,
+            execution_prompt: nil,
+            metadata: metadata.merge(
+              "value_model" => value_model,
+              "external_source" => "suelog_db",
+              "external_record_id" => external_record_id.to_s,
+              "target_query" => target_query.to_s,
+              "execution_mode" => execution_mode_for(action_type),
+              "data_sources_used" => (Array(metadata["data_sources_used"]) + %w[suelog_db]).uniq,
+              "created_by" => self.class.name,
+              "raw_immediate_value_yen" => immediate_value_yen.to_i
+            )
+          }
         )
       end
 

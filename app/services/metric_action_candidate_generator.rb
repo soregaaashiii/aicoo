@@ -650,23 +650,26 @@ class MetricActionCandidateGenerator
       return
     end
 
-    candidate = business.action_candidates.create!(
-      title: spec.title,
-      description: spec.description,
-      action_type: spec.action_type,
-      immediate_value_yen: spec.immediate_value_yen,
-      success_probability: spec.success_probability,
-      strategic_value_score: spec.strategic_value_score,
-      risk_reduction_score: spec.risk_reduction_score,
-      confidence_score: confidence_score,
-      data_confidence_score: confidence_score,
-      expected_hours: spec.expected_hours,
-      cost_yen: 0,
-      status: "idea",
-      generation_source: "ai_business",
-      metadata: candidate_metadata(spec),
-      evaluation_reason: "metric_rule:#{spec.key}\n#{spec.evaluation_reason}",
-      execution_prompt: spec.execution_prompt
+    candidate = Aicoo::ActionCandidateUpserter.call(
+      business:,
+      attributes: {
+        title: spec.title,
+        description: spec.description,
+        action_type: spec.action_type,
+        immediate_value_yen: spec.immediate_value_yen,
+        success_probability: spec.success_probability,
+        strategic_value_score: spec.strategic_value_score,
+        risk_reduction_score: spec.risk_reduction_score,
+        confidence_score: confidence_score,
+        data_confidence_score: confidence_score,
+        expected_hours: spec.expected_hours,
+        cost_yen: 0,
+        status: "idea",
+        generation_source: "ai_business",
+        metadata: candidate_metadata(spec),
+        evaluation_reason: "metric_rule:#{spec.key}\n#{spec.evaluation_reason}",
+        execution_prompt: spec.execution_prompt
+      }
     )
     Aicoo::ActionCandidateInstructionStabilizer.call(candidate)
     candidate.reload

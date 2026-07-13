@@ -282,22 +282,25 @@ module Aicoo
           .first
         return existing if existing
 
-        business.action_candidates.create!(
-          title: item[:concrete_task],
-          description: "#{item[:query]} / #{item[:recommended_action]} / ROI #{item[:roi_score]}",
-          action_type: action_type_for(item),
-          generation_source: "business_analyzer",
-          status: status_for(item),
-          immediate_value_yen: expected_value_yen_for(item),
-          expected_hours: item[:work_cost],
-          success_probability: success_probability_for(item),
-          strategic_value_score: [ item[:next_move_score].to_i, 100 ].min,
-          risk_reduction_score: 30,
-          confidence_score: 55,
-          data_confidence_score: 60,
-          evaluation_reason: evaluation_reason_for(item),
-          execution_prompt: execution_prompt_for(item),
-          metadata: metadata_for(item, key)
+        Aicoo::ActionCandidateUpserter.call(
+          business:,
+          attributes: {
+            title: item[:concrete_task],
+            description: "#{item[:query]} / #{item[:recommended_action]} / ROI #{item[:roi_score]}",
+            action_type: action_type_for(item),
+            generation_source: "business_analyzer",
+            status: status_for(item),
+            immediate_value_yen: expected_value_yen_for(item),
+            expected_hours: item[:work_cost],
+            success_probability: success_probability_for(item),
+            strategic_value_score: [ item[:next_move_score].to_i, 100 ].min,
+            risk_reduction_score: 30,
+            confidence_score: 55,
+            data_confidence_score: 60,
+            evaluation_reason: evaluation_reason_for(item),
+            execution_prompt: execution_prompt_for(item),
+            metadata: metadata_for(item, key)
+          }
         )
       end
 
