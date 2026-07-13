@@ -653,7 +653,11 @@ class AicooDailyRunner
   end
 
   def call_insight_generator(step)
-    AicooInsight::Generator.generate_all!(source: "daily_run", progress: daily_step_progress_callback(step))
+    AicooInsight::Generator.generate_all!(
+      source: "daily_run",
+      progress: daily_step_progress_callback(step),
+      memory_context: daily_run_memory_context(step.aicoo_daily_run, step_name: "insight_generation", step_id: step.id)
+    )
   rescue ArgumentError => e
     raise unless unsupported_progress_keyword?(e)
 

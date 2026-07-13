@@ -37,11 +37,13 @@ module AicooInsight
 
     DATE_KEYS = %w[date recorded_on occurred_on event_date].freeze
 
-    def self.generate_all!(source: nil, progress: nil)
-      return generate_all_without_run!(progress:) if source.blank?
+    def self.generate_all!(source: nil, progress: nil, memory_context: {})
+      return generate_all_without_run!(progress:, memory_context:) if source.blank?
 
-      run = AicooInsightGenerationRun.create!(source:, status: "running", started_at: Time.current)
-      result = generate_all_without_run!(progress:)
+      run = Aicoo::MemoryDiagnostics.measure("InsightGeneration::RunRecord", context: memory_context) do
+        AicooInsightGenerationRun.create!(source:, status: "running", started_at: Time.current)
+      end
+      result = generate_all_without_run!(progress:, memory_context: memory_context.merge(insight_generation_run_id: run.id))
       run.update!(
         status: "success",
         finished_at: Time.current,
@@ -58,12 +60,17 @@ module AicooInsight
       raise
     end
 
-    def self.generate_all_without_run!(progress: nil)
+    def self.generate_all_without_run!(progress: nil, memory_context: {})
       summary = Result.new
       processed = 0
       Business.real_businesses.find_each do |business|
         processed += 1
-        summary += new(business:).call
+        summary += Aicoo::MemoryDiagnostics.measure(
+          "InsightGeneration::BusinessInsightGenerator",
+          context: memory_context.merge(business_id: business.id, business_name: business.name, processed:)
+        ) do
+          new(business:, memory_context:).call
+        end
         progress&.call(batch: progress_batch_for(processed), processed:)
       rescue StandardError => e
         Rails.logger.warn("[AicooInsight::Generator] business_id=#{business.id} failed: #{e.class}: #{e.message}")
@@ -80,32 +87,37 @@ module AicooInsight
       (processed.to_f / 25).ceil
     end
 
-    def initialize(business:)
+    def initialize(business:, memory_context: {})
       @business = business
+      @memory_context = memory_context.to_h
     end
 
     def call
-      specs = [
-        ctr_improvement_specs,
-        position_improvement_specs,
-        revenue_improvement_specs,
-        neglect_alert_specs,
-        growth_expansion_specs,
-        withdrawal_specs
-      ].flatten.compact
+      specs = Aicoo::MemoryDiagnostics.measure("InsightGeneration::SpecCollection", context: diagnostic_context) do
+        [
+          measured("InsightGeneration::CtrImprovementSpecs") { ctr_improvement_specs },
+          measured("InsightGeneration::PositionImprovementSpecs") { position_improvement_specs },
+          measured("InsightGeneration::RevenueImprovementSpecs") { revenue_improvement_specs },
+          measured("InsightGeneration::NeglectAlertSpecs") { neglect_alert_specs },
+          measured("InsightGeneration::GrowthExpansionSpecs") { growth_expansion_specs },
+          measured("InsightGeneration::WithdrawalSpecs") { withdrawal_specs }
+        ].flatten.compact
+      end
 
       created = []
       skipped = []
       return Result.new(created:, skipped: [ no_insight_reason ]) if specs.empty?
 
       specs.each do |spec|
-        decision = spec.business.business_type_playbook.call(spec_attributes(spec))
+        decision = measured("InsightGeneration::BusinessPlaybookDecision", spec:) do
+          spec.business.business_type_playbook.call(spec_attributes(spec))
+        end
         if !decision.allowed
           skipped << "#{business.name}: #{decision.reason}"
-        elsif duplicate?(spec)
+        elsif measured("InsightGeneration::DuplicateCheck", spec:) { duplicate?(spec) }
           skipped << "#{business.name}: duplicate #{spec.title}"
         else
-          created << create_action_candidate!(spec)
+          created << measured("InsightGeneration::ActionCandidateGeneration", spec:) { create_action_candidate!(spec) }
         end
       end
 
@@ -114,7 +126,27 @@ module AicooInsight
 
     private
 
-    attr_reader :business
+    attr_reader :business, :memory_context
+
+    def measured(name, spec: nil, &block)
+      Aicoo::MemoryDiagnostics.measure(name, context: diagnostic_context(spec:), &block)
+    end
+
+    def diagnostic_context(spec: nil)
+      base = memory_context.merge(
+        daily_run_id: memory_context[:daily_run_id] || memory_context["daily_run_id"],
+        step_id: memory_context[:step_id] || memory_context["step_id"],
+        step_name: memory_context[:step_name] || memory_context["step_name"],
+        business_id: business.id,
+        business_name: business.name
+      ).compact
+      return base unless spec
+
+      base.merge(
+        action_type: spec.action_type,
+        spec_title: spec.title
+      )
+    end
 
     def ctr_improvement_specs
       gsc_rows.filter_map do |row|
@@ -280,7 +312,9 @@ module AicooInsight
         metadata: {
           "insight_rule" => insight_rule(spec),
           "insight_reason" => spec.reason,
-          "business_type_playbook" => spec.business.business_type_playbook.call(spec_attributes(spec)).metadata
+          "business_type_playbook" => measured("InsightGeneration::BusinessPlaybookMetadata", spec:) do
+            spec.business.business_type_playbook.call(spec_attributes(spec)).metadata
+          end
         }
       )
     end
