@@ -46,13 +46,14 @@ module Aicoo
         :result_waiting_count,
         :withdrawal_candidate_count
       )
-      Result = Data.define(:summary, :rows, :selected, :next_action, :zero_reasons)
+      Result = Data.define(:summary, :rows, :selected, :next_action, :zero_reasons, :active_tab)
 
       NEW_BUSINESS_ACTION_TYPES = Aicoo::NewBusinessCandidateBoard::NEW_BUSINESS_ACTION_TYPES
 
-      def initialize(selected_id: nil, limit: 30)
+      def initialize(selected_id: nil, limit: 30, tab: nil)
         @selected_id = selected_id.to_i if selected_id.present?
         @limit = limit
+        @tab = tab.to_s == "businessized" ? "businessized" : "needs_edit"
       end
 
       def call
@@ -64,16 +65,17 @@ module Aicoo
           rows:,
           selected:,
           next_action: selected,
-          zero_reasons: rows.empty? ? Aicoo::NewBusinessCandidateBoard.call(limit: 1).zero_reasons : []
+          zero_reasons: rows.empty? ? Aicoo::NewBusinessCandidateBoard.call(limit: 1).zero_reasons : [],
+          active_tab: tab
         )
       end
 
       private
 
-      attr_reader :selected_id, :limit
+      attr_reader :selected_id, :limit, :tab
 
       def candidate_scope
-        ActionCandidate
+        base = ActionCandidate
           .includes(:business)
           .where(
             "department = :department OR metadata ->> 'candidate_kind' = :kind OR action_type IN (:action_types) OR generation_source IN (:sources)",
@@ -83,10 +85,19 @@ module Aicoo
             sources: %w[serp integrated_decision ai_business ai_cross_business]
           )
           .where.not(status: %w[archived rejected])
-          .where("status IN ('idea', 'pending', 'planning', 'proposal')")
-          .where(
-            "metadata ->> 'requires_human_edit' = 'true' OR metadata ->> 'manual_approval_required' = 'true' OR metadata -> 'business_idea_quality' ->> 'status' = 'needs_edit' OR metadata -> 'business_idea_quality' IS NULL"
+
+        if tab == "businessized"
+          base = base.where(
+            "business_id IS NOT NULL OR metadata -> 'auto_new_business_publication' ->> 'completed' = 'true' OR status = 'done'"
           )
+        else
+          base = base.where("status IN ('idea', 'pending', 'planning', 'proposal')")
+                     .where(
+                       "metadata ->> 'requires_human_edit' = 'true' OR metadata ->> 'manual_approval_required' = 'true' OR metadata -> 'business_idea_quality' ->> 'status' = 'needs_edit' OR metadata -> 'business_idea_quality' IS NULL"
+                     )
+        end
+
+        base
           .order(Arel.sql("final_score DESC NULLS LAST, expected_hourly_value_yen DESC NULLS LAST, expected_profit_yen DESC NULLS LAST, updated_at DESC"))
       end
 
@@ -125,7 +136,7 @@ module Aicoo
           public_lp_path: landing_page&.published_slug.present? ? Rails.application.routes.url_helpers.public_lp_path(landing_page.published_slug) : nil,
           quality_status: metadata.dig("business_idea_quality", "status").presence || "needs_edit",
           quality_reasons: Array(metadata.dig("business_idea_quality", "reasons")).presence || [ "品質判定が未実行です" ],
-          launch_asset_type: metadata["launch_asset_type"].presence || metadata["lp_or_saas"].presence || "lp",
+          launch_asset_type: metadata["product_type"].presence || metadata["launch_asset_type"].presence || metadata["lp_or_saas"].presence || "lp",
           updated_at: candidate.updated_at
         )
       end

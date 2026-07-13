@@ -227,6 +227,7 @@ module Aicoo
           "monetization" => monetization_for(analysis, idea),
           "revenue_model" => monetization_for(analysis, idea),
           "solution" => idea.fetch("solution"),
+          "product_type" => idea.fetch("launch_asset_type"),
           "launch_asset_type" => idea.fetch("launch_asset_type"),
           "lp_or_saas" => idea.fetch("launch_asset_type"),
           "lp_concept" => lp_concept_for(analysis, idea),
@@ -263,7 +264,9 @@ module Aicoo
             "revenue_model" => monetization_for(analysis, idea),
             "monetization" => monetization_for(analysis, idea),
             "validation_method" => validation_plan_for(analysis, idea),
-            "validation_plan" => validation_plan_for(analysis, idea)
+            "validation_plan" => validation_plan_for(analysis, idea),
+            "product_type" => idea.fetch("launch_asset_type"),
+            "launch_asset_type" => idea.fetch("launch_asset_type")
           ),
           source_query: analysis.keyword
         )
@@ -401,14 +404,16 @@ module Aicoo
       end
 
       def validation_plan_for(analysis, idea = business_idea_for(analysis))
-        "7日以内に「#{idea.fetch("business_name")}」のLPとMVP登録導線を公開し、#{idea.fetch("target_customer")}からの登録、相談内容、CTAクリック、検索流入を確認する。根拠検索クエリはmetadata.source_queryに保存する。"
+        asset = idea.fetch("launch_asset_type") == "saas" ? "SaaS仕様書と事前登録導線" : "LP叩き台と事前登録導線"
+        "7日以内に「#{idea.fetch("business_name")}」の#{asset}を作成し、#{idea.fetch("target_customer")}からの登録、相談内容、CTAクリック、検索流入を確認する。根拠検索クエリはmetadata.source_queryに保存する。"
       end
 
       def missing_fields_for(analysis)
         idea = business_idea_for(analysis)
         values = idea.slice("market", "problem", "target_customer", "solution").merge(
           "revenue_model" => monetization_for(analysis, idea),
-          "validation_plan" => validation_plan_for(analysis, idea)
+          "validation_plan" => validation_plan_for(analysis, idea),
+          "product_type" => idea["launch_asset_type"]
         )
         values.select { |_field, value| value.blank? }.keys
       end
@@ -498,11 +503,13 @@ module Aicoo
         end
 
         focus = service_focus.sub(/代行\z/, "")
+        focus = "業務支援" if focus == "課題解決"
         "#{customer}#{focus}#{suffix}".squish
       end
 
       def fallback_service_name(customer, service_focus)
-        "#{customer}#{service_focus}支援"
+        focus = service_focus == "課題解決" ? "業務支援" : service_focus
+        "#{customer}#{focus}支援"
       end
 
       def problem_statement_for(query, customer, service_focus)

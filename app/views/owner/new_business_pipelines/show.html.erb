@@ -38,9 +38,18 @@
   <div class="metric-card"><span>撤退候補</span><strong><%= @board.summary.withdrawal_candidate_count %></strong></div>
 </section>
 
+<nav class="tab-nav" aria-label="新規事業候補タブ">
+  <%= link_to "要編集の候補",
+              owner_new_business_pipeline_path(tab: "needs_edit"),
+              class: "tab-nav__item #{'is-active' if @board.active_tab == 'needs_edit'}" %>
+  <%= link_to "事業化済み",
+              owner_new_business_pipeline_path(tab: "businessized"),
+              class: "tab-nav__item #{'is-active' if @board.active_tab == 'businessized'}" %>
+</nav>
+
 <div class="two-column-layout">
   <section class="panel">
-    <h2>新規事業候補</h2>
+    <h2><%= @board.active_tab == "businessized" ? "事業化済み" : "要編集の候補" %></h2>
     <div class="stack-list">
       <% @board.rows.each_with_index do |row, index| %>
         <article class="task-card <%= "is-selected" if row == @board.selected %>">
@@ -111,6 +120,7 @@
           <dt>想定顧客</dt><dd><%= row.target_customer %></dd>
           <dt>収益モデル</dt><dd><%= row.revenue_model %></dd>
           <dt>LP案</dt><dd><%= row.lp_idea %></dd>
+          <dt>作成するもの</dt><dd><%= row.launch_asset_type == "saas" ? "SaaS仕様書" : "LP叩き台" %></dd>
           <dt>検証方法</dt><dd><%= row.validation_method %></dd>
           <dt>SERP根拠</dt><dd><%= row.serp_evidence %></dd>
           <dt>競合</dt><dd><%= row.competitors.any? ? row.competitors.join(" / ") : "未整理" %></dd>
@@ -153,9 +163,9 @@
       <details open>
         <summary>LP作成 / 公開 / 編集</summary>
         <% if row.business.blank? %>
-          <p>Business化すると、このカード内でLP作成へ進めます。</p>
+          <p>Business化すると、LPまたはSaaS叩き台を自動作成します。</p>
         <% elsif row.landing_page.blank? %>
-          <p>LPは未作成です。既存LP作成基盤で検証LPを作成します。</p>
+          <p>LP叩き台は未作成です。既存LP作成基盤で公開前の検証LPを作成します。</p>
           <%= button_to "LP作成", create_lp_owner_new_business_pipeline_candidate_path(row.action_candidate), method: :post, class: "button primary" %>
         <% else %>
           <p class="notice">

@@ -153,6 +153,16 @@ module Aicoo
         "serp_run_id" => action_candidate.metadata.to_h["serp_run_id"],
         "serp_analysis_id" => action_candidate.metadata.to_h["serp_analysis_id"],
         "discovery_fingerprint" => action_candidate.metadata.to_h["discovery_fingerprint"].presence || action_candidate.metadata.to_h["fingerprint"],
+        "target_customer" => action_candidate.metadata.to_h["target_customer"].presence || action_candidate.metadata.to_h["customer"],
+        "problem" => action_candidate.metadata.to_h["problem"],
+        "solution" => action_candidate.metadata.to_h["solution"].presence || action_candidate.metadata.to_h["offering"].presence || action_candidate.metadata.to_h["provided_service"],
+        "value_proposition" => action_candidate.metadata.to_h["value_proposition"].presence || action_candidate.metadata.to_h["differentiation"],
+        "monetization" => action_candidate.metadata.to_h["monetization"].presence || action_candidate.metadata.to_h["revenue_model"],
+        "validation_plan" => action_candidate.metadata.to_h["validation_plan"].presence || action_candidate.metadata.to_h["validation_method"].presence || action_candidate.metadata.to_h["validation_step"],
+        "market" => action_candidate.metadata.to_h["market"],
+        "category" => action_candidate.metadata.to_h["market_category"].presence || action_candidate.metadata.to_h["category"],
+        "region" => action_candidate.metadata.to_h["region"],
+        "product_type" => action_candidate.metadata.to_h["product_type"].presence || action_candidate.metadata.to_h["launch_asset_type"].presence || action_candidate.metadata.to_h["lp_or_saas"],
         "expected_profit_yen" => action_candidate.expected_profit_yen,
         "expected_hours" => action_candidate.expected_hours&.to_s
       }.compact

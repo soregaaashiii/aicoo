@@ -81,7 +81,6 @@ module Aicoo
                 before_lp_id = business.aicoo_lab_landing_pages.order(updated_at: :desc).first&.id
                 landing_page = Aicoo::Owner::NewBusinessLandingPageBuilder.new(candidate).call
                 created_landing_page = landing_page.id != before_lp_id
-                landing_page.publish! unless landing_page.publicly_visible?
               end
 
               candidate.update!(
@@ -98,8 +97,8 @@ module Aicoo
                     "landing_page_id" => landing_page&.id,
                     "business_service_id" => business_service&.id,
                     "service_url" => business_service&.url,
-                    "published_slug" => landing_page&.published_slug,
-                    "published_at" => landing_page&.published_at&.iso8601,
+                    "draft_slug" => landing_page&.published_slug,
+                    "draft_created" => landing_page.present?,
                     "completed_at" => Time.current.iso8601
                   }.compact
                 )
@@ -208,7 +207,8 @@ module Aicoo
             "problem" => metadata["problem"],
             "offering" => metadata["offering"].presence || metadata["solution"].presence || metadata["provided_service"],
             "revenue_model" => metadata["revenue_model"].presence || metadata["monetization"],
-            "validation_method" => metadata["validation_method"].presence || metadata["validation_plan"].presence || metadata["validation_step"]
+            "validation_method" => metadata["validation_method"].presence || metadata["validation_plan"].presence || metadata["validation_step"],
+            "product_type" => metadata["product_type"].presence || metadata["launch_asset_type"].presence || metadata["lp_or_saas"]
           },
           source_query: metadata["source_query"]
         )
@@ -253,10 +253,10 @@ module Aicoo
                        business.business_services.exists?(id: metadata["business_service_id"])
 
         if landing_page_id.present?
-          return AicooLabLandingPage.publicly_available.exists?(id: landing_page_id, business_id: business.id)
+          return AicooLabLandingPage.exists?(id: landing_page_id, business_id: business.id)
         end
 
-        business.aicoo_lab_landing_pages.publicly_available.exists?
+        business.aicoo_lab_landing_pages.exists?
       end
 
       def republish_blocked?(candidate)
@@ -326,19 +326,28 @@ module Aicoo
           auto_build_enabled: true,
           auto_build_requires_approval: false,
           auto_build_risk_level: "low",
-          new_lp_auto_deploy_enabled: true,
+          new_lp_auto_deploy_enabled: false,
           lifecycle_stage: "lp_validation",
           resource_status: "active",
           business_type: "landing_page",
           source: business.source.presence || "serp",
           metadata: business.metadata.to_h.merge(
             "auto_serp_business" => true,
-            "auto_lp_published" => true,
+            "auto_lp_published" => false,
+            "auto_draft_created" => true,
             "business_flow" => "serp_auto_added",
-            "auto_published_at" => Time.current.iso8601
+            "auto_draft_created_at" => Time.current.iso8601
           )
         )
         Aicoo::NewBusinessAutomationDefaults.apply!(business)
+        business.update!(
+          auto_build_enabled: false,
+          new_lp_auto_deploy_enabled: false,
+          metadata: business.metadata.to_h.merge(
+            "serp_auto_business_scope" => "draft_only",
+            "codex_auto_submit_default" => false
+          )
+        )
       end
 
       def ensure_business_service!(business, landing_page, candidate)

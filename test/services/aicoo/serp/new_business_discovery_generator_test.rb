@@ -57,6 +57,9 @@ module Aicoo
         assert_not_equal "飲食店 代行 大阪の検証事業", candidate.title
         assert_no_match(/飲食店 代行 大阪の検証事業/, candidate.business.name)
         assert_match(/飲食店.*(代行|支援|運用|集客|ツール|ナビ)/, candidate.business.name)
+        landing_page = candidate.business.aicoo_lab_landing_pages.first
+        assert landing_page
+        assert_not landing_page.publicly_visible?
         assert_equal false, candidate.metadata.dig("business_name_quality", "query_reused_as_name")
         assert_equal true, candidate.metadata.dig("business_name_quality", "understandable_service_name")
         assert_includes candidate.metadata["business_name_reason"], "検索語をそのまま使わず"

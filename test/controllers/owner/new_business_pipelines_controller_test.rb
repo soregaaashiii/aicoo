@@ -55,7 +55,12 @@ module Owner
       assert_equal "done", candidate.status
       assert_equal "喫煙可能コワーキング検索サービス", created_business.name
       assert_includes Business.real_businesses.pluck(:id), created_business.id
-      assert created_business.aicoo_lab_landing_pages.publicly_available.exists?
+      assert_not created_business.auto_build_enabled?
+      assert_not created_business.new_lp_auto_deploy_enabled?
+      landing_page = created_business.aicoo_lab_landing_pages.first
+      assert landing_page
+      assert_equal "draft", landing_page.public_status
+      assert_not landing_page.publicly_visible?
 
       assert_no_difference("Business.count") do
         patch approve_owner_new_business_pipeline_candidate_url(candidate)
@@ -63,7 +68,7 @@ module Owner
       assert_redirected_to owner_new_business_pipeline_url(selected_id: candidate.id, anchor: "selected-candidate")
     end
 
-    test "new business candidate automatically creates and publishes landing page" do
+    test "new business candidate automatically creates draft landing page" do
       candidate = ActionCandidate.create!(
         business: businesses(:suelog),
         title: "喫煙可能個室検索",
@@ -88,10 +93,11 @@ module Owner
       )
 
       candidate.reload
-      landing_page = candidate.business.aicoo_lab_landing_pages.publicly_available.first
+      landing_page = candidate.business.aicoo_lab_landing_pages.first
       assert landing_page
       assert_equal candidate.business, landing_page.business
-      assert landing_page.publicly_visible?
+      assert_equal "draft", landing_page.public_status
+      assert_not landing_page.publicly_visible?
     end
 
     test "low quality candidate stays editable and can be approved after edit" do
@@ -125,6 +131,7 @@ module Owner
       assert_response :success
       assert_includes response.body, "飲食店 代行 大阪の検証事業"
       assert_includes response.body, "候補を編集"
+      assert_includes response.body, "要編集の候補"
 
       patch update_owner_new_business_pipeline_candidate_url(candidate), params: {
         action_candidate: {
@@ -151,6 +158,11 @@ module Owner
       assert_equal "done", candidate.status
       assert_equal "飲食店SNS運用代行サービス", candidate.business.name
       assert candidate.business.business_services.where(deploy_target: "saas_spec_draft").exists?
+
+      get owner_new_business_pipeline_url(tab: "businessized", selected_id: candidate.id)
+      assert_response :success
+      assert_includes response.body, "事業化済み"
+      assert_includes response.body, "飲食店SNS運用代行サービス"
     end
   end
 end

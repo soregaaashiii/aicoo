@@ -1,7 +1,7 @@
 require "test_helper"
 
 class Aicoo::Serp::AutoNewBusinessPublisherTest < ActiveSupport::TestCase
-  test "auto adds serp new business candidate as visible business and public landing page" do
+  test "auto adds serp new business candidate as visible business and draft landing page" do
     source_business = businesses(:suelog)
     candidate = nil
 
@@ -38,18 +38,23 @@ class Aicoo::Serp::AutoNewBusinessPublisherTest < ActiveSupport::TestCase
     assert_equal "請求前チェックリスト", candidate.business.name
     assert_equal "exploring", candidate.business.status
     assert_not candidate.business.launched?
+    assert_not candidate.business.auto_build_enabled?
+    assert_not candidate.business.new_lp_auto_deploy_enabled?
     assert_equal "lp_validation", candidate.business.lifecycle_stage
     assert_equal "active", candidate.business.resource_status
-    assert candidate.business.aicoo_lab_landing_pages.publicly_available.exists?
+    landing_page = candidate.business.aicoo_lab_landing_pages.first
+    assert landing_page
+    assert_equal "draft", landing_page.public_status
+    assert_not landing_page.publicly_visible?
     assert_nil candidate.metadata.dig("auto_new_business_publication", "business_service_id")
     assert_equal true, candidate.metadata.dig("auto_new_business_publication", "completed")
     assert Business.real_businesses.where(id: candidate.business_id).exists?
 
     assert_no_difference -> { Business.real_businesses.count } do
-      assert_no_difference -> { AicooLabLandingPage.publicly_available.count } do
+      assert_no_difference -> { AicooLabLandingPage.count } do
         result = Aicoo::Serp::AutoNewBusinessPublisher.call(candidates: [ candidate ])
         assert_equal 0, result.business_created_count
-        assert_equal 0, result.lp_published_count
+        assert_equal 0, result.lp_created_count
         assert_equal 0, result.failed_count
       end
     end
@@ -60,7 +65,7 @@ class Aicoo::Serp::AutoNewBusinessPublisherTest < ActiveSupport::TestCase
     assert_equal "exploring", candidate.business.status
     assert_not candidate.business.launched?
     assert_equal "lp_validation", candidate.business.lifecycle_stage
-    assert candidate.business.aicoo_lab_landing_pages.publicly_available.exists?
+    assert candidate.business.aicoo_lab_landing_pages.exists?
     assert_equal true, candidate.metadata.dig("auto_new_business_publication", "completed")
   end
 
@@ -159,7 +164,8 @@ class Aicoo::Serp::AutoNewBusinessPublisherTest < ActiveSupport::TestCase
         "problem" => "SERPから見つけた市場の初期検証ができていない",
         "offering" => "市場検証支援サービス",
         "revenue_model" => "月額検証支援で収益化する",
-        "validation_method" => "LPを公開し相談登録を確認する"
+        "validation_method" => "LPを公開し相談登録を確認する",
+        "launch_asset_type" => "lp"
       }
     )
 

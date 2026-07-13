@@ -1,7 +1,7 @@
 module Owner
   class NewBusinessPipelinesController < ApplicationController
     def show
-      @board = Aicoo::Owner::NewBusinessPipelineBoard.new(selected_id: params[:selected_id]).call
+      @board = Aicoo::Owner::NewBusinessPipelineBoard.new(selected_id: params[:selected_id], tab: params[:tab]).call
     end
 
     def approve_candidate
@@ -117,6 +117,7 @@ module Owner
         "monetization" => attributes["revenue_model"].presence,
         "validation_plan" => attributes["validation_method"].presence,
         "validation_step" => attributes["validation_method"].presence,
+        "product_type" => attributes["launch_asset_type"].presence,
         "lp_or_saas" => attributes["launch_asset_type"].presence
       ).compact_blank
     end
@@ -143,7 +144,8 @@ module Owner
           "problem" => metadata["problem"],
           "offering" => metadata["offering"].presence || metadata["solution"].presence || metadata["provided_service"],
           "revenue_model" => metadata["revenue_model"].presence || metadata["monetization"],
-          "validation_method" => metadata["validation_method"].presence || metadata["validation_plan"].presence || metadata["validation_step"]
+          "validation_method" => metadata["validation_method"].presence || metadata["validation_plan"].presence || metadata["validation_step"],
+          "product_type" => metadata["product_type"].presence || metadata["launch_asset_type"].presence || metadata["lp_or_saas"]
         },
         source_query: metadata["source_query"]
       )
