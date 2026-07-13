@@ -119,12 +119,21 @@
       <p>実行に必要な具体情報です。</p>
     </div>
   </div>
+  <div class="table-wrap">
+    <table>
+      <tbody>
+        <tr><td><strong>対象URL</strong></td><td class="wide-text"><%= metadata["target_url"].presence || "なし" %></td></tr>
+        <tr><td><strong>作成予定URL</strong></td><td class="wide-text"><%= metadata["planned_url"].presence || metadata["recommended_url"].presence || metadata["recommended_slug"].presence || "なし" %></td></tr>
+        <tr><td><strong>参考URL</strong></td><td class="wide-text"><%= Array(metadata["reference_urls"].presence || metadata["external_reference_urls"].presence || metadata["competitor_urls"]).compact_blank.join(" / ").presence || "なし" %></td></tr>
+      </tbody>
+    </table>
+  </div>
   <% if @action_candidate.execution_mode == "content_creation" %>
     <div class="table-wrap">
       <table>
         <tbody>
           <tr><td><strong>タイトル候補</strong></td><td class="wide-text"><%= article_plan[:title].presence || metadata["recommended_title"].presence || @action_candidate.title %></td></tr>
-          <tr><td><strong>URL</strong></td><td class="wide-text"><%= metadata["recommended_url"].presence || metadata["recommended_slug"].presence || @execution_brief.target[:url] %></td></tr>
+          <tr><td><strong>URL</strong></td><td class="wide-text"><%= metadata["planned_url"].presence || metadata["recommended_url"].presence || metadata["recommended_slug"].presence || @execution_brief.target[:url] %></td></tr>
           <tr><td><strong>目的</strong></td><td class="wide-text"><%= article_plan[:reason].presence || action_plan["goal"].presence || reason_text %></td></tr>
           <tr><td><strong>対象キーワード</strong></td><td class="wide-text"><%= article_plan[:keyword].presence || metadata["keyword"].presence || metadata["source_query"].presence || "-" %></td></tr>
           <tr><td><strong>検索意図</strong></td><td class="wide-text"><%= article_plan[:search_intent].presence || metadata["search_intent"].presence || "-" %></td></tr>

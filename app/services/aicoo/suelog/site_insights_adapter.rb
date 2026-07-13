@@ -332,9 +332,12 @@ module Aicoo
           "position" => item[:position],
           "landing_page" => item[:landing_page],
           "raw_landing_page" => item[:raw_landing_page],
-          "target_url" => item[:target_url],
+          "target_url" => item[:work_type] == "new_article" ? nil : item[:target_url],
           "target_url_type" => item[:target_url_type],
           "external_reference_urls" => item[:external_reference_urls],
+          "reference_urls" => item[:external_reference_urls],
+          "planned_url" => item[:work_type] == "new_article" ? "/articles/#{item[:recommended_slug]}" : nil,
+          "planned_url_type" => item[:work_type] == "new_article" ? "planned_owner_page" : nil,
           "page_exists" => item[:page_exists],
           "matched_page" => item[:matched_page],
           "recommended_slug" => item[:recommended_slug],
@@ -380,10 +383,16 @@ module Aicoo
       end
 
       def action_plan_for(item)
+        target = if item[:work_type] == "new_article"
+          "/articles/#{item[:recommended_slug]}"
+        else
+          item[:target_url].presence || item[:landing_page].presence || item[:query]
+        end
+
         {
           "summary" => item[:concrete_task],
           "goal" => item[:recommended_action],
-          "target" => item[:target_url].presence || item[:landing_page].presence || item[:query],
+          "target" => target,
           "owner_next_step" => item[:todo].first,
           "execution_steps" => item[:todo],
           "execution_units" => execution_units_for(item)

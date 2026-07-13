@@ -294,7 +294,7 @@ class ActionCandidate < ApplicationRecord
   def sanitize_owned_target_urls
     return unless business
 
-    self.metadata = Aicoo::ActionCandidateTargetSanitizer.call(business:, metadata:)
+    self.metadata = Aicoo::ActionCandidateTargetSanitizer.call(business:, metadata:, action_type:)
   end
 
   def apply_meta_evaluation

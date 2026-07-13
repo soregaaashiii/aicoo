@@ -573,6 +573,9 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes response.body, "なぜやるのか"
+    assert_includes response.body, "対象URL"
+    assert_includes response.body, "作成予定URL"
+    assert_includes response.body, "参考URL"
     assert_includes response.body, "やること"
     assert_includes response.body, "成果物"
     assert_includes response.body, "タイトル候補"

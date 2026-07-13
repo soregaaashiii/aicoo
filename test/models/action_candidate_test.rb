@@ -66,6 +66,35 @@ class ActionCandidateTest < ActiveSupport::TestCase
     assert_equal "external_url_moved_to_competitor_urls", metadata["invalid_target_url_reason"]
   end
 
+  test "stores external url as reference and planned url for new article candidates" do
+    business = businesses(:suelog)
+
+    action_candidate = ActionCandidate.create!(
+      business:,
+      title: "吸えログ比較記事を作成する",
+      action_type: "new_article_candidate",
+      generation_source: "business_analyzer",
+      immediate_value_yen: 12_000,
+      success_probability: 0.5,
+      expected_hours: 1.5,
+      metadata: {
+        "target_url" => "https://it-trend.jp/log_management/article/84-0008",
+        "recommended_slug" => "suelog-comparison",
+        "action_plan" => {
+          "target" => "https://it-trend.jp/log_management/article/84-0008"
+        }
+      }
+    )
+
+    metadata = action_candidate.reload.metadata
+    assert_nil metadata["target_url"]
+    assert_equal "/articles/suelog-comparison", metadata["planned_url"]
+    assert_equal "planned_owner_page", metadata["planned_url_type"]
+    assert_includes metadata["reference_urls"], "https://it-trend.jp/log_management/article/84-0008"
+    assert_includes metadata["competitor_urls"], "https://it-trend.jp/log_management/article/84-0008"
+    assert_equal "/articles/suelog-comparison", metadata.dig("action_plan", "target")
+  end
+
   test "strategic philosophy changes final score" do
     setting = AicooSetting.current
     setting.update!(
