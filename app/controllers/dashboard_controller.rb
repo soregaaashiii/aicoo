@@ -68,9 +68,9 @@ class DashboardController < ApplicationController
   end
 
   def generate_action_candidates_from_metrics
-    results = MetricActionCandidateGenerator.generate_all!
-    created_count = results.sum(&:created_count)
-    skipped_count = results.sum { |result| result.skipped.size }
+    result = MetricActionCandidateGenerator.generate_all!
+    created_count = result.created_count
+    skipped_count = result.skipped_count
 
     redirect_to dashboard_path, notice: "代理指標から行動候補を#{created_count}件生成しました。スキップ: #{skipped_count}件"
   end

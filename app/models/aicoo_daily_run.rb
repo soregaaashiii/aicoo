@@ -1,5 +1,5 @@
 class AicooDailyRun < ApplicationRecord
-  STATUSES = %w[pending running success succeeded failed partial_failed stuck skipped].freeze
+  STATUSES = %w[pending running success succeeded failed partial_failed stuck skipped duplicate_skipped].freeze
   SOURCES = %w[cron catch_up manual].freeze
   SUCCESS_STATUSES = %w[success succeeded].freeze
 
@@ -17,7 +17,7 @@ class AicooDailyRun < ApplicationRecord
   has_one :auto_revision_queue_run, dependent: :destroy
 
   scope :recent, -> { order(started_at: :desc, created_at: :desc) }
-  scope :actual_runs, -> { where.not(status: "skipped") }
+  scope :actual_runs, -> { where.not(status: %w[skipped duplicate_skipped]) }
   scope :running, -> { where(status: "running") }
   scope :successful, -> { where(status: SUCCESS_STATUSES) }
   scope :retryable, -> { where(status: %w[failed partial_failed stuck skipped]) }

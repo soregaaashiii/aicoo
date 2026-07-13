@@ -56,7 +56,7 @@ module Aicoo
 
       def call
         Aicoo::MemoryDiagnostics.measure("Aicoo::Serp::NewBusinessDiscoveryGenerator#call", context: memory_context) do
-          candidates = discoverable_analyses.first(limit).filter_map { |analysis| create_candidate_for(analysis) }
+          candidates = discoverable_analyses.filter_map { |analysis| create_candidate_for(analysis) }
           Result.new(
             candidates:,
             created_count: candidates.size,
@@ -65,8 +65,8 @@ module Aicoo
             no_result_count: no_result_count,
             failed_count: errors.size,
             existing_improvement_count: existing_improvement_count,
-            serp_analyses_checked: source_analyses.size,
-            serp_results_checked: source_analyses.sum { |analysis| analysis.serp_results.size },
+            serp_analyses_checked: source_analyses.count,
+            serp_results_checked: source_results_count,
             errors: errors.first(10)
           )
         end
@@ -86,15 +86,22 @@ module Aicoo
       end
 
       def discoverable_analyses
-        source_analyses
-          .select { |analysis| market_discovery_analysis?(analysis) }
-          .sort_by { |analysis| -market_score(analysis) }
+        top = []
+        source_analyses.find_each do |analysis|
+          next unless market_discovery_analysis?(analysis)
+
+          top << [ market_score(analysis), analysis ]
+          top = top.sort_by { |score, _analysis| -score }.first(limit) if top.size > limit
+        end
+        top.sort_by { |score, _analysis| -score }.map { |_score, analysis| analysis }
       end
 
       def source_analyses
-        @source_analyses ||= serp_run.serp_analyses
-                                     .includes(:business, :serp_results)
-                                     .to_a
+        serp_run.serp_analyses.includes(:business)
+      end
+
+      def source_results_count
+        SerpResult.where(serp_analysis_id: serp_run.serp_analyses.select(:id)).count
       end
 
       def market_discovery_analysis?(analysis)

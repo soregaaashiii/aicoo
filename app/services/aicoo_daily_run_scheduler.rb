@@ -1,5 +1,3 @@
-require "zlib"
-
 class AicooDailyRunScheduler
   STUCK_AFTER = 30.minutes
 
@@ -43,13 +41,11 @@ class AicooDailyRunScheduler
     return running_run if running_run
     return skipped("retry_limit_reached", source:) if retry_limit_reached?
 
-    with_scheduler_lock(source:) do
-      return skipped("already_success", source:) if successful_today?
-      return running_run if running_run
-      return skipped("retry_limit_reached", source:) if retry_limit_reached?
+    return skipped("already_success", source:) if successful_today?
+    return running_run if running_run
+    return skipped("retry_limit_reached", source:) if retry_limit_reached?
 
-      AicooDailyRunner.run!(target_date:, source:)
-    end
+    AicooDailyRunner.run!(target_date:, source:)
   end
 
   def status
@@ -82,22 +78,6 @@ class AicooDailyRunScheduler
     )
     Rails.logger.info("[AicooDailyRunScheduler] #{decision.message} source=#{source} target_date=#{target_date}")
     decision
-  end
-
-  def with_scheduler_lock(source:)
-    return yield unless postgresql_adapter?
-
-    lock_key = Zlib.crc32("aicoo_daily_run:#{target_date}")
-    acquired = ActiveRecord::Base.connection.select_value("SELECT pg_try_advisory_lock(#{lock_key})")
-    return skipped("lock_not_acquired", source:) unless acquired
-
-    yield
-  ensure
-    ActiveRecord::Base.connection.select_value("SELECT pg_advisory_unlock(#{lock_key})") if acquired && lock_key
-  end
-
-  def postgresql_adapter?
-    ActiveRecord::Base.connection.adapter_name.downcase.include?("postgres")
   end
 
   def due?
@@ -133,7 +113,7 @@ class AicooDailyRunScheduler
   end
 
   def retry_count
-    AicooDailyRun.where(target_date:).where.not(status: "skipped").count
+    AicooDailyRun.where(target_date:).where.not(status: %w[skipped duplicate_skipped]).count
   end
 
   def retry_limit_reached?

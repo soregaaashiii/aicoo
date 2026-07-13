@@ -1,17 +1,29 @@
 class MetricActionCandidateGenerator
-  Result = Data.define(:created, :skipped) do
-    def created_count
-      created.size
+  class Result
+    attr_reader :created, :skipped, :created_count, :skipped_count, :failed_count
+
+    def initialize(created: [], skipped: [], created_count: nil, skipped_count: nil, failed_count: 0)
+      @created = created
+      @skipped = skipped
+      @created_count = created_count || created.size
+      @skipped_count = skipped_count || skipped.size
+      @failed_count = failed_count
     end
 
-    def skipped_count
-      skipped.size
+    def +(other)
+      self.class.new(
+        created_count: created_count.to_i + other.created_count.to_i,
+        skipped_count: skipped_count.to_i + other.skipped_count.to_i,
+        failed_count: failed_count.to_i + (other.respond_to?(:failed_count) ? other.failed_count.to_i : 0),
+        skipped: (skipped + Array(other.skipped)).first(20)
+      )
     end
 
     def diagnostics
       {
         "created_count" => created_count,
         "skipped_count" => skipped_count,
+        "failed_count" => failed_count,
         "skipped_reasons" => skipped
       }
     end
@@ -47,8 +59,25 @@ class MetricActionCandidateGenerator
     internal_search_events
   ].freeze
 
-  def self.generate_all!
-    Business.real_businesses.find_each.map { |business| new(business:).call }
+  def self.generate_all!(progress: nil)
+    summary = Result.new
+    processed = 0
+    Business.real_businesses.find_each do |business|
+      processed += 1
+      summary += new(business:).call
+      progress&.call(batch: progress_batch_for(processed), processed:)
+    rescue StandardError => e
+      Rails.logger.warn("[MetricActionCandidateGenerator] business_id=#{business.id} failed: #{e.class}: #{e.message}")
+      summary += Result.new(failed_count: 1, skipped: [ "#{business.name}: #{e.class}: #{e.message}" ])
+      progress&.call(batch: progress_batch_for(processed), processed:)
+    end
+    summary
+  end
+
+  def self.progress_batch_for(processed)
+    return 0 if processed.to_i <= 0
+
+    (processed.to_f / 25).ceil
   end
 
   def initialize(business:, today: Date.current)

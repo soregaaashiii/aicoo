@@ -43,6 +43,17 @@ class AicooDailyRunsController < ApplicationController
         metadata: { target_date:, status: daily_run.status }
       )
       redirect_to daily_run, alert: message
+    elsif daily_run.status == "duplicate_skipped"
+      message = "#{target_date} のDaily Runは同時実行中のため、重複起動をスキップしました。"
+      OwnerTaskCompletionLog.record!(
+        task_type: "daily_run_duplicate_skipped",
+        target: daily_run,
+        action_label: "再実行",
+        action_result: "skipped",
+        message:,
+        metadata: { target_date:, status: daily_run.status }
+      )
+      redirect_to daily_run, alert: message
     else
       message = "Daily Runを再実行しました。結果はDaily Run詳細で確認してください。"
       OwnerTaskCompletionLog.record_success!(

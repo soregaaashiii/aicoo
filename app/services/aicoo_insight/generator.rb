@@ -1,12 +1,23 @@
 module AicooInsight
   class Generator
-    Result = Data.define(:created, :skipped) do
-      def created_count
-        created.size
+    class Result
+      attr_reader :created, :skipped, :created_count, :skipped_count, :failed_count
+
+      def initialize(created: [], skipped: [], created_count: nil, skipped_count: nil, failed_count: 0)
+        @created = created
+        @skipped = skipped
+        @created_count = created_count || created.size
+        @skipped_count = skipped_count || skipped.size
+        @failed_count = failed_count
       end
 
-      def skipped_count
-        skipped.size
+      def +(other)
+        self.class.new(
+          created_count: created_count.to_i + other.created_count.to_i,
+          skipped_count: skipped_count.to_i + other.skipped_count.to_i,
+          failed_count: failed_count.to_i + other.failed_count.to_i,
+          skipped: (skipped + other.skipped).first(20)
+        )
       end
     end
 
@@ -26,11 +37,11 @@ module AicooInsight
 
     DATE_KEYS = %w[date recorded_on occurred_on event_date].freeze
 
-    def self.generate_all!(source: nil)
-      return generate_all_without_run! if source.blank?
+    def self.generate_all!(source: nil, progress: nil)
+      return generate_all_without_run!(progress:) if source.blank?
 
       run = AicooInsightGenerationRun.create!(source:, status: "running", started_at: Time.current)
-      result = generate_all_without_run!
+      result = generate_all_without_run!(progress:)
       run.update!(
         status: "success",
         finished_at: Time.current,
@@ -47,17 +58,26 @@ module AicooInsight
       raise
     end
 
-    def self.generate_all_without_run!
-      created = []
-      skipped = []
-
+    def self.generate_all_without_run!(progress: nil)
+      summary = Result.new
+      processed = 0
       Business.real_businesses.find_each do |business|
-        result = new(business:).call
-        created.concat(result.created)
-        skipped.concat(result.skipped)
+        processed += 1
+        summary += new(business:).call
+        progress&.call(batch: progress_batch_for(processed), processed:)
+      rescue StandardError => e
+        Rails.logger.warn("[AicooInsight::Generator] business_id=#{business.id} failed: #{e.class}: #{e.message}")
+        summary += Result.new(failed_count: 1, skipped: [ "#{business.name}: #{e.class}: #{e.message}" ])
+        progress&.call(batch: progress_batch_for(processed), processed:)
       end
 
-      Result.new(created:, skipped:)
+      summary
+    end
+
+    def self.progress_batch_for(processed)
+      return 0 if processed.to_i <= 0
+
+      (processed.to_f / 25).ceil
     end
 
     def initialize(business:)
@@ -313,9 +333,28 @@ module AicooInsight
     end
 
     def matching_snapshots(source_type)
-      AicooDataSnapshot.where(source_type:).select do |snapshot|
-        snapshot_business_id(snapshot) == business.id
+      scope = AicooDataSnapshot
+        .where(source_type:)
+        .where(captured_at: 45.days.ago..Time.current)
+
+      conditions = [ "payload ->> 'business_id' = ?" ]
+      values = [ business.id.to_s ]
+
+      analytics_site_ids = AicooAnalyticsSite.where(business_id: business.id).select(:id)
+      if analytics_site_ids.exists?
+        conditions << "payload ->> 'analytics_site_id' IN (?)"
+        values << analytics_site_ids.pluck(:id).map(&:to_s)
       end
+
+      data_import_ids = DataImport.joins(:data_source)
+                                  .where(data_sources: { business_id: business.id, source_type: })
+                                  .select(:id)
+      if data_import_ids.exists?
+        conditions << "source_id IN (?)"
+        values << data_import_ids.pluck(:id)
+      end
+
+      scope.where(conditions.join(" OR "), *values)
     end
 
     def snapshot_business_id(snapshot)

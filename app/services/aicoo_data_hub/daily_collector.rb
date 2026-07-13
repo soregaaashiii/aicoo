@@ -28,12 +28,7 @@ module AicooDataHub
     attr_reader :snapshot_collector
 
     def collect_snapshot_count
-      [
-        snapshot_collector.collect_landing_pages,
-        snapshot_collector.collect_revenue,
-        snapshot_collector.collect_data_imports,
-        snapshot_collector.collect_all
-      ].sum(&:count)
+      snapshot_collector.collect_all.count
     end
   end
 end

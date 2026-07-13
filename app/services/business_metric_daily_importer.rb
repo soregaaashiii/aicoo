@@ -1,5 +1,9 @@
 class BusinessMetricDailyImporter
   Result = Data.define(:metric)
+  Summary = Data.define(:processed_count, :created_count, :updated_count, :skipped_count, :failed_count) do
+    def size = processed_count
+    def any? = processed_count.to_i.positive?
+  end
   Progress = Data.define(
     :event,
     :target_business_count,
@@ -45,7 +49,7 @@ class BusinessMetricDailyImporter
     started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     businesses = Business.real_businesses.order(:id)
     target_business_count = businesses.count
-    results = []
+    processed_count = 0
     created_count = 0
     updated_count = 0
     skipped_count = 0
@@ -98,8 +102,8 @@ class BusinessMetricDailyImporter
       )
 
       was_new = !BusinessMetricDaily.exists?(business:, recorded_on: date)
-      result = import_one_with_timeout!(business:, date:, per_business_timeout:)
-      results << result
+      import_one_with_timeout!(business:, date:, per_business_timeout:)
+      processed_count += 1
       was_new ? created_count += 1 : updated_count += 1
       emit_progress(
         progress,
@@ -136,7 +140,7 @@ class BusinessMetricDailyImporter
       progress,
       event: "finish",
       target_business_count:,
-      processed_business_count: results.size + error_count,
+      processed_business_count: processed_count + error_count,
       created_count:,
       updated_count:,
       skipped_count:,
@@ -144,7 +148,13 @@ class BusinessMetricDailyImporter
       started_at:
     )
 
-    results
+    Summary.new(
+      processed_count:,
+      created_count:,
+      updated_count:,
+      skipped_count:,
+      failed_count: error_count
+    )
   end
 
   def self.import_range!(business:, start_date:, end_date:)
@@ -154,9 +164,26 @@ class BusinessMetricDailyImporter
   end
 
   def self.import_all_range!(start_date:, end_date:)
-    Business.real_businesses.find_each.flat_map do |business|
-      import_range!(business:, start_date:, end_date:)
+    processed_count = 0
+    updated_count = 0
+    error_count = 0
+
+    Business.real_businesses.find_each do |business|
+      results = import_range!(business:, start_date:, end_date:)
+      processed_count += results.size
+      updated_count += results.size
+    rescue StandardError => e
+      error_count += 1
+      Rails.logger.warn("[BusinessMetricDailyImporter] range import failed business_id=#{business.id} #{e.class}: #{e.message}")
     end
+
+    Summary.new(
+      processed_count:,
+      created_count: 0,
+      updated_count:,
+      skipped_count: 0,
+      failed_count: error_count
+    )
   end
 
   def initialize(business:, date: Date.yesterday)

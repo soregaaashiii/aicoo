@@ -126,7 +126,7 @@ module Aicoo
     end
 
     def retry_count_for(target_date)
-      AicooDailyRun.where(target_date:).where.not(status: "skipped").count
+      AicooDailyRun.where(target_date:).where.not(status: %w[skipped duplicate_skipped]).count
     end
   end
 end

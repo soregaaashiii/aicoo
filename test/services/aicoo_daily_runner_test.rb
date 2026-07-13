@@ -304,12 +304,32 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
     end
   end
 
-  test "does not start duplicate running daily run for same target date" do
+  test "records duplicate skipped when daily run is already running for same target date" do
     target_date = Date.new(2026, 6, 21)
     existing = AicooDailyRun.create!(target_date:, status: "running", started_at: Time.current)
 
     with_singleton_stub(BusinessMetricDailyImporter, :import_all!, ->(date:, progress: nil) { raise "should not be called" }) do
-      assert_equal existing, AicooDailyRunner.run!(target_date:)
+      run = AicooDailyRunner.run!(target_date:)
+
+      assert_equal "duplicate_skipped", run.status
+      assert_equal target_date, run.target_date
+      assert_match "already_running", run.run_log
+      assert_match "existing_run_id=#{existing.id}", run.run_log
+    end
+  end
+
+  test "records duplicate skipped when advisory lock is not acquired" do
+    target_date = Date.new(2026, 6, 21)
+
+    with_method_stub(AicooDailyRunner, :acquire_daily_run_lock, -> { false }) do
+      with_singleton_stub(BusinessMetricDailyImporter, :import_all!, ->(date:, progress: nil) { raise "should not be called" }) do
+        run = AicooDailyRunner.run!(target_date:, source: "manual")
+
+        assert_equal "duplicate_skipped", run.status
+        assert_equal target_date, run.target_date
+        assert_equal "manual", run.source
+        assert_match "daily_run_lock_not_acquired", run.run_log
+      end
     end
   end
 

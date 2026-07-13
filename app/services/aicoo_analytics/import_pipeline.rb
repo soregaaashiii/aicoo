@@ -17,7 +17,7 @@ module AicooAnalytics
     end
 
     def reprocess(data_import)
-      snapshot_result = AicooDataHub::SnapshotCollector.new.collect_data_imports
+      snapshot_result = AicooDataHub::SnapshotCollector.new.collect_data_import(data_import)
       neglect_result = update_neglect_loss_estimates
 
       Result.new(
@@ -45,23 +45,13 @@ module AicooAnalytics
     end
 
     def update_neglect_loss_estimates
-      records = [
-        ActionCandidate.all,
-        AicooLabExperimentCandidate.all,
-        AicooLabExperiment.all
-      ]
-
       updated_count = 0
       skipped_count = 0
 
-      records.each do |scope|
-        scope.find_each do |record|
+      [ ActionCandidate, AicooLabExperimentCandidate, AicooLabExperiment ].each do |model|
+        model.find_each do |record|
           result = AicooRevenue::NeglectLossEstimator.new(record).estimate_and_store!
-          if result.auto_generated
-            updated_count += 1
-          else
-            skipped_count += 1
-          end
+          result.auto_generated ? updated_count += 1 : skipped_count += 1
         end
       end
 

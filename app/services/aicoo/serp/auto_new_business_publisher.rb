@@ -139,7 +139,7 @@ module Aicoo
         base = if candidates
           ActionCandidate.where(id: Array(candidates).map(&:id))
         else
-          ActionCandidate.all
+          ActionCandidate.where(nil)
         end
 
         base = base.where.not(status: %w[rejected archived])

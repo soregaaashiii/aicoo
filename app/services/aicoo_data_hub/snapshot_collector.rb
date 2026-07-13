@@ -3,18 +3,28 @@ require "csv"
 
 module AicooDataHub
   class SnapshotCollector
-    Result = Data.define(:snapshots) do
-      def count
-        snapshots.size
+    Result = Data.define(:processed_count, :created_count, :failed_count) do
+      def count = created_count
+
+      def self.empty
+        new(processed_count: 0, created_count: 0, failed_count: 0)
+      end
+
+      def +(other)
+        self.class.new(
+          processed_count: processed_count.to_i + other.processed_count.to_i,
+          created_count: created_count.to_i + other.created_count.to_i,
+          failed_count: failed_count.to_i + other.failed_count.to_i
+        )
       end
     end
 
     def collect_all
-      Result.new(snapshots: collect_data_imports.snapshots + collect_landing_pages.snapshots + collect_revenue.snapshots)
+      collect_data_imports + collect_landing_pages + collect_revenue
     end
 
     def collect_data_imports
-      Result.new(snapshots: collect_ga4.snapshots + collect_gsc.snapshots)
+      collect_ga4 + collect_gsc
     end
 
     def collect_ga4
@@ -26,52 +36,83 @@ module AicooDataHub
     end
 
     def collect_landing_pages
-      snapshots = AicooLabLandingPage.find_each.filter_map do |landing_page|
-        create_snapshot(
+      collect_records(AicooLabLandingPage.order(:id)) do |landing_page|
+        create_snapshot_unless_exists(
           source_type: "landing_page",
-          source_id: landing_page.id,
-          payload: landing_page_payload(landing_page)
-        )
+          source_id: landing_page.id
+        ) { landing_page_payload(landing_page) }
       end
-
-      Result.new(snapshots:)
     end
 
     def collect_revenue
-      snapshots = AicooRevenueExecution.find_each.filter_map do |execution|
-        create_snapshot(
+      collect_records(AicooRevenueExecution.order(:id)) do |execution|
+        create_snapshot_unless_exists(
           source_type: "revenue_execution",
-          source_id: execution.id,
-          payload: revenue_payload(execution)
-        )
+          source_id: execution.id
+        ) { revenue_payload(execution) }
       end
+    end
 
-      Result.new(snapshots:)
+    def collect_data_import(data_import)
+      return Result.empty unless data_import
+
+      source_type = data_import.data_source&.source_type
+      return Result.empty unless %w[ga4 gsc].include?(source_type)
+
+      collect_one do
+        create_snapshot_unless_exists(
+          source_type:,
+          source_id: data_import.id
+        ) { data_import_payload(data_import, source_type) }
+      end
     end
 
     private
 
     def collect_data_imports_for(source_type)
-      snapshots = DataImport.joins(:data_source).where(data_sources: { source_type: }).find_each.filter_map do |data_import|
-        create_snapshot(
+      scope = DataImport.joins(:data_source).where(data_sources: { source_type: })
+      collect_records(scope) do |data_import|
+        create_snapshot_unless_exists(
           source_type:,
-          source_id: data_import.id,
-          payload: data_import_payload(data_import, source_type)
-        )
+          source_id: data_import.id
+        ) { data_import_payload(data_import, source_type) }
       end
-
-      Result.new(snapshots:)
     end
 
-    def create_snapshot(source_type:, source_id:, payload:)
-      return if snapshot_exists_today?(source_type, source_id)
+    def collect_records(scope)
+      processed_count = 0
+      created_count = 0
+      failed_count = 0
+
+      scope.find_each do |record|
+        processed_count += 1
+        created_count += 1 if yield(record)
+      rescue StandardError => e
+        failed_count += 1
+        Rails.logger.warn("[AicooDataHub::SnapshotCollector] skipped record=#{record.class.name}##{record.id} #{e.class}: #{e.message}")
+      end
+
+      Result.new(processed_count:, created_count:, failed_count:)
+    end
+
+    def collect_one
+      created = yield
+      Result.new(processed_count: 1, created_count: created ? 1 : 0, failed_count: 0)
+    rescue StandardError => e
+      Rails.logger.warn("[AicooDataHub::SnapshotCollector] skipped single record #{e.class}: #{e.message}")
+      Result.new(processed_count: 1, created_count: 0, failed_count: 1)
+    end
+
+    def create_snapshot_unless_exists(source_type:, source_id:)
+      return false if snapshot_exists_today?(source_type, source_id)
 
       AicooDataSnapshot.create!(
         source_type:,
         source_id:,
         captured_at: Time.current,
-        payload:
+        payload: yield
       )
+      true
     end
 
     def snapshot_exists_today?(source_type, source_id)

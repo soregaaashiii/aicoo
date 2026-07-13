@@ -1,4 +1,14 @@
+require "zlib"
+
 class AicooDailyRunner
+  MAX_RUN_LOG_LINES = 200
+  MAX_RUN_LOG_LINE_LENGTH = 300
+  MAX_STEP_MEMORY_EVENTS = 20
+  MAX_METADATA_HASH_KEYS = 30
+  MAX_METADATA_ARRAY_ITEMS = 20
+  MAX_METADATA_STRING_LENGTH = 500
+  PROGRESS_BATCH_SIZE = 25
+
   def self.run!(target_date: Date.yesterday, source: "manual")
     new(target_date:, source:).run!
   end
@@ -11,9 +21,21 @@ class AicooDailyRunner
   end
 
   def run!
+    return create_duplicate_skipped_run!(reason: "daily_run_lock_not_acquired") unless acquire_daily_run_lock
+
+    run_with_lock
+  ensure
+    release_daily_run_lock if @daily_run_lock_acquired
+  end
+
+  private
+
+  attr_reader :target_date, :source, :log_lines, :partial_failures
+
+  def run_with_lock
     run = nil
     existing_run = AicooDailyRun.running.find_by(target_date:)
-    return existing_run if existing_run
+    return create_duplicate_skipped_run!(reason: "already_running", existing_run:) if existing_run
 
     run = AicooDailyRun.create!(
       target_date:,
@@ -42,12 +64,64 @@ class AicooDailyRunner
     raise
   end
 
-  private
-
-  attr_reader :target_date, :source, :log_lines, :partial_failures
-
   def auto_revision_queueable_status?(status)
     status.in?(%w[success partial_failed])
+  end
+
+  def acquire_daily_run_lock
+    return true unless postgresql_adapter?
+
+    value = ActiveRecord::Base.connection.select_value("SELECT pg_try_advisory_lock(#{daily_run_lock_key})")
+    @daily_run_lock_acquired = truthy_database_value?(value)
+  rescue StandardError => e
+    Rails.logger.error("[AicooDailyRunner] daily_run_lock acquire failed target_date=#{target_date}: #{e.class}: #{e.message}")
+    raise
+  end
+
+  def release_daily_run_lock
+    return unless postgresql_adapter?
+
+    ActiveRecord::Base.connection.select_value("SELECT pg_advisory_unlock(#{daily_run_lock_key})")
+  rescue StandardError => e
+    Rails.logger.warn("[AicooDailyRunner] daily_run_lock release failed target_date=#{target_date}: #{e.class}: #{e.message}")
+  ensure
+    @daily_run_lock_acquired = false
+  end
+
+  def postgresql_adapter?
+    ActiveRecord::Base.connection.adapter_name.downcase.include?("postgres")
+  end
+
+  def daily_run_lock_key
+    @daily_run_lock_key ||= Zlib.crc32("aicoo_daily_run:#{target_date}")
+  end
+
+  def truthy_database_value?(value)
+    value == true || value.to_s == "t" || value.to_s == "true" || value.to_s == "1"
+  end
+
+  def create_duplicate_skipped_run!(reason:, existing_run: nil)
+    finished_at = Time.current
+    AicooDailyRun.create!(
+      target_date:,
+      status: "duplicate_skipped",
+      source:,
+      retry_count: retry_count_for_today,
+      started_at: finished_at,
+      finished_at:,
+      run_log: duplicate_skipped_log(reason:, existing_run:, finished_at:)
+    )
+  end
+
+  def duplicate_skipped_log(reason:, existing_run:, finished_at:)
+    parts = [
+      "[#{finished_at.iso8601}] Daily Run duplicate_skipped",
+      "reason=#{reason}",
+      "target_date=#{target_date}",
+      "source=#{source}"
+    ]
+    parts << "existing_run_id=#{existing_run.id}" if existing_run
+    parts.join(" ")
   end
 
   def execute_steps!(run)
@@ -55,6 +129,7 @@ class AicooDailyRunner
 
     analytics_step = start_step!(run, "analytics_fetch")
     Aicoo::MemoryDiagnostics.measure("AicooDailyRunner.step.analytics_fetch", context: daily_run_memory_context(run, step_name: "analytics_fetch", step_id: analytics_step.id)) do
+      record_step_progress!(analytics_step, batch: 0, processed: 0)
       analytics_runs = fetch_analytics!
       analytics_success_count = analytics_runs.count { |analytics_run| analytics_run.status == "success" }
       analytics_failed_runs = analytics_runs.select { |analytics_run| analytics_run.status == "failed" }
@@ -114,11 +189,11 @@ class AicooDailyRunner
     log!("proxy_score weights checked count=#{adjustment_logs.size}")
 
     generation_results = run_action_generation!(run)
-    generated_count = generation_results.sum(&:created_count)
+    generated_count = generation_results.created_count
     run.update!(action_candidates_generated_count: generated_count)
     log!("ActionCandidate generated count=#{generated_count}")
     log!(
-      "ActionCandidate skipped reasons=#{generation_results.flat_map(&:skipped).first(10).join(' | ')}"
+      "ActionCandidate skipped reasons=#{generation_results.skipped.first(10).join(' | ')}"
     ) if generated_count.zero?
 
     insight_result = run_insight_generation!(run)
@@ -235,14 +310,21 @@ class AicooDailyRunner
   def run_business_metrics_import!(run)
     step = start_step!(run, "business_metrics_import")
     Aicoo::MemoryDiagnostics.measure("AicooDailyRunner.step.business_metrics_import", context: daily_run_memory_context(run, step_name: "business_metrics_import", step_id: step.id)) do
+      record_step_progress!(step, batch: 0, processed: 0)
       log!("business_metrics_import start target_date=#{target_date}")
       imported_results = BusinessMetricDailyImporter.import_all!(
         date: target_date,
         progress: business_metrics_progress_callback(step)
       )
-      metadata = step.metadata.to_h
+      metadata = {
+        "processed_business_count" => imported_results.processed_count,
+        "created_count" => imported_results.created_count,
+        "updated_count" => imported_results.updated_count,
+        "skipped_count" => imported_results.skipped_count,
+        "error_count" => imported_results.failed_count
+      }
       run.update!(business_metrics_imported_count: imported_results.size)
-      if metadata["error_count"].to_i.positive? || metadata["skipped_count"].to_i.positive?
+      if imported_results.failed_count.to_i.positive? || imported_results.skipped_count.to_i.positive?
         partial_failures << "business_metrics_import_partial"
         finish_step!(
           step,
@@ -281,28 +363,39 @@ class AicooDailyRunner
 
   def business_metrics_progress_callback(step)
     lambda do |progress|
-      metadata = step.metadata.to_h.merge(
-        "heartbeat" => progress.last_progress_at.iso8601,
-        "last_progress_at" => progress.last_progress_at.iso8601,
-        "progress_event" => progress.event,
-        "target_business_count" => progress.target_business_count,
-        "processed_business_count" => progress.processed_business_count,
-        "current_business_id" => progress.current_business_id,
-        "current_business_name" => progress.current_business_name,
-        "created_count" => progress.created_count,
-        "updated_count" => progress.updated_count,
-        "skipped_count" => progress.skipped_count,
-        "error_count" => progress.error_count,
-        "elapsed_seconds" => progress.elapsed_seconds.to_f.round(2)
-      )
-      metadata["last_error"] = progress.error_message if progress.error_message.present?
-      step.update!(metadata:)
-      log!(
-        "business_metrics_import #{progress.event} " \
-        "processed=#{progress.processed_business_count}/#{progress.target_business_count} " \
-        "business_id=#{progress.current_business_id || '-'} elapsed=#{progress.elapsed_seconds.to_f.round(1)}s"
-      )
+      processed = progress.processed_business_count.to_i
+      batch = progress_batch_for(processed)
+      return unless progress_checkpoint?(step, batch:, processed:, event: progress.event)
+
+      record_step_progress!(step, batch:, processed:)
+      log!("business_metrics_import progress batch=#{batch} processed=#{processed} rss_mb=#{memory_snapshot['rss_mb'] || '-'}")
     end
+  end
+
+  def daily_step_progress_callback(step)
+    lambda do |batch:, processed:|
+      return unless progress_checkpoint?(step, batch:, processed:)
+
+      record_step_progress!(step, batch:, processed:)
+      log!("daily_step progress step=#{step.step_name} batch=#{batch} processed=#{processed} rss_mb=#{memory_snapshot['rss_mb'] || '-'}")
+    end
+  end
+
+  def unsupported_progress_keyword?(error)
+    error.message.match?(/unknown keyword|wrong number of arguments/i)
+  end
+
+  def progress_batch_for(processed)
+    return 0 if processed <= 0
+
+    (processed.to_f / PROGRESS_BATCH_SIZE).ceil
+  end
+
+  def progress_checkpoint?(step, batch:, processed:, event: nil)
+    return true if event.to_s.in?(%w[start finish failed timeout step_timeout error])
+
+    metadata = step.metadata.to_h
+    batch != metadata["last_progress_batch"].to_i || processed.zero?
   end
 
   def analytics_metadata(success_count:, failed_runs:, blocking_failures:)
@@ -376,6 +469,7 @@ class AicooDailyRunner
     end
 
     health_step = start_step!(run, "suelog_database_health_check")
+    record_step_progress!(health_step, batch: 0, processed: 0)
     health = Aicoo::ExternalSources::SuelogHealthCheck.call
     if health.success?
       finish_step!(health_step, metadata: health.diagnostics.merge("business_id" => business.id))
@@ -405,6 +499,7 @@ class AicooDailyRunner
     end
 
     generation_step = start_step!(run, "suelog_candidate_generation")
+    record_step_progress!(generation_step, batch: 0, processed: 0)
     result = Aicoo::CandidateGenerators::SuelogGenerator.call(business:)
     if result.health&.success?
       finish_step!(
@@ -487,13 +582,14 @@ class AicooDailyRunner
   def run_action_generation!(run)
     step = start_step!(run, "action_generation")
     Aicoo::MemoryDiagnostics.measure("AicooDailyRunner.step.action_generation", context: daily_run_memory_context(run, step_name: "action_generation", step_id: step.id)) do
-      results = MetricActionCandidateGenerator.generate_all!
-      generated_count = results.sum(&:created_count)
-      skipped_reasons = results.flat_map(&:skipped)
+      result = normalize_action_generation_result(call_metric_action_candidate_generator(step))
+      generated_count = result.created_count
+      skipped_reasons = result.skipped
       metadata = {
         created_count: generated_count,
-        skipped_count: results.sum(&:skipped_count),
-        result_count: results.size,
+        skipped_count: result.skipped_count,
+        failed_count: result.failed_count,
+        result_count: result.created_count.to_i + result.skipped_count.to_i + result.failed_count.to_i,
         skipped_reasons: skipped_reasons.first(20)
       }
       if generated_count.zero?
@@ -504,11 +600,25 @@ class AicooDailyRunner
         )
       end
       finish_step!(step, metadata:)
-      results
+      result
     end
   rescue StandardError => e
     fail_step!(step, "#{e.class}: #{e.message}") if step
     raise
+  end
+
+  def call_metric_action_candidate_generator(step)
+    MetricActionCandidateGenerator.generate_all!(progress: daily_step_progress_callback(step))
+  rescue ArgumentError => e
+    raise unless unsupported_progress_keyword?(e)
+
+    MetricActionCandidateGenerator.generate_all!
+  end
+
+  def normalize_action_generation_result(result)
+    return result unless result.is_a?(Array)
+
+    result.reduce(MetricActionCandidateGenerator::Result.new) { |summary, item| summary + item }
   end
 
   def action_generation_zero_message(skipped_reasons)
@@ -520,7 +630,7 @@ class AicooDailyRunner
   def run_insight_generation!(run)
     step = start_step!(run, "insight_generation")
     Aicoo::MemoryDiagnostics.measure("AicooDailyRunner.step.insight_generation", context: daily_run_memory_context(run, step_name: "insight_generation", step_id: step.id)) do
-      result = AicooInsight::Generator.generate_all!(source: "daily_run")
+      result = call_insight_generator(step)
       skipped_reasons = result.skipped.map(&:to_s)
       metadata = {
         created_count: result.created_count,
@@ -540,6 +650,14 @@ class AicooDailyRunner
   rescue StandardError => e
     fail_step!(step, "#{e.class}: #{e.message}") if step
     raise
+  end
+
+  def call_insight_generator(step)
+    AicooInsight::Generator.generate_all!(source: "daily_run", progress: daily_step_progress_callback(step))
+  rescue ArgumentError => e
+    raise unless unsupported_progress_keyword?(e)
+
+    AicooInsight::Generator.generate_all!(source: "daily_run")
   end
 
   def insight_generation_zero_message(skipped_reasons)
@@ -708,7 +826,9 @@ class AicooDailyRunner
   end
 
   def log!(message)
-    log_lines << "[#{Time.current.iso8601}] #{message}"
+    line = "[#{Time.current.iso8601}] #{message.to_s.squish.truncate(MAX_RUN_LOG_LINE_LENGTH)}"
+    log_lines << line
+    log_lines.shift while log_lines.size > MAX_RUN_LOG_LINES
   end
 
   def log_text
@@ -718,6 +838,7 @@ class AicooDailyRunner
   def record_step!(run, step_name)
     step = start_step!(run, step_name)
     Aicoo::MemoryDiagnostics.measure("AicooDailyRunner.step.#{step_name}", context: daily_run_memory_context(run, step_name:, step_id: step.id)) do
+      record_step_progress!(step, batch: 0, processed: 0)
       result = yield
       finish_step!(step)
       result
@@ -732,7 +853,7 @@ class AicooDailyRunner
       step_name:,
       status: "running",
       started_at: Time.current,
-      metadata: { "memory_start" => memory_snapshot }.compact
+      metadata: initial_step_memory_metadata
     )
   end
 
@@ -742,7 +863,7 @@ class AicooDailyRunner
       status: "success",
       finished_at:,
       duration_seconds: step_duration(step, finished_at),
-      metadata: step_metadata_with_memory(step, metadata)
+      metadata: step_metadata_with_memory_event(step, "finish", metadata)
     )
     compact_memory!
   end
@@ -754,7 +875,7 @@ class AicooDailyRunner
       finished_at:,
       duration_seconds: step_duration(step, finished_at),
       error_message:,
-      metadata: step_metadata_with_memory(step, metadata)
+      metadata: step_metadata_with_memory_event(step, "error", metadata)
     )
     compact_memory!
   end
@@ -765,7 +886,7 @@ class AicooDailyRunner
       status: "skipped",
       finished_at:,
       duration_seconds: step_duration(step, finished_at),
-      metadata: step_metadata_with_memory(step, metadata)
+      metadata: step_metadata_with_memory_event(step, "skipped", metadata)
     )
     compact_memory!
   end
@@ -776,13 +897,75 @@ class AicooDailyRunner
     finished_at - step.started_at
   end
 
-  def step_metadata_with_memory(step, metadata)
-    merged = step.metadata.to_h.merge(metadata.deep_stringify_keys)
-    finish_memory = memory_snapshot
-    merged["memory_finish"] = finish_memory if finish_memory.present?
+  def initial_step_memory_metadata
+    start_event = memory_event("start", batch: 0, processed: 0)
+    {
+      "heartbeat" => start_event["at"],
+      "memory_start" => start_event,
+      "last_memory_event" => start_event,
+      "memory_events" => [ start_event ]
+    }
+  end
+
+  def record_step_progress!(step, batch:, processed:)
+    event = memory_event("progress", batch:, processed:)
+    metadata = append_memory_event(step.metadata.to_h, event)
+    metadata["heartbeat"] = event["at"]
+    metadata["last_progress"] = event
+    metadata["last_progress_batch"] = event["batch"]
+    metadata["last_progress_processed"] = event["processed"]
+    step.update_columns(metadata:, updated_at: Time.current)
+  end
+
+  def step_metadata_with_memory_event(step, event_name, metadata)
+    event = memory_event(event_name)
+    merged = step.metadata.to_h.merge(sanitize_metadata(metadata.deep_stringify_keys))
+    merged = ensure_progress_event(merged)
+    merged = append_memory_event(merged, event)
+    merged["heartbeat"] = event["at"]
+    merged["memory_finish"] = event if event_name.in?(%w[finish error skipped])
     memory_delta = memory_delta_mb(merged)
     merged["memory_delta_mb"] = memory_delta if memory_delta
-    merged
+    sanitize_metadata(merged)
+  end
+
+  def append_memory_event(metadata, event)
+    events = Array(metadata["memory_events"]).last(MAX_STEP_MEMORY_EVENTS - 1)
+    metadata.merge(
+      "last_memory_event" => event,
+      "memory_events" => events + [ event ]
+    )
+  end
+
+  def ensure_progress_event(metadata)
+    events = Array(metadata["memory_events"])
+    return metadata if events.any? { |event| event.is_a?(Hash) && event["event"] == "progress" }
+
+    append_memory_event(metadata, memory_event("progress", batch: 0, processed: 0))
+  end
+
+  def memory_event(event_name, batch: nil, processed: nil)
+    memory_snapshot.merge(
+      "event" => event_name,
+      "at" => Time.current.iso8601,
+      "batch" => batch,
+      "processed" => processed
+    ).compact
+  end
+
+  def sanitize_metadata(value)
+    case value
+    when Hash
+      value.first(MAX_METADATA_HASH_KEYS).to_h do |key, item|
+        [ key.to_s, sanitize_metadata(item) ]
+      end
+    when Array
+      value.first(MAX_METADATA_ARRAY_ITEMS).map { |item| sanitize_metadata(item) }
+    when String
+      value.truncate(MAX_METADATA_STRING_LENGTH)
+    else
+      value
+    end
   end
 
   def memory_delta_mb(metadata)
@@ -837,6 +1020,6 @@ class AicooDailyRunner
   end
 
   def retry_count_for_today
-    AicooDailyRun.where(target_date:).where.not(status: "skipped").count
+    AicooDailyRun.where(target_date:).where.not(status: %w[skipped duplicate_skipped]).count
   end
 end
