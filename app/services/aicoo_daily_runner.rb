@@ -390,11 +390,12 @@ class AicooDailyRunner
   end
 
   def daily_step_progress_callback(step)
-    lambda do |batch:, processed:|
-      return unless progress_checkpoint?(step, batch:, processed:)
+    lambda do |batch:, processed:, **attributes|
+      return unless attributes[:insight_generation_progress].present? || progress_checkpoint?(step, batch:, processed:)
 
-      record_step_progress!(step, batch:, processed:)
+      record_step_progress!(step, batch:, processed:, **attributes)
       log!("daily_step progress step=#{step.step_name} batch=#{batch} processed=#{processed} rss_mb=#{memory_snapshot['rss_mb'] || '-'}")
+      release_step_references!(step, release_reason: "batch") if attributes[:insight_generation_progress].present?
     end
   end
 
@@ -983,13 +984,14 @@ class AicooDailyRunner
     }
   end
 
-  def record_step_progress!(step, batch:, processed:)
+  def record_step_progress!(step, batch:, processed:, **attributes)
     event = memory_event("progress", batch:, processed:)
     metadata = append_memory_event(step.metadata.to_h, event)
     metadata["heartbeat"] = event["at"]
     metadata["last_progress"] = event
     metadata["last_progress_batch"] = event["batch"]
     metadata["last_progress_processed"] = event["processed"]
+    metadata["insight_generation_progress"] = sanitize_metadata(attributes[:insight_generation_progress].deep_stringify_keys) if attributes[:insight_generation_progress].present?
     step.update_columns(metadata:, updated_at: Time.current)
   end
 

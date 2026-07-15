@@ -1,14 +1,25 @@
 module AicooInsight
   class Generator
     class Result
-      attr_reader :created, :skipped, :created_count, :skipped_count, :failed_count
+      attr_reader :created,
+        :skipped,
+        :created_count,
+        :skipped_count,
+        :failed_count,
+        :processed_count,
+        :total_count,
+        :last_spec
 
-      def initialize(created: [], skipped: [], created_count: nil, skipped_count: nil, failed_count: 0)
+      def initialize(created: [], skipped: [], created_count: nil, skipped_count: nil, failed_count: 0, processed_count: nil, total_count: nil, completed: false, last_spec: nil)
         @created = created
         @skipped = skipped
         @created_count = created_count || created.size
         @skipped_count = skipped_count || skipped.size
         @failed_count = failed_count
+        @processed_count = processed_count || created.size + skipped.size
+        @total_count = total_count
+        @completed = completed
+        @last_spec = last_spec
       end
 
       def +(other)
@@ -16,7 +27,26 @@ module AicooInsight
           created_count: created_count.to_i + other.created_count.to_i,
           skipped_count: skipped_count.to_i + other.skipped_count.to_i,
           failed_count: failed_count.to_i + other.failed_count.to_i,
+          processed_count: processed_count.to_i + other.processed_count.to_i,
           skipped: (skipped + other.skipped).first(20)
+        )
+      end
+
+      def completed?
+        @completed
+      end
+
+      def with_batch_progress(processed_count:, total_count:, completed:, last_spec:)
+        self.class.new(
+          created:,
+          skipped:,
+          created_count:,
+          skipped_count:,
+          failed_count:,
+          processed_count:,
+          total_count:,
+          completed:,
+          last_spec:
         )
       end
     end
@@ -36,6 +66,8 @@ module AicooInsight
     )
 
     DATE_KEYS = %w[date recorded_on occurred_on event_date].freeze
+    DEFAULT_BATCH_SIZE = 100
+    PROGRESS_METADATA_KEY = "insight_generation_progress".freeze
 
     def self.generate_all!(source: nil, progress: nil, memory_context: {})
       baseline = Aicoo::MemoryDiagnostics.snapshot
@@ -78,28 +110,78 @@ module AicooInsight
       Aicoo::MemoryDiagnostics.point("InsightGeneration::generate_all_without_run.entry", context: memory_context, baseline:)
       summary = Result.new
       processed = 0
+      batch_no = 0
+      batch_size = insight_generation_batch_size
+      resume_state = insight_generation_resume_state(memory_context)
+      batch_started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      batch_rss_before = Aicoo::MemoryDiagnostics.current_rss_mb
       business_scope = Aicoo::MemoryDiagnostics.measure("InsightGeneration::business_scope", context: memory_context) do
-        Business.real_businesses
+        Business.real_businesses.order(:id)
       end
       business_count = Aicoo::MemoryDiagnostics.measure("InsightGeneration::business_count", context: memory_context) do
         business_scope.count
       end
-      Aicoo::MemoryDiagnostics.point("InsightGeneration::before_first_business", context: memory_context, baseline:, business_count:)
+      last_business_id = business_scope.maximum(:id)
+      Aicoo::MemoryDiagnostics.point("InsightGeneration::before_first_business", context: memory_context, baseline:, business_count:, batch_size:, resume_business_id: resume_state[:business_id], resume_position: resume_state[:current_position])
       business_scope.find_each do |business|
+        next if resume_state[:business_id].present? && business.id < resume_state[:business_id].to_i
+
+        offset = business.id == resume_state[:business_id].to_i ? resume_state[:current_position].to_i : 0
         processed += 1
-        summary += Aicoo::MemoryDiagnostics.measure(
+        business_result = Aicoo::MemoryDiagnostics.measure(
           "InsightGeneration::BusinessInsightGenerator",
-          context: memory_context.merge(business_id: business.id, business_name: business.name, processed:)
+          context: memory_context.merge(business_id: business.id, business_name: business.name, processed:, batch_no: batch_no + 1, batch_size:, spec_offset: offset)
         ) do
-          new(business:, memory_context:).call
+          new(business:, memory_context:).call_batch(offset:, limit: batch_size - batch_no)
         end
-        progress&.call(batch: progress_batch_for(processed), processed:)
+        summary += business_result
+        batch_no += business_result.processed_count
+
+        progress_payload = insight_generation_progress_payload(
+          memory_context:,
+          business:,
+          business_count:,
+          current_position: offset + business_result.processed_count,
+          total_count: business_result.total_count,
+          processed_count: batch_no,
+          batch_size:,
+          batch_started_at:,
+          batch_rss_before:,
+          last_spec: business_result.last_spec,
+          completed_business: business_result.completed?,
+          completed_all: business_result.completed? && business.id == last_business_id
+        )
+        progress&.call(batch: progress_batch_for(batch_no), processed: batch_no, insight_generation_progress: progress_payload)
+        compact_batch_memory!
+        Aicoo::MemoryDiagnostics.point("InsightGeneration::batch.finish", context: memory_context.merge(progress_payload))
+
+        return summary if batch_no >= batch_size
+
+        resume_state = {}
       rescue StandardError => e
         Rails.logger.warn("[AicooInsight::Generator] business_id=#{business.id} failed: #{e.class}: #{e.message}")
         summary += Result.new(failed_count: 1, skipped: [ "#{business.name}: #{e.class}: #{e.message}" ])
-        progress&.call(batch: progress_batch_for(processed), processed:)
+        progress&.call(batch: progress_batch_for([ batch_no, 1 ].max), processed: batch_no)
       end
 
+      progress&.call(
+        batch: progress_batch_for(batch_no),
+        processed: batch_no,
+        insight_generation_progress: insight_generation_progress_payload(
+          memory_context:,
+          business: nil,
+          business_count:,
+          current_position: 0,
+          total_count: 0,
+          processed_count: batch_no,
+          batch_size:,
+          batch_started_at:,
+          batch_rss_before:,
+          last_spec: nil,
+          completed_business: true,
+          completed_all: true
+        )
+      )
       summary
     end
 
@@ -109,13 +191,103 @@ module AicooInsight
       (processed.to_f / 25).ceil
     end
 
+    def self.insight_generation_batch_size
+      value = ENV["INSIGHT_GENERATION_BATCH_SIZE"].to_i
+      value.positive? ? value : DEFAULT_BATCH_SIZE
+    end
+
+    def self.insight_generation_resume_state(memory_context)
+      step_id = memory_context[:step_id] || memory_context["step_id"]
+      previous_progress = AicooDailyRunStep
+        .where(step_name: "insight_generation")
+        .where.not(id: step_id)
+        .order(updated_at: :desc)
+        .limit(20)
+        .lazy
+        .map { |step| step.metadata.to_h[PROGRESS_METADATA_KEY].to_h }
+        .find(&:present?)
+
+      return {} unless previous_progress.to_h["status"] == "in_progress"
+
+      {
+        business_id: previous_progress["business_id"].presence&.to_i,
+        current_position: previous_progress["current_position"].to_i
+      }.compact
+    rescue StandardError => e
+      Rails.logger.warn("[AicooInsight::Generator] insight progress resume skipped: #{e.class}: #{e.message}")
+      {}
+    end
+
+    def self.insight_generation_progress_payload(memory_context:, business:, business_count:, current_position:, total_count:, processed_count:, batch_size:, batch_started_at:, batch_rss_before:, last_spec:, completed_business:, completed_all:)
+      rss_after = Aicoo::MemoryDiagnostics.current_rss_mb
+      elapsed_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - batch_started_at) * 1000).round
+      remaining_count = [ total_count.to_i - current_position.to_i, 0 ].max
+      status = completed_all ? "complete" : "in_progress"
+
+      {
+        daily_run_id: memory_context[:daily_run_id] || memory_context["daily_run_id"],
+        step_id: memory_context[:step_id] || memory_context["step_id"],
+        business_id: business&.id,
+        current_position:,
+        total_count:,
+        processed_count:,
+        remaining_count:,
+        last_spec:,
+        updated_at: Time.current.iso8601,
+        status:,
+        completed_business:,
+        batch_no: progress_batch_for(processed_count),
+        batch_size:,
+        business_count:,
+        rss_before: batch_rss_before,
+        rss_after:,
+        rss_delta: rss_delta(batch_rss_before, rss_after),
+        elapsed_ms:
+      }.compact
+    end
+
+    def self.compact_batch_memory!
+      ActiveRecord::Base.connection.clear_query_cache if ActiveRecord::Base.connected?
+      GC.start(full_mark: false, immediate_sweep: false)
+    rescue StandardError => e
+      Rails.logger.debug("[AicooInsight::Generator] batch memory compact skipped: #{e.class}: #{e.message}")
+    end
+
+    def self.rss_delta(before, after)
+      return if before.nil? || after.nil?
+
+      (after.to_d - before.to_d).round(1).to_f
+    end
+
     def initialize(business:, memory_context: {})
       @business = business
       @memory_context = memory_context.to_h
     end
 
     def call
-      specs = Aicoo::MemoryDiagnostics.measure("InsightGeneration::SpecCollection", context: diagnostic_context) do
+      specs = collect_specs
+
+      process_specs(specs)
+    end
+
+    def call_batch(offset:, limit:)
+      specs = collect_specs
+      return Result.new(skipped: [ no_insight_reason ], processed_count: 0, total_count: 0, completed: true) if specs.empty?
+
+      batch_specs = specs.drop(offset.to_i).first(limit.to_i)
+      result = process_specs(batch_specs, include_empty_reason: false)
+      result.with_batch_progress(
+        processed_count: batch_specs.size,
+        total_count: specs.size,
+        completed: offset.to_i + batch_specs.size >= specs.size,
+        last_spec: batch_specs.last&.title
+      )
+    ensure
+      specs = batch_specs = nil
+    end
+
+    def collect_specs
+      Aicoo::MemoryDiagnostics.measure("InsightGeneration::SpecCollection", context: diagnostic_context) do
         [
           measured("InsightGeneration::CtrImprovementSpecs") { ctr_improvement_specs },
           measured("InsightGeneration::PositionImprovementSpecs") { position_improvement_specs },
@@ -125,10 +297,12 @@ module AicooInsight
           measured("InsightGeneration::WithdrawalSpecs") { withdrawal_specs }
         ].flatten.compact
       end
+    end
 
+    def process_specs(specs, include_empty_reason: true)
       created = []
       skipped = []
-      return Result.new(created:, skipped: [ no_insight_reason ]) if specs.empty?
+      return Result.new(created:, skipped: include_empty_reason ? [ no_insight_reason ] : []) if specs.empty?
 
       specs.each do |spec|
         decision = measured("InsightGeneration::BusinessPlaybookDecision", spec:) do
@@ -144,6 +318,8 @@ module AicooInsight
       end
 
       Result.new(created:, skipped:)
+    ensure
+      created = skipped = nil
     end
 
     private
