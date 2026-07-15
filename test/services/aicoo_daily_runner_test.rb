@@ -1,4 +1,5 @@
 require "test_helper"
+require "stringio"
 
 class AicooDailyRunnerTest < ActiveSupport::TestCase
   setup do
@@ -233,6 +234,71 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
         assert_equal "0.0", step.metadata.fetch("memory_gc_delta_mb")
       end
     end
+  end
+
+  test "releases memory metadata for success skipped and failed steps" do
+    run = AicooDailyRun.create!(target_date: Date.new(2026, 6, 21), status: "running", source: "manual")
+    runner = AicooDailyRunner.new(target_date: run.target_date, source: "manual")
+
+    with_method_stub(AicooDailyRunner, :current_rss_kb, -> { 128 * 1024 }) do
+      success_step = runner.send(:start_step!, run, "success_step")
+      skip_step = runner.send(:start_step!, run, "skip_step")
+      failed_step = runner.send(:start_step!, run, "failed_step")
+
+      runner.send(:finish_step!, success_step, metadata: { keep: "yes" })
+      runner.send(:skip_step!, skip_step, metadata: { keep: "yes" })
+      runner.send(:fail_step!, failed_step, "boom", metadata: { keep: "yes" })
+
+      [ success_step, skip_step, failed_step ].each do |step|
+        step.reload
+        assert_equal "128.0", step.metadata.dig("memory_gc_before", "rss_mb")
+        assert_equal "128.0", step.metadata.dig("memory_gc_after", "rss_mb")
+        assert_equal "0.0", step.metadata.fetch("memory_gc_delta_mb")
+        assert_equal "yes", step.metadata.fetch("keep")
+      end
+    end
+  end
+
+  test "record step releases memory even when step body raises original exception" do
+    run = AicooDailyRun.create!(target_date: Date.new(2026, 6, 21), status: "running", source: "manual")
+    runner = AicooDailyRunner.new(target_date: run.target_date, source: "manual")
+
+    with_method_stub(AicooDailyRunner, :current_rss_kb, -> { 128 * 1024 }) do
+      error = assert_raises(RuntimeError) do
+        runner.send(:record_step!, run, "raise_step") { raise "original boom" }
+      end
+
+      assert_equal "original boom", error.message
+      step = run.aicoo_daily_run_steps.find_by!(step_name: "raise_step")
+      assert_equal "failed", step.status
+      assert_equal "128.0", step.metadata.dig("memory_gc_before", "rss_mb")
+      assert_equal "128.0", step.metadata.dig("memory_gc_after", "rss_mb")
+    end
+  end
+
+  test "release memory warns when step cannot be found" do
+    run = AicooDailyRun.create!(target_date: Date.new(2026, 6, 21), status: "running", source: "manual")
+    runner = AicooDailyRunner.new(target_date: run.target_date, source: "manual")
+
+    output = capture_rails_logger do
+      runner.send(:release_step_references!, run, "missing_step")
+    end
+
+    assert_includes output, "release skipped reason=step_not_found"
+  end
+
+  test "release memory warns when metadata save fails" do
+    run = AicooDailyRun.create!(target_date: Date.new(2026, 6, 21), status: "running", source: "manual")
+    runner = AicooDailyRunner.new(target_date: run.target_date, source: "manual")
+    step = runner.send(:start_step!, run, "save_fail_step")
+
+    output = capture_rails_logger do
+      with_method_stub(AicooDailyRunner, :save_release_metadata!, ->(_step, _metadata) { raise "save failed" }) do
+        runner.send(:release_step_references!, step)
+      end
+    end
+
+    assert_includes output, "release metadata save failed"
   end
 
   test "unknown analytics failures still mark daily run as partial failed" do
@@ -637,5 +703,15 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
     klass.define_singleton_method(method_name) do |*args, **kwargs, &block|
       original.call(*args, **kwargs, &block)
     end
+  end
+
+  def capture_rails_logger
+    io = StringIO.new
+    original_logger = Rails.logger
+    Rails.logger = ActiveSupport::Logger.new(io)
+    yield
+    io.string
+  ensure
+    Rails.logger = original_logger
   end
 end
