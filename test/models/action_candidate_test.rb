@@ -59,7 +59,8 @@ class ActionCandidateTest < ActiveSupport::TestCase
     assert_nil metadata["target_url"]
     assert_nil metadata.dig("action_plan", "target")
     assert_nil metadata.dig("evidence", "page_path")
-    assert_equal "unknown", metadata["target_url_type"]
+    assert_equal "external_reference", metadata["target_url_type"]
+    assert_equal "external_reference", metadata["url_classification"]
     assert_equal "自社対象ページ未特定", metadata["target_url_warning"]
     assert_includes metadata["competitor_urls"], "https://it-trend.jp/log_management/article/84-0008"
     assert_includes metadata["competitor_features"], "比較表"
@@ -84,7 +85,8 @@ class ActionCandidateTest < ActiveSupport::TestCase
 
     metadata = action_candidate.reload.metadata
     assert_nil metadata["target_url"]
-    assert_equal "unknown", metadata["target_url_type"]
+    assert_equal "external_reference", metadata["target_url_type"]
+    assert_equal "external_reference", metadata["url_classification"]
     assert_includes metadata["reference_urls"], "https://s.tabelog.com/rstLst/cond13-00-01/"
     assert_includes metadata["competitor_urls"], "https://s.tabelog.com/rstLst/cond13-00-01/"
   end
@@ -112,10 +114,31 @@ class ActionCandidateTest < ActiveSupport::TestCase
     metadata = action_candidate.reload.metadata
     assert_nil metadata["target_url"]
     assert_equal "/articles/suelog-comparison", metadata["planned_url"]
-    assert_equal "planned_owner_page", metadata["planned_url_type"]
+    assert_equal "proposed_new", metadata["planned_url_type"]
+    assert_equal "proposed_new", metadata["url_classification"]
     assert_includes metadata["reference_urls"], "https://it-trend.jp/log_management/article/84-0008"
     assert_includes metadata["competitor_urls"], "https://it-trend.jp/log_management/article/84-0008"
     assert_equal "/articles/suelog-comparison", metadata.dig("action_plan", "target")
+  end
+
+  test "marks broken article path as invalid target" do
+    action_candidate = ActionCandidate.create!(
+      business: businesses(:suelog),
+      title: "壊れた記事URLを改善する",
+      action_type: "seo_improvement",
+      generation_source: "business_analyzer",
+      immediate_value_yen: 18_000,
+      success_probability: 0.4,
+      expected_hours: 1.5,
+      metadata: {
+        "target_url" => "/articles/-smoking"
+      }
+    )
+
+    metadata = action_candidate.reload.metadata
+    assert_nil metadata["target_url"]
+    assert_equal "invalid", metadata["target_url_type"]
+    assert_equal "invalid", metadata["url_classification"]
   end
 
   test "strategic philosophy changes final score" do

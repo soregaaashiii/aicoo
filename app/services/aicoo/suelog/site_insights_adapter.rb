@@ -340,7 +340,7 @@ module Aicoo
           "external_reference_urls" => item[:external_reference_urls],
           "reference_urls" => item[:external_reference_urls],
           "planned_url" => item[:work_type] == "new_article" ? "/articles/#{item[:recommended_slug]}" : nil,
-          "planned_url_type" => item[:work_type] == "new_article" ? "planned_owner_page" : nil,
+          "planned_url_type" => item[:work_type] == "new_article" ? "proposed_new" : nil,
           "page_exists" => item[:page_exists],
           "matched_page" => item[:matched_page],
           "recommended_slug" => item[:recommended_slug],
@@ -1088,16 +1088,23 @@ module Aicoo
       end
 
       def infer_landing_page(area:, local_area:, genre:, theme:)
-        return "/articles/#{local_area.parameterize}-smoking" if local_area.present?
+        local_slug = safe_article_slug(local_area)
+        theme_slug = safe_article_slug(theme)
+        return "/articles/#{local_slug}-smoking" if local_slug.present?
         return "/umeda/genre/bar" if area == "梅田" && genre == "バー"
         return "/umeda/genre/izakaya" if area == "梅田" && genre == "居酒屋"
         return "/umeda" if area == "梅田"
         return "/namba" if area == "難波"
         return "/nishinakajima" if area == "西中島"
         return "/honmachi" if area == "本町"
-        return "/articles/#{theme.parameterize}-smoking" if theme.present?
+        return "/articles/#{theme_slug}-smoking" if theme_slug.present?
 
         ""
+      end
+
+      def safe_article_slug(value)
+        slug = value.to_s.parameterize
+        slug.presence
       end
 
       def ga4_data_for(_landing_page)

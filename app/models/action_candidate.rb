@@ -56,6 +56,7 @@ class ActionCandidate < ApplicationRecord
   before_validation :sanitize_owned_target_urls
   before_save :apply_execution_feasibility_correction
   before_save :calculate_scores
+  before_save :sanitize_owned_target_urls
   after_commit :sync_serp_query_counters, on: %i[create update]
   after_commit :auto_publish_new_business_candidate, on: %i[create update]
   after_commit :run_auto_revision_autopilot, on: %i[create update]

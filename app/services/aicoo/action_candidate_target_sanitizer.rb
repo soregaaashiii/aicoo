@@ -37,12 +37,13 @@ module Aicoo
       end
       planned = planned_owner_url
       metadata["planned_url"] = planned if planned.present?
-      metadata["planned_url_type"] = "planned_owner_page" if planned.present?
+      metadata["planned_url_type"] = "proposed_new" if planned.present?
       metadata["target_url"] = nil
       metadata["target_url_or_identifier"] = nil
       metadata["target_identifier"] = nil
       metadata["page_path"] = nil
-      metadata["target_url_type"] = "planned_owner_page" if planned.present?
+      metadata["url_classification"] = "proposed_new" if planned.present?
+      metadata["target_url_type"] = "proposed_new" if planned.present?
     end
 
     def sanitize_top_level_targets
@@ -96,10 +97,38 @@ module Aicoo
         competitor_urls << result.reference_url
         metadata["invalid_target_url_reason"] ||= "external_url_moved_to_competitor_urls"
         metadata["target_url_warning"] ||= "自社対象ページ未特定"
-        metadata["target_url_type"] = "unknown"
+        metadata["target_url_type"] = "external_reference"
+        metadata["url_classification"] = "external_reference"
+        metadata["url_classification_reason"] ||= "domain_not_owned"
+        metadata["resolved_own_domain"] ||= owner_domain
+        metadata["url_verified_at"] ||= Time.current.iso8601
         return nil
       end
-      metadata["target_url_type"] = result.target_url_type
+      if result.proposed_new?
+        metadata["planned_url"] ||= result.url
+        metadata["planned_url_type"] ||= "proposed_new"
+        metadata["target_url_warning"] ||= "自社対象ページ未作成"
+        metadata["target_url_type"] = "proposed_new"
+        metadata["url_classification"] = "proposed_new"
+        metadata["url_classification_reason"] ||= "own_url_not_existing"
+        metadata["url_verified_at"] ||= Time.current.iso8601
+        return nil
+      end
+      if result.invalid?
+        metadata["invalid_target_url_reason"] ||= "invalid_target_url"
+        metadata["target_url_warning"] ||= "対象URL要確認"
+        metadata["target_url_type"] = "invalid"
+        metadata["url_classification"] = "invalid"
+        metadata["url_classification_reason"] ||= "invalid_or_unverified_url"
+        metadata["url_verified_at"] ||= Time.current.iso8601
+        return nil
+      end
+
+      metadata["target_url_type"] = "own_existing"
+      metadata["url_classification"] = "own_existing"
+      metadata["url_classification_reason"] ||= "owned_existing_url"
+      metadata["resolved_own_domain"] ||= owner_domain
+      metadata["url_verified_at"] ||= Time.current.iso8601
       result.url.presence || value
     end
 
@@ -137,7 +166,8 @@ module Aicoo
       return unless metadata["invalid_target_url_reason"].present?
 
       metadata["target_url"] = nil if metadata["target_url"].blank? || external_url?(metadata["target_url"])
-      metadata["target_url_type"] = "unknown" if metadata["target_url"].blank?
+      metadata["target_url_type"] = "external_reference" if metadata["target_url"].blank?
+      metadata["url_classification"] = "external_reference" if metadata["target_url"].blank?
       metadata["target_url_warning"] ||= "自社対象ページ未特定"
     end
 
@@ -171,6 +201,8 @@ module Aicoo
     def planned_target_value(raw, fallback:)
       result = collect_reference_url(raw)
       metadata["invalid_target_url_reason"] ||= "external_url_moved_to_reference_urls" if result.reference_url.present?
+      metadata["url_classification"] = result.reference_url.present? ? "external_reference" : result.url_classification
+      metadata["url_verified_at"] ||= Time.current.iso8601
       planned_owner_url
     end
 
@@ -188,7 +220,7 @@ module Aicoo
           nil
         else
           result = Aicoo::BusinessOwnedUrlPolicy.call(business:, url: value)
-          result.reference_url.present? ? slug_url : (result.owner_page? ? result.url : slug_url)
+          result.reference_url.present? || result.invalid? ? slug_url : (result.owner_page? || result.proposed_new? ? result.url : slug_url)
         end
       end
     end
@@ -206,6 +238,15 @@ module Aicoo
       return false unless value.to_s.match?(/\Ahttps?:\/\//i)
 
       Aicoo::BusinessOwnedUrlPolicy.call(business:, url: value.to_s).external_reference?
+    end
+
+    def owner_domain
+      @owner_domain ||= begin
+        fallback = Aicoo::BusinessOwnedUrlPolicy.call(business:, url: "/").fallback_url.to_s
+        URI.parse(fallback).host
+      rescue StandardError
+        nil
+      end
     end
   end
 end

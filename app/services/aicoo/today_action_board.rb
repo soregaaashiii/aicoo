@@ -408,6 +408,9 @@ module Aicoo
       return "inactive_business" if candidate.business.blank? || candidate.business.deleted? || candidate.business.resource_status == "archived"
       return "invalid_status" if candidate.status.to_s.in?(ActionCandidate::INACTIVE_STATUSES)
       return "blocked_by_prerequisite" if candidate.metadata.to_h["blocked"] && candidate.metadata.to_h["prerequisite_action_candidate_id"].present?
+      return "external_reference_target" if external_target_url_for_existing_business?(candidate)
+      return "invalid_target" if invalid_target_path_reason(candidate).present?
+      return "proposed_new_used_as_existing_target" if existing_page_improvement?(candidate) && proposed_new_target?(candidate)
 
       nil
     end
@@ -931,6 +934,9 @@ module Aicoo
 
     def external_target_url_for_existing_business?(candidate)
       return false if Aicoo::DataSourcePolicy.for(candidate.business).exploration_business?
+      metadata = candidate.metadata.to_h
+      return true if metadata["url_classification"].to_s == "external_reference"
+      return true if metadata["target_url_type"].to_s == "external_reference"
 
       possible_target_urls(candidate).any? do |target|
         next false unless target.to_s.match?(%r{\Ahttps?://}i)
@@ -970,6 +976,7 @@ module Aicoo
       return "target_type_mismatch" if existing_page_improvement?(candidate) && metadata["page_exists"] == false
 
       path = possible_target_urls(candidate).find { |target| target.start_with?("/") }
+      return "invalid_target_path" if metadata["url_classification"].to_s == "invalid" || metadata["target_url_type"].to_s == "invalid"
       return unless path
 
       return "invalid_target_path" if path.include?("/-")
@@ -983,6 +990,18 @@ module Aicoo
       return "target_type_mismatch" if existing_page_improvement?(candidate) && metadata["page_exists"] == false
 
       nil
+    end
+
+    def proposed_new_target?(candidate)
+      metadata = candidate.metadata.to_h
+      return true if metadata["url_classification"].to_s == "proposed_new"
+      return true if metadata["target_url_type"].to_s == "proposed_new"
+
+      possible_target_urls(candidate).any? do |target|
+        next false unless target.to_s.start_with?("/")
+
+        Aicoo::BusinessOwnedUrlPolicy.call(business: candidate.business, url: target).proposed_new?
+      end
     end
 
     def new_business_today_actionable?(business)
@@ -1083,7 +1102,7 @@ module Aicoo
     def existing_page_improvement?(candidate)
       candidate.action_type.in?(%w[seo_improvement article_update]) ||
         candidate.metadata.to_h["work_type"].to_s == "existing_page_improvement" ||
-        candidate.metadata.to_h["target_url_type"].to_s == "owner_page"
+        candidate.metadata.to_h["target_url_type"].to_s.in?(%w[owner_page own_existing])
     end
 
     def unrealistic_expected_profit?(candidate)

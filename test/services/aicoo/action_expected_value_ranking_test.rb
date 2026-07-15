@@ -75,9 +75,35 @@ module Aicoo
       assert_equal [ "action_candidate:valued" ], result.items.map(&:stable_id)
     end
 
+    test "excludes action candidate records with external or invalid target urls" do
+      external = action_candidate(
+        title: "外部URL改善",
+        metadata: { "target_url_type" => "external_reference", "target_url" => nil }
+      )
+      invalid = action_candidate(
+        title: "不正URL改善",
+        metadata: { "target_url_type" => "invalid", "target_url" => nil }
+      )
+      valid = action_candidate(
+        title: "自社URL改善",
+        metadata: { "target_url_type" => "own_existing", "target_url" => "/" }
+      )
+
+      result = ActionExpectedValueRanking.new(
+        items: [
+          item(stable_id: "action_candidate:external", delta: 10_000, confidence: 1, record: external),
+          item(stable_id: "action_candidate:invalid", delta: 9_000, confidence: 1, record: invalid),
+          item(stable_id: "action_candidate:valid", delta: 1_000, confidence: 1, record: valid)
+        ],
+        mode: "revenue"
+      ).call
+
+      assert_equal [ "action_candidate:valid" ], result.items.map(&:stable_id)
+    end
+
     private
 
-    def item(stable_id:, delta:, confidence:, valuation_status: nil, no_action: 0, action: nil, cost: 0)
+    def item(stable_id:, delta:, confidence:, valuation_status: nil, no_action: 0, action: nil, cost: 0, record: nil)
       Item.new(
         stable_id:,
         rank: nil,
@@ -85,10 +111,23 @@ module Aicoo
         business_name: "Business",
         expected_value_yen: delta,
         score: delta,
-        record: nil,
+        record:,
         action_expected_value_delta_yen: delta,
         confidence:,
         valuation_status: valuation_status || (delta.positive? ? "positive" : (delta.negative? ? "negative" : "neutral"))
+      )
+    end
+
+    def action_candidate(title:, metadata:)
+      ActionCandidate.create!(
+        business: businesses(:suelog),
+        title:,
+        action_type: "seo_improvement",
+        generation_source: "business_analyzer",
+        immediate_value_yen: 1_000,
+        success_probability: 0.5,
+        expected_hours: 1,
+        metadata:
       )
     end
   end

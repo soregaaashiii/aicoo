@@ -252,7 +252,7 @@ module Owner
       assert_operator grouped.avoided_loss_yen, :<, single.avoided_loss_yen * 2
     end
 
-    test "shows action candidates with external target urls with warning" do
+    test "excludes action candidates with external target urls" do
       external = create_today_candidate!(
         title: "外部サイトを改善する",
         metadata: {
@@ -272,10 +272,8 @@ module Owner
       get owner_focus_url
 
       assert_response :success
-      assert_includes response.body, "https://it-trend.jp/log_management/article/84-0008"
-      assert_includes response.body, "外部URL"
-      assert_nil external.reload.metadata["today_exclusion_reason"]
-      assert_includes external.metadata.fetch("today_quality_warnings"), "外部URL"
+      assert_not_includes response.body, "https://it-trend.jp/log_management/article/84-0008"
+      assert_equal "external_reference_target", external.reload.metadata["today_exclusion_reason"]
     end
 
     test "shows candidates with missing target and missing owner next step with warnings" do
@@ -301,7 +299,7 @@ module Owner
       assert_includes candidate.metadata.fetch("today_quality_warnings"), "次の行動要具体化"
     end
 
-    test "shows tabelog target url and broken article path with warnings" do
+    test "excludes tabelog target url and broken article path from today ranking" do
       tabelog = create_today_candidate!(
         title: "食べログを改善する",
         metadata: today_metadata(
@@ -320,14 +318,10 @@ module Owner
       get owner_focus_url
 
       assert_response :success
-      assert_includes response.body, "https://s.tabelog.com/rstLst/cond13-00-01/"
-      assert_includes response.body, "/articles/-smoking"
-      assert_includes response.body, "外部URL"
-      assert_includes response.body, "対象URL要確認"
-      assert_nil tabelog.reload.metadata["today_exclusion_reason"]
-      assert_nil broken.reload.metadata["today_exclusion_reason"]
-      assert_includes tabelog.metadata.fetch("today_quality_warnings"), "外部URL"
-      assert_includes broken.metadata.fetch("today_quality_warnings"), "対象URL要確認"
+      assert_not_includes response.body, "https://s.tabelog.com/rstLst/cond13-00-01/"
+      assert_not_includes response.body, "/articles/-smoking"
+      assert_equal "external_reference_target", tabelog.reload.metadata["today_exclusion_reason"]
+      assert_equal "invalid_target", broken.reload.metadata["today_exclusion_reason"]
     end
 
     test "shows unrealistic expected profit from Today with warning" do

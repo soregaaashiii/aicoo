@@ -139,7 +139,7 @@ module Aicoo
     end
 
     def active_candidates
-      @active_candidates ||= business.action_candidates.active_for_ranking.to_a
+      @active_candidates ||= business.action_candidates.active_for_ranking.to_a.reject { |candidate| invalid_url_candidate?(candidate) }
     end
 
     def grouped_opportunities
@@ -235,6 +235,15 @@ module Aicoo
         .gsub(/[[:space:]　]+/, "")
         .gsub(/[?#].*\z/, "")
         .presence || "unknown"
+    end
+
+    def invalid_url_candidate?(candidate)
+      metadata = candidate.metadata.to_h
+      return true if metadata["url_classification"].to_s.in?(%w[external_reference invalid])
+      return true if metadata["target_url_type"].to_s.in?(%w[external_reference invalid])
+      return false unless candidate.action_type.to_s.in?(%w[seo_improvement article_update])
+
+      metadata["target_url"].blank? || metadata["target_url_type"].to_s == "proposed_new"
     end
 
     def persist_candidate_value_models!(key, candidates, row)

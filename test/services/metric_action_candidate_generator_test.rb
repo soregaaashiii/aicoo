@@ -159,16 +159,8 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     )
 
     result = Aicoo::Suelog::SiteInsightsAdapter.new(business: @business, today: @today).call
-    candidate = result.created.first
 
-    assert candidate
-    assert_equal "owner_page", candidate.metadata["target_url_type"]
-    assert_equal "https://suelog.jp/", candidate.metadata["target_url"]
-    assert_equal "https://suelog.jp/", candidate.metadata["landing_page"]
-    assert_includes candidate.metadata["external_reference_urls"], "https://s.tabelog.com/rstLst/cond13-00-01/"
-    assert_no_match(/s\.tabelog\.com/, candidate.metadata.dig("action_plan", "target").to_s)
-    assert_no_match(/s\.tabelog\.com/, candidate.metadata.dig("evidence", "page_path").to_s)
-    assert_no_match(/s\.tabelog\.com/, candidate.execution_prompt.to_s)
+    assert_empty result.created
   end
 
   test "suelog site insights creates new article candidate when matching page does not exist" do

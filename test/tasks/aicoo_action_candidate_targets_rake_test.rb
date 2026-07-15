@@ -41,6 +41,8 @@ class AicooActionCandidateTargetsRakeTest < ActiveSupport::TestCase
     assert_includes output, "own_target_reassigned="
     assert_includes output, "planned_url_assigned="
     assert_includes output, "unresolved="
+    assert_includes output, "invalid_target="
+    assert_includes output, "rejected_irrelevant="
     assert_includes output, "candidate_ids="
   ensure
     ENV.delete("APPLY")
@@ -76,9 +78,11 @@ class AicooActionCandidateTargetsRakeTest < ActiveSupport::TestCase
     metadata = candidate.reload.metadata
     assert_includes output, "mode=apply"
     assert_nil metadata["target_url"]
-    assert_equal "unknown", metadata["target_url_type"]
+    assert_equal "external_reference", metadata["target_url_type"]
+    assert_equal "external_reference", metadata["url_classification"]
     assert_includes metadata["reference_urls"], "https://s.tabelog.com/rstLst/cond13-00-01/"
     assert_includes metadata["competitor_urls"], "https://s.tabelog.com/rstLst/cond13-00-01/"
+    assert_equal "rejected", candidate.status
   ensure
     ENV.delete("APPLY")
   end

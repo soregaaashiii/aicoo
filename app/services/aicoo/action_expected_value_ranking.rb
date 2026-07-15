@@ -20,7 +20,7 @@ module Aicoo
 
     def call
       Aicoo::MemoryDiagnostics.measure("Aicoo::ActionExpectedValueRanking#call", context: memory_context) do
-        ranked = items.reject { |item| item.respond_to?(:valuation_status) && item.valuation_status.to_s == "unvalued" }
+        ranked = items.reject { |item| excluded_item?(item) }
                       .sort_by { |item| sort_key(item) }
         total_count = ranked.size
         offset = (current_page - 1) * per_page
@@ -58,6 +58,20 @@ module Aicoo
         -record_timestamp(item),
         -record_id(item)
       ]
+    end
+
+    def excluded_item?(item)
+      return true if item.respond_to?(:valuation_status) && item.valuation_status.to_s == "unvalued"
+
+      record = item.respond_to?(:record) ? item.record : nil
+      return false unless record.is_a?(ActionCandidate)
+
+      metadata = record.metadata.to_h
+      return true if metadata["url_classification"].to_s.in?(%w[external_reference invalid])
+      return true if metadata["target_url_type"].to_s.in?(%w[external_reference invalid])
+      return false unless record.action_type.to_s.in?(%w[seo_improvement article_update])
+
+      metadata["target_url"].blank? || metadata["target_url_type"].to_s == "proposed_new"
     end
 
     def delta_value(item)
