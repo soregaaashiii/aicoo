@@ -38,11 +38,24 @@ module AicooInsight
     DATE_KEYS = %w[date recorded_on occurred_on event_date].freeze
 
     def self.generate_all!(source: nil, progress: nil, memory_context: {})
+      baseline = Aicoo::MemoryDiagnostics.snapshot
+      Aicoo::MemoryDiagnostics.point("InsightGeneration::generate_all.entry", context: memory_context, baseline:)
+      memory_context = Aicoo::MemoryDiagnostics.measure("InsightGeneration::memory_context", context: memory_context) do
+        memory_context.to_h
+      end
+      Aicoo::MemoryDiagnostics.point(
+        "InsightGeneration::progress_initialization",
+        context: memory_context,
+        baseline:,
+        progress_present: progress.present?,
+        progress_class: progress.class.name
+      )
       return generate_all_without_run!(progress:, memory_context:) if source.blank?
 
-      run = Aicoo::MemoryDiagnostics.measure("InsightGeneration::RunRecord", context: memory_context) do
+      run = Aicoo::MemoryDiagnostics.measure("InsightGeneration::run_creation", context: memory_context) do
         AicooInsightGenerationRun.create!(source:, status: "running", started_at: Time.current)
       end
+      Aicoo::MemoryDiagnostics.point("InsightGeneration::before_generate_all_without_run", context: memory_context.merge(insight_generation_run_id: run.id), baseline:)
       result = generate_all_without_run!(progress:, memory_context: memory_context.merge(insight_generation_run_id: run.id))
       run.update!(
         status: "success",
@@ -61,9 +74,18 @@ module AicooInsight
     end
 
     def self.generate_all_without_run!(progress: nil, memory_context: {})
+      baseline = Aicoo::MemoryDiagnostics.snapshot
+      Aicoo::MemoryDiagnostics.point("InsightGeneration::generate_all_without_run.entry", context: memory_context, baseline:)
       summary = Result.new
       processed = 0
-      Business.real_businesses.find_each do |business|
+      business_scope = Aicoo::MemoryDiagnostics.measure("InsightGeneration::business_scope", context: memory_context) do
+        Business.real_businesses
+      end
+      business_count = Aicoo::MemoryDiagnostics.measure("InsightGeneration::business_count", context: memory_context) do
+        business_scope.count
+      end
+      Aicoo::MemoryDiagnostics.point("InsightGeneration::before_first_business", context: memory_context, baseline:, business_count:)
+      business_scope.find_each do |business|
         processed += 1
         summary += Aicoo::MemoryDiagnostics.measure(
           "InsightGeneration::BusinessInsightGenerator",

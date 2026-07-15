@@ -45,6 +45,34 @@ module Aicoo
         end
       end
 
+      def snapshot
+        return {} unless enabled?
+
+        {
+          rss_mb: current_rss_mb,
+          monotonic_started_at: Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        }
+      end
+
+      def point(name, context: {}, baseline: nil, **attributes)
+        return unless enabled?
+
+        rss_mb = current_rss_mb
+        baseline = baseline.to_h
+        rss_start_mb = baseline[:rss_mb] || baseline["rss_mb"]
+        started_at = baseline[:monotonic_started_at] || baseline["monotonic_started_at"]
+        elapsed_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at) * 1000).round if started_at
+
+        payload = {
+          rss_mb:,
+          rss_start_mb:,
+          rss_delta_mb: rss_delta(rss_start_mb, rss_mb),
+          elapsed_ms:
+        }.merge(attributes).compact
+
+        log(:point, name:, context:, **payload)
+      end
+
       def enabled?
         ActiveModel::Type::Boolean.new.cast(ENV["MEMORY_DIAGNOSTICS_ENABLED"])
       end
