@@ -1,5 +1,6 @@
 class AicooDailyRunScheduler
   STUCK_AFTER = 30.minutes
+  MAX_FAILED_RETRIES_PER_STEP = 3
 
   Status = Data.define(
     :setting,
@@ -39,10 +40,12 @@ class AicooDailyRunScheduler
     return skipped("not_due", source:) unless due?
     return skipped("already_success", source:) if successful_today?
     return running_run if running_run
+    return skipped("step_retry_limit_reached", source:) if cron_retry_step_limit_reached?(source)
     return skipped("retry_limit_reached", source:) if retry_limit_reached?
 
     return skipped("already_success", source:) if successful_today?
     return running_run if running_run
+    return skipped("step_retry_limit_reached", source:) if cron_retry_step_limit_reached?(source)
     return skipped("retry_limit_reached", source:) if retry_limit_reached?
 
     AicooDailyRunner.run!(target_date:, source:)
@@ -59,7 +62,7 @@ class AicooDailyRunScheduler
       retry_count: retry_count,
       max_retry_per_day: setting.max_retry_per_day,
       last_error: latest_run&.error_message,
-      ready: due? && !successful_today? && !running_run && !retry_limit_reached?,
+      ready: due? && !successful_today? && !running_run && !cron_retry_step_limit_reached?("cron") && !retry_limit_reached?,
       reason: status_reason
     )
   end
@@ -105,7 +108,7 @@ class AicooDailyRunScheduler
   end
 
   def running_run
-    AicooDailyRun.running.find_by(target_date:)
+    Aicoo::DailyRunStuckGuard.active_running_run_for(target_date)
   end
 
   def latest_run
@@ -122,8 +125,22 @@ class AicooDailyRunScheduler
     retry_count >= setting.max_retry_per_day
   end
 
+  def cron_retry_step_limit_reached?(source)
+    return false if source.to_s == "manual"
+
+    failed_step_counts.values.any? { |count| count >= MAX_FAILED_RETRIES_PER_STEP }
+  end
+
+  def failed_step_counts
+    @failed_step_counts ||= AicooDailyRunStep
+      .joins(:aicoo_daily_run)
+      .where(status: "failed", aicoo_daily_runs: { target_date:, source: "cron", status: %w[failed partial_failed stuck] })
+      .group(:step_name)
+      .count
+  end
+
   def mark_stuck_runs!
-    Aicoo::DailyRunStuckGuard.call(threshold: STUCK_AFTER)
+    Aicoo::DailyRunStuckGuard.call(threshold: Aicoo::DailyRunStuckGuard.orphan_threshold)
   end
 
   def status_reason
@@ -131,6 +148,7 @@ class AicooDailyRunScheduler
     return "実行時刻前" unless due?
     return "本日成功済み" if successful_today?
     return "実行中" if running_run
+    return "同じStepの失敗が#{MAX_FAILED_RETRIES_PER_STEP}回以上続いたため自動再試行を停止" if cron_retry_step_limit_reached?("cron")
     return "最大再試行回数に到達" if retry_limit_reached?
 
     "実行可能"

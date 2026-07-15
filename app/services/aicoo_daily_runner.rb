@@ -34,7 +34,8 @@ class AicooDailyRunner
 
   def run_with_lock
     run = nil
-    existing_run = AicooDailyRun.running.find_by(target_date:)
+    Aicoo::DailyRunStuckGuard.repair_orphan_runs!(target_date:)
+    existing_run = Aicoo::DailyRunStuckGuard.active_running_run_for(target_date)
     return create_duplicate_skipped_run!(reason: "already_running", existing_run:) if existing_run
 
     run = AicooDailyRun.create!(

@@ -114,6 +114,50 @@ namespace :aicoo do
     end
   end
 
+  desc "Diagnose orphan running Daily Runs. Usage: bin/rails aicoo:diagnose_orphan_daily_runs LIMIT=20"
+  task diagnose_orphan_daily_runs: :environment do
+    limit = ENV.fetch("LIMIT", "20").to_i
+    rows = Aicoo::DailyRunStuckGuard.diagnose_orphans(limit: limit.positive? ? limit : nil)
+
+    puts "checked=#{rows.size}"
+    puts "active_running=#{rows.count { |row| !row.orphan }}"
+    puts "orphan_running=#{rows.count(&:orphan)}"
+    puts "timeout_minutes=#{(Aicoo::DailyRunStuckGuard.orphan_threshold / 60).to_i}"
+    puts
+
+    rows.each do |row|
+      puts "run_id=#{row.run.id}"
+      puts "target_date=#{row.run.target_date}"
+      puts "source=#{row.run.source}"
+      puts "status=#{row.run.status}"
+      puts "step_name=#{row.step&.step_name || '-'}"
+      puts "step_status=#{row.step&.status || '-'}"
+      puts "last_heartbeat=#{row.last_heartbeat_at&.iso8601 || '-'}"
+      puts "last_updated_at=#{row.last_updated_at&.iso8601 || '-'}"
+      puts "stale_minutes=#{row.stale_minutes}"
+      puts "orphan=#{row.orphan}"
+      puts "=================="
+    end
+  end
+
+  desc "Dry-run repair orphan running Daily Runs. Use APPLY=1 to update."
+  task repair_orphan_daily_runs: :environment do
+    apply = ENV.fetch("APPLY", nil).to_s == "1"
+    rows = Aicoo::DailyRunStuckGuard.diagnose_orphans
+    orphan_rows = rows.select(&:orphan)
+    result = Aicoo::DailyRunStuckGuard.repair_orphan_runs!(apply:) if apply
+
+    puts "mode=#{apply ? 'apply' : 'dry_run'}"
+    puts "checked=#{rows.size}"
+    puts "active_running=#{rows.count { |row| !row.orphan }}"
+    puts "orphan_running=#{orphan_rows.size}"
+    puts "stale_minutes=#{orphan_rows.map(&:stale_minutes).max || 0}"
+    puts "repaired=#{apply ? result.stuck_count.to_i + result.partial_failed_count.to_i : 0}"
+    puts "stuck=#{apply ? result.stuck_count : 0}"
+    puts "partial_failed=#{apply ? result.partial_failed_count : 0}"
+    puts "run_ids=#{orphan_rows.map { |row| row.run.id }.join(',')}" if orphan_rows.any?
+  end
+
   desc "Resume a recoverable stuck Daily Run step. Usage: RUN_ID=123 bin/rails aicoo:resume_stuck_daily_run"
   task resume_stuck_daily_run: :environment do
     run_id = ENV.fetch("RUN_ID", nil).presence

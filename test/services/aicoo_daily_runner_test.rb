@@ -318,6 +318,33 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
     end
   end
 
+  test "repairs orphan running run and allows manual rerun for same target date" do
+    target_date = Date.new(2026, 6, 21)
+    orphan = AicooDailyRun.create!(target_date:, status: "running", source: "cron", started_at: 1.hour.ago, updated_at: 1.hour.ago)
+    orphan.aicoo_daily_run_steps.create!(
+      step_name: "insight_generation",
+      status: "running",
+      started_at: 55.minutes.ago,
+      metadata: { "heartbeat" => 55.minutes.ago.iso8601 }
+    )
+    orphan.current_step.update_columns(updated_at: 55.minutes.ago)
+    orphan.update_columns(updated_at: 1.hour.ago)
+    order = []
+    adjuster = fake_adjuster(order)
+    generator_result = MetricActionCandidateGenerator::Result.new(created: [], skipped: [])
+
+    stub_daily_steps(order:, adjuster:, generator_results: [ generator_result ], evaluated_results: []) do
+      run = AicooDailyRunner.run!(target_date:, source: "manual")
+
+      assert_equal "stuck", orphan.reload.status
+      assert orphan.finished_at.present?
+      assert_equal "failed", orphan.current_step.status
+      assert_equal "success", run.status
+      assert_equal "manual", run.source
+      assert_not_equal orphan.id, run.id
+    end
+  end
+
   test "records duplicate skipped when advisory lock is not acquired" do
     target_date = Date.new(2026, 6, 21)
 
