@@ -228,6 +228,9 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
         assert_equal "128.0", step.metadata.dig("memory_start", "rss_mb")
         assert_equal "128.0", step.metadata.dig("memory_finish", "rss_mb")
         assert_equal "0.0", step.metadata.fetch("memory_delta_mb")
+        assert_equal "128.0", step.metadata.dig("memory_gc_before", "rss_mb")
+        assert_equal "128.0", step.metadata.dig("memory_gc_after", "rss_mb")
+        assert_equal "0.0", step.metadata.fetch("memory_gc_delta_mb")
       end
     end
   end

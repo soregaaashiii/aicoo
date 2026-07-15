@@ -168,26 +168,37 @@ class AicooDailyRunner
         )
       end
       log!("Analytics fetched success=#{analytics_success_count} failed=#{analytics_failed_count}")
+      analytics_runs = analytics_failed_runs = analytics_blocking_failures = nil
     end
+    release_step_references!(analytics_step)
 
     datahub_run = record_step!(run, "datahub_collect") do
       AicooDataHub::DailyCollector.new.call
     end
     run.update!(snapshot_count: datahub_run.snapshot_count)
     log!("DataHub collected snapshots count=#{datahub_run.snapshot_count}")
+    datahub_run = nil
+    release_step_references!(run, "datahub_collect")
 
     imported_results = run_business_metrics_import!(run)
     log!("BusinessMetricDaily imported count=#{imported_results.size}")
+    imported_results = nil
+    release_step_references!(run, "business_metrics_import")
 
     run_suelog_database_steps!(run)
+    release_step_references!(run, "suelog_database_health_check")
+    release_step_references!(run, "suelog_candidate_generation")
 
     run_source_app_diff_detection!(run)
+    release_step_references!(run, "source_app_diff_detection")
 
     adjustment_logs = record_step!(run, "proxy_weight_adjustment") do
       adjust_proxy_weights
     end
     run.update!(proxy_weights_adjusted_count: adjustment_logs.size)
     log!("proxy_score weights checked count=#{adjustment_logs.size}")
+    adjustment_logs = nil
+    release_step_references!(run, "proxy_weight_adjustment")
 
     generation_results = run_action_generation!(run)
     generated_count = generation_results.created_count
@@ -196,25 +207,34 @@ class AicooDailyRunner
     log!(
       "ActionCandidate skipped reasons=#{generation_results.skipped.first(10).join(' | ')}"
     ) if generated_count.zero?
+    generation_results = nil
+    release_step_references!(run, "action_generation")
 
     insight_result = run_insight_generation!(run)
     run.update!(insight_generated_count: insight_result.created_count)
     log!("Insight generated count=#{insight_result.created_count}")
     log!("Insight skipped count=#{insight_result.skipped_count}")
+    insight_result = nil
+    release_step_references!(run, "insight_generation")
 
     explore_opportunity_result = record_step!(run, "explore_opportunity_generation") do
       Aicoo::ExploreOpportunityGenerator.generate_all_pending!
     end
     log!("Explore Opportunity generated count=#{explore_opportunity_result.created.size}")
     log!("Explore Opportunity skipped count=#{explore_opportunity_result.skipped.size}")
+    explore_opportunity_result = nil
+    release_step_references!(run, "explore_opportunity_generation")
 
     evaluated_results = record_step!(run, "action_result_evaluation") do
       ActionResultEvaluator.evaluate_pending!
     end
     run.update!(action_results_evaluated_count: evaluated_results.size)
     log!("ActionResult evaluated_or_skipped count=#{evaluated_results.size}")
+    evaluated_results = nil
+    release_step_references!(run, "action_result_evaluation")
 
     run_activity_log_evaluation_queue_build!(run)
+    release_step_references!(run, "activity_log_evaluation_queue_build")
 
     snapshot_result = record_step!(run, "score_snapshot") do
       ActionCandidateScoreSnapshotter.new.snapshot_top_candidates!(date: target_date)
@@ -231,6 +251,8 @@ class AicooDailyRunner
       "rank_down=#{snapshot_result.rank_down_count} " \
       "no_adjustment=#{snapshot_result.no_adjustment_count}"
     )
+    snapshot_result = nil
+    release_step_references!(run, "score_snapshot")
 
     queue_result = record_step!(run, "data_preparation_queue") do
       DataPreparationExecutorQueuer.new.call
@@ -243,6 +265,8 @@ class AicooDailyRunner
     log!("Auto queued: #{queue_result.queued_count}")
     log!("Skipped: #{queue_result.skipped_count}")
     log!("Reason: #{queue_result.skipped_reasons.map { |reason, count| "#{reason}=#{count}" }.join(', ')}")
+    queue_result = nil
+    release_step_references!(run, "data_preparation_queue")
 
     meta_snapshot_result = record_step!(run, "meta_evaluation_snapshot") do
       MetaEvaluationSnapshotter.new.snapshot!(date: target_date, aicoo_daily_run: run)
@@ -253,12 +277,16 @@ class AicooDailyRunner
       confidence = meta_snapshot_result.confidence_by_type.fetch(evaluator_type).round(1)
       log!("#{evaluator_type.upcase} average confidence=#{confidence}")
     end
+    meta_snapshot_result = nil
+    release_step_references!(run, "meta_evaluation_snapshot")
 
     run_calibration!(run)
+    release_step_references!(run, "calibration")
 
     record_step!(run, "owner_task_digest") do
       Aicoo::OwnerTaskDigest.new.call
     end
+    release_step_references!(run, "owner_task_digest")
 
     owner_queue_result = record_step!(run, "owner_execution_queue") do
       Aicoo::OwnerExecutionQueueBuilder.new(due_on: Date.current, generated_from: "daily_run").call
@@ -266,6 +294,8 @@ class AicooDailyRunner
     log!("OwnerExecutionQueue created count=#{owner_queue_result.created.size}")
     log!("OwnerExecutionQueue skipped count=#{owner_queue_result.skipped.size}")
     log!("OwnerExecutionQueue high risk count=#{owner_queue_result.high_risk.size}")
+    owner_queue_result = nil
+    release_step_references!(run, "owner_execution_queue")
 
     analysis_result = record_step!(run, "analysis_orchestration") do
       Aicoo::AnalysisOrchestrator.run_all!(today: Date.current, limit_per_business: 8, collect_records: false)
@@ -273,11 +303,15 @@ class AicooDailyRunner
     log!("AnalysisCandidate created count=#{analysis_result.created_count}")
     log!("AnalysisCandidate updated count=#{analysis_result.updated_count}")
     log!("AnalysisCandidate skipped count=#{analysis_result.skipped_count}")
+    analysis_result = nil
+    release_step_references!(run, "analysis_orchestration")
 
     playbook_result = record_step!(run, "business_playbook_update") do
       Aicoo::BusinessPlaybookBuilder.update_all!(collect_records: false)
     end
     log!("BusinessPlaybook updated count=#{playbook_result.updated_count}")
+    playbook_result = nil
+    release_step_references!(run, "business_playbook_update")
 
     traffic_channel_result = record_step!(run, "traffic_channel_recording") do
       Aicoo::TrafficChannels::DailyRecorder.record!(daily_run: run)
@@ -286,6 +320,8 @@ class AicooDailyRunner
       "TrafficChannel recorded=#{traffic_channel_result.recorded_count} " \
       "skipped=#{traffic_channel_result.skipped_count}"
     )
+    traffic_channel_result = nil
+    release_step_references!(run, "traffic_channel_recording")
 
     system_mode_snapshot = record_step!(run, "system_mode_snapshot") do
       Aicoo::SystemModeSnapshotBuilder.new.call
@@ -296,8 +332,11 @@ class AicooDailyRunner
       "critical=#{system_mode_snapshot.critical_count} " \
       "warning=#{system_mode_snapshot.warning_count}"
     )
+    system_mode_snapshot = nil
+    release_step_references!(run, "system_mode_snapshot")
 
     run_resource_aware_auto_builder!(run)
+    release_step_references!(run, "resource_aware_auto_build")
 
     log!("Daily Run finished target_date=#{target_date}")
   end
@@ -896,6 +935,45 @@ class AicooDailyRunner
     compact_memory!
   end
 
+  def release_step_references!(step_or_run, step_name = nil)
+    step = if step_name
+      step_or_run.aicoo_daily_run_steps.where(step_name:).recent.first
+    else
+      step_or_run
+    end
+    return unless step
+
+    before_gc = memory_event("gc_before")
+    clear_step_runtime_references!
+    compact_memory!
+    after_gc = memory_event("gc_after")
+    metadata = step.metadata.to_h
+    metadata = append_memory_event(metadata, before_gc)
+    metadata = append_memory_event(metadata, after_gc)
+    gc_delta = memory_event_delta_mb(before_gc, after_gc)
+    metadata = {
+      "memory_gc_before" => before_gc,
+      "memory_gc_after" => after_gc,
+      "memory_gc_delta_mb" => gc_delta
+    }.compact.merge(metadata)
+    step.update_columns(metadata: sanitize_metadata(metadata), updated_at: Time.current)
+    log!(
+      "Step memory released step=#{step.step_name} " \
+      "gc_before_rss_mb=#{before_gc['rss_mb'] || '-'} " \
+      "gc_after_rss_mb=#{after_gc['rss_mb'] || '-'} " \
+      "gc_delta_mb=#{gc_delta || '-'}"
+    )
+  rescue StandardError => e
+    Rails.logger.debug("AICOO Daily Run step memory release skipped: #{e.class}: #{e.message}")
+  end
+
+  def clear_step_runtime_references!
+    ActiveRecord::Base.clear_query_caches_for_current_thread if ActiveRecord::Base.respond_to?(:clear_query_caches_for_current_thread)
+    ActiveRecord::Base.connection.clear_query_cache if ActiveRecord::Base.connected?
+  rescue StandardError => e
+    Rails.logger.debug("AICOO Daily Run query cache clear skipped: #{e.class}: #{e.message}")
+  end
+
   def step_duration(step, finished_at)
     return unless step.started_at
 
@@ -979,6 +1057,14 @@ class AicooDailyRunner
     return if start_mb.blank? || finish_mb.blank?
 
     (finish_mb.to_d - start_mb.to_d).round(1).to_s
+  end
+
+  def memory_event_delta_mb(before_event, after_event)
+    before_mb = before_event["rss_mb"]
+    after_mb = after_event["rss_mb"]
+    return if before_mb.blank? || after_mb.blank?
+
+    (after_mb.to_d - before_mb.to_d).round(1).to_s
   end
 
   def memory_snapshot
