@@ -113,7 +113,24 @@ namespace :aicoo do
         stats[:dynamic_daily_run_unresolved] += 1
         stats[:dynamic_daily_run_unresolved_keys] = stats_array(stats, :dynamic_daily_run_unresolved_keys) + [ incident.key ]
       end
-      puts "dynamic_daily_run_incident key=#{incident.key.inspect} step_name=#{incident.step_name} latest_failure_run_id=#{incident.latest_run&.id} latest_success_run_id=#{incident.latest_success_step&.aicoo_daily_run_id} recovered=#{incident.recovered} exclusion_reason=#{incident.exclusion_reason}"
+      puts [
+        "dynamic_daily_run_incident",
+        "key=#{incident.key.inspect}",
+        "step_name=#{incident.step_name}",
+        "latest_failure_run_id=#{incident.latest_run&.id}",
+        "latest_failure_step_id=#{incident.latest_failure_step&.id}",
+        "latest_failure_created_at=#{incident.latest_failure_step&.created_at&.iso8601}",
+        "latest_failure_started_at=#{incident.latest_failure_step&.started_at&.iso8601}",
+        "latest_failure_updated_at=#{incident.latest_failure_step&.updated_at&.iso8601}",
+        "latest_success_run_id=#{incident.latest_success_step&.aicoo_daily_run_id}",
+        "latest_success_step_id=#{incident.latest_success_step&.id}",
+        "latest_success_created_at=#{incident.latest_success_step&.created_at&.iso8601}",
+        "latest_success_started_at=#{incident.latest_success_step&.started_at&.iso8601}",
+        "latest_success_updated_at=#{incident.latest_success_step&.updated_at&.iso8601}",
+        "recovery_comparison_method=#{incident.recovery_comparison_method}",
+        "recovered=#{incident.recovered}",
+        "exclusion_reason=#{incident.exclusion_reason}"
+      ].join(" ")
     end
     stats
   end

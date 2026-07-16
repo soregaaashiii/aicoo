@@ -1,6 +1,6 @@
 module Aicoo
   class DailyRunIncidentResolver
-    ORDER_SQL = "COALESCE(aicoo_daily_run_steps.finished_at, aicoo_daily_run_steps.updated_at, aicoo_daily_run_steps.created_at) DESC".freeze
+    ORDER_SQL = "aicoo_daily_runs.id DESC, COALESCE(aicoo_daily_run_steps.started_at, aicoo_daily_run_steps.created_at) DESC".freeze
 
     Incident = Data.define(
       :key,
@@ -13,7 +13,8 @@ module Aicoo
       :latest_success_step,
       :latest_step,
       :recovered,
-      :exclusion_reason
+      :exclusion_reason,
+      :recovery_comparison_method
     )
     Recovery = Data.define(
       :recovered,
@@ -21,16 +22,19 @@ module Aicoo
       :step_name,
       :latest_success_step,
       :latest_step,
+      :latest_failure_run_id,
       :latest_failure_at,
-      :latest_success_at
+      :latest_success_run_id,
+      :latest_success_at,
+      :comparison_method
     )
 
     def self.call(window: 7.days.ago..Time.current, limit: 100)
       new(window:, limit:).call
     end
 
-    def self.recovery_for_step(step_name, latest_failure_at: nil)
-      new.recovery_for_step(step_name, latest_failure_at:)
+    def self.recovery_for_step(step_name, latest_failure_run_id: nil, latest_failure_step: nil, latest_failure_at: nil)
+      new.recovery_for_step(step_name, latest_failure_run_id:, latest_failure_step:, latest_failure_at:)
     end
 
     def self.log_ranking_decision!(incident, included:)
@@ -43,7 +47,16 @@ module Aicoo
           "ranking_row_candidate_id=nil",
           "ranking_row_step_name=#{incident.step_name}",
           "ranking_row_latest_failure_run_id=#{latest_failure&.id}",
+          "ranking_row_latest_failure_step_id=#{incident.latest_failure_step&.id}",
+          "ranking_row_latest_failure_created_at=#{incident.latest_failure_step&.created_at&.iso8601}",
+          "ranking_row_latest_failure_started_at=#{incident.latest_failure_step&.started_at&.iso8601}",
+          "ranking_row_latest_failure_updated_at=#{incident.latest_failure_step&.updated_at&.iso8601}",
           "ranking_row_latest_success_run_id=#{latest_success&.aicoo_daily_run_id}",
+          "ranking_row_latest_success_step_id=#{latest_success&.id}",
+          "ranking_row_latest_success_created_at=#{latest_success&.created_at&.iso8601}",
+          "ranking_row_latest_success_started_at=#{latest_success&.started_at&.iso8601}",
+          "ranking_row_latest_success_updated_at=#{latest_success&.updated_at&.iso8601}",
+          "ranking_row_recovery_comparison_method=#{incident.recovery_comparison_method}",
           "ranking_row_included=#{included}",
           "ranking_row_exclusion_reason=#{incident.exclusion_reason}"
         ].join(" ")
@@ -64,22 +77,56 @@ module Aicoo
       grouped_runs.map { |runs| build_incident(runs) }
     end
 
-    def recovery_for_step(step_name, latest_failure_at: nil)
-      return Recovery.new(false, "step_name_missing", nil, nil, nil, latest_failure_at, nil) if step_name.blank?
+    def recovery_for_step(step_name, latest_failure_run_id: nil, latest_failure_step: nil, latest_failure_at: nil)
+      return Recovery.new(false, "step_name_missing", nil, nil, nil, latest_failure_run_id, latest_failure_at, nil, nil, "missing_step_name") if step_name.blank?
 
       latest_step = latest_step_for(step_name)
       latest_success_step = latest_success_step_for(step_name)
-      latest_success_at = timestamp_for(latest_success_step)
+      failure_run_id = latest_failure_run_id || latest_failure_step&.aicoo_daily_run_id
+      failure_at = latest_failure_at || stable_timestamp_for(latest_failure_step)
 
-      if latest_step&.status == "success" && after_or_without_failure?(timestamp_for(latest_step), latest_failure_at)
-        return Recovery.new(true, "latest_step_success", step_name, latest_step, latest_step, latest_failure_at, timestamp_for(latest_step))
+      if latest_step&.status == "success" && success_after_failure?(latest_step, failure_run_id:, failure_at:)
+        return Recovery.new(
+          true,
+          "latest_step_success",
+          step_name,
+          latest_step,
+          latest_step,
+          failure_run_id,
+          failure_at,
+          latest_step.aicoo_daily_run_id,
+          stable_timestamp_for(latest_step),
+          comparison_method_for(latest_step, failure_run_id:, failure_at:)
+        )
       end
 
-      if latest_success_step && after_or_without_failure?(latest_success_at, latest_failure_at)
-        return Recovery.new(true, "latest_success_after_failure", step_name, latest_success_step, latest_step, latest_failure_at, latest_success_at)
+      if latest_success_step && success_after_failure?(latest_success_step, failure_run_id:, failure_at:)
+        return Recovery.new(
+          true,
+          "latest_success_after_failure",
+          step_name,
+          latest_success_step,
+          latest_step,
+          failure_run_id,
+          failure_at,
+          latest_success_step.aicoo_daily_run_id,
+          stable_timestamp_for(latest_success_step),
+          comparison_method_for(latest_success_step, failure_run_id:, failure_at:)
+        )
       end
 
-      Recovery.new(false, "latest_success_not_found_after_failure", step_name, latest_success_step, latest_step, latest_failure_at, latest_success_at)
+      Recovery.new(
+        false,
+        "latest_success_not_found_after_failure",
+        step_name,
+        latest_success_step,
+        latest_step,
+        failure_run_id,
+        failure_at,
+        latest_success_step&.aicoo_daily_run_id,
+        stable_timestamp_for(latest_success_step),
+        comparison_method_for(latest_success_step, failure_run_id:, failure_at:)
+      )
     end
 
     private
@@ -100,14 +147,14 @@ module Aicoo
     end
 
     def build_incident(runs)
-      sorted = runs.sort_by { |run| [ run.started_at || run.created_at, run.id ] }
+      sorted = runs.sort_by(&:id)
       latest = sorted.last
       oldest = sorted.first
       step = last_step(latest)
       step_name = step&.step_name.presence || "unknown_step"
       root_cause = reason(latest, step)
-      latest_failure_at = timestamp_for(step) || latest.finished_at || latest.updated_at || latest.created_at
-      recovery = recovery_for_step(step_name, latest_failure_at:)
+      latest_failure_at = stable_timestamp_for(step) || latest.started_at || latest.created_at
+      recovery = recovery_for_step(step_name, latest_failure_run_id: latest.id, latest_failure_step: step, latest_failure_at:)
 
       Incident.new(
         key: dedupe_key(latest),
@@ -120,7 +167,8 @@ module Aicoo
         latest_success_step: recovery.latest_success_step,
         latest_step: recovery.latest_step,
         recovered: recovery.recovered,
-        exclusion_reason: recovery.recovered ? recovery.reason : nil
+        exclusion_reason: recovery.recovered ? recovery.reason : nil,
+        recovery_comparison_method: recovery.comparison_method
       )
     end
 
@@ -170,17 +218,31 @@ module Aicoo
         .order(Arel.sql(ORDER_SQL), id: :desc)
     end
 
-    def timestamp_for(record)
+    def stable_timestamp_for(record)
       return unless record
 
-      record.finished_at || record.updated_at || record.created_at
+      record.started_at || record.created_at
     end
 
-    def after_or_without_failure?(success_at, failure_at)
+    def success_after_failure?(success_step, failure_run_id:, failure_at:)
+      return false unless success_step
+
+      success_run_id = success_step.aicoo_daily_run_id
+      return success_run_id > failure_run_id if success_run_id.present? && failure_run_id.present?
+
+      success_at = stable_timestamp_for(success_step)
       return false if success_at.blank?
       return true if failure_at.blank?
 
-      success_at >= failure_at
+      success_at > failure_at
+    end
+
+    def comparison_method_for(success_step, failure_run_id:, failure_at:)
+      return "no_success_step" unless success_step
+      return "run_id" if success_step.aicoo_daily_run_id.present? && failure_run_id.present?
+      return "started_at_or_created_at" if stable_timestamp_for(success_step).present? || failure_at.present?
+
+      "insufficient_comparison_inputs"
     end
   end
 end
