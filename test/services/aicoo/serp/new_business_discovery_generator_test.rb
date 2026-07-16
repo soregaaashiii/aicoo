@@ -67,6 +67,54 @@ module Aicoo
         assert candidate.metadata["existing_competitors"].present?
         assert candidate.metadata["differentiation"].present?
       end
+
+      test "does not create business from irrelevant external evidence tied to existing business" do
+        business = businesses(:suelog)
+        serp_run = SerpRun.create!(
+          status: "success",
+          executed_by: "manual",
+          started_at: 1.hour.ago,
+          finished_at: 55.minutes.ago,
+          query_count: 1,
+          success_count: 1,
+          failure_count: 0
+        )
+        serp_query = business.serp_queries.create!(
+          query: "吸えログ 比較",
+          category: "new_business",
+          status: "active",
+          enabled: true,
+          priority: 1,
+          daily_limit: 5
+        )
+        analysis = business.serp_analyses.create!(
+          serp_run:,
+          keyword: "吸えログ 比較",
+          search_engine: "google",
+          device: "desktop",
+          provider: "serper",
+          status: "success",
+          result_count: 1,
+          competition_score: 20,
+          analyzed_at: Time.current,
+          raw_summary: { "serp_query_id" => serp_query.id }
+        )
+        analysis.serp_results.create!(
+          position: 1,
+          title: "ログ管理システム比較",
+          url: "https://it-trend.jp/log_management/article/84-0008",
+          snippet: "操作ログと監査ログを比較できるITシステム。"
+        )
+
+        assert_no_difference("ActionCandidate.count") do
+          assert_no_difference("Business.count") do
+            result = Aicoo::Serp::NewBusinessDiscoveryGenerator.new(serp_run:).call
+
+            assert_equal 0, result.created_count
+            assert_empty result.candidates
+          end
+        end
+      end
     end
   end
 end

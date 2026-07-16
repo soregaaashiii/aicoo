@@ -67,6 +67,8 @@ module Aicoo
             execution_prompt: execution_prompt_for(plan)
           }
         )
+        return unless candidate
+
         Aicoo::ActionCandidateInstructionStabilizer.call(candidate)
         candidate.reload.update_columns(
           metadata: sanitize_metadata(candidate.metadata.to_h.merge(

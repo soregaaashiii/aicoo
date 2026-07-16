@@ -41,7 +41,7 @@ module Aicoo
         next if relevant_analyses.empty?
 
         best_analysis = relevant_analyses.max_by { |analysis| analysis.result_count.to_i }
-        candidates << Aicoo::ActionCandidateUpserter.call(
+        candidate = Aicoo::ActionCandidateUpserter.call(
           business:,
           attributes: {
             title: "#{business.name}の市場観測と内部データを統合して改善する",
@@ -69,6 +69,7 @@ module Aicoo
             }
           }
         )
+        candidates << candidate if candidate
       end
       candidates
     end

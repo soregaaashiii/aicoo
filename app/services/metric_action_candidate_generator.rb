@@ -671,6 +671,8 @@ class MetricActionCandidateGenerator
         execution_prompt: spec.execution_prompt
       }
     )
+    return unless candidate
+
     Aicoo::ActionCandidateInstructionStabilizer.call(candidate)
     candidate.reload
   end

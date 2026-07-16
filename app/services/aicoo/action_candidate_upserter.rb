@@ -117,6 +117,19 @@ module Aicoo
     def call
       attributes[:business] ||= business
       attributes[:metadata] = sanitized_metadata(attributes[:metadata], attributes[:action_type])
+      evidence_validation = validate_evidence
+      if evidence_validation.blocked?
+        Aicoo::SerpEvidenceValidator.record_ignored!(
+          evidence_validation,
+          context: {
+            "source" => "action_candidate_upserter",
+            "generation_source" => attributes[:generation_source],
+            "action_type" => attributes[:action_type],
+            "title" => attributes[:title]
+          }
+        )
+        return nil
+      end
       attributes[:metadata]["dedupe_key"] = dedupe_key_for_attributes
       apply_sanitized_status!
 
@@ -138,6 +151,17 @@ module Aicoo
         business:,
         metadata: metadata.to_h,
         action_type:
+      )
+    end
+
+    def validate_evidence
+      Aicoo::SerpEvidenceValidator.call(
+        business:,
+        metadata: attributes[:metadata],
+        title: attributes[:title],
+        description: attributes[:description],
+        execution_prompt: attributes[:execution_prompt],
+        evaluation_reason: attributes[:evaluation_reason]
       )
     end
 

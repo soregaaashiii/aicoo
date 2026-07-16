@@ -2,35 +2,30 @@ require "test_helper"
 
 module Aicoo
   class ActionCandidateUpserterTest < ActiveSupport::TestCase
-    test "rejects irrelevant external evidence instead of converting it to proposed new content" do
+    test "blocks irrelevant external evidence before creating action candidate" do
       business = businesses(:suelog)
 
-      candidate = Aicoo::ActionCandidateUpserter.call(
-        business:,
-        attributes: {
-          title: "吸えログ比較ページを改善する",
-          description: "競合の比較表を参考に吸えログを改善する",
-          action_type: "seo_improvement",
-          generation_source: "business_analyzer",
-          immediate_value_yen: 10_000,
-          success_probability: 0.5,
-          expected_hours: 1,
-          metadata: {
-            "target_url" => "https://it-trend.jp/log_management/article/84-0008",
-            "source_query" => "吸えログ 比較",
-            "action_plan" => { "owner_output" => "吸えログ比較ページを改善する" }
+      assert_no_difference("ActionCandidate.count") do
+        candidate = Aicoo::ActionCandidateUpserter.call(
+          business:,
+          attributes: {
+            title: "吸えログ比較ページを改善する",
+            description: "競合の比較表を参考に吸えログを改善する",
+            action_type: "seo_improvement",
+            generation_source: "business_analyzer",
+            immediate_value_yen: 10_000,
+            success_probability: 0.5,
+            expected_hours: 1,
+            metadata: {
+              "target_url" => "https://it-trend.jp/log_management/article/84-0008",
+              "source_query" => "吸えログ 比較",
+              "action_plan" => { "owner_output" => "吸えログ比較ページを改善する" }
+            }
           }
-        }
-      )
+        )
 
-      metadata = candidate.reload.metadata
-      assert_nil metadata["target_url"]
-      assert_equal "external_reference", metadata["target_url_type"]
-      assert_equal "external_reference", metadata["url_classification"]
-      assert_equal "rejected", candidate.status
-      assert_equal "irrelevant_external_evidence", metadata["rejection_reason"]
-      assert_includes metadata["reference_urls"], "https://it-trend.jp/log_management/article/84-0008"
-      assert_includes metadata["competitor_urls"], "https://it-trend.jp/log_management/article/84-0008"
+        assert_nil candidate
+      end
     end
 
     test "updates existing action instead of creating duplicate for same opportunity" do

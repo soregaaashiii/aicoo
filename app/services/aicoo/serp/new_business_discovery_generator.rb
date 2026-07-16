@@ -122,6 +122,19 @@ module Aicoo
       end
 
       def create_candidate_for(analysis)
+        evidence_validation = validate_evidence(analysis)
+        if evidence_validation.blocked?
+          Aicoo::SerpEvidenceValidator.record_ignored!(
+            evidence_validation,
+            context: {
+              "source" => "new_business_discovery_generator",
+              "serp_analysis_id" => analysis.id,
+              "query" => analysis.keyword
+            }
+          )
+          return nil
+        end
+
         if duplicate_candidate?(analysis)
           self.duplicate_count += 1
           return nil
@@ -144,6 +157,29 @@ module Aicoo
           "error_message" => e.message
         }
         nil
+      end
+
+      def validate_evidence(analysis)
+        Aicoo::SerpEvidenceValidator.call(
+          business: analysis.business,
+          serp_analysis: analysis,
+          metadata: {
+            "source_query" => analysis.keyword,
+            "serp_run_id" => serp_run.id,
+            "serp_analysis_id" => analysis.id,
+            "serp_top_results" => analysis.serp_results.order(:position).limit(10).map do |result|
+              {
+                "position" => result.position,
+                "title" => result.title,
+                "url" => result.url,
+                "snippet" => result.snippet
+              }
+            end
+          },
+          title: business_idea_title(analysis),
+          description: business_idea_description(analysis),
+          evaluation_reason: "serp:new_business_discovery"
+        )
       end
 
       def mark_publication_failed!(candidate, reason)
