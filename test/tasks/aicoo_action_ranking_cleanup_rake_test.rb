@@ -128,6 +128,36 @@ class AicooActionRankingCleanupRakeTest < ActiveSupport::TestCase
     ENV.delete("APPLY")
   end
 
+  test "cleanup task resolves title only daily run incident and normalizes metadata" do
+    candidate = create_candidate!(
+      title: "Daily Runがinsight_generationで継続停止",
+      action_type: "other",
+      metadata: {}
+    )
+    step = create_successful_daily_run_step!("insight_generation", started_at: 20.minutes.ago)
+
+    ENV["APPLY"] = "1"
+    Rake::Task["aicoo:cleanup_action_expected_value_ranking"].reenable
+    output, = capture_io do
+      Rake::Task["aicoo:cleanup_action_expected_value_ranking"].invoke
+    end
+
+    metadata = candidate.reload.metadata
+    assert_includes output, "title_like_daily_run_candidate_id=#{candidate.id}"
+    assert_includes output, "daily_run_candidate_id=#{candidate.id}"
+    assert_includes output, "daily_run_candidates_checked=1"
+    assert_includes output, "daily_run_latest_success_found=1"
+    assert_includes output, "resolved=1"
+    assert_equal "resolved", candidate.status
+    assert_equal "daily_run_issue", metadata["source_type"]
+    assert_equal "insight_generation", metadata["step_name"]
+    assert_equal "stuck", metadata["incident_type"]
+    assert_equal step.aicoo_daily_run_id, metadata["latest_run_id"]
+    assert_equal "insight_generation", metadata.dig("daily_run_incident", "step_name")
+  ensure
+    ENV.delete("APPLY")
+  end
+
   test "cleanup task keeps daily run incident unresolved without later successful step" do
     candidate = create_candidate!(
       title: "Daily Runが business_metrics_import で継続停止",

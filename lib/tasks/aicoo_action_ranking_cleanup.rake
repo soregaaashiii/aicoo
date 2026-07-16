@@ -5,9 +5,11 @@ namespace :aicoo do
     stats = Hash.new(0)
     candidate_ids = []
     daily_run_debug_rows = []
+    title_like_daily_run_debug_rows = []
 
     ActionCandidate.includes(:business).find_each do |candidate|
       stats[:checked] += 1
+      title_like_daily_run_debug_rows << daily_run_candidate_debug_row(candidate) if title_like_daily_run_issue?(candidate)
       if already_rejected_irrelevant?(candidate)
         stats[:skipped_already_rejected_irrelevant] += 1
         next
@@ -30,6 +32,7 @@ namespace :aicoo do
         "ranking_cleanup_reason" => cleanup.fetch(:reason),
         "ranking_cleanup_at" => Time.current.iso8601
       )
+      metadata.merge!(cleanup.fetch(:daily_run_normalization, {})) if cleanup[:daily_run_normalization]
       metadata["daily_run_recovery_diagnosis"] = cleanup[:daily_run_diagnosis] if cleanup[:daily_run_diagnosis]
       metadata["representative_action_candidate_id"] = cleanup[:representative_id] if cleanup[:representative_id]
       candidate.update_columns(status: cleanup.fetch(:status), metadata:, updated_at: Time.current)
@@ -56,6 +59,9 @@ namespace :aicoo do
     puts "failed=#{stats[:failed]}"
     puts "resolved_candidate_ids=#{Array(stats[:resolved_candidate_ids]).uniq.join(',')}"
     puts "unresolved_daily_run_candidate_ids=#{Array(stats[:unresolved_daily_run_candidate_ids]).uniq.join(',')}"
+    title_like_daily_run_debug_rows.uniq { |row| row.fetch(:id) }.each do |row|
+      puts "title_like_daily_run_candidate_id=#{row.fetch(:id)} title=#{row.fetch(:title).inspect} action_type=#{row.fetch(:action_type)} department=#{row.fetch(:department)} step_name=#{row.fetch(:step_name)} generation_source=#{row.fetch(:generation_source)}"
+    end
     daily_run_debug_rows.each do |row|
       puts "daily_run_candidate_id=#{row.fetch(:id)} title=#{row.fetch(:title).inspect} action_type=#{row.fetch(:action_type)} department=#{row.fetch(:department)} step_name=#{row.fetch(:step_name)} generation_source=#{row.fetch(:generation_source)}"
     end
@@ -74,7 +80,12 @@ namespace :aicoo do
       diagnosis = daily_run_incident_recovery_diagnosis(candidate)
       if diagnosis.fetch(:recovered)
         stats[:daily_run_latest_success_found] += 1
-        return { status: "resolved", reason: "daily_run_step_recently_succeeded", daily_run_diagnosis: diagnosis }
+        return {
+          status: "resolved",
+          reason: "daily_run_step_recently_succeeded",
+          daily_run_diagnosis: diagnosis,
+          daily_run_normalization: daily_run_incident_normalization(candidate, diagnosis)
+        }
       end
 
       stats[:daily_run_still_failing] += 1
@@ -220,16 +231,26 @@ namespace :aicoo do
     return true if metadata["latest_run_id"].present? && daily_run_incident_step_name(candidate).present?
     return true if candidate.action_type.to_s.in?(%w[daily_run_failure daily_run_incident system_recovery])
     return true if candidate.department.to_s.downcase.in?(%w[daily_run daily-run system]) && daily_run_incident_step_name(candidate).present?
+    return true if title_like_daily_run_issue?(candidate) && daily_run_incident_step_name(candidate).present?
 
     text = [
       candidate.title,
       metadata["concrete_task"],
       metadata.dig("action_plan", "summary")
     ].compact.join(" ").strip
-    text.match?(/\ADaily Runが\s+(#{AicooDailyRunStep::PRIMARY_STEP_NAMES.join('|')})\s+で継続(?:停止|一部失敗)/i) ||
-      text.match?(/\ADaily Run\s+(#{AicooDailyRunStep::PRIMARY_STEP_NAMES.join('|')})\s+(?:stuck|failed|orphaned|partial_failed)/i) ||
-      text.match?(/\A(#{AicooDailyRunStep::PRIMARY_STEP_NAMES.join('|')})\s+継続(?:停止|一部失敗)/i) ||
-      text.match?(/\A(#{AicooDailyRunStep::PRIMARY_STEP_NAMES.join('|')})\s+(?:stuck|failed|orphaned|partial_failed)/i)
+    daily_run_issue_text?(text)
+  end
+
+  def title_like_daily_run_issue?(candidate)
+    candidate.title.to_s.strip.match?(/\ADaily\s*Runが/i)
+  end
+
+  def daily_run_issue_text?(text)
+    steps = AicooDailyRunStep::PRIMARY_STEP_NAMES.join("|")
+    text.match?(/\ADaily\s*Runが\s*(#{steps})\s*で\s*継続(?:停止|一部失敗)/i) ||
+      text.match?(/\ADaily\s*Run\s*(#{steps})\s*(?:stuck|failed|orphaned|partial_failed)/i) ||
+      text.match?(/\A(#{steps})\s*継続(?:停止|一部失敗)/i) ||
+      text.match?(/\A(#{steps})\s*(?:stuck|failed|orphaned|partial_failed)/i)
   end
 
   def daily_run_candidate_debug_row(candidate)
@@ -258,6 +279,37 @@ namespace :aicoo do
       candidate.metadata.to_h["root_cause"]
     ].compact.join(" ").strip
     AicooDailyRunStep::PRIMARY_STEP_NAMES.find { |step| text.include?(step) }
+  end
+
+  def daily_run_incident_normalization(candidate, diagnosis)
+    step_name = diagnosis[:step_name].presence || daily_run_incident_step_name(candidate)
+    latest_step = step_name.present? ? latest_successful_daily_run_step(step_name) : nil
+    {
+      "source_type" => "daily_run_issue",
+      "incident_type" => daily_run_incident_type(candidate),
+      "step_name" => step_name,
+      "latest_run_id" => latest_step&.aicoo_daily_run_id,
+      "daily_run_incident" => candidate.metadata.to_h.deep_stringify_keys.fetch("daily_run_incident", {}).merge(
+        "step_name" => step_name,
+        "incident_type" => daily_run_incident_type(candidate),
+        "latest_run_id" => latest_step&.aicoo_daily_run_id,
+        "normalized_at" => Time.current.iso8601
+      ).compact
+    }.compact
+  end
+
+  def daily_run_incident_type(candidate)
+    text = [
+      candidate.title,
+      candidate.description,
+      candidate.metadata.to_h["incident_type"],
+      candidate.metadata.to_h.dig("daily_run_incident", "incident_type")
+    ].compact.join(" ")
+    return "partial_failed" if text.match?(/一部失敗|partial_failed/i)
+    return "orphaned" if text.match?(/orphan/i)
+    return "failed" if text.match?(/failed|失敗/i)
+
+    "stuck"
   end
 
   def latest_successful_daily_run_step(step_name)
