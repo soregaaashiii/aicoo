@@ -22,16 +22,17 @@ namespace :aicoo do
       cleanup = ranking_cleanup_decision(candidate, stats:, daily_run_debug_rows:)
       next unless cleanup
 
-      stats[cleanup.fetch(:status).to_sym] += 1
+      stats[(cleanup[:counter] || cleanup.fetch(:status)).to_sym] += 1
       candidate_ids << candidate.id
       stats[:resolved_candidate_ids] = stats_array(stats, :resolved_candidate_ids) + [ candidate.id ] if cleanup.fetch(:status) == "resolved"
       next unless apply
 
       metadata = candidate.metadata.to_h.deep_stringify_keys.merge(
-        "ranking_cleanup_status" => cleanup.fetch(:status),
+        "ranking_cleanup_status" => cleanup[:ranking_cleanup_status] || cleanup.fetch(:status),
         "ranking_cleanup_reason" => cleanup.fetch(:reason),
         "ranking_cleanup_at" => Time.current.iso8601
       )
+      metadata.merge!(cleanup.fetch(:metadata_updates, {})) if cleanup[:metadata_updates]
       metadata.merge!(cleanup.fetch(:daily_run_normalization, {})) if cleanup[:daily_run_normalization]
       metadata["daily_run_recovery_diagnosis"] = cleanup[:daily_run_diagnosis] if cleanup[:daily_run_diagnosis]
       metadata["representative_action_candidate_id"] = cleanup[:representative_id] if cleanup[:representative_id]
@@ -61,6 +62,7 @@ namespace :aicoo do
     puts "dynamic_daily_run_resolved_keys=#{Array(stats[:dynamic_daily_run_resolved_keys]).join(',')}"
     puts "dynamic_daily_run_unresolved_keys=#{Array(stats[:dynamic_daily_run_unresolved_keys]).join(',')}"
     puts "rejected_duplicate=#{stats[:rejected_duplicate]}"
+    puts "normalized_url_mismatch=#{stats[:normalized_url_mismatch]}"
     puts "duplicates_checked=#{stats[:duplicates_checked]}"
     puts "duplicate_groups=#{stats[:duplicate_groups]}"
     puts "failed=#{stats[:failed]}"
@@ -77,6 +79,10 @@ namespace :aicoo do
 
   def ranking_cleanup_decision(candidate, stats:, daily_run_debug_rows:)
     metadata = candidate.metadata.to_h.deep_stringify_keys
+    guard_reason = Aicoo::ActionCandidateRankingGuard.rejection_reason(candidate)
+    return { status: "rejected", counter: "rejected_irrelevant", reason: guard_reason, metadata_updates: guard_metadata(candidate, guard_reason) } if guard_reason == "irrelevant_external_evidence"
+    return normalize_url_mismatch_cleanup(candidate, guard_reason) if guard_reason.in?(%w[action_type_url_mismatch metric_name_used_as_url])
+
     return { status: "rejected_irrelevant", reason: "external_reference_or_invalid_target" } if metadata["url_classification"].to_s.in?(%w[external_reference invalid])
     return { status: "rejected_irrelevant", reason: "external_reference_or_invalid_target" } if metadata["target_url_type"].to_s.in?(%w[external_reference invalid])
     return { status: "rejected_irrelevant", reason: metadata["rejection_reason"] } if metadata["repair_reason"].present? && metadata["rejection_reason"].present?
@@ -100,6 +106,92 @@ namespace :aicoo do
     end
 
     nil
+  end
+
+  def normalize_url_mismatch_cleanup(candidate, guard_reason)
+    metadata = candidate.metadata.to_h.deep_stringify_keys
+    updates = guard_metadata(candidate, guard_reason)
+    if guard_reason == "action_type_url_mismatch"
+      %w[planned_url proposed_url recommended_url recommended_slug].each do |key|
+        updates[key] = nil if metadata[key].to_s.start_with?("/articles/")
+      end
+      updates["planned_url_type"] = nil if metadata["planned_url"].to_s.start_with?("/articles/")
+      updates["action_plan"] = metadata["action_plan"].to_h.merge(
+        "target" => nil,
+        "target_url_or_identifier" => nil
+      ) if metadata.dig("action_plan", "target").to_s.start_with?("/articles/") || metadata.dig("action_plan", "target_url_or_identifier").to_s.start_with?("/articles/")
+    end
+    if guard_reason == "metric_name_used_as_url"
+      metrics = metric_targets_from_candidate(candidate)
+      updates["target_metrics"] = (Array(metadata["target_metrics"]) + metrics).compact_blank.uniq
+      %w[target_url target_url_or_identifier target_identifier page_path].each do |key|
+        updates[key] = nil if Aicoo::ActionTargetUrlResolver.metric_reference?(metadata[key].to_s)
+      end
+      %w[action_plan action_expansion evidence].each do |hash_key|
+        nested = metadata[hash_key].to_h
+        next if nested.blank?
+
+        changed = false
+        %w[target target_url target_url_or_identifier page_path].each do |key|
+          next unless Aicoo::ActionTargetUrlResolver.metric_reference?(nested[key].to_s)
+
+          nested[key] = nil
+          changed = true
+        end
+        updates[hash_key] = nested if changed
+      end
+    end
+    updates["target_url_type"] = "business_or_measurement_target"
+    updates["url_classification"] = "business_or_measurement_target"
+    updates["target_url_warning"] = "URLではなくBusiness/LP/計測イベントを対象にしてください"
+
+    {
+      status: candidate.status,
+      counter: "normalized_url_mismatch",
+      ranking_cleanup_status: "metadata_normalized",
+      reason: guard_reason,
+      metadata_updates: updates
+    }
+  end
+
+  def guard_metadata(candidate, reason)
+    payload = {
+      "repair_reason" => reason,
+      "target_url_repair" => {
+        "task" => "aicoo:cleanup_action_expected_value_ranking",
+        "before_status" => candidate.status,
+        "after_status" => reason == "irrelevant_external_evidence" ? "rejected" : candidate.status,
+        "repair_reason" => reason,
+        "rejection_reason" => reason,
+        "processed_at" => Time.current.iso8601
+      }
+    }
+    if reason == "irrelevant_external_evidence"
+      payload["rejection_reason"] = reason
+    else
+      payload["normalization_reason"] = reason
+    end
+    payload
+  end
+
+  def metric_targets_from_candidate(candidate)
+    metadata = candidate.metadata.to_h.deep_stringify_keys
+    values = [
+      metadata["target_url"],
+      metadata["target_url_or_identifier"],
+      metadata["target_identifier"],
+      metadata["page_path"],
+      metadata.dig("action_plan", "target"),
+      metadata.dig("action_plan", "target_url_or_identifier"),
+      metadata.dig("action_expansion", "target"),
+      metadata.dig("action_expansion", "target_url"),
+      metadata.dig("evidence", "page_path")
+    ].compact_blank
+    values.flat_map do |value|
+      next [] unless Aicoo::ActionTargetUrlResolver.metric_reference?(value.to_s)
+
+      value.to_s.delete_prefix("/").split("/").select { |segment| Aicoo::ActionTargetUrlResolver::METRIC_NAMES.include?(segment) }
+    end.uniq
   end
 
   def diagnose_dynamic_daily_run_incidents
@@ -204,6 +296,8 @@ namespace :aicoo do
       duplicates = candidates - [ representative ]
       source_ids = candidates.map(&:id)
       source_values = candidates.to_h { |candidate| [ candidate.id, candidate.expected_profit_yen.to_i ] }
+      base_value = representative.expected_profit_yen.to_i
+      final_value = base_value
 
       if apply
         rep_metadata = representative.metadata.to_h.deep_stringify_keys.merge(
@@ -211,9 +305,16 @@ namespace :aicoo do
           "source_candidate_ids" => source_ids,
           "source_expected_values" => source_values,
           "grouped_opportunity_count" => candidates.size,
+          "deduplication_method" => "representative_value_no_duplicate_sum",
+          "primary_candidate_id" => representative.id,
+          "duplicate_candidate_ids" => duplicates.map(&:id),
+          "base_expected_value_yen" => base_value,
+          "independent_increment_yen" => 0,
+          "market_cap_yen" => final_value,
+          "final_expected_value_yen" => final_value,
           "ranking_cleanup_at" => Time.current.iso8601
         )
-        representative.update_columns(metadata: rep_metadata, updated_at: Time.current)
+        representative.update_columns(expected_profit_yen: final_value, immediate_value_yen: final_value, metadata: rep_metadata, updated_at: Time.current)
       end
 
       duplicates.each do |duplicate|

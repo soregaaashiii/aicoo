@@ -86,6 +86,89 @@ class AicooActionRankingCleanupRakeTest < ActiveSupport::TestCase
     ENV.delete("APPLY")
   end
 
+  test "cleanup task rejects irrelevant it trend evidence even without target url" do
+    candidate = create_candidate!(
+      title: "「吸えログ 比較」 / https://it-trend.jp/log_management/article/84-0008」向けの記事を1本作成する",
+      action_type: "new_article_candidate",
+      metadata: {
+        "target_url" => nil,
+        "planned_url" => "/articles/suelog-vs-it-trend",
+        "url_classification" => "proposed_new",
+        "reference_urls" => [ "https://it-trend.jp/log_management/article/84-0008" ],
+        "article_plan" => { "title" => "ログ管理システム比較" }
+      }
+    )
+
+    ENV["APPLY"] = "1"
+    Rake::Task["aicoo:cleanup_action_expected_value_ranking"].reenable
+    output, = capture_io do
+      Rake::Task["aicoo:cleanup_action_expected_value_ranking"].invoke
+    end
+
+    assert_includes output, "rejected_irrelevant=1"
+    assert_equal "rejected", candidate.reload.status
+    assert_equal "irrelevant_external_evidence", candidate.metadata["rejection_reason"]
+  ensure
+    ENV.delete("APPLY")
+  end
+
+  test "cleanup task normalizes non article measurement candidate with article planned url" do
+    candidate = create_candidate!(
+      title: "CTAの計測設定を確認する",
+      action_type: "other",
+      metadata: {
+        "planned_url" => "/articles/cv",
+        "action_plan" => {
+          "summary" => "CTAの計測設定を確認する",
+          "target" => "/articles/cv"
+        }
+      }
+    )
+
+    ENV["APPLY"] = "1"
+    Rake::Task["aicoo:cleanup_action_expected_value_ranking"].reenable
+    output, = capture_io do
+      Rake::Task["aicoo:cleanup_action_expected_value_ranking"].invoke
+    end
+
+    candidate.reload
+    assert_includes output, "normalized_url_mismatch=1"
+    assert_nil candidate.metadata["planned_url"]
+    assert_equal "metadata_normalized", candidate.metadata["ranking_cleanup_status"]
+    assert_equal "action_type_url_mismatch", candidate.metadata["ranking_cleanup_reason"]
+    assert_equal "idea", candidate.status
+  ensure
+    ENV.delete("APPLY")
+  end
+
+  test "cleanup task moves metric path into target metrics" do
+    candidate = create_candidate!(
+      title: "電話・地図・アフィリエイト導線を5ページに追加する",
+      action_type: "ui_improvement",
+      metadata: {
+        "target_url" => "/map/affiliate_clicks",
+        "action_plan" => {
+          "summary" => "電話・地図・アフィリエイト導線を5ページに追加する",
+          "target" => "/map/affiliate_clicks"
+        }
+      }
+    )
+
+    ENV["APPLY"] = "1"
+    Rake::Task["aicoo:cleanup_action_expected_value_ranking"].reenable
+    output, = capture_io do
+      Rake::Task["aicoo:cleanup_action_expected_value_ranking"].invoke
+    end
+
+    candidate.reload
+    assert_includes output, "normalized_url_mismatch=1"
+    assert_nil candidate.metadata["target_url"]
+    assert_includes candidate.metadata["target_metrics"], "affiliate_clicks"
+    assert_equal "metric_name_used_as_url", candidate.metadata["ranking_cleanup_reason"]
+  ensure
+    ENV.delete("APPLY")
+  end
+
   test "cleanup task resolves daily run incident when step succeeded after candidate" do
     candidate = create_candidate!(
       title: "Daily Runが insight_generation で継続停止",

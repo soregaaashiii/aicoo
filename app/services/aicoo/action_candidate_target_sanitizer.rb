@@ -16,11 +16,14 @@ module Aicoo
     end
 
     def call
+      collect_top_level_references
+      collect_serp_competitors
+      mark_irrelevant_external_evidence
       normalize_planned_url_for_new_content
       sanitize_top_level_targets
       sanitize_nested_targets
-      collect_serp_competitors
       mark_unresolved_target_when_competitor_reference
+      normalize_measurement_targets
       apply_competitor_metadata
       metadata.compact
     end
@@ -31,6 +34,7 @@ module Aicoo
 
     def normalize_planned_url_for_new_content
       return unless new_content_action?
+      return if metadata["rejection_reason"].to_s == "irrelevant_external_evidence"
 
       URL_KEYS.each do |key|
         collect_reference_url(metadata[key]) if metadata[key].present?
@@ -44,6 +48,12 @@ module Aicoo
       metadata["page_path"] = nil
       metadata["url_classification"] = "proposed_new" if planned.present?
       metadata["target_url_type"] = "proposed_new" if planned.present?
+    end
+
+    def collect_top_level_references
+      URL_KEYS.each do |key|
+        collect_reference_url(metadata[key]) if metadata[key].present?
+      end
     end
 
     def sanitize_top_level_targets
@@ -140,6 +150,87 @@ module Aicoo
         result = Aicoo::BusinessOwnedUrlPolicy.call(business:, url:)
         competitor_urls << result.reference_url if result.reference_url.present?
       end
+    end
+
+    def mark_irrelevant_external_evidence
+      return unless irrelevant_external_evidence?
+
+      metadata["target_url"] = nil
+      metadata["target_url_or_identifier"] = nil
+      metadata["target_identifier"] = nil
+      metadata["page_path"] = nil
+      metadata["planned_url"] = nil
+      metadata["planned_url_type"] = nil
+      metadata["url_classification"] = "external_reference"
+      metadata["target_url_type"] = "external_reference"
+      metadata["repair_reason"] ||= "external_reference"
+      metadata["rejection_reason"] = "irrelevant_external_evidence"
+      metadata["ranking_cleanup_status"] = "rejected_irrelevant"
+      metadata["ranking_cleanup_reason"] = "irrelevant_external_evidence"
+      metadata["url_classification_reason"] ||= "irrelevant_external_evidence"
+      metadata["url_verified_at"] ||= Time.current.iso8601
+    end
+
+    def irrelevant_external_evidence?
+      urls = competitor_urls.compact_blank + all_metadata_urls
+      return false unless urls.any? { |url| url.match?(/it-trend\.jp|log_management/i) }
+
+      text = [ metadata, urls ].join(" ")
+      text.match?(/log_management|ログ管理|操作ログ|監査ログ|ITトレンド|it[-\s]?trend|セキュリティ|ITシステム/i)
+    end
+
+    def all_metadata_urls
+      metadata.to_s.scan(%r{https?://[^\s"'<>)\]]+}).uniq
+    end
+
+    def normalize_measurement_targets
+      return unless measurement_action?
+      return if metadata["rejection_reason"].to_s == "irrelevant_external_evidence"
+
+      metrics = metric_targets
+      metadata["target_metrics"] = (Array(metadata["target_metrics"]) + metrics).compact_blank.uniq if metrics.any?
+      %w[planned_url proposed_url recommended_url recommended_slug].each do |key|
+        metadata[key] = nil if metadata[key].to_s.start_with?("/articles/")
+      end
+      URL_KEYS.each do |key|
+        metadata[key] = nil if Aicoo::ActionTargetUrlResolver.metric_reference?(metadata[key].to_s)
+      end
+      clear_metric_nested_target(metadata["action_plan"], "target")
+      clear_metric_nested_target(metadata["action_plan"], "target_url_or_identifier")
+      clear_metric_nested_target(metadata["action_expansion"], "target")
+      clear_metric_nested_target(metadata["action_expansion"], "target_url")
+      clear_metric_nested_target(metadata["evidence"], "page_path")
+      metadata["url_classification"] = "business_or_measurement_target"
+      metadata["target_url_type"] = "business_or_measurement_target"
+      metadata["target_url_warning"] ||= "計測対象はURLではなくイベント/指標です"
+    end
+
+    def clear_metric_nested_target(hash, key)
+      return unless hash.is_a?(Hash)
+      return unless Aicoo::ActionTargetUrlResolver.metric_reference?(hash[key].to_s)
+
+      hash[key] = nil
+    end
+
+    def measurement_action?
+      action_type.to_s.in?(Aicoo::ActionCandidateRankingGuard::MEASUREMENT_ACTION_TYPES) ||
+        [ metadata["concrete_task"], metadata.dig("action_plan", "summary"), metadata["recommended_action"] ].compact.join(" ").match?(/CTA.*計測|計測設定|Google計測|GA4|GSC|イベント|generate_lead|CV.*計測/)
+    end
+
+    def metric_targets
+      target_values = URL_KEYS.filter_map { |key| metadata[key].presence } +
+        [
+          metadata.dig("action_plan", "target"),
+          metadata.dig("action_plan", "target_url_or_identifier"),
+          metadata.dig("action_expansion", "target"),
+          metadata.dig("action_expansion", "target_url"),
+          metadata.dig("evidence", "page_path")
+        ].compact
+      target_values.filter_map do |value|
+        next unless Aicoo::ActionTargetUrlResolver.metric_reference?(value.to_s)
+
+        value.to_s.delete_prefix("/").split("/").select { |segment| Aicoo::ActionTargetUrlResolver::METRIC_NAMES.include?(segment) }
+      end.flatten
     end
 
     def serp_rows

@@ -297,6 +297,7 @@ class ActionCandidate < ApplicationRecord
     return unless business
 
     self.metadata = Aicoo::ActionCandidateTargetSanitizer.call(business:, metadata:, action_type:)
+    self.status = "rejected" if metadata.to_h["rejection_reason"].to_s == "irrelevant_external_evidence"
   end
 
   def apply_meta_evaluation

@@ -5,6 +5,14 @@ module Aicoo
       phone_clicks
       map_clicks
       affiliate_clicks
+      map
+      phone
+      pageviews
+      sessions
+      conversion
+      conversions
+      event_count
+      generate_lead
     ].freeze
     METRIC_PREFIX_SEGMENTS = %w[analytics metric metrics map phone affiliate clicks].freeze
 

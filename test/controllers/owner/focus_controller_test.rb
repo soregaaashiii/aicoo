@@ -362,6 +362,57 @@ module Owner
       assert_equal "invalid_target", broken.reload.metadata["today_exclusion_reason"]
     end
 
+    test "excludes irrelevant it trend evidence even when target url is nil" do
+      irrelevant = create_today_candidate!(
+        title: "「吸えログ 比較」 / https://it-trend.jp/log_management/article/84-0008」向けの記事を1本作成する",
+        action_type: "new_article_candidate",
+        metadata: {
+          "execution_mode" => "content_creation",
+          "concrete_task" => "「吸えログ 比較」向けの記事を1本作成する",
+          "planned_url" => "/articles/suelog-vs-it-trend",
+          "url_classification" => "proposed_new",
+          "source_query" => "吸えログ 比較",
+          "reference_urls" => [ "https://it-trend.jp/log_management/article/84-0008" ],
+          "article_plan" => {
+            "title" => "ログ管理システム比較から学ぶ"
+          },
+          "action_plan" => {
+            "summary" => "「吸えログ 比較」向けの記事を1本作成する",
+            "target" => "未作成",
+            "owner_next_step" => "記事案を確認する",
+            "execution_steps" => [ "記事案を確認する" ],
+            "execution_units" => [ { "label" => "記事案を確認する" } ]
+          }
+        }
+      )
+      valid = create_today_candidate!(
+        title: "吸えログと食べログの比較記事を1本作成する",
+        action_type: "new_article_candidate",
+        immediate_value_yen: 40_000,
+        metadata: {
+          "execution_mode" => "content_creation",
+          "concrete_task" => "吸えログと食べログの比較記事を1本作成する",
+          "planned_url" => "/articles/suelog-vs-tabelog",
+          "url_classification" => "proposed_new",
+          "source_query" => "吸えログ 比較",
+          "reference_urls" => [ "https://s.tabelog.com/rstLst/cond13-00-01/" ],
+          "action_plan" => {
+            "summary" => "吸えログと食べログの比較記事を1本作成する",
+            "target" => "未作成",
+            "owner_next_step" => "記事案を確認する",
+            "execution_steps" => [ "記事案を確認する" ],
+            "execution_units" => [ { "label" => "記事案を確認する" } ]
+          }
+        }
+      )
+
+      get owner_focus_url
+
+      assert_response :success
+      assert_not_includes response.body, irrelevant.title
+      assert_includes response.body, valid.title
+    end
+
     test "shows unrealistic expected profit from Today with warning" do
       candidate = create_today_candidate!(
         title: "SEOタイトルを1件修正する",

@@ -73,6 +73,50 @@ class AicooAutoRevisionQueueBuilderServiceTest < ActiveSupport::TestCase
     end
   end
 
+  test "skips candidates blocked by ranking guard" do
+    candidate = create_candidate(
+      title: "「吸えログ 比較」 / https://it-trend.jp/log_management/article/84-0008 向けの記事を1本作成する",
+      execution_prompt: "https://it-trend.jp/log_management/article/84-0008 を参考に記事を作ってください。"
+    )
+    candidate.update_columns(
+      metadata: candidate.metadata.to_h.merge(
+        "reference_urls" => [ "https://it-trend.jp/log_management/article/84-0008" ],
+        "article_plan" => { "title" => "ログ管理の比較記事" },
+        "execution_mode" => "code_revision"
+      )
+    )
+
+    assert_no_difference("AutoRevisionTask.count") do
+      result = AicooAutoRevisionQueueBuilderService.new.call
+
+      assert_equal 0, result.created_count
+      assert_equal 1, result.skipped_count
+      assert_equal "ranking_guard:irrelevant_external_evidence", result.skipped_reasons.first["reason"]
+    end
+  end
+
+  test "skips unresolved target code revision candidates" do
+    candidate = create_candidate(
+      title: "電話・地図・アフィリエイト導線を5ページに追加する",
+      execution_prompt: "対象ページを見つけて導線を改善してください。"
+    )
+    candidate.update_columns(
+      metadata: candidate.metadata.to_h.merge(
+        "execution_mode" => "code_revision",
+        "target_url_warning" => "対象ページ未特定",
+        "owner_next_step" => "対象ページを特定する"
+      )
+    )
+
+    assert_no_difference("AutoRevisionTask.count") do
+      result = AicooAutoRevisionQueueBuilderService.new.call
+
+      assert_equal 0, result.created_count
+      assert_equal 1, result.skipped_count
+      assert_equal "target_unresolved_for_codex", result.skipped_reasons.first["reason"]
+    end
+  end
+
   test "high risk candidates are reported and kept for manual proposal" do
     candidate = create_candidate(
       title: "DB migrationで認証credentialを変更する",

@@ -78,11 +78,51 @@ class AicooAutoRevisionQueueBuilderService
     return "below_minimum_final_score" if candidate.final_score.to_d < minimum_final_score
     return "active_auto_revision_task_exists" if candidate.auto_revision_tasks.any? { |task| AutoRevisionTask::ACTIVE_STATUSES.include?(task.status) }
     return "non_code_revision:#{candidate.execution_mode}" unless candidate.code_revision_execution_mode?
+    return "ranking_guard:#{ranking_guard_reason}" if (ranking_guard_reason = Aicoo::ActionCandidateRankingGuard.rejection_reason(candidate)).present?
+    return "target_unresolved_for_codex" if target_unresolved_for_codex?(candidate)
     return "blocked_by_prerequisite" if prerequisite_blocked?(candidate)
     return "execution_instruction_missing_file_changes" if candidate.metadata.to_h.dig("execution_instruction", "quality", "has_file_changes") == false
     return "execution_instruction_missing_completion_criteria" if candidate.metadata.to_h.dig("execution_instruction", "quality", "has_completion_criteria") == false
 
     nil
+  end
+
+  def target_unresolved_for_codex?(candidate)
+    metadata = candidate.metadata.to_h.deep_stringify_keys
+    return false unless unresolved_target_text?(candidate, metadata)
+
+    codex_target_fields(candidate, metadata).all?(&:blank?)
+  end
+
+  def unresolved_target_text?(candidate, metadata)
+    text = [
+      candidate.title,
+      candidate.description,
+      candidate.evaluation_reason,
+      candidate.execution_prompt,
+      metadata["target_url_warning"],
+      metadata["owner_next_step"],
+      metadata["concrete_task"],
+      metadata.dig("action_plan", "summary"),
+      metadata.dig("action_plan", "target")
+    ].compact.join(" ")
+
+    text.match?(/対象未特定|対象ページ未特定|滞在時間が短いページ|競合が強いキーワード|導線|CV|CTA/)
+  end
+
+  def codex_target_fields(candidate, metadata)
+    [
+      metadata["target_url"],
+      metadata["target_url_or_identifier"],
+      metadata["page_path"],
+      metadata["owned_target_url"],
+      metadata["target_file"],
+      metadata["target_files"],
+      metadata["target_metrics"],
+      metadata.dig("action_plan", "target_url"),
+      metadata.dig("action_plan", "target_file"),
+      metadata.dig("action_plan", "target_files")
+    ].flatten.compact_blank
   end
 
   def prerequisite_blocked?(candidate)

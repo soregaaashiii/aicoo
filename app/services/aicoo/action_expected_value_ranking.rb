@@ -71,6 +71,7 @@ module Aicoo
       metadata = record.metadata.to_h
       return true if metadata["url_classification"].to_s.in?(%w[external_reference invalid])
       return true if metadata["target_url_type"].to_s.in?(%w[external_reference invalid])
+      return true if Aicoo::ActionCandidateRankingGuard.rejection_reason(record).present?
       return true if metadata["repair_reason"].present? && metadata["rejection_reason"].present?
       return true if metadata["ranking_cleanup_status"].to_s.in?(%w[resolved superseded rejected_duplicate rejected_irrelevant])
       return false unless record.action_type.to_s.in?(%w[seo_improvement article_update])

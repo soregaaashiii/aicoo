@@ -2,7 +2,7 @@ require "test_helper"
 
 module Aicoo
   class ActionCandidateUpserterTest < ActiveSupport::TestCase
-    test "moves external target url to references before creating candidate" do
+    test "rejects irrelevant external evidence instead of converting it to proposed new content" do
       business = businesses(:suelog)
 
       candidate = Aicoo::ActionCandidateUpserter.call(
@@ -25,7 +25,10 @@ module Aicoo
 
       metadata = candidate.reload.metadata
       assert_nil metadata["target_url"]
-      assert_equal "unknown", metadata["target_url_type"]
+      assert_equal "external_reference", metadata["target_url_type"]
+      assert_equal "external_reference", metadata["url_classification"]
+      assert_equal "rejected", candidate.status
+      assert_equal "irrelevant_external_evidence", metadata["rejection_reason"]
       assert_includes metadata["reference_urls"], "https://it-trend.jp/log_management/article/84-0008"
       assert_includes metadata["competitor_urls"], "https://it-trend.jp/log_management/article/84-0008"
     end

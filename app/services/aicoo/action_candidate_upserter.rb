@@ -118,6 +118,7 @@ module Aicoo
       attributes[:business] ||= business
       attributes[:metadata] = sanitized_metadata(attributes[:metadata], attributes[:action_type])
       attributes[:metadata]["dedupe_key"] = dedupe_key_for_attributes
+      apply_sanitized_status!
 
       candidate = if (existing = existing_candidate)
         update_existing!(existing)
@@ -152,6 +153,12 @@ module Aicoo
       self.class.dedupe_key_for(candidate)
     end
 
+    def apply_sanitized_status!
+      return unless attributes[:metadata]["rejection_reason"].to_s == "irrelevant_external_evidence"
+
+      attributes[:status] = "rejected"
+    end
+
     def existing_candidate
       by_key = ActionCandidate
         .where(business:)
@@ -181,10 +188,20 @@ module Aicoo
       merged_metadata["source_candidate_ids"] = (Array(metadata["source_candidate_ids"]).map(&:to_i) | [ candidate.id ]).compact
       merged_metadata["source_expected_values"] = Array(metadata["source_expected_values"]) + [ attributes[:expected_profit_yen] || attributes[:immediate_value_yen] ].compact
       merged_metadata["grouped_opportunity_count"] = [ metadata["grouped_opportunity_count"].to_i, 1 ].max + 1
+      existing_value = candidate.expected_profit_yen.to_i
+      incoming_value = (attributes[:expected_profit_yen] || attributes[:immediate_value_yen]).to_i
+      final_value = [ existing_value, incoming_value ].max
+      merged_metadata["deduplication_method"] = "max_confidence_same_market_opportunity"
+      merged_metadata["primary_candidate_id"] = candidate.id
+      merged_metadata["duplicate_candidate_ids"] = (Array(merged_metadata["duplicate_candidate_ids"]).map(&:to_i) | [ candidate.id ]).compact
+      merged_metadata["base_expected_value_yen"] = final_value
+      merged_metadata["independent_increment_yen"] = 0
+      merged_metadata["market_cap_yen"] = final_value
+      merged_metadata["final_expected_value_yen"] = final_value
 
       candidate.update!(
-        immediate_value_yen: attributes[:immediate_value_yen] || candidate.immediate_value_yen,
-        expected_profit_yen: attributes[:expected_profit_yen] || candidate.expected_profit_yen,
+        immediate_value_yen: final_value,
+        expected_profit_yen: final_value,
         expected_hours: attributes[:expected_hours] || candidate.expected_hours,
         cost_yen: attributes[:cost_yen] || candidate.cost_yen,
         success_probability: attributes[:success_probability] || candidate.success_probability,
