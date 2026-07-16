@@ -155,6 +155,28 @@ class AicooActionRankingCleanupRakeTest < ActiveSupport::TestCase
     ENV.delete("APPLY")
   end
 
+  test "cleanup task does not count seo or integrated decision candidates as daily run incidents" do
+    seo = create_candidate!(
+      title: "insight_generationに関連するSEO改善",
+      action_type: "seo_improvement",
+      generation_source: "integrated_decision",
+      metadata: {
+        "concrete_task" => "insight_generationの結果を参考に記事を改善する"
+      }
+    )
+    create_successful_daily_run_step!("insight_generation", started_at: 20.minutes.ago)
+
+    output, = capture_io do
+      Rake::Task["aicoo:cleanup_action_expected_value_ranking"].invoke
+    end
+
+    assert_includes output, "daily_run_candidates_checked=0"
+    assert_not_includes output, "daily_run_candidate_id=#{seo.id}"
+    assert_equal "idea", seo.reload.status
+  ensure
+    ENV.delete("APPLY")
+  end
+
   private
 
   def create_candidate!(attributes = {})

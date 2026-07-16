@@ -232,7 +232,7 @@ module Owner
       2.times do |index|
         run = AicooDailyRun.create!(
           target_date: Date.new(2026, 7, 11) + index.days,
-          status: "success",
+          status: "partial_failed",
           source: "cron",
           started_at: (2 - index).hours.ago,
           finished_at: (2 - index).hours.ago + 10.minutes

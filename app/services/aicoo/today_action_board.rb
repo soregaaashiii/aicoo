@@ -979,21 +979,22 @@ module Aicoo
       step_name = daily_run_last_step(latest)&.step_name
       return false if step_name.blank?
 
-      latest_step_run = AicooDailyRun
-        .actual_runs
-        .joins(:aicoo_daily_run_steps)
-        .where(aicoo_daily_run_steps: { step_name: })
-        .order(Arel.sql("COALESCE(aicoo_daily_runs.started_at, aicoo_daily_runs.created_at) DESC"), Arel.sql("aicoo_daily_runs.id DESC"))
+      latest_success_step = AicooDailyRunStep
+        .successful
+        .joins(:aicoo_daily_run)
+        .merge(AicooDailyRun.actual_runs)
+        .where(step_name:)
+        .order(Arel.sql("COALESCE(aicoo_daily_run_steps.finished_at, aicoo_daily_run_steps.updated_at, aicoo_daily_run_steps.created_at) DESC"), id: :desc)
         .first
-      return true if latest_step_run&.succeeded?
+      return true if latest_success_step.present?
 
-      recent_step_runs = AicooDailyRun
-        .actual_runs
-        .joins(:aicoo_daily_run_steps)
-        .where(aicoo_daily_run_steps: { step_name: })
-        .order(Arel.sql("COALESCE(aicoo_daily_runs.started_at, aicoo_daily_runs.created_at) DESC"), Arel.sql("aicoo_daily_runs.id DESC"))
+      recent_steps = AicooDailyRunStep
+        .joins(:aicoo_daily_run)
+        .merge(AicooDailyRun.actual_runs)
+        .where(step_name:)
+        .order(Arel.sql("COALESCE(aicoo_daily_run_steps.finished_at, aicoo_daily_run_steps.updated_at, aicoo_daily_run_steps.created_at) DESC"), id: :desc)
         .limit(2)
-      recent_step_runs.size >= 2 && recent_step_runs.all?(&:succeeded?)
+      recent_steps.size >= 2 && recent_steps.all? { |step| step.status == "success" }
     end
 
     def daily_run_last_step(run)
