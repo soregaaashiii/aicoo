@@ -93,6 +93,47 @@ class AicooActionCandidateTargetsRakeTest < ActiveSupport::TestCase
     ENV.delete("APPLY")
   end
 
+  test "repair task skips already repaired candidates on second run" do
+    candidate = ActionCandidate.create!(
+      business: businesses(:suelog),
+      title: "外部URL修復済み対象",
+      action_type: "seo_improvement",
+      generation_source: "business_analyzer",
+      immediate_value_yen: 10_000,
+      success_probability: 0.5,
+      expected_hours: 1,
+      metadata: {
+        "target_url" => "https://s.tabelog.com/rstLst/cond13-00-01/",
+        "source_query" => "喫煙可能 飲食店"
+      }
+    )
+    candidate.update_columns(
+      metadata: {
+        "target_url" => "https://s.tabelog.com/rstLst/cond13-00-01/",
+        "source_query" => "喫煙可能 飲食店"
+      }
+    )
+
+    ENV["APPLY"] = "1"
+    Rake::Task["aicoo:repair_action_candidate_target_urls"].reenable
+    capture_io { Rake::Task["aicoo:repair_action_candidate_target_urls"].invoke }
+    ENV.delete("APPLY")
+
+    Rake::Task["aicoo:repair_action_candidate_target_urls"].reenable
+    output, = capture_io do
+      Rake::Task["aicoo:repair_action_candidate_target_urls"].invoke
+    end
+
+    assert_includes output, "skipped_already_repaired=1"
+    assert_includes output, "invalid_target=0"
+    assert_includes output, "rejected_irrelevant=0"
+    assert_includes output, "unresolved=0"
+    assert_match(/candidate_ids=\s*$/, output)
+    assert_equal "rejected", candidate.reload.status
+  ensure
+    ENV.delete("APPLY")
+  end
+
   test "repair task does not reject blank target url candidates" do
     candidate = ActionCandidate.create!(
       business: businesses(:suelog),

@@ -4,6 +4,7 @@ namespace :aicoo do
     apply = ENV["APPLY"].to_s.in?(%w[1 true TRUE])
     checked = 0
     skipped_not_target = 0
+    skipped_already_repaired = 0
     external_target_found = 0
     moved_to_reference = 0
     own_target_reassigned = 0
@@ -20,6 +21,10 @@ namespace :aicoo do
       repair_reason = repair_target_reason(candidate, before)
       unless repair_reason
         skipped_not_target += 1
+        next
+      end
+      if already_repaired_target?(candidate, before, repair_reason)
+        skipped_already_repaired += 1
         next
       end
 
@@ -72,6 +77,7 @@ namespace :aicoo do
     puts "mode=#{apply ? 'apply' : 'dry_run'}"
     puts "checked=#{checked}"
     puts "skipped_not_target=#{skipped_not_target}"
+    puts "skipped_already_repaired=#{skipped_already_repaired}"
     puts "external_target_found=#{external_target_found}"
     puts "moved_to_reference=#{moved_to_reference}"
     puts "own_target_reassigned=#{own_target_reassigned}"
@@ -166,6 +172,19 @@ namespace :aicoo do
     return "nonexistent_existing_page" if existing_page_improvement?(candidate) && proposed_existing_target?(candidate.business, metadata)
 
     nil
+  end
+
+  def already_repaired_target?(candidate, metadata, repair_reason)
+    repair = metadata["target_url_repair"].to_h
+    return false if repair["after_status"].blank?
+    return false if metadata["repair_reason"].blank?
+    return false if metadata["rejection_reason"].blank?
+    return false unless repair["repair_reason"].to_s == repair_reason.to_s
+    return false unless metadata["repair_reason"].to_s == repair_reason.to_s
+    return false unless repair["after_status"].to_s == candidate.status.to_s
+
+    expected_rejection_reason = rejection_reason_for(repair_reason, repaired_status_for(candidate, metadata, repair_reason))
+    expected_rejection_reason.present? && metadata["rejection_reason"].to_s == expected_rejection_reason
   end
 
   def invalid_target?(business, metadata)
