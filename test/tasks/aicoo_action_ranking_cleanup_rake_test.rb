@@ -141,6 +141,34 @@ class AicooActionRankingCleanupRakeTest < ActiveSupport::TestCase
     ENV.delete("APPLY")
   end
 
+  test "cleanup task supersedes ai business candidates for deleted businesses" do
+    business = Business.create!(name: "削除済みAI事業", status: "exploring", deleted_at: Time.current, deletion_reason: "SERP誤生成")
+    candidate = ActionCandidate.create!(
+      business:,
+      title: "削除済みAI事業のMVPを自動生成する",
+      action_type: "build_mvp",
+      generation_source: "ai_business",
+      status: "idea",
+      immediate_value_yen: 10_000,
+      success_probability: 0.5,
+      expected_hours: 1,
+      metadata: {}
+    )
+
+    ENV["APPLY"] = "1"
+    Rake::Task["aicoo:cleanup_action_expected_value_ranking"].reenable
+    output, = capture_io do
+      Rake::Task["aicoo:cleanup_action_expected_value_ranking"].invoke
+    end
+
+    assert_includes output, "superseded=1"
+    assert_equal "superseded", candidate.reload.status
+    assert_equal "deleted_business_ai_business_candidate", candidate.metadata["ranking_cleanup_reason"]
+    assert_equal business.id, candidate.metadata["deleted_business_id"]
+  ensure
+    ENV.delete("APPLY")
+  end
+
   test "cleanup task moves metric path into target metrics" do
     candidate = create_candidate!(
       title: "電話・地図・アフィリエイト導線を5ページに追加する",

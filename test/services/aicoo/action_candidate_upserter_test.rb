@@ -28,6 +28,29 @@ module Aicoo
       end
     end
 
+    test "does not create candidate for deleted business" do
+      business = businesses(:suelog)
+      business.update_columns(deleted_at: Time.current, deletion_reason: "SERP誤生成")
+
+      assert_no_difference("ActionCandidate.count") do
+        candidate = Aicoo::ActionCandidateUpserter.call(
+          business:,
+          attributes: {
+            title: "削除済みBusinessの改善候補",
+            description: "削除済みなので作らない",
+            action_type: "seo_improvement",
+            generation_source: "ai_business",
+            immediate_value_yen: 10_000,
+            success_probability: 0.5,
+            expected_hours: 1,
+            metadata: {}
+          }
+        )
+
+        assert_nil candidate
+      end
+    end
+
     test "updates existing action instead of creating duplicate for same opportunity" do
       business = businesses(:suelog)
       attributes = {

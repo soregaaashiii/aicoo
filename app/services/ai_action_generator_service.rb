@@ -10,6 +10,8 @@ class AiActionGeneratorService
   end
 
   def call
+    return Result.new(run: nil, action_candidates: []) if business.action_candidate_generation_blocked?
+
     response = client.create_json(
       prompt:,
       schema_name: "action_candidate_generation",

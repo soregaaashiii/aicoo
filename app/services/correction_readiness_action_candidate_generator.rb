@@ -17,6 +17,8 @@ class CorrectionReadinessActionCandidateGenerator
     return if business_item.ready?
 
     business = business_item.business
+    return if business.action_candidate_generation_blocked?
+
     title = "#{business.name}の予測精度に必要な学習データを増やす"
     return if recent_duplicate?(business, title)
 

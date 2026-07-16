@@ -116,6 +116,8 @@ module Aicoo
 
     def call
       attributes[:business] ||= business
+      return nil if business&.action_candidate_generation_blocked?
+
       attributes[:metadata] = sanitized_metadata(attributes[:metadata], attributes[:action_type])
       evidence_validation = validate_evidence
       if evidence_validation.blocked?

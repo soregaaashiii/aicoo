@@ -44,6 +44,35 @@ class BusinessTest < ActiveSupport::TestCase
     assert business.business_activity_logs.where(activity_type: "business_delete").exists?
   end
 
+  test "soft delete supersedes unfinished ai business action candidates" do
+    business = Business.create!(name: "削除予定のAI事業", status: "exploring")
+    active_candidate = business.action_candidates.create!(
+      title: "削除予定のAI事業を改善する",
+      action_type: "build_mvp",
+      generation_source: "ai_business",
+      status: "idea",
+      immediate_value_yen: 10_000,
+      success_probability: 0.5,
+      expected_hours: 1
+    )
+    completed_candidate = business.action_candidates.create!(
+      title: "完了済み施策",
+      action_type: "build_mvp",
+      generation_source: "ai_business",
+      status: "done",
+      immediate_value_yen: 10_000,
+      success_probability: 0.5,
+      expected_hours: 1
+    )
+
+    business.soft_delete!(reason: "SERP誤生成", actor: "owner", source: "test")
+
+    assert_equal "superseded", active_candidate.reload.status
+    assert_equal "deleted_business_ai_business_candidate", active_candidate.metadata["ranking_cleanup_reason"]
+    assert_equal business.id, active_candidate.metadata["deleted_business_id"]
+    assert_equal "done", completed_candidate.reload.status
+  end
+
   test "restores soft deleted business to previous status" do
     business = Business.create!(name: "復元対象Business", status: "exploring", serp_enabled: true)
     business.soft_delete!(reason: "既存事業との重複", actor: "owner", source: "test")

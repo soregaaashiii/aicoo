@@ -52,6 +52,7 @@ namespace :aicoo do
     puts "rejected_irrelevant=#{stats[:rejected_irrelevant]}"
     puts "skipped_already_rejected_irrelevant=#{stats[:skipped_already_rejected_irrelevant]}"
     puts "resolved=#{stats[:resolved]}"
+    puts "superseded=#{stats[:superseded]}"
     puts "daily_run_candidates_checked=#{stats[:daily_run_candidates_checked]}"
     puts "daily_run_latest_success_found=#{stats[:daily_run_latest_success_found]}"
     puts "daily_run_still_failing=#{stats[:daily_run_still_failing]}"
@@ -79,6 +80,14 @@ namespace :aicoo do
 
   def ranking_cleanup_decision(candidate, stats:, daily_run_debug_rows:)
     metadata = candidate.metadata.to_h.deep_stringify_keys
+    if deleted_business_ai_business_candidate?(candidate)
+      return {
+        status: "superseded",
+        reason: "deleted_business_ai_business_candidate",
+        metadata_updates: deleted_business_ai_business_metadata(candidate)
+      }
+    end
+
     guard_reason = Aicoo::ActionCandidateRankingGuard.rejection_reason(candidate)
     return { status: "rejected", counter: "rejected_irrelevant", reason: guard_reason, metadata_updates: guard_metadata(candidate, guard_reason) } if guard_reason == "irrelevant_external_evidence"
     return normalize_url_mismatch_cleanup(candidate, guard_reason) if guard_reason.in?(%w[action_type_url_mismatch metric_name_used_as_url])
@@ -106,6 +115,28 @@ namespace :aicoo do
     end
 
     nil
+  end
+
+  def deleted_business_ai_business_candidate?(candidate)
+    return false unless candidate.generation_source.to_s == "ai_business"
+
+    business = candidate.business
+    return false unless business
+    return false unless business.action_candidate_generation_blocked?
+
+    candidate.status.to_s.in?(%w[idea proposal planning pending valuation_review_required approved executor_queued in_progress])
+  end
+
+  def deleted_business_ai_business_metadata(candidate)
+    business = candidate.business
+    {
+      "ranking_cleanup_status" => "superseded",
+      "ranking_cleanup_reason" => "deleted_business_ai_business_candidate",
+      "business_deleted_at" => business&.deleted_at&.iso8601,
+      "deleted_business_id" => business&.id,
+      "deletion_reason" => business&.deletion_reason.presence || "business_generation_blocked",
+      "superseded_at" => Time.current.iso8601
+    }.compact
   end
 
   def normalize_url_mismatch_cleanup(candidate, guard_reason)

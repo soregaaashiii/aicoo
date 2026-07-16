@@ -93,6 +93,15 @@ class Business < ApplicationRecord
     deleted_at.present?
   end
 
+  def action_candidate_generation_blocked?
+    deleted? ||
+      status.to_s == "rejected" ||
+      resource_status.to_s == "deleted" ||
+      deletion_reason.present? ||
+      ActiveModel::Type::Boolean.new.cast(metadata.to_h["auto_republish_blocked"]) ||
+      ActiveModel::Type::Boolean.new.cast(metadata.to_h["do_not_recreate"])
+  end
+
   def serp_generated?
     source.to_s.include?("serp") ||
       metadata.to_h.values_at(
@@ -147,6 +156,7 @@ class Business < ApplicationRecord
     )
     record_deletion_audit!("delete", previous_status:, previous_resource_status:, actor:, reason:)
     block_auto_republish_for_deleted_business!(actor:, reason:)
+    supersede_ai_business_action_candidates_for_deleted_business!(actor:, reason:)
   end
 
   def restore_from_soft_delete!(actor: "owner")
@@ -431,6 +441,27 @@ class Business < ApplicationRecord
         updated_at: Time.current
       )
     end
+  end
+
+  def supersede_ai_business_action_candidates_for_deleted_business!(actor:, reason:)
+    action_candidates
+      .active_for_ranking
+      .where(generation_source: "ai_business")
+      .find_each do |candidate|
+        candidate.update_columns(
+          status: "superseded",
+          metadata: candidate.metadata.to_h.merge(
+            "ranking_cleanup_status" => "superseded",
+            "ranking_cleanup_reason" => "deleted_business_ai_business_candidate",
+            "business_deleted_at" => deleted_at&.iso8601 || Time.current.iso8601,
+            "deleted_business_id" => id,
+            "deletion_reason" => deletion_reason.presence || reason.presence || "その他",
+            "deletion_actor" => actor.presence || deleted_by.presence || "owner",
+            "superseded_at" => Time.current.iso8601
+          ),
+          updated_at: Time.current
+        )
+      end
   end
 
   def unblock_auto_republish_for_restored_business!
