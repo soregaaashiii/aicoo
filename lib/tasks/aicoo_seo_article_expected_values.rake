@@ -7,6 +7,9 @@ namespace :aicoo do
     checked = 0
     recalculated = 0
     unchanged = 0
+    previously_capped = 0
+    cap_removed = 0
+    insufficient_data = 0
     failed = 0
     before_total_yen = 0
     after_total_yen = 0
@@ -22,6 +25,9 @@ namespace :aicoo do
       result = Aicoo::SeoArticleExpectedValue.call(candidate)
       after_value = result.final_expected_value_yen.to_i
       after_total_yen += after_value
+      capped_before = AicooSeoArticleExpectedValueRake.previously_capped?(candidate)
+      previously_capped += 1 if capped_before
+      insufficient_data += 1 if result.metadata["calculation_status"].to_s == "insufficient_data"
 
       if AicooSeoArticleExpectedValueRake.current?(candidate, result)
         unchanged += 1
@@ -29,8 +35,9 @@ namespace :aicoo do
       end
 
       recalculated += 1
+      cap_removed += 1 if capped_before
       candidate_ids << candidate.id
-      puts "candidate_id=#{candidate.id} before=#{before_value} after=#{after_value} raw=#{result.raw_expected_value_yen}"
+      puts "candidate_id=#{candidate.id} before=#{before_value} after=#{after_value} raw=#{result.raw_expected_value_yen} status=#{result.metadata['calculation_status']} previously_capped=#{capped_before}"
 
       next unless apply
 
@@ -69,6 +76,9 @@ namespace :aicoo do
     puts "checked=#{checked}"
     puts "recalculated=#{recalculated}"
     puts "unchanged=#{unchanged}"
+    puts "previously_capped=#{previously_capped}"
+    puts "cap_removed=#{cap_removed}"
+    puts "insufficient_data=#{insufficient_data}"
     puts "failed=#{failed}"
     puts "before_total_yen=#{before_total_yen}"
     puts "after_total_yen=#{after_total_yen}"
@@ -85,5 +95,15 @@ module AicooSeoArticleExpectedValueRake
       candidate.expected_revenue_value_yen.to_i == result.final_expected_value_yen.to_i &&
       candidate.expected_total_value_yen.to_i == result.final_expected_value_yen.to_i &&
       candidate.final_expected_value_yen.to_i == result.final_expected_value_yen.to_i
+  end
+
+  def self.previously_capped?(candidate)
+    metadata = candidate.metadata.to_h
+    metadata["seo_expected_value_cap"].present? ||
+      metadata["seo_expected_value_cap_yen"].present? ||
+      metadata["cap_applied"].to_s == "true" ||
+      metadata["cap_reason"].present? ||
+      metadata.dig("seo_article_value_model", "cap_yen").present? ||
+      metadata.dig("seo_article_value_model", "cap_applied").to_s == "true"
   end
 end

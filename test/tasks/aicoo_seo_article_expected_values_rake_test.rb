@@ -24,7 +24,11 @@ class AicooSeoArticleExpectedValuesRakeTest < ActiveSupport::TestCase
         "current_ctr" => 0.01,
         "target_ctr" => 0.03,
         "conversion_rate" => 0.02,
-        "profit_per_conversion" => 1_000
+        "profit_per_conversion" => 1_000,
+        "seo_expected_value_cap" => 100_000,
+        "seo_article_value_model" => {
+          "cap_yen" => 100_000
+        }
       }
     )
     candidate.update_columns(
@@ -42,8 +46,12 @@ class AicooSeoArticleExpectedValuesRakeTest < ActiveSupport::TestCase
 
     assert_includes output, "mode=apply"
     assert_includes output, "recalculated=1"
+    assert_includes output, "previously_capped=1"
+    assert_includes output, "cap_removed=1"
     assert_equal 2_000, candidate.reload.final_expected_value_yen
     assert_equal 2_000, candidate.expected_total_value_yen
+    assert_nil candidate.metadata["seo_expected_value_cap"]
+    assert_nil candidate.metadata.dig("seo_article_value_model", "cap_yen")
 
     ENV.delete("APPLY")
     Rake::Task["aicoo:recalculate_seo_article_expected_values"].reenable
@@ -53,6 +61,7 @@ class AicooSeoArticleExpectedValuesRakeTest < ActiveSupport::TestCase
 
     assert_includes second_output, "mode=dry-run"
     assert_includes second_output, "recalculated=0"
+    assert_includes second_output, "cap_removed=0"
   ensure
     ENV.delete("APPLY")
   end

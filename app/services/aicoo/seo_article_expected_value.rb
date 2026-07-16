@@ -1,12 +1,7 @@
 module Aicoo
   class SeoArticleExpectedValue
     ARTICLE_ACTION_TYPES = %w[seo_article new_article_candidate article_create].freeze
-    CALCULATION_VERSION = "seo_article_incremental_v1".freeze
-    NO_REVENUE_EVENT_CAP_YEN = 100_000
-    NO_GSC_INPUT_CAP_YEN = 30_000
-    DEFAULT_CONVERSION_RATE = 0.01.to_d
-    DEFAULT_PROFIT_PER_CONVERSION_YEN = 500.to_d
-    DEFAULT_SUCCESS_PROBABILITY = 0.35.to_d
+    CALCULATION_VERSION = "seo_article_incremental_uncapped_v1".freeze
 
     Result = Data.define(:raw_expected_value_yen, :final_expected_value_yen, :metadata)
 
@@ -27,8 +22,8 @@ module Aicoo
     end
 
     def call
-      raw_value = (estimated_incremental_clicks * conversion_rate * profit_per_conversion * success_probability).round
-      final_value = cap_yen ? [ raw_value, cap_yen ].min : raw_value
+      raw_value = calculation_ready? ? (estimated_incremental_clicks * conversion_rate * profit_per_conversion * success_probability).round : 0
+      final_value = raw_value
       Result.new(
         raw_expected_value_yen: raw_value,
         final_expected_value_yen: final_value,
@@ -41,15 +36,22 @@ module Aicoo
     attr_reader :candidate, :metadata
 
     def merged_metadata(raw_value:, final_value:)
-      metadata.merge(
+      metadata.except("cap_applied", "cap_reason", "seo_expected_value_cap_yen").merge(
         "estimated_incremental_clicks" => estimated_incremental_clicks.to_f.round(2),
         "estimated_rank_delta" => estimated_rank_delta&.to_f&.round(2),
         "estimated_ctr_delta" => estimated_ctr_delta.to_f.round(4),
-        "conversion_rate" => conversion_rate.to_f.round(4),
-        "profit_per_conversion" => profit_per_conversion.to_f.round(2),
-        "seo_expected_value_cap" => cap_yen,
+        "conversion_rate" => conversion_rate&.to_f&.round(4),
+        "profit_per_conversion" => profit_per_conversion&.to_f&.round(2),
+        "profit_per_conversion_yen" => profit_per_conversion&.to_f&.round(2),
+        "success_probability" => success_probability&.to_f&.round(4),
+        "seo_expected_value_cap" => nil,
         "raw_expected_value" => raw_value,
+        "uncapped_expected_value_yen" => raw_value,
         "final_expected_value" => final_value,
+        "final_expected_value_yen" => final_value,
+        "calculation_status" => calculation_status,
+        "review_required" => review_required?,
+        "input_source" => input_source,
         "seo_article_value_model" => {
           "calculation_version" => CALCULATION_VERSION,
           "formula" => "incremental_clicks * conversion_rate * profit_per_conversion * success_probability",
@@ -61,12 +63,20 @@ module Aicoo
           "current_ctr" => current_ctr&.to_f&.round(4),
           "target_ctr" => target_ctr.to_f.round(4),
           "impressions" => impressions.to_f.round(2),
-          "conversion_rate" => conversion_rate.to_f.round(4),
-          "profit_per_conversion" => profit_per_conversion.to_f.round(2),
-          "success_probability" => success_probability.to_f.round(4),
+          "conversion_rate" => conversion_rate&.to_f&.round(4),
+          "profit_per_conversion" => profit_per_conversion&.to_f&.round(2),
+          "profit_per_conversion_yen" => profit_per_conversion&.to_f&.round(2),
+          "success_probability" => success_probability&.to_f&.round(4),
           "revenue_event_available" => revenue_event_available?,
-          "cap_yen" => cap_yen,
+          "cap_yen" => nil,
+          "cap_applied" => false,
+          "cap_reason" => nil,
           "excluded_value_sources" => %w[learning judge business_expected_value],
+          "input_source" => input_source,
+          "missing_inputs" => missing_inputs,
+          "calculation_status" => calculation_status,
+          "review_required" => review_required?,
+          "uncapped_expected_value_yen" => raw_value,
           "raw_expected_value_yen" => raw_value,
           "final_expected_value_yen" => final_value,
           "calculated_at" => Time.current.iso8601
@@ -183,8 +193,7 @@ module Aicoo
         metadata["conversion_rate"],
         metadata["cv_rate"],
         metadata.dig("value_model", "conversion_rate"),
-        metadata.dig("seo_article_value_model", "conversion_rate"),
-        fallback: DEFAULT_CONVERSION_RATE
+        metadata.dig("seo_article_value_model", "conversion_rate")
       )
     end
 
@@ -192,13 +201,15 @@ module Aicoo
       @profit_per_conversion ||= begin
         explicit = decimal_from(
           metadata["profit_per_conversion"],
+          metadata["profit_per_conversion_yen"],
           metadata["profit_per_cv"],
           metadata["value_per_conversion"],
           metadata.dig("value_model", "profit_per_conversion"),
+          metadata.dig("seo_article_value_model", "profit_per_conversion_yen"),
           metadata.dig("seo_article_value_model", "profit_per_conversion"),
           fallback: nil
         )
-        explicit || revenue_event_average_amount || DEFAULT_PROFIT_PER_CONVERSION_YEN
+        explicit || revenue_event_average_amount
       end
     end
 
@@ -210,17 +221,7 @@ module Aicoo
           metadata.dig("seo_article_value_model", "success_probability")
         )
         candidate_probability = candidate.success_probability.to_d
-        explicit.presence || (candidate_probability.positive? ? candidate_probability : DEFAULT_SUCCESS_PROBABILITY)
-      end
-    end
-
-    def cap_yen
-      @cap_yen ||= if revenue_event_available?
-        nil
-      elsif impressions.positive?
-        NO_REVENUE_EVENT_CAP_YEN
-      else
-        NO_GSC_INPUT_CAP_YEN
+        explicit.presence || (candidate_probability.positive? ? candidate_probability : nil)
       end
     end
 
@@ -235,6 +236,76 @@ module Aicoo
       return nil unless revenue_event_available?
 
       candidate.business.revenue_events.revenue.average(:amount)&.to_d
+    end
+
+    def calculation_ready?
+      missing_inputs.empty?
+    end
+
+    def calculation_status
+      calculation_ready? ? "calculated" : "insufficient_data"
+    end
+
+    def review_required?
+      !calculation_ready?
+    end
+
+    def missing_inputs
+      @missing_inputs ||= begin
+        missing = []
+        missing << "estimated_incremental_clicks" unless estimated_incremental_clicks.positive?
+        missing << "conversion_rate" if conversion_rate.blank?
+        missing << "profit_per_conversion_yen" if profit_per_conversion.blank?
+        missing << "success_probability" if success_probability.blank?
+        missing
+      end
+    end
+
+    def input_source
+      {
+        "impressions" => input_source_for(:impressions),
+        "current_ctr" => input_source_for(:current_ctr),
+        "target_ctr" => input_source_for(:target_ctr),
+        "conversion_rate" => input_source_for(:conversion_rate),
+        "profit_per_conversion_yen" => revenue_event_average_amount.present? ? "revenue_events.average_amount" : input_source_for(:profit_per_conversion),
+        "success_probability" => input_source_for(:success_probability)
+      }
+    end
+
+    def input_source_for(input)
+      case input
+      when :impressions
+        return "metadata.impressions" if metadata["impressions"].present?
+        return "metadata.gsc.impressions" if metadata.dig("gsc", "impressions").present?
+        return "metadata.gsc_metrics.impressions" if metadata.dig("gsc_metrics", "impressions").present?
+        return "metadata.supporting_metrics.impressions" if metadata.dig("supporting_metrics", "impressions").present?
+        return "metadata.expected_pv" if metadata["expected_pv"].present?
+      when :current_ctr
+        return "metadata.current_ctr" if metadata["current_ctr"].present?
+        return "metadata.ctr" if metadata["ctr"].present?
+        return "metadata.gsc.ctr" if metadata.dig("gsc", "ctr").present?
+        return "position_curve" if current_position.present?
+      when :target_ctr
+        return "metadata.target_ctr" if metadata["target_ctr"].present?
+        return "metadata.estimated_target_ctr" if metadata["estimated_target_ctr"].present?
+        return "position_curve" if target_position.present?
+      when :conversion_rate
+        return "metadata.conversion_rate" if metadata["conversion_rate"].present?
+        return "metadata.cv_rate" if metadata["cv_rate"].present?
+        return "metadata.value_model.conversion_rate" if metadata.dig("value_model", "conversion_rate").present?
+      when :profit_per_conversion
+        return "metadata.profit_per_conversion_yen" if metadata["profit_per_conversion_yen"].present?
+        return "metadata.profit_per_conversion" if metadata["profit_per_conversion"].present?
+        return "metadata.profit_per_cv" if metadata["profit_per_cv"].present?
+        return "metadata.value_per_conversion" if metadata["value_per_conversion"].present?
+        return "metadata.value_model.profit_per_conversion" if metadata.dig("value_model", "profit_per_conversion").present?
+      when :success_probability
+        return "metadata.success_probability" if metadata["success_probability"].present?
+        return "metadata.value_model.success_probability" if metadata.dig("value_model", "success_probability").present?
+        return "action_candidate.success_probability" if candidate.success_probability.to_d.positive?
+      end
+
+      "missing"
     end
 
     def ctr_for_position(position)

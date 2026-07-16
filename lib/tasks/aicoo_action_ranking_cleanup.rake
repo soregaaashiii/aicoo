@@ -350,6 +350,7 @@ namespace :aicoo do
           "final_expected_value_yen" => final_value,
           "ranking_cleanup_at" => Time.current.iso8601
         )
+        rep_metadata.delete("market_cap_yen") if Aicoo::SeoArticleExpectedValue.applies_to?(representative)
         representative.update_columns(expected_profit_yen: final_value, immediate_value_yen: final_value, metadata: rep_metadata, updated_at: Time.current)
       end
 

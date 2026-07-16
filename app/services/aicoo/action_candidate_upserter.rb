@@ -222,7 +222,11 @@ module Aicoo
       merged_metadata["duplicate_candidate_ids"] = (Array(merged_metadata["duplicate_candidate_ids"]).map(&:to_i) | [ candidate.id ]).compact
       merged_metadata["base_expected_value_yen"] = final_value
       merged_metadata["independent_increment_yen"] = 0
-      merged_metadata["market_cap_yen"] = final_value
+      if Aicoo::SeoArticleExpectedValue.applies_to?(candidate)
+        merged_metadata.delete("market_cap_yen")
+      else
+        merged_metadata["market_cap_yen"] = final_value
+      end
       merged_metadata["final_expected_value_yen"] = final_value
 
       candidate.update!(

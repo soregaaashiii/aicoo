@@ -27,7 +27,7 @@ module Aicoo
       assert_equal %w[learning judge business_expected_value], result.metadata.dig("seo_article_value_model", "excluded_value_sources")
     end
 
-    test "does not allow no revenue event seo article value to exceed the fallback cap" do
+    test "does not cap seo article value without revenue events" do
       candidate = ActionCandidate.new(
         business: businesses(:suelog),
         title: "梅田 喫煙 カフェの記事を作る",
@@ -45,8 +45,32 @@ module Aicoo
       result = SeoArticleExpectedValue.call(candidate)
 
       assert result.raw_expected_value_yen > 1_000_000
-      assert_equal SeoArticleExpectedValue::NO_REVENUE_EVENT_CAP_YEN, result.final_expected_value_yen
-      assert result.final_expected_value_yen < 1_000_000
+      assert_equal result.raw_expected_value_yen, result.final_expected_value_yen
+      assert result.final_expected_value_yen > 1_000_000
+      assert_nil result.metadata["seo_expected_value_cap"]
+      assert_equal false, result.metadata.dig("seo_article_value_model", "cap_applied")
+    end
+
+    test "marks insufficient data instead of substituting a cap value" do
+      candidate = ActionCandidate.new(
+        business: businesses(:suelog),
+        title: "入力不足の記事候補",
+        action_type: "seo_article",
+        success_probability: 0.5,
+        metadata: {
+          "impressions" => 10_000,
+          "current_ctr" => 0.01,
+          "target_ctr" => 0.03
+        }
+      )
+
+      result = SeoArticleExpectedValue.call(candidate)
+
+      assert_equal 0, result.final_expected_value_yen
+      assert_equal "insufficient_data", result.metadata["calculation_status"]
+      assert_equal true, result.metadata["review_required"]
+      assert_includes result.metadata.dig("seo_article_value_model", "missing_inputs"), "conversion_rate"
+      assert_includes result.metadata.dig("seo_article_value_model", "missing_inputs"), "profit_per_conversion_yen"
     end
 
     test "meta evaluator does not add judge learning or business total value to seo article" do
