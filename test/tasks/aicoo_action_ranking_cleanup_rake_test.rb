@@ -59,6 +59,102 @@ class AicooActionRankingCleanupRakeTest < ActiveSupport::TestCase
     ENV.delete("APPLY")
   end
 
+  test "cleanup task skips already rejected irrelevant target repairs" do
+    candidate = create_candidate!(
+      title: "修復済み外部URL候補",
+      status: "rejected",
+      metadata: {
+        "url_classification" => "external_reference",
+        "target_url_type" => "external_reference",
+        "repair_reason" => "external_reference",
+        "rejection_reason" => "external_reference_target_url",
+        "target_url_repair" => {
+          "after_status" => "rejected"
+        }
+      }
+    )
+
+    output, = capture_io do
+      Rake::Task["aicoo:cleanup_action_expected_value_ranking"].invoke
+    end
+
+    assert_includes output, "rejected_irrelevant=0"
+    assert_includes output, "skipped_already_rejected_irrelevant=1"
+    assert_match(/candidate_ids=\s*$/, output)
+    assert_equal "rejected", candidate.reload.status
+  ensure
+    ENV.delete("APPLY")
+  end
+
+  test "cleanup task resolves daily run incident when step succeeded after candidate" do
+    candidate = create_candidate!(
+      title: "Daily Runが insight_generation で継続停止",
+      action_type: "other",
+      metadata: {
+        "step_name" => "insight_generation",
+        "daily_run_incident" => {
+          "step_name" => "insight_generation",
+          "started_at" => 3.hours.ago.iso8601
+        }
+      }
+    )
+    create_successful_daily_run_step!("insight_generation", started_at: 20.minutes.ago)
+
+    ENV["APPLY"] = "1"
+    Rake::Task["aicoo:cleanup_action_expected_value_ranking"].reenable
+    output, = capture_io do
+      Rake::Task["aicoo:cleanup_action_expected_value_ranking"].invoke
+    end
+
+    assert_includes output, "daily_run_candidates_checked=1"
+    assert_includes output, "daily_run_latest_success_found=1"
+    assert_includes output, "resolved=1"
+    assert_includes output, "resolved_candidate_ids=#{candidate.id}"
+    assert_equal "resolved", candidate.reload.status
+    assert_equal "resolved", candidate.metadata["ranking_cleanup_status"]
+    assert_equal "daily_run_step_recently_succeeded", candidate.metadata["ranking_cleanup_reason"]
+    assert_equal "insight_generation", candidate.metadata.dig("daily_run_recovery_diagnosis", "step_name")
+
+    ENV.delete("APPLY")
+    Rake::Task["aicoo:cleanup_action_expected_value_ranking"].reenable
+    second_output, = capture_io do
+      Rake::Task["aicoo:cleanup_action_expected_value_ranking"].invoke
+    end
+
+    assert_includes second_output, "resolved=0"
+    assert_includes second_output, "skipped_already_resolved_daily_run=1"
+    assert_match(/candidate_ids=\s*$/, second_output)
+  ensure
+    ENV.delete("APPLY")
+  end
+
+  test "cleanup task keeps daily run incident unresolved without later successful step" do
+    candidate = create_candidate!(
+      title: "Daily Runが business_metrics_import で継続停止",
+      action_type: "other",
+      metadata: {
+        "step_name" => "business_metrics_import",
+        "daily_run_incident" => {
+          "step_name" => "business_metrics_import",
+          "started_at" => 1.hour.ago.iso8601
+        }
+      }
+    )
+    create_failed_daily_run_step!("business_metrics_import", started_at: 20.minutes.ago)
+
+    output, = capture_io do
+      Rake::Task["aicoo:cleanup_action_expected_value_ranking"].invoke
+    end
+
+    assert_includes output, "daily_run_candidates_checked=1"
+    assert_includes output, "daily_run_latest_success_found=0"
+    assert_includes output, "daily_run_still_failing=1"
+    assert_includes output, "unresolved_daily_run_candidate_ids=#{candidate.id}"
+    assert_equal "idea", candidate.reload.status
+  ensure
+    ENV.delete("APPLY")
+  end
+
   private
 
   def create_candidate!(attributes = {})
@@ -84,5 +180,38 @@ class AicooActionRankingCleanupRakeTest < ActiveSupport::TestCase
       "work_type" => "new_article",
       "url_classification" => "proposed_new"
     }
+  end
+
+  def create_successful_daily_run_step!(step_name, started_at:)
+    run = AicooDailyRun.create!(
+      target_date: started_at.to_date,
+      status: "partial_failed",
+      source: "cron",
+      started_at:,
+      finished_at: started_at + 10.minutes
+    )
+    run.aicoo_daily_run_steps.create!(
+      step_name:,
+      status: "success",
+      started_at:,
+      finished_at: started_at + 10.minutes
+    )
+  end
+
+  def create_failed_daily_run_step!(step_name, started_at:)
+    run = AicooDailyRun.create!(
+      target_date: started_at.to_date,
+      status: "partial_failed",
+      source: "cron",
+      started_at:,
+      finished_at: started_at + 10.minutes
+    )
+    run.aicoo_daily_run_steps.create!(
+      step_name:,
+      status: "failed",
+      started_at:,
+      finished_at: started_at + 10.minutes,
+      error_message: "#{step_name} failed"
+    )
   end
 end

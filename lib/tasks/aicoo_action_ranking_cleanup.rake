@@ -7,11 +7,21 @@ namespace :aicoo do
 
     ActionCandidate.includes(:business).find_each do |candidate|
       stats[:checked] += 1
-      cleanup = ranking_cleanup_decision(candidate)
+      if already_rejected_irrelevant?(candidate)
+        stats[:skipped_already_rejected_irrelevant] += 1
+        next
+      end
+      if already_resolved_daily_run_incident?(candidate)
+        stats[:skipped_already_resolved_daily_run] += 1
+        next
+      end
+
+      cleanup = ranking_cleanup_decision(candidate, stats:)
       next unless cleanup
 
       stats[cleanup.fetch(:status).to_sym] += 1
       candidate_ids << candidate.id
+      stats[:resolved_candidate_ids] = stats_array(stats, :resolved_candidate_ids) + [ candidate.id ] if cleanup.fetch(:status) == "resolved"
       next unless apply
 
       metadata = candidate.metadata.to_h.deep_stringify_keys.merge(
@@ -19,6 +29,7 @@ namespace :aicoo do
         "ranking_cleanup_reason" => cleanup.fetch(:reason),
         "ranking_cleanup_at" => Time.current.iso8601
       )
+      metadata["daily_run_recovery_diagnosis"] = cleanup[:daily_run_diagnosis] if cleanup[:daily_run_diagnosis]
       metadata["representative_action_candidate_id"] = cleanup[:representative_id] if cleanup[:representative_id]
       candidate.update_columns(status: cleanup.fetch(:status), metadata:, updated_at: Time.current)
     rescue StandardError => e
@@ -32,25 +43,93 @@ namespace :aicoo do
     puts "mode=#{apply ? 'apply' : 'dry_run'}"
     puts "checked=#{stats[:checked]}"
     puts "rejected_irrelevant=#{stats[:rejected_irrelevant]}"
+    puts "skipped_already_rejected_irrelevant=#{stats[:skipped_already_rejected_irrelevant]}"
     puts "resolved=#{stats[:resolved]}"
+    puts "daily_run_candidates_checked=#{stats[:daily_run_candidates_checked]}"
+    puts "daily_run_latest_success_found=#{stats[:daily_run_latest_success_found]}"
+    puts "daily_run_still_failing=#{stats[:daily_run_still_failing]}"
+    puts "skipped_already_resolved_daily_run=#{stats[:skipped_already_resolved_daily_run]}"
     puts "rejected_duplicate=#{stats[:rejected_duplicate]}"
     puts "duplicates_checked=#{stats[:duplicates_checked]}"
     puts "duplicate_groups=#{stats[:duplicate_groups]}"
     puts "failed=#{stats[:failed]}"
+    puts "resolved_candidate_ids=#{Array(stats[:resolved_candidate_ids]).uniq.join(',')}"
+    puts "unresolved_daily_run_candidate_ids=#{Array(stats[:unresolved_daily_run_candidate_ids]).uniq.join(',')}"
     puts "candidate_ids=#{candidate_ids.uniq.join(',')}"
   end
 
-  def ranking_cleanup_decision(candidate)
+  def ranking_cleanup_decision(candidate, stats:)
     metadata = candidate.metadata.to_h.deep_stringify_keys
     return { status: "rejected_irrelevant", reason: "external_reference_or_invalid_target" } if metadata["url_classification"].to_s.in?(%w[external_reference invalid])
     return { status: "rejected_irrelevant", reason: "external_reference_or_invalid_target" } if metadata["target_url_type"].to_s.in?(%w[external_reference invalid])
     return { status: "rejected_irrelevant", reason: metadata["rejection_reason"] } if metadata["repair_reason"].present? && metadata["rejection_reason"].present?
 
-    if daily_run_incident_candidate?(candidate) && daily_run_incident_recovered?(candidate)
-      return { status: "resolved", reason: "daily_run_step_recently_succeeded" }
+    if daily_run_incident_candidate?(candidate)
+      stats[:daily_run_candidates_checked] += 1
+      diagnosis = daily_run_incident_recovery_diagnosis(candidate)
+      if diagnosis.fetch(:recovered)
+        stats[:daily_run_latest_success_found] += 1
+        return { status: "resolved", reason: "daily_run_step_recently_succeeded", daily_run_diagnosis: diagnosis }
+      end
+
+      stats[:daily_run_still_failing] += 1
+      stats[:unresolved_daily_run_candidate_ids] = stats_array(stats, :unresolved_daily_run_candidate_ids) + [ candidate.id ]
     end
 
     nil
+  end
+
+  def already_rejected_irrelevant?(candidate)
+    metadata = candidate.metadata.to_h.deep_stringify_keys
+    return true if metadata["ranking_cleanup_status"].to_s == "rejected_irrelevant" && candidate.status.to_s == "rejected_irrelevant"
+    return false unless candidate.status.to_s == "rejected"
+    return false unless metadata["url_classification"].to_s.in?(%w[external_reference invalid]) ||
+      metadata["target_url_type"].to_s.in?(%w[external_reference invalid])
+    return false unless metadata["repair_reason"].present?
+    return false unless metadata["rejection_reason"].present?
+
+    metadata.dig("target_url_repair", "after_status").to_s == "rejected"
+  end
+
+  def stats_array(stats, key)
+    value = stats[key]
+    value.is_a?(Array) ? value : []
+  end
+
+  def already_resolved_daily_run_incident?(candidate)
+    metadata = candidate.metadata.to_h.deep_stringify_keys
+    candidate.status.to_s == "resolved" &&
+      metadata["ranking_cleanup_status"].to_s == "resolved" &&
+      metadata["ranking_cleanup_reason"].to_s == "daily_run_step_recently_succeeded"
+  end
+
+  def daily_run_incident_recovered?(candidate)
+    daily_run_incident_recovery_diagnosis(candidate).fetch(:recovered)
+  end
+
+  def daily_run_incident_recovery_diagnosis(candidate)
+    step_name = daily_run_incident_step_name(candidate)
+    return { recovered: false, reason: "step_name_missing" } if step_name.blank?
+
+    latest_success_step = latest_successful_daily_run_step(step_name)
+    return { recovered: true, reason: "latest_step_success", step_name:, latest_success_step_id: latest_success_step.id } if latest_success_step && latest_success_after_candidate?(latest_success_step, candidate)
+
+    recent_steps = recent_daily_run_steps(step_name, limit: 2)
+    if recent_steps.size >= 2 && recent_steps.all? { |step| step.status == "success" } && recent_steps.first && latest_success_after_candidate?(recent_steps.first, candidate)
+      return {
+        recovered: true,
+        reason: "recent_two_steps_success",
+        step_name:,
+        recent_success_step_ids: recent_steps.map(&:id)
+      }
+    end
+
+    {
+      recovered: false,
+      reason: "recent_step_success_not_found",
+      step_name:,
+      recent_step_statuses: recent_steps.map { |step| "#{step.id}:#{step.status}" }
+    }
   end
 
   def cleanup_duplicate_action_candidates(apply:)
@@ -131,23 +210,17 @@ namespace :aicoo do
     text = [
       candidate.title,
       candidate.description,
+      candidate.metadata.to_h["step_name"],
+      candidate.metadata.to_h.dig("daily_run", "step_name"),
+      candidate.metadata.to_h.dig("daily_run_incident", "step_name"),
+      candidate.metadata.to_h.dig("incident", "step_name"),
+      candidate.metadata.to_h["last_step"],
       candidate.metadata.to_h["concrete_task"],
-      candidate.metadata.to_h.dig("action_plan", "summary")
+      candidate.metadata.to_h.dig("action_plan", "summary"),
+      candidate.metadata.to_h.dig("action_plan", "target"),
+      candidate.metadata.to_h["root_cause"]
     ].compact.join(" ")
     text.match?(/Daily Run|insight_generation|business_metrics_import|stuck|orphaned|partial_failed|継続停止|継続一部失敗/i)
-  end
-
-  def daily_run_incident_recovered?(candidate)
-    step_name = daily_run_incident_step_name(candidate)
-    return false if step_name.blank?
-
-    recent_runs = AicooDailyRun
-      .actual_runs
-      .joins(:aicoo_daily_run_steps)
-      .where(aicoo_daily_run_steps: { step_name: })
-      .order(Arel.sql("COALESCE(aicoo_daily_runs.started_at, aicoo_daily_runs.created_at) DESC"), Arel.sql("aicoo_daily_runs.id DESC"))
-      .limit(2)
-    recent_runs.size >= 2 && recent_runs.all?(&:succeeded?)
   end
 
   def daily_run_incident_step_name(candidate)
@@ -156,9 +229,58 @@ namespace :aicoo do
       candidate.description,
       candidate.metadata.to_h["step_name"],
       candidate.metadata.to_h.dig("daily_run", "step_name"),
+      candidate.metadata.to_h.dig("daily_run_incident", "step_name"),
+      candidate.metadata.to_h.dig("incident", "step_name"),
+      candidate.metadata.to_h["last_step"],
       candidate.metadata.to_h["concrete_task"],
-      candidate.metadata.to_h.dig("action_plan", "summary")
+      candidate.metadata.to_h.dig("action_plan", "summary"),
+      candidate.metadata.to_h.dig("action_plan", "target"),
+      candidate.metadata.to_h["root_cause"]
     ].compact.join(" ")
     AicooDailyRunStep::PRIMARY_STEP_NAMES.find { |step| text.include?(step) }
+  end
+
+  def latest_successful_daily_run_step(step_name)
+    AicooDailyRunStep
+      .successful
+      .joins(:aicoo_daily_run)
+      .merge(AicooDailyRun.actual_runs)
+      .where(step_name:)
+      .order(Arel.sql("COALESCE(aicoo_daily_run_steps.finished_at, aicoo_daily_run_steps.updated_at, aicoo_daily_run_steps.created_at) DESC"), id: :desc)
+      .first
+  end
+
+  def recent_daily_run_steps(step_name, limit:)
+    AicooDailyRunStep
+      .joins(:aicoo_daily_run)
+      .merge(AicooDailyRun.actual_runs)
+      .where(step_name:)
+      .order(Arel.sql("COALESCE(aicoo_daily_run_steps.finished_at, aicoo_daily_run_steps.updated_at, aicoo_daily_run_steps.created_at) DESC"), id: :desc)
+      .limit(limit)
+      .to_a
+  end
+
+  def latest_success_after_candidate?(step, candidate)
+    success_at = step.finished_at || step.updated_at || step.created_at
+    incident_at = daily_run_incident_time(candidate)
+    return true if incident_at.blank?
+
+    success_at.present? && success_at >= incident_at
+  end
+
+  def daily_run_incident_time(candidate)
+    metadata = candidate.metadata.to_h.deep_stringify_keys
+    [
+      metadata["incident_started_at"],
+      metadata["failed_at"],
+      metadata["stuck_at"],
+      metadata.dig("daily_run", "started_at"),
+      metadata.dig("daily_run_incident", "started_at"),
+      candidate.created_at
+    ].compact_blank.filter_map do |value|
+      value.is_a?(Time) || value.is_a?(ActiveSupport::TimeWithZone) ? value : Time.zone.parse(value.to_s)
+    rescue ArgumentError, TypeError
+      nil
+    end.min
   end
 end
