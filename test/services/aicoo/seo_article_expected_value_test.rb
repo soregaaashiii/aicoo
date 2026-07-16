@@ -51,10 +51,10 @@ module Aicoo
       assert_equal false, result.metadata.dig("seo_article_value_model", "cap_applied")
     end
 
-    test "marks insufficient data instead of substituting a cap value" do
+    test "uses existing assumptions instead of returning zero when cv and profit are missing" do
       candidate = ActionCandidate.new(
         business: businesses(:suelog),
-        title: "入力不足の記事候補",
+        title: "仮定値を使う記事候補",
         action_type: "seo_article",
         success_probability: 0.5,
         metadata: {
@@ -66,11 +66,29 @@ module Aicoo
 
       result = SeoArticleExpectedValue.call(candidate)
 
+      assert result.final_expected_value_yen.positive?
+      assert_equal "estimated", result.metadata["calculation_status"]
+      assert_equal true, result.metadata["review_required"]
+      assert_equal true, result.metadata["assumption_used"]
+      assert_includes result.metadata["assumed_fields"], "conversion_rate"
+      assert_includes result.metadata["assumed_fields"], "profit_per_conversion_yen"
+      assert_empty result.metadata.dig("seo_article_value_model", "missing_inputs")
+    end
+
+    test "marks insufficient data only when incremental clicks cannot be estimated" do
+      candidate = ActionCandidate.new(
+        business: businesses(:suelog),
+        title: "本当に入力不足の記事候補",
+        action_type: "seo_article",
+        metadata: {}
+      )
+
+      result = SeoArticleExpectedValue.call(candidate)
+
       assert_equal 0, result.final_expected_value_yen
       assert_equal "insufficient_data", result.metadata["calculation_status"]
       assert_equal true, result.metadata["review_required"]
-      assert_includes result.metadata.dig("seo_article_value_model", "missing_inputs"), "conversion_rate"
-      assert_includes result.metadata.dig("seo_article_value_model", "missing_inputs"), "profit_per_conversion_yen"
+      assert_includes result.metadata.dig("seo_article_value_model", "missing_inputs"), "estimated_incremental_clicks"
     end
 
     test "meta evaluator does not add judge learning or business total value to seo article" do

@@ -9,7 +9,10 @@ namespace :aicoo do
     unchanged = 0
     previously_capped = 0
     cap_removed = 0
+    actual = 0
+    estimated = 0
     insufficient_data = 0
+    assumption_used = 0
     failed = 0
     before_total_yen = 0
     after_total_yen = 0
@@ -27,7 +30,12 @@ namespace :aicoo do
       after_total_yen += after_value
       capped_before = AicooSeoArticleExpectedValueRake.previously_capped?(candidate)
       previously_capped += 1 if capped_before
-      insufficient_data += 1 if result.metadata["calculation_status"].to_s == "insufficient_data"
+      case result.metadata["calculation_status"].to_s
+      when "actual" then actual += 1
+      when "estimated" then estimated += 1
+      when "insufficient_data" then insufficient_data += 1
+      end
+      assumption_used += 1 if result.metadata["assumption_used"] == true
 
       if AicooSeoArticleExpectedValueRake.current?(candidate, result)
         unchanged += 1
@@ -78,7 +86,10 @@ namespace :aicoo do
     puts "unchanged=#{unchanged}"
     puts "previously_capped=#{previously_capped}"
     puts "cap_removed=#{cap_removed}"
+    puts "actual=#{actual}"
+    puts "estimated=#{estimated}"
     puts "insufficient_data=#{insufficient_data}"
+    puts "assumption_used=#{assumption_used}"
     puts "failed=#{failed}"
     puts "before_total_yen=#{before_total_yen}"
     puts "after_total_yen=#{after_total_yen}"

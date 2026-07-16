@@ -2,6 +2,9 @@ module Aicoo
   class SeoArticleExpectedValue
     ARTICLE_ACTION_TYPES = %w[seo_article new_article_candidate article_create].freeze
     CALCULATION_VERSION = "seo_article_incremental_uncapped_v1".freeze
+    DEFAULT_CONVERSION_RATE = 0.01.to_d
+    DEFAULT_PROFIT_PER_CONVERSION_YEN = 500.to_d
+    DEFAULT_SUCCESS_PROBABILITY = 0.35.to_d
 
     Result = Data.define(:raw_expected_value_yen, :final_expected_value_yen, :metadata)
 
@@ -52,6 +55,10 @@ module Aicoo
         "calculation_status" => calculation_status,
         "review_required" => review_required?,
         "input_source" => input_source,
+        "input_sources" => input_source,
+        "assumption_used" => assumption_used?,
+        "assumed_fields" => assumed_fields,
+        "assumption_reasons" => assumption_reasons,
         "seo_article_value_model" => {
           "calculation_version" => CALCULATION_VERSION,
           "formula" => "incremental_clicks * conversion_rate * profit_per_conversion * success_probability",
@@ -73,6 +80,10 @@ module Aicoo
           "cap_reason" => nil,
           "excluded_value_sources" => %w[learning judge business_expected_value],
           "input_source" => input_source,
+          "input_sources" => input_source,
+          "assumption_used" => assumption_used?,
+          "assumed_fields" => assumed_fields,
+          "assumption_reasons" => assumption_reasons,
           "missing_inputs" => missing_inputs,
           "calculation_status" => calculation_status,
           "review_required" => review_required?,
@@ -193,7 +204,8 @@ module Aicoo
         metadata["conversion_rate"],
         metadata["cv_rate"],
         metadata.dig("value_model", "conversion_rate"),
-        metadata.dig("seo_article_value_model", "conversion_rate")
+        metadata.dig("seo_article_value_model", "conversion_rate"),
+        fallback: DEFAULT_CONVERSION_RATE
       )
     end
 
@@ -209,7 +221,7 @@ module Aicoo
           metadata.dig("seo_article_value_model", "profit_per_conversion"),
           fallback: nil
         )
-        explicit || revenue_event_average_amount
+        explicit || revenue_event_average_amount || DEFAULT_PROFIT_PER_CONVERSION_YEN
       end
     end
 
@@ -221,7 +233,7 @@ module Aicoo
           metadata.dig("seo_article_value_model", "success_probability")
         )
         candidate_probability = candidate.success_probability.to_d
-        explicit.presence || (candidate_probability.positive? ? candidate_probability : nil)
+        explicit.presence || (candidate_probability.positive? ? candidate_probability : DEFAULT_SUCCESS_PROBABILITY)
       end
     end
 
@@ -243,11 +255,13 @@ module Aicoo
     end
 
     def calculation_status
-      calculation_ready? ? "calculated" : "insufficient_data"
+      return "insufficient_data" unless calculation_ready?
+
+      assumption_used? ? "estimated" : "actual"
     end
 
     def review_required?
-      !calculation_ready?
+      !calculation_ready? || assumption_used?
     end
 
     def missing_inputs
@@ -272,6 +286,34 @@ module Aicoo
       }
     end
 
+    def assumption_used?
+      assumed_fields.any?
+    end
+
+    def assumed_fields
+      @assumed_fields ||= input_source.select { |_field, source| source.to_s.start_with?("assumption.") }.keys
+    end
+
+    def assumption_reasons
+      @assumption_reasons ||= assumed_fields.to_h do |field|
+        [
+          field,
+          case field
+          when "current_ctr", "target_ctr"
+            "CTR実測値がないため、既存の順位別CTR曲線を使用"
+          when "conversion_rate"
+            "CV率実測値がないため、既存のSEO記事既定CV率を使用"
+          when "profit_per_conversion_yen"
+            "RevenueEventまたは利益単価がないため、既存のSEO記事既定利益単価を使用"
+          when "success_probability"
+            "成功確率が未設定のため、既存のSEO記事既定成功確率を使用"
+          else
+            "実測値がないため、既存の仮定値を使用"
+          end
+        ]
+      end
+    end
+
     def input_source_for(input)
       case input
       when :impressions
@@ -284,25 +326,29 @@ module Aicoo
         return "metadata.current_ctr" if metadata["current_ctr"].present?
         return "metadata.ctr" if metadata["ctr"].present?
         return "metadata.gsc.ctr" if metadata.dig("gsc", "ctr").present?
-        return "position_curve" if current_position.present?
+        return "assumption.position_curve" if current_position.present?
       when :target_ctr
         return "metadata.target_ctr" if metadata["target_ctr"].present?
         return "metadata.estimated_target_ctr" if metadata["estimated_target_ctr"].present?
-        return "position_curve" if target_position.present?
+        return "assumption.position_curve" if target_position.present?
       when :conversion_rate
         return "metadata.conversion_rate" if metadata["conversion_rate"].present?
         return "metadata.cv_rate" if metadata["cv_rate"].present?
         return "metadata.value_model.conversion_rate" if metadata.dig("value_model", "conversion_rate").present?
+        return "assumption.default_conversion_rate"
       when :profit_per_conversion
         return "metadata.profit_per_conversion_yen" if metadata["profit_per_conversion_yen"].present?
         return "metadata.profit_per_conversion" if metadata["profit_per_conversion"].present?
         return "metadata.profit_per_cv" if metadata["profit_per_cv"].present?
         return "metadata.value_per_conversion" if metadata["value_per_conversion"].present?
         return "metadata.value_model.profit_per_conversion" if metadata.dig("value_model", "profit_per_conversion").present?
+        return "revenue_events.average_amount" if revenue_event_average_amount.present?
+        return "assumption.default_profit_per_conversion_yen"
       when :success_probability
         return "metadata.success_probability" if metadata["success_probability"].present?
         return "metadata.value_model.success_probability" if metadata.dig("value_model", "success_probability").present?
         return "action_candidate.success_probability" if candidate.success_probability.to_d.positive?
+        return "assumption.default_success_probability"
       end
 
       "missing"

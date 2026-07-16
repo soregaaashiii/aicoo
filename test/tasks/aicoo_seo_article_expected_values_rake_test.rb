@@ -48,6 +48,9 @@ class AicooSeoArticleExpectedValuesRakeTest < ActiveSupport::TestCase
     assert_includes output, "recalculated=1"
     assert_includes output, "previously_capped=1"
     assert_includes output, "cap_removed=1"
+    assert_includes output, "actual=1"
+    assert_includes output, "estimated=0"
+    assert_includes output, "assumption_used=0"
     assert_equal 2_000, candidate.reload.final_expected_value_yen
     assert_equal 2_000, candidate.expected_total_value_yen
     assert_nil candidate.metadata["seo_expected_value_cap"]
