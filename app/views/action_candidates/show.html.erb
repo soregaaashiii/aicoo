@@ -36,8 +36,10 @@
 <% target_text = @evidence_presenter&.target_label.presence || metadata["target"].presence || expansion["target"].presence || "対象は下の「対象」で確認してください。" %>
 <% concrete_task_text = metadata["concrete_task"].presence || metadata.dig("decision", "selected", "concrete_task").presence %>
 <% next_action_text = action_plan["owner_output"].presence || action_plan["summary"].presence || concrete_task_text || display_action_title %>
-<% target_url = metadata["target_url"].presence %>
-<% planned_url = metadata["planned_url"].presence || metadata["recommended_url"].presence || metadata["recommended_slug"].presence || metadata["recommended_url_slug"].presence %>
+<% proposed_new = metadata["url_classification"].to_s == "proposed_new" || metadata["target_url_type"].to_s == "proposed_new" || @action_candidate.action_type.in?(%w[new_article_candidate article_create seo_article]) %>
+<% target_url = proposed_new ? nil : metadata["target_url"].presence %>
+<% raw_planned_url = metadata["planned_url"].presence || metadata["proposed_url"].presence || metadata["recommended_url"].presence || metadata["recommended_slug"].presence || metadata["recommended_url_slug"].presence %>
+<% planned_url = raw_planned_url.to_s.start_with?("/") ? raw_planned_url : (raw_planned_url.present? ? "/articles/#{raw_planned_url}" : nil) %>
 <% reference_urls = (Array(metadata["reference_urls"]) + Array(metadata["external_reference_urls"]) + Array(metadata["competitor_urls"]) + Array(metadata["source_urls"]) + Array(metadata["serp_urls"])).compact_blank.uniq %>
 <% article_metadata = metadata["article_candidate"].to_h %>
 <% article_action = @action_candidate.execution_mode == "content_creation" || @action_candidate.action_type.in?(%w[new_article_candidate article_create article_update seo_article]) || article_metadata.present? %>
@@ -117,7 +119,7 @@ end %>
   <div class="table-wrap">
     <table>
       <tbody>
-        <tr><td><strong>対象URL</strong></td><td class="wide-text"><%= target_url.presence || "未特定" %></td></tr>
+        <tr><td><strong>対象URL</strong></td><td class="wide-text"><%= proposed_new ? "未作成" : (target_url.presence || "未特定") %></td></tr>
         <tr><td><strong>作成予定URL</strong></td><td class="wide-text"><%= planned_url.presence || "未作成" %></td></tr>
         <tr>
           <td><strong>参考URL</strong></td>

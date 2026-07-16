@@ -27,6 +27,9 @@
           <td>
             <strong><%= item.concrete_task %></strong><br>
             <small>対象: <%= item.target %></small><br>
+            <% if item.respond_to?(:planned_url) && item.planned_url.present? %>
+              <small>予定URL: <%= item.planned_url %></small><br>
+            <% end %>
             <small>次: <%= item.owner_next_step %></small>
             <% if item.reason.present? %>
               <br><small>理由: <%= item.reason %></small>

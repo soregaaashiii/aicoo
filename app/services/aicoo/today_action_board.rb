@@ -92,6 +92,7 @@ module Aicoo
       :approval_required,
       :codex_target,
       :owner_next_step,
+      :planned_url,
       :detail_url,
       :reason,
       :stopped_reason,
@@ -197,10 +198,11 @@ module Aicoo
       expected_hours = positive_decimal(candidate.expected_hours)
       success_probability = candidate.success_probability.to_d
       raw_concrete_task = concrete_task_for(candidate, presenter, action_plan)
-      raw_target = target_for(presenter, action_plan)
+      raw_target = target_for(candidate, presenter, action_plan)
+      planned_url = planned_url_for(candidate)
       raw_owner_next_step = owner_next_step_for(presenter, action_plan, approval_task)
       concrete_task = raw_concrete_task.presence || candidate.title.presence || "施策内容を確認する"
-      target = raw_target.presence || detected_target_url_for(candidate).presence || "対象未特定"
+      target = new_content_action?(candidate) ? "未作成" : (raw_target.presence || detected_target_url_for(candidate).presence || "対象未特定")
       owner_next_step = raw_owner_next_step.presence || "詳細を確認する"
       quality_warnings = today_quality_warnings_for(
         candidate,
@@ -249,6 +251,7 @@ module Aicoo
         approval_required: approval_task.present?,
         codex_target: execution_mode == "code_revision",
         owner_next_step:,
+        planned_url:,
         detail_url: action_workspace_path(candidate),
         reason: presenter.reason,
         stopped_reason: today_warning_text(stopped_reason_for(approval_task), quality_warnings),
@@ -274,6 +277,7 @@ module Aicoo
 
         runs.group_by { |run| daily_run_dedupe_key(run) }
             .values
+            .reject { |grouped_runs| daily_run_issue_recovered?(grouped_runs) }
             .map { |grouped_runs| build_daily_run_issue_item(grouped_runs) }
       end
     end
@@ -317,6 +321,7 @@ module Aicoo
         approval_required: false,
         codex_target: false,
         owner_next_step: "#{step_name}を修復する",
+        planned_url: nil,
         detail_url: aicoo_daily_run_path(latest, anchor: "step-breakdown"),
         reason: "#{reason} / 損失回避額 #{valuation.avoided_loss_yen.to_fs(:delimited)}円 / 復旧成功率 #{(valuation.recovery_success_probability * 100).round}% / 修正コスト #{valuation.repair_cost_yen.to_fs(:delimited)}円",
         stopped_reason: "影響日数 #{valuation.impact_days}日 / 影響Business #{valuation.impacted_business_count}件 / 同一障害 #{count}件 / 算定方法 #{valuation.calculation_method} / 信頼度 #{valuation.estimate_confidence} / 最新Run ##{latest.id} / 最古Run ##{oldest.id}",
@@ -391,6 +396,7 @@ module Aicoo
         approval_required: false,
         codex_target: false,
         owner_next_step: business.metadata.to_h["owner_next_step"].presence || business.metadata.to_h["next_action"].presence || "代表案を確認し、残りを統合またはアーカイブする",
+        planned_url: nil,
         detail_url: owner_new_business_pipeline_path(selected: "business:#{business.id}"),
         reason: business.metadata.to_h["reason"].presence || "探索中の新規事業です。算定方法: #{business_value.calculation_method}",
         stopped_reason: business.launched? ? nil : "検証前状態です",
@@ -468,7 +474,9 @@ module Aicoo
       text
     end
 
-    def target_for(presenter, action_plan)
+    def target_for(candidate, presenter, action_plan)
+      return "未作成" if new_content_action?(candidate)
+
       target = action_plan["target"].presence ||
         action_plan["target_url_or_identifier"].presence ||
         presenter.action_plan["target"].presence ||
@@ -479,6 +487,25 @@ module Aicoo
       return nil if UNSPECIFIED_VALUES.include?(target.to_s.downcase) || target.to_s.include?("未特定")
 
       target
+    end
+
+    def planned_url_for(candidate)
+      metadata = candidate.metadata.to_h
+      metadata["planned_url"].presence ||
+        metadata["proposed_url"].presence ||
+        metadata["recommended_url"].presence ||
+        metadata.dig("article_candidate", "recommended_url").presence
+    end
+
+    def new_content_action?(candidate)
+      return false unless candidate
+
+      metadata = candidate.metadata.to_h
+      candidate.action_type.to_s.in?(%w[new_article_candidate article_create seo_article]) ||
+        metadata["url_classification"].to_s == "proposed_new" ||
+        metadata["target_url_type"].to_s == "proposed_new" ||
+        metadata["planned_url"].present? ||
+        metadata["work_type"].to_s.in?(%w[new_article new_lp new_category article_create])
     end
 
     def owner_next_step_for(presenter, action_plan, approval_task)
@@ -751,19 +778,21 @@ module Aicoo
       impacted_business_count = active_impacted_business_count
       missing_inputs = []
 
-      daily_improvement_value_yen = recent_daily_candidate_value_yen
+      step_name = daily_run_last_step(latest)&.step_name.to_s
+
+      daily_improvement_value_yen = step_adjusted_daily_improvement_value_yen(step_name)
       unless daily_improvement_value_yen.positive?
         missing_inputs << "recent_action_candidate_value"
         daily_improvement_value_yen = impacted_business_count * DAILY_RUN_STANDARD_LOSS_PER_BUSINESS_YEN
       end
 
-      daily_new_business_value_yen = recent_daily_new_business_value_yen
+      daily_new_business_value_yen = step_adjusted_daily_new_business_value_yen(step_name)
       unless daily_new_business_value_yen.positive?
         missing_inputs << "recent_new_business_value"
         daily_new_business_value_yen = impacted_business_count * DAILY_RUN_STANDARD_NEW_BUSINESS_LOSS_PER_BUSINESS_YEN
       end
 
-      daily_learning_loss_yen = recent_daily_learning_value_yen
+      daily_learning_loss_yen = step_adjusted_daily_learning_value_yen(step_name)
       unless daily_learning_loss_yen.positive?
         missing_inputs << "recent_learning_value"
         daily_learning_loss_yen = impacted_business_count * DAILY_RUN_STANDARD_LEARNING_LOSS_PER_BUSINESS_YEN
@@ -884,6 +913,40 @@ module Aicoo
       (scope.sum(:expected_learning_value_yen).to_d / recent_day_denominator(scope.minimum(:created_at))).round
     end
 
+    def step_adjusted_daily_improvement_value_yen(step_name)
+      base = recent_daily_candidate_value_yen.to_d
+      case step_name
+      when "business_metrics_import"
+        [ (base * 0.1).round, active_impacted_business_count * 1_000 ].min
+      when "insight_generation"
+        [ (base * 0.15).round, active_impacted_business_count * 1_500 ].min
+      else
+        [ (base * 0.2).round, active_impacted_business_count * 2_000 ].min
+      end
+    end
+
+    def step_adjusted_daily_new_business_value_yen(step_name)
+      base = recent_daily_new_business_value_yen.to_d
+      case step_name
+      when "insight_generation"
+        [ (base * 0.25).round, active_impacted_business_count * 1_000 ].min
+      when "business_metrics_import"
+        0
+      else
+        [ (base * 0.1).round, active_impacted_business_count * 500 ].min
+      end
+    end
+
+    def step_adjusted_daily_learning_value_yen(step_name)
+      base = recent_daily_learning_value_yen.to_d
+      case step_name
+      when "business_metrics_import", "insight_generation"
+        [ (base * 0.15).round, active_impacted_business_count * 500 ].min
+      else
+        [ (base * 0.2).round, active_impacted_business_count * 750 ].min
+      end
+    end
+
     def recent_day_denominator(oldest_created_at)
       return 30 if oldest_created_at.blank?
 
@@ -909,6 +972,28 @@ module Aicoo
         step&.step_name.presence || "unknown_step",
         normalized_reason(daily_run_reason(run, step))
       ].join(":")
+    end
+
+    def daily_run_issue_recovered?(runs)
+      latest = runs.max_by { |run| [ run.started_at || run.created_at, run.id ] }
+      step_name = daily_run_last_step(latest)&.step_name
+      return false if step_name.blank?
+
+      latest_step_run = AicooDailyRun
+        .actual_runs
+        .joins(:aicoo_daily_run_steps)
+        .where(aicoo_daily_run_steps: { step_name: })
+        .order(Arel.sql("COALESCE(aicoo_daily_runs.started_at, aicoo_daily_runs.created_at) DESC"), Arel.sql("aicoo_daily_runs.id DESC"))
+        .first
+      return true if latest_step_run&.succeeded?
+
+      recent_step_runs = AicooDailyRun
+        .actual_runs
+        .joins(:aicoo_daily_run_steps)
+        .where(aicoo_daily_run_steps: { step_name: })
+        .order(Arel.sql("COALESCE(aicoo_daily_runs.started_at, aicoo_daily_runs.created_at) DESC"), Arel.sql("aicoo_daily_runs.id DESC"))
+        .limit(2)
+      recent_step_runs.size >= 2 && recent_step_runs.all?(&:succeeded?)
     end
 
     def daily_run_last_step(run)

@@ -47,9 +47,7 @@ module Aicoo
             planned_url_for(metadata),
             target_keyword_for(metadata),
             work_content_for(candidate, metadata),
-            execution_mode_for(metadata),
-            candidate.department.presence || metadata["department"],
-            candidate.generation_source.presence || metadata["generation_source"]
+            execution_mode_for(metadata)
           ].map { |value| normalize(value) }.join("::")
         )
       end
@@ -166,8 +164,6 @@ module Aicoo
         .where(business:)
         .active_for_ranking
         .where(action_type: attributes[:action_type])
-        .where(generation_source: attributes[:generation_source])
-      scope = scope.where(department: attributes[:department]) if attributes[:department].present?
       scope.find_each
         .find { |candidate| self.class.dedupe_key_for(candidate) == attributes[:metadata]["dedupe_key"] }
     end
@@ -181,6 +177,10 @@ module Aicoo
         "dedupe_update_source" => attributes[:generation_source].presence || incoming["created_by"],
         "dedupe_merged_count" => metadata["dedupe_merged_count"].to_i + 1
       )
+      merged_metadata["evidence_sources"] = (Array(metadata["evidence_sources"]) | Array(incoming["evidence_sources"]) | [ attributes[:generation_source], incoming["generation_source"] ]).compact_blank
+      merged_metadata["source_candidate_ids"] = (Array(metadata["source_candidate_ids"]).map(&:to_i) | [ candidate.id ]).compact
+      merged_metadata["source_expected_values"] = Array(metadata["source_expected_values"]) + [ attributes[:expected_profit_yen] || attributes[:immediate_value_yen] ].compact
+      merged_metadata["grouped_opportunity_count"] = [ metadata["grouped_opportunity_count"].to_i, 1 ].max + 1
 
       candidate.update!(
         immediate_value_yen: attributes[:immediate_value_yen] || candidate.immediate_value_yen,

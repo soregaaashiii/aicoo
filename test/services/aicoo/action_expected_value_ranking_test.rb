@@ -101,6 +101,98 @@ module Aicoo
       assert_equal [ "action_candidate:valid" ], result.items.map(&:stable_id)
     end
 
+    test "excludes rejected and repair cleaned action candidates from ranking" do
+      rejected = action_candidate(
+        title: "却下済み候補",
+        metadata: { "target_url_type" => "own_existing", "target_url" => "/" }
+      )
+      rejected.update!(status: "rejected")
+      repaired = action_candidate(
+        title: "修復済み外部候補",
+        metadata: {
+          "target_url_type" => "own_existing",
+          "target_url" => nil,
+          "repair_reason" => "external_reference",
+          "rejection_reason" => "external_reference_target"
+        }
+      )
+      valid = action_candidate(
+        title: "表示する候補",
+        metadata: { "target_url_type" => "own_existing", "target_url" => "/" }
+      )
+
+      result = ActionExpectedValueRanking.new(
+        items: [
+          item(stable_id: "action_candidate:rejected", delta: 30_000, confidence: 1, record: rejected),
+          item(stable_id: "action_candidate:repaired", delta: 20_000, confidence: 1, record: repaired),
+          item(stable_id: "action_candidate:valid", delta: 10_000, confidence: 1, record: valid)
+        ],
+        mode: "revenue"
+      ).call
+
+      assert_equal [ "action_candidate:valid" ], result.items.map(&:stable_id)
+    end
+
+    test "does not exclude missing target candidate unless it is classified invalid or external" do
+      missing_target = action_candidate(
+        title: "対象未特定だが未実行の施策",
+        metadata: { "target_url" => nil }
+      )
+
+      result = ActionExpectedValueRanking.new(
+        items: [
+          item(stable_id: "action_candidate:missing_target", delta: 10_000, confidence: 1, record: missing_target)
+        ],
+        mode: "revenue"
+      ).call
+
+      assert_equal [ "action_candidate:missing_target" ], result.items.map(&:stable_id)
+    end
+
+    test "deduplicates same article action by query and planned url" do
+      first = action_candidate(
+        title: "「吸えログ 比較」向けの記事を1本作成する",
+        metadata: {
+          "query" => "吸えログ 比較",
+          "planned_url" => "/articles/suelog-vs-tabelog",
+          "work_type" => "new_article",
+          "url_classification" => "proposed_new"
+        }
+      )
+      first.update!(action_type: "new_article_candidate")
+      second = action_candidate(
+        title: "吸えログ 比較の記事を作成する",
+        metadata: {
+          "target_query" => "吸えログ 比較",
+          "proposed_url" => "/articles/suelog-vs-tabelog",
+          "work_type" => "new_article",
+          "url_classification" => "proposed_new"
+        }
+      )
+      second.update!(action_type: "article_create")
+      different = action_candidate(
+        title: "「吸えログ 比較」の内部リンクを追加する",
+        metadata: {
+          "query" => "吸えログ 比較",
+          "planned_url" => "/articles/suelog-vs-tabelog",
+          "work_type" => "internal_link",
+          "url_classification" => "proposed_new"
+        }
+      )
+      different.update!(action_type: "seo_improvement")
+
+      result = ActionExpectedValueRanking.new(
+        items: [
+          item(stable_id: "action_candidate:first", delta: 10_000, confidence: 0.8, record: first),
+          item(stable_id: "action_candidate:second", delta: 20_000, confidence: 0.7, record: second),
+          item(stable_id: "action_candidate:different", delta: 5_000, confidence: 0.9, record: different)
+        ],
+        mode: "revenue"
+      ).call
+
+      assert_equal [ "action_candidate:second", "action_candidate:different" ], result.items.map(&:stable_id)
+    end
+
     private
 
     def item(stable_id:, delta:, confidence:, valuation_status: nil, no_action: 0, action: nil, cost: 0, record: nil)

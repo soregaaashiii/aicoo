@@ -214,6 +214,44 @@ module Owner
       assert_includes response.body, "同一障害 7件"
     end
 
+    test "does not show recovered daily run incident after recent successful steps" do
+      stuck = AicooDailyRun.create!(
+        target_date: Date.new(2026, 7, 10),
+        status: "stuck",
+        source: "cron",
+        started_at: 3.hours.ago,
+        error_message: "insight_generation timeout"
+      )
+      stuck.aicoo_daily_run_steps.create!(
+        step_name: "insight_generation",
+        status: "failed",
+        started_at: stuck.started_at,
+        finished_at: stuck.started_at + 5.minutes,
+        error_message: "insight_generation timeout"
+      )
+      2.times do |index|
+        run = AicooDailyRun.create!(
+          target_date: Date.new(2026, 7, 11) + index.days,
+          status: "success",
+          source: "cron",
+          started_at: (2 - index).hours.ago,
+          finished_at: (2 - index).hours.ago + 10.minutes
+        )
+        run.aicoo_daily_run_steps.create!(
+          step_name: "insight_generation",
+          status: "success",
+          started_at: run.started_at,
+          finished_at: run.finished_at
+        )
+      end
+
+      get owner_focus_url
+
+      assert_response :success
+      assert_not_includes response.body, "Daily Runが insight_generation で継続停止"
+      assert_not_includes response.body, "insight_generation 継続停止"
+    end
+
     test "daily run avoided loss grows with impact days" do
       board = Aicoo::TodayActionBoard.new
       one_day_runs = [ create_stuck_daily_run!(target_date: Date.new(2026, 7, 10)) ]

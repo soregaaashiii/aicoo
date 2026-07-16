@@ -156,6 +156,30 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "完了 / 実行結果を記録"
   end
 
+  test "show separates proposed article url from target url" do
+    @action_candidate.update!(
+      action_type: "new_article_candidate",
+      title: "「吸えログ 比較」向けの記事を1本作成する",
+      metadata: @action_candidate.metadata.to_h.merge(
+        "url_classification" => "proposed_new",
+        "target_url" => "https://it-trend.jp/log_management/article/84-0008",
+        "planned_url" => "/articles/suelog-vs-tabelog",
+        "reference_urls" => [ "https://it-trend.jp/log_management/article/84-0008" ],
+        "target_keyword" => "吸えログ 比較"
+      )
+    )
+
+    get action_candidate_url(@action_candidate)
+
+    assert_response :success
+    assert_includes response.body, "対象URL"
+    assert_includes response.body, "未作成"
+    assert_includes response.body, "作成予定URL"
+    assert_includes response.body, "/articles/suelog-vs-tabelog"
+    assert_includes response.body, "参考URL"
+    assert_includes response.body, "https://it-trend.jp/log_management/article/84-0008"
+  end
+
   test "action workspace keeps today context and avoids business breadcrumb" do
     @action_candidate.update!(status: "idea")
 
