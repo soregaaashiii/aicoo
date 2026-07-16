@@ -81,6 +81,43 @@ class AicooAutoRevisionDailyRunQueuerTest < ActiveSupport::TestCase
     assert_equal "below_minimum_final_score", result.queue_run.metadata.fetch("skipped_reasons").first.fetch("reason")
   end
 
+  test "does not queue candidate without execution readiness even when auto revision is enabled" do
+    AicooAutoRevisionSetting.current.update!(enabled: true)
+    daily_run = create_daily_run
+    candidate = create_candidate(
+      title: "滞在時間が短いページを改善する",
+      execution_prompt: "滞在時間が短いページを改善してください。"
+    )
+    candidate.update_columns(
+      action_type: "seo_improvement",
+      execution_prompt: "滞在時間が短いページを改善してください。",
+      metadata: {
+        "codex_eligible" => true,
+        "auto_revision" => true,
+        "concrete_task" => "滞在時間が短いページを改善する"
+      },
+      updated_at: Time.current
+    )
+
+    result = AicooAutoRevisionDailyRunQueuer.new.call(daily_run:)
+
+    assert_equal 0, result.queue_run.generated_tasks_count
+    assert_equal 0, AutoRevisionTask.count
+    assert_equal "all_candidates_skipped", result.queue_run.metadata.fetch("reason")
+    assert_match(/execution_readiness:/, result.queue_run.metadata.fetch("skipped_reasons").first.fetch("reason"))
+  end
+
+  test "queues ready candidate when auto revision is enabled" do
+    AicooAutoRevisionSetting.current.update!(enabled: true)
+    daily_run = create_daily_run
+    create_candidate(title: "梅田 喫煙 カフェのtitleを改善する", execution_prompt: "SEOタイトルを改善してください。")
+
+    result = AicooAutoRevisionDailyRunQueuer.new.call(daily_run:)
+
+    assert_equal 1, result.queue_run.generated_tasks_count
+    assert_equal 1, AutoRevisionTask.count
+  end
+
   test "reports high risk candidates and keeps them as manual proposals" do
     AicooAutoRevisionSetting.current.update!(enabled: true)
     daily_run = create_daily_run
@@ -141,8 +178,22 @@ class AicooAutoRevisionDailyRunQueuerTest < ActiveSupport::TestCase
       immediate_value_yen: 20_000,
       success_probability: 1,
       expected_hours: 1,
-      execution_prompt:
+      execution_prompt:,
+      metadata: ready_codex_metadata
     )
+  end
+
+  def ready_codex_metadata
+    {
+      "target_url" => "/",
+      "target_query" => "梅田 喫煙 カフェ",
+      "concrete_task" => "SEOタイトルとmeta descriptionを改善する",
+      "target_files" => [ "app/views/articles/show.html.erb" ],
+      "completion_criteria" => [ "SEOタイトルが変更されていること" ],
+      "before" => "旧タイトル",
+      "after" => "新タイトル",
+      "auto_revision" => true
+    }
   end
 
   def create_ready_codex_task

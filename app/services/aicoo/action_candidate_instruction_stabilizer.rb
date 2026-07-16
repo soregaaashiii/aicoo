@@ -32,6 +32,9 @@ module Aicoo
         "page_change_type" => brief.page_change_type,
         "expected_effects" => brief.expected_effects,
         "article_plan" => brief.article_plan,
+        "file_changes" => brief.file_changes,
+        "completion_criteria" => brief.completion_criteria,
+        "before_after_items" => brief.before_after_items,
         "quality" => quality_for(brief)
       }
     end

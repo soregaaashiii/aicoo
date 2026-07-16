@@ -56,6 +56,7 @@ class ActionCandidate < ApplicationRecord
   before_validation :sanitize_owned_target_urls
   before_save :apply_execution_feasibility_correction
   before_save :calculate_scores
+  before_save :apply_execution_readiness
   before_save :sanitize_owned_target_urls
   after_commit :sync_serp_query_counters, on: %i[create update]
   after_commit :auto_publish_new_business_candidate, on: %i[create update]
@@ -383,6 +384,29 @@ class ActionCandidate < ApplicationRecord
     return if decision.reason.blank? || evaluation_reason.to_s.include?(decision.reason)
 
     self.evaluation_reason = [ evaluation_reason, decision.reason ].compact_blank.join("\n")
+  end
+
+  def apply_execution_readiness
+    result = Aicoo::ActionCandidateExecutionReadiness.call(self)
+    self.metadata = metadata.to_h.merge(result.metadata)
+    return if result.ready?
+    return if department.to_s == "new_business" || action_type.to_s.in?(%w[new_business build_lp build_mvp lp_experiment market_test])
+    return unless unsafe_codex_execution_candidate?
+
+    self.action_type = "data_preparation" if code_revision_execution_mode? && status.to_s.in?(%w[idea proposal planning pending approved executor_queued in_progress])
+  end
+
+  def unsafe_codex_execution_candidate?
+    current_metadata = metadata.to_h
+    execution_prompt.present? ||
+      current_metadata["codex_eligible"] == true ||
+      current_metadata["codex_eligible"].to_s == "true" ||
+      current_metadata["auto_revision"] == true ||
+      current_metadata["auto_revision"].to_s == "true" ||
+      current_metadata["auto_merge"] == true ||
+      current_metadata["auto_merge"].to_s == "true" ||
+      current_metadata["auto_deploy"] == true ||
+      current_metadata["auto_deploy"].to_s == "true"
   end
 
   def practicality_multiplier(score)

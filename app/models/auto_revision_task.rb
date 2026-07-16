@@ -85,10 +85,27 @@ class AutoRevisionTask < ApplicationRecord
   end
 
   def approve!
+    unless Aicoo::ActionCandidateExecutionReadiness.call(action_candidate).ready?
+      update!(
+        status: "waiting_approval",
+        metadata: metadata.to_h.merge(
+          "approval_required_reason" => "対象や実行条件が未確定のためCodex準備へ進めません。",
+          "execution_readiness" => Aicoo::ActionCandidateExecutionReadiness.call(action_candidate).metadata
+        )
+      )
+      return false
+    end
+
     update!(status: high_risk? ? "approved" : "ready_for_codex", approved_at: approved_at || Time.current)
   end
 
   def enqueue_for_codex!(operator: "owner")
+    readiness = Aicoo::ActionCandidateExecutionReadiness.call(action_candidate)
+    unless readiness.ready?
+      errors.add(:base, "execution_readiness=#{readiness.readiness}: 対象や実行条件が未確定のためCodexへ送れません。")
+      raise ActiveRecord::RecordInvalid, self
+    end
+
     if high_risk?
       errors.add(:base, "high riskの改修は自動実行キューへ追加できません。Codex用プロンプト確認までにしてください。")
       raise ActiveRecord::RecordInvalid, self
@@ -109,6 +126,12 @@ class AutoRevisionTask < ApplicationRecord
   end
 
   def mark_sent_to_codex!
+    readiness = Aicoo::ActionCandidateExecutionReadiness.call(action_candidate)
+    unless readiness.ready?
+      errors.add(:base, "execution_readiness=#{readiness.readiness}: 対象や実行条件が未確定のためCodexへ送れません。")
+      raise ActiveRecord::RecordInvalid, self
+    end
+
     validation = codex_prompt_target_validation
     if validation.invalid?
       errors.add(:base, validation.errors.to_sentence)

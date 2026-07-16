@@ -78,6 +78,7 @@ class AicooAutoRevisionQueueBuilderService
     return "below_minimum_final_score" if candidate.final_score.to_d < minimum_final_score
     return "active_auto_revision_task_exists" if candidate.auto_revision_tasks.any? { |task| AutoRevisionTask::ACTIVE_STATUSES.include?(task.status) }
     return "non_code_revision:#{candidate.execution_mode}" unless candidate.code_revision_execution_mode?
+    return "execution_readiness:#{execution_readiness(candidate).readiness}" unless execution_readiness(candidate).ready?
     return "ranking_guard:#{ranking_guard_reason}" if (ranking_guard_reason = Aicoo::ActionCandidateRankingGuard.rejection_reason(candidate)).present?
     return "target_unresolved_for_codex" if target_unresolved_for_codex?(candidate)
     return "blocked_by_prerequisite" if prerequisite_blocked?(candidate)
@@ -85,6 +86,11 @@ class AicooAutoRevisionQueueBuilderService
     return "execution_instruction_missing_completion_criteria" if candidate.metadata.to_h.dig("execution_instruction", "quality", "has_completion_criteria") == false
 
     nil
+  end
+
+  def execution_readiness(candidate)
+    @execution_readiness ||= {}
+    @execution_readiness[candidate.id] ||= Aicoo::ActionCandidateExecutionReadiness.call(candidate)
   end
 
   def target_unresolved_for_codex?(candidate)

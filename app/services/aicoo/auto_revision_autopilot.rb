@@ -28,6 +28,8 @@ module Aicoo
       return skipped("new_business_candidate") if action_candidate.department == "new_business"
       return skipped("inactive_candidate") if action_candidate.status.in?(ActionCandidate::INACTIVE_STATUSES)
       return skipped("missing_execution_prompt") if action_candidate.execution_prompt.blank?
+      readiness = Aicoo::ActionCandidateExecutionReadiness.call(action_candidate)
+      return skipped("execution_readiness:#{readiness.readiness}") unless readiness.ready?
 
       route = Aicoo::BusinessAutoRevisionRouter.new(action_candidate, generated_by:).call
       Result.new(

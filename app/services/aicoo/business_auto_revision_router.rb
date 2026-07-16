@@ -10,8 +10,11 @@ module Aicoo
 
     def call
       return log_non_code_revision unless action_candidate.code_revision_execution_mode?
+      readiness = Aicoo::ActionCandidateExecutionReadiness.call(action_candidate)
+      return log_not_ready(readiness) unless readiness.ready?
 
       task = AutoRevisionTask.from_action_candidate(action_candidate, generated_by:)
+      return log_not_ready(readiness) unless task
       risk_level = task.risk_level
 
       case business.auto_revision_mode
@@ -43,6 +46,22 @@ module Aicoo
         }
       )
       Result.new(task: nil, log:, action: "non_code_revision")
+    end
+
+    def log_not_ready(readiness)
+      log = create_log!(
+        task: nil,
+        risk_level: "low",
+        status: "pending",
+        message: "execution_readiness=#{readiness.readiness}: 対象や実行条件が未確定のためCodexへ送りません。",
+        action: "execution_not_ready",
+        metadata: {
+          "execution_readiness" => readiness.readiness,
+          "missing_items" => readiness.missing_items,
+          "warnings" => readiness.warnings
+        }
+      )
+      Result.new(task: nil, log:, action: "execution_not_ready")
     end
 
     def log_manual(task, risk_level)
