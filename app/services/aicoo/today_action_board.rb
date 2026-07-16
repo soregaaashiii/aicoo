@@ -91,6 +91,7 @@ module Aicoo
       :data_sources_label,
       :approval_required,
       :codex_target,
+      :auto_execution,
       :owner_next_step,
       :planned_url,
       :detail_url,
@@ -185,6 +186,8 @@ module Aicoo
       presenter = ActionCandidateEvidencePresenter.new(candidate)
       action_plan = presenter.action_plan
       execution_mode = presenter.execution_mode.to_s
+      readiness = action_execution_readiness(candidate)
+      readiness_applicable = execution_readiness_display_applicable?(candidate, execution_mode)
       approval_task = approval_required_task(candidate)
 
       exclusion_reason = today_exclusion_reason(candidate, execution_mode, approval_task)
@@ -203,7 +206,7 @@ module Aicoo
       raw_owner_next_step = owner_next_step_for(presenter, action_plan, approval_task)
       concrete_task = raw_concrete_task.presence || candidate.title.presence || "施策内容を確認する"
       target = new_content_action?(candidate) ? "未作成" : (raw_target.presence || detected_target_url_for(candidate).presence || "対象未特定")
-      owner_next_step = raw_owner_next_step.presence || "詳細を確認する"
+      owner_next_step = (readiness_next_action(candidate, readiness).presence if readiness_applicable) || raw_owner_next_step.presence || "詳細を確認する"
       quality_warnings = today_quality_warnings_for(
         candidate,
         execution_mode,
@@ -245,16 +248,17 @@ module Aicoo
         expected_hours: expected_hours.to_f,
         expected_hourly_value_yen: expected_hours.positive? ? (expected_value_yen.to_d / expected_hours).round.to_i : 0,
         success_probability:,
-        execution_mode:,
-        execution_mode_label: presenter.execution_mode_label,
+        execution_mode: readiness_applicable && !readiness.ready? ? readiness.readiness : execution_mode,
+        execution_mode_label: readiness_applicable ? readiness_execution_mode_label(candidate, readiness, presenter) : presenter.execution_mode_label,
         data_sources_label: presenter.source_label,
         approval_required: approval_task.present?,
-        codex_target: execution_mode == "code_revision",
+        codex_target: readiness_applicable && readiness.ready? && candidate.metadata.to_h["codex_eligible"] == true,
+        auto_execution: readiness_applicable && readiness.ready? && candidate.metadata.to_h["auto_revision"] == true && candidate.business&.automatic_auto_revision?,
         owner_next_step:,
         planned_url:,
         detail_url: action_workspace_path(candidate),
         reason: presenter.reason,
-        stopped_reason: today_warning_text(stopped_reason_for(approval_task), quality_warnings),
+        stopped_reason: today_warning_text((readiness_stop_reason(readiness).presence if readiness_applicable) || stopped_reason_for(approval_task), quality_warnings),
         group_count: 1,
         group_summary: nil,
         revenue_score: revenue_score.round(2),
@@ -316,6 +320,7 @@ module Aicoo
         data_sources_label: "Daily Run",
         approval_required: false,
         codex_target: false,
+        auto_execution: false,
         owner_next_step: "#{step_name}を修復する",
         planned_url: nil,
         detail_url: aicoo_daily_run_path(latest, anchor: "step-breakdown"),
@@ -391,6 +396,7 @@ module Aicoo
         data_sources_label: "SERP / 新規事業",
         approval_required: false,
         codex_target: false,
+        auto_execution: false,
         owner_next_step: business.metadata.to_h["owner_next_step"].presence || business.metadata.to_h["next_action"].presence || "代表案を確認し、残りを統合またはアーカイブする",
         planned_url: nil,
         detail_url: owner_new_business_pipeline_path(selected: "business:#{business.id}"),
@@ -438,6 +444,94 @@ module Aicoo
       warnings << warning_label_for_invalid_target_path(candidate) if invalid_target_path_reason(candidate).present?
       warnings << "期待値要確認" if unrealistic_expected_profit?(candidate)
       warnings.compact.uniq
+    end
+
+    def action_execution_readiness(candidate)
+      Aicoo::ActionCandidateExecutionReadiness.call(candidate)
+    end
+
+    def execution_readiness_display_applicable?(candidate, execution_mode)
+      metadata = candidate.metadata.to_h
+      candidate.action_type.to_s == "data_preparation" ||
+        execution_mode.to_s == "code_revision" ||
+        metadata["codex_eligible"] == true ||
+        metadata["codex_eligible"].to_s == "true" ||
+        metadata["auto_revision"] == true ||
+        metadata["auto_revision"].to_s == "true" ||
+        metadata["auto_merge"] == true ||
+        metadata["auto_merge"].to_s == "true" ||
+        metadata["auto_deploy"] == true ||
+        metadata["auto_deploy"].to_s == "true"
+    end
+
+    def readiness_execution_mode_label(candidate, readiness, presenter)
+      return presenter.execution_mode_label if readiness.ready?
+      return "データ準備" if candidate.action_type.to_s == "data_preparation"
+
+      case readiness.readiness
+      when "needs_target"
+        "対象特定"
+      when "needs_query"
+        "Query特定"
+      when "needs_metric"
+        "計測対象特定"
+      when "needs_owner"
+        "Owner確認"
+      else
+        "実行不可"
+      end
+    end
+
+    def readiness_stop_reason(readiness)
+      case readiness.readiness
+      when "ready"
+        nil
+      when "needs_target"
+        "対象ページ未特定"
+      when "needs_query"
+        "対象Query未特定"
+      when "needs_metric"
+        "対象Metric未特定"
+      when "needs_owner"
+        "OwnerまたはBusiness未特定"
+      else
+        missing = Array(readiness.missing_items)
+        return "完了条件未設定" if missing.include?("completion_criteria")
+        return "変更対象ファイル未特定" if missing.include?("file_changes")
+        return "before/after未設定" if missing.include?("before_after")
+
+        "実行条件未確定"
+      end
+    end
+
+    def readiness_next_action(candidate, readiness)
+      return nil if readiness.ready?
+
+      title = candidate.title.to_s
+      case readiness.readiness
+      when "needs_target"
+        return "GSCから表示100以上・順位11〜20位のQueryを特定する" if title.match?(/競合が強いキーワード|キーワードを改善/)
+        return "clicksが10以上でphone/map/affiliate_clicksが0のページを5件特定する" if title.match?(/電話|地図|アフィリエイト|affiliate|map|phone/)
+        return "CVイベントが0のページとCTAを特定する" if title.match?(/CV導線|CV/)
+        return "GA4から離脱率上位ページと現在のCTAを特定する" if title.match?(/離脱|CTA/)
+        return "対象Businessの公開LPとCTA要素を特定する" if title.match?(/CTAの計測|計測設定/)
+        return "公開URL、GA4 property、GSC propertyを確認する" if title.match?(/Google計測|GA4|GSC/)
+
+        "対象ページまたは対象レコードを特定する"
+      when "needs_query"
+        "対象QueryをGSCから特定する"
+      when "needs_metric"
+        "対象Metricと計測対象ページを特定する"
+      when "needs_owner"
+        "対象BusinessとOwner判断者を確認する"
+      else
+        missing = Array(readiness.missing_items)
+        return "完了条件を定義する" if missing.include?("completion_criteria")
+        return "変更対象ファイルを特定する" if missing.include?("file_changes")
+        return "変更前と変更後の内容を整理する" if missing.include?("before_after")
+
+        "実行条件を整理する"
+      end
     end
 
     def warning_label_for_invalid_target_path(candidate)

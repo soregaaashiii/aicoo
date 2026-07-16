@@ -708,6 +708,110 @@ module Owner
       assert_operator ids.index("action_candidate:#{higher_probability.id}"), :<, ids.index("action_candidate:#{lower_probability.id}")
     end
 
+    test "non ready codex candidate is displayed as preparation and not auto execution" do
+      candidate = create_today_candidate!(
+        title: "吸えログの競合が強いキーワードを改善する",
+        action_type: "seo_improvement",
+        execution_prompt: "競合が強いキーワードを改善してください。",
+        metadata: {
+          "execution_mode" => "code_revision",
+          "codex_eligible" => true,
+          "auto_revision" => true,
+          "concrete_task" => "吸えログの競合が強いキーワードを改善する"
+        }
+      )
+      candidate.update_columns(
+        action_type: "seo_improvement",
+        execution_prompt: "競合が強いキーワードを改善してください。",
+        metadata: candidate.metadata.merge(
+          "execution_mode" => "code_revision",
+          "codex_eligible" => true,
+          "auto_revision" => true,
+          "concrete_task" => "吸えログの競合が強いキーワードを改善する"
+        ),
+        updated_at: Time.current
+      )
+
+      item = Aicoo::TodayActionBoard.new.call.items.find { |row| row.record == candidate }
+
+      assert_equal "対象特定", item.execution_mode_label
+      assert_equal false, item.codex_target
+      assert_equal false, item.auto_execution
+      assert_equal "GSCから表示100以上・順位11〜20位のQueryを特定する", item.owner_next_step
+      assert_includes item.stopped_reason, "対象ページ未特定"
+    end
+
+    test "needs metric candidate is displayed as measurement target preparation" do
+      candidate = create_today_candidate!(
+        title: "電話・地図・アフィリエイト導線を5ページに追加する",
+        action_type: "seo_improvement",
+        execution_prompt: "電話・地図・アフィリエイト導線を5ページに追加してください。",
+        metadata: {
+          "execution_mode" => "code_revision",
+          "codex_eligible" => true,
+          "auto_revision" => true,
+          "target_url" => "/",
+          "concrete_task" => "電話・地図・アフィリエイト導線を5ページに追加する",
+          "target_files" => [ "app/views/articles/show.html.erb" ],
+          "completion_criteria" => [ "導線が追加されていること" ],
+          "before" => "導線なし",
+          "after" => "導線あり"
+        }
+      )
+      candidate.update_columns(
+        action_type: "seo_improvement",
+        execution_prompt: "電話・地図・アフィリエイト導線を5ページに追加してください。",
+        metadata: candidate.metadata.merge(
+          "execution_mode" => "code_revision",
+          "codex_eligible" => true,
+          "auto_revision" => true,
+          "target_url" => "/",
+          "concrete_task" => "電話・地図・アフィリエイト導線を5ページに追加する",
+          "target_files" => [ "app/views/articles/show.html.erb" ],
+          "completion_criteria" => [ "導線が追加されていること" ],
+          "before" => "導線なし",
+          "after" => "導線あり"
+        ),
+        updated_at: Time.current
+      )
+
+      item = Aicoo::TodayActionBoard.new.call.items.find { |row| row.record == candidate }
+
+      assert_equal "計測対象特定", item.execution_mode_label
+      assert_equal false, item.codex_target
+      assert_equal false, item.auto_execution
+      assert_equal "clicksが10以上でphone/map/affiliate_clicksが0のページを5件特定する", item.owner_next_step
+      assert_includes item.stopped_reason, "対象Metric未特定"
+    end
+
+    test "ready candidate only shows auto execution when business is automatic" do
+      business = businesses(:suelog)
+      business.update!(auto_revision_mode: "automatic")
+      candidate = create_today_candidate!(
+        title: "梅田 喫煙 カフェのtitleを改善する",
+        action_type: "seo_improvement",
+        execution_prompt: "SEOタイトルを旧タイトルから新タイトルへ変更してください。",
+        metadata: {
+          "execution_mode" => "code_revision",
+          "target_url" => "/",
+          "target_query" => "梅田 喫煙 カフェ",
+          "concrete_task" => "SEOタイトルとmeta descriptionを改善する",
+          "target_files" => [ "app/views/articles/show.html.erb" ],
+          "completion_criteria" => [ "SEOタイトルが変更されていること" ],
+          "before" => "旧タイトル",
+          "after" => "新タイトル",
+          "codex_eligible" => true,
+          "auto_revision" => true
+        }
+      )
+
+      item = Aicoo::TodayActionBoard.new.call.items.find { |row| row.record == candidate }
+
+      assert_equal "Codex改修", item.execution_mode_label
+      assert_equal true, item.codex_target
+      assert_equal true, item.auto_execution
+    end
+
     private
 
     def create_stuck_daily_run!(target_date:)

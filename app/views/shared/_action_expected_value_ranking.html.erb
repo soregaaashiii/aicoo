@@ -12,10 +12,11 @@
         <th>想定時間</th>
         <th>期待時給</th>
         <th>成功率</th>
-        <th>実行方法</th>
+        <th>作業種別</th>
         <th>利用データ</th>
-        <th>承認が必要か</th>
-        <th>Codex対象か</th>
+        <th>Owner判断</th>
+        <th>Codex実行</th>
+        <th>自動実行</th>
         <th>詳細を見る</th>
       </tr>
     </thead>
@@ -59,6 +60,7 @@
           <td><%= item.data_sources_label %></td>
           <td><%= item.approval_required ? "必要" : "不要" %></td>
           <td><%= item.codex_target ? "はい" : "いいえ" %></td>
+          <td><%= item.respond_to?(:auto_execution) && item.auto_execution ? "はい" : "いいえ" %></td>
           <td><%= link_to "詳細を見る", item.detail_url, class: "button secondary" %></td>
         </tr>
       <% end %>
