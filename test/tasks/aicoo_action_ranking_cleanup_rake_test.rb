@@ -86,6 +86,34 @@ class AicooActionRankingCleanupRakeTest < ActiveSupport::TestCase
     ENV.delete("APPLY")
   end
 
+  test "cleanup task skips already rejected irrelevant evidence cleanup" do
+    candidate = create_candidate!(
+      title: "修復済みITトレンド候補",
+      status: "rejected",
+      metadata: {
+        "repair_reason" => "irrelevant_external_evidence",
+        "ranking_cleanup_status" => "rejected",
+        "ranking_cleanup_at" => 1.hour.ago.iso8601,
+        "target_url_repair" => {
+          "after_status" => "rejected"
+        },
+        "reference_urls" => [ "https://it-trend.jp/log_management/article/84-0008" ],
+        "article_plan" => { "title" => "ログ管理システム比較" }
+      }
+    )
+
+    output, = capture_io do
+      Rake::Task["aicoo:cleanup_action_expected_value_ranking"].invoke
+    end
+
+    assert_includes output, "rejected_irrelevant=0"
+    assert_includes output, "skipped_already_rejected_irrelevant=1"
+    assert_match(/candidate_ids=\s*$/, output)
+    assert_equal "rejected", candidate.reload.status
+  ensure
+    ENV.delete("APPLY")
+  end
+
   test "cleanup task rejects irrelevant it trend evidence even without target url" do
     candidate = create_candidate!(
       title: "「吸えログ 比較」 / https://it-trend.jp/log_management/article/84-0008」向けの記事を1本作成する",

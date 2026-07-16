@@ -261,6 +261,11 @@ namespace :aicoo do
   def already_rejected_irrelevant?(candidate)
     metadata = candidate.metadata.to_h.deep_stringify_keys
     return true if metadata["ranking_cleanup_status"].to_s == "rejected_irrelevant" && candidate.status.to_s == "rejected_irrelevant"
+    return true if candidate.status.to_s == "rejected" &&
+      metadata["repair_reason"].to_s == "irrelevant_external_evidence" &&
+      metadata["ranking_cleanup_status"].to_s == "rejected" &&
+      metadata.dig("target_url_repair", "after_status").to_s == "rejected" &&
+      metadata["ranking_cleanup_at"].present?
     return false unless candidate.status.to_s == "rejected"
     return false unless metadata["url_classification"].to_s.in?(%w[external_reference invalid]) ||
       metadata["target_url_type"].to_s.in?(%w[external_reference invalid])
