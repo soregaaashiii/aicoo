@@ -43,6 +43,8 @@ namespace :aicoo do
 
     duplicate_stats = cleanup_duplicate_action_candidates(apply:)
     stats.merge!(duplicate_stats) { |_key, left, right| left.to_i + right.to_i }
+    dynamic_daily_run_stats = diagnose_dynamic_daily_run_incidents
+    stats.merge!(dynamic_daily_run_stats) { |_key, left, right| left.to_i + right.to_i }
 
     puts "mode=#{apply ? 'apply' : 'dry_run'}"
     puts "checked=#{stats[:checked]}"
@@ -53,6 +55,11 @@ namespace :aicoo do
     puts "daily_run_latest_success_found=#{stats[:daily_run_latest_success_found]}"
     puts "daily_run_still_failing=#{stats[:daily_run_still_failing]}"
     puts "skipped_already_resolved_daily_run=#{stats[:skipped_already_resolved_daily_run]}"
+    puts "dynamic_daily_run_incidents_checked=#{stats[:dynamic_daily_run_incidents_checked]}"
+    puts "dynamic_daily_run_resolved=#{stats[:dynamic_daily_run_resolved]}"
+    puts "dynamic_daily_run_unresolved=#{stats[:dynamic_daily_run_unresolved]}"
+    puts "dynamic_daily_run_resolved_keys=#{Array(stats[:dynamic_daily_run_resolved_keys]).join(',')}"
+    puts "dynamic_daily_run_unresolved_keys=#{Array(stats[:dynamic_daily_run_unresolved_keys]).join(',')}"
     puts "rejected_duplicate=#{stats[:rejected_duplicate]}"
     puts "duplicates_checked=#{stats[:duplicates_checked]}"
     puts "duplicate_groups=#{stats[:duplicate_groups]}"
@@ -93,6 +100,22 @@ namespace :aicoo do
     end
 
     nil
+  end
+
+  def diagnose_dynamic_daily_run_incidents
+    stats = Hash.new(0)
+    Aicoo::DailyRunIncidentResolver.call(window: 7.days.ago..Time.current, limit: 100).each do |incident|
+      stats[:dynamic_daily_run_incidents_checked] += 1
+      if incident.recovered
+        stats[:dynamic_daily_run_resolved] += 1
+        stats[:dynamic_daily_run_resolved_keys] = stats_array(stats, :dynamic_daily_run_resolved_keys) + [ incident.key ]
+      else
+        stats[:dynamic_daily_run_unresolved] += 1
+        stats[:dynamic_daily_run_unresolved_keys] = stats_array(stats, :dynamic_daily_run_unresolved_keys) + [ incident.key ]
+      end
+      puts "dynamic_daily_run_incident key=#{incident.key.inspect} step_name=#{incident.step_name} latest_failure_run_id=#{incident.latest_run&.id} latest_success_run_id=#{incident.latest_success_step&.aicoo_daily_run_id} recovered=#{incident.recovered} exclusion_reason=#{incident.exclusion_reason}"
+    end
+    stats
   end
 
   def already_rejected_irrelevant?(candidate)

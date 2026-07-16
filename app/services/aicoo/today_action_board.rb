@@ -266,36 +266,32 @@ module Aicoo
 
     def daily_run_issue_items
       Aicoo::MemoryDiagnostics.measure("Aicoo::TodayActionBoard#daily_run_issue_items", context: memory_context) do
-        runs = AicooDailyRun
-          .actual_runs
-          .where(created_at: 7.days.ago..Time.current)
-          .where(status: %w[failed partial_failed stuck])
-          .includes(:aicoo_daily_run_steps)
-          .recent
-          .limit(100)
-          .to_a
+        Aicoo::DailyRunIncidentResolver
+          .call(window: 7.days.ago..Time.current, limit: 100)
+          .filter_map do |incident|
+            included = !incident.recovered
+            Aicoo::DailyRunIncidentResolver.log_ranking_decision!(incident, included:)
+            next unless included
 
-        runs.group_by { |run| daily_run_dedupe_key(run) }
-            .values
-            .reject { |grouped_runs| daily_run_issue_recovered?(grouped_runs) }
-            .map { |grouped_runs| build_daily_run_issue_item(grouped_runs) }
+            build_daily_run_issue_item(incident)
+          end
       end
     end
 
-    def build_daily_run_issue_item(runs)
-      sorted = runs.sort_by { |run| [ run.started_at || run.created_at, run.id ] }
-      latest = sorted.last
-      oldest = sorted.first
-      step = daily_run_last_step(latest)
-      step_name = step&.step_name.presence || "unknown_step"
-      reason = daily_run_reason(latest, step)
-      count = runs.size
+    def build_daily_run_issue_item(incident)
+      sorted = incident.runs
+      latest = incident.latest_run
+      oldest = incident.oldest_run
+      step = incident.latest_failure_step
+      step_name = incident.step_name.presence || "unknown_step"
+      reason = incident.root_cause
+      count = sorted.size
       valuation = daily_run_issue_valuation(sorted, latest:)
       status_label = latest.status == "partial_failed" ? "一部失敗" : "停止"
       persist_daily_run_valuation!(step, valuation)
 
       Item.new(
-        stable_id: "daily_run_issue:#{daily_run_dedupe_key(latest)}",
+        stable_id: "daily_run_issue:#{incident.key}",
         rank: nil,
         source_type: "daily_run_issue",
         record: latest,
