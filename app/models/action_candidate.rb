@@ -220,12 +220,13 @@ class ActionCandidate < ApplicationRecord
       adjusted_expected_profit_yen:,
       adjusted_success_probability:
     )
+    apply_seo_article_expected_value if seo_article_expected_value_candidate?
     self.expected_hourly_value_yen = calculate_expected_hourly_value
     self.roi = calculate_roi
     self.final_score = calculate_final_score
     self.expected_revenue_value_yen = calculate_expected_revenue_value
     self.expected_learning_value_yen = LearningValueCalculator.new(self).value_yen
-    self.expected_total_value_yen = expected_revenue_value_yen.to_i + expected_learning_value_yen.to_i
+    self.expected_total_value_yen = seo_article_expected_value_candidate? ? expected_revenue_value_yen.to_i : expected_revenue_value_yen.to_i + expected_learning_value_yen.to_i
     if business.blank?
       self.final_expected_value_yen = expected_total_value_yen.to_i
       self.final_confidence_score = confidence_score.to_i
@@ -265,6 +266,8 @@ class ActionCandidate < ApplicationRecord
   end
 
   def calculate_expected_revenue_value
+    return expected_profit_yen.to_i if seo_article_expected_value_candidate?
+
     [
       expected_profit_yen.to_i,
       neglect_loss_90d_yen.to_i,
@@ -302,10 +305,37 @@ class ActionCandidate < ApplicationRecord
   end
 
   def apply_meta_evaluation
+    if seo_article_expected_value_candidate?
+      self.final_expected_value_yen = expected_revenue_value_yen.to_i
+      self.final_confidence_score = confidence_score.to_i
+      self.metadata = metadata.to_h.merge(
+        "evaluator_breakdown" => [
+          {
+            "name" => "seo_article_incremental_click_model",
+            "expected_value_yen" => expected_revenue_value_yen.to_i,
+            "confidence_score" => confidence_score.to_i,
+            "excluded_value_sources" => %w[learning judge business_expected_value]
+          }
+        ]
+      )
+      return
+    end
+
     result = AicooMetaEvaluator::MetaEvaluator.new(self).call
     self.final_expected_value_yen = result.final_expected_value_yen
     self.final_confidence_score = result.final_confidence_score
     self.metadata = metadata.to_h.merge("evaluator_breakdown" => result.evaluator_breakdown)
+  end
+
+  def seo_article_expected_value_candidate?
+    Aicoo::SeoArticleExpectedValue.applies_to?(self)
+  end
+
+  def apply_seo_article_expected_value
+    result = Aicoo::SeoArticleExpectedValue.call(self)
+    self.immediate_value_yen = result.final_expected_value_yen
+    self.expected_profit_yen = result.final_expected_value_yen
+    self.metadata = result.metadata
   end
 
   def apply_evidence

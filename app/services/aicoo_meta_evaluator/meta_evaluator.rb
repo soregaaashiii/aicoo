@@ -15,6 +15,8 @@ module AicooMetaEvaluator
     end
 
     def call
+      return seo_article_result if Aicoo::SeoArticleExpectedValue.applies_to?(action_candidate)
+
       results = evaluator_results
       confidence_sum = results.sum { |result| result.confidence_score.to_d / 100 }
       final_expected_value =
@@ -34,6 +36,22 @@ module AicooMetaEvaluator
     private
 
     attr_reader :action_candidate
+
+    def seo_article_result
+      value = Aicoo::SeoArticleExpectedValue.call(action_candidate).final_expected_value_yen
+      Result.new(
+        final_expected_value_yen: value,
+        final_confidence_score: action_candidate.confidence_score.to_i,
+        evaluator_breakdown: [
+          {
+            "name" => "seo_article_incremental_click_model",
+            "weighted_value" => value,
+            "confidence_score" => action_candidate.confidence_score.to_i,
+            "excluded_value_sources" => %w[learning judge business_expected_value]
+          }
+        ]
+      )
+    end
 
     def evaluator_results
       EVALUATORS.map { |evaluator| evaluator.new(action_candidate).call }

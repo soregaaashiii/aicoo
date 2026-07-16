@@ -800,6 +800,8 @@ module Aicoo
     end
 
     def action_candidate_valuation(candidate)
+      return seo_article_candidate_valuation(candidate) if Aicoo::SeoArticleExpectedValue.applies_to?(candidate)
+
       metadata = candidate.metadata.to_h
       gross_action_value_yen = first_present_integer(
         metadata["expected_value_if_action_yen"],
@@ -924,6 +926,7 @@ module Aicoo
     end
 
     def candidate_today_expected_value_yen(candidate)
+      return seo_article_expected_value_yen(candidate) if Aicoo::SeoArticleExpectedValue.applies_to?(candidate)
       return candidate.expected_profit_yen.to_i unless candidate.business
 
       result = business_expected_value_for(candidate.business)
@@ -931,6 +934,38 @@ module Aicoo
       return candidate.expected_profit_yen.to_i unless row
 
       [ (row.final_value_yen.to_d / row.candidate_ids.size).round, 0 ].max
+    end
+
+    def seo_article_candidate_valuation(candidate)
+      metadata = candidate.metadata.to_h
+      gross_action_value_yen = seo_article_expected_value_yen(candidate)
+      execution_cost_yen = first_present_integer(
+        metadata["execution_cost_yen"],
+        metadata.dig("action_value_model", "execution_cost_yen"),
+        metadata.dig("value_model", "execution_cost_yen")
+      )
+      execution_cost_yen = candidate.cost_yen.to_i if execution_cost_yen.nil?
+      delta_yen = gross_action_value_yen.to_i - execution_cost_yen.to_i
+
+      {
+        expected_value_if_no_action_yen: 0,
+        expected_value_if_action_yen: gross_action_value_yen.to_i,
+        execution_cost_yen: execution_cost_yen.to_i,
+        action_expected_value_delta_yen: delta_yen,
+        valuation_period_days: first_present_integer(metadata["valuation_period_days"], metadata.dig("action_value_model", "valuation_period_days")) || 90,
+        calculation_method: Aicoo::SeoArticleExpectedValue::CALCULATION_VERSION,
+        confidence: confidence_value_for(candidate),
+        valuation_status: valuation_status_for(delta_yen)
+      }
+    end
+
+    def seo_article_expected_value_yen(candidate)
+      metadata = candidate.metadata.to_h
+      first_present_integer(
+        metadata.dig("seo_article_value_model", "final_expected_value_yen"),
+        metadata["final_expected_value"],
+        candidate.expected_profit_yen
+      ).to_i
     end
 
     def business_expected_value_for(business)
