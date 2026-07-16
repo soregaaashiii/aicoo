@@ -1,10 +1,23 @@
 module Aicoo
   class SeoArticleExpectedValue
-    ARTICLE_ACTION_TYPES = %w[seo_article new_article_candidate article_create].freeze
+    ARTICLE_ACTION_TYPES = %w[seo_article new_article_candidate article_create article_creation article_update].freeze
     CALCULATION_VERSION = "seo_article_incremental_uncapped_v1".freeze
     DEFAULT_CONVERSION_RATE = 0.01.to_d
     DEFAULT_PROFIT_PER_CONVERSION_YEN = 500.to_d
     DEFAULT_SUCCESS_PROBABILITY = 0.35.to_d
+    QUERY_METADATA_PATHS = [
+      %w[source_query],
+      %w[query],
+      %w[keyword],
+      %w[search_query],
+      %w[article_query],
+      %w[opportunity_query],
+      %w[source_keyword],
+      %w[serp_query],
+      %w[article_plan query],
+      %w[evidence query]
+    ].freeze
+    TITLE_QUERY_PATTERN = /\A「(?<query>[^」]+)」向け(?:の)?新規記事候補を作成する\z/
 
     Result = Data.define(:raw_expected_value_yen, :final_expected_value_yen, :metadata)
 
@@ -39,7 +52,9 @@ module Aicoo
     attr_reader :candidate, :metadata
 
     def merged_metadata(raw_value:, final_value:)
-      metadata.except("cap_applied", "cap_reason", "seo_expected_value_cap_yen").merge(
+      metadata.except("cap_applied", "cap_reason", "seo_expected_value_cap", "seo_expected_value_cap_yen", "market_cap_yen").merge(
+        "source_query" => source_query.presence,
+        "query_recovered" => query_recovered?,
         "estimated_incremental_clicks" => estimated_incremental_clicks.to_f.round(2),
         "estimated_rank_delta" => estimated_rank_delta&.to_f&.round(2),
         "estimated_ctr_delta" => estimated_ctr_delta.to_f.round(4),
@@ -62,6 +77,8 @@ module Aicoo
         "seo_article_value_model" => {
           "calculation_version" => CALCULATION_VERSION,
           "formula" => "incremental_clicks * conversion_rate * profit_per_conversion * success_probability",
+          "source_query" => source_query.presence,
+          "query_recovered" => query_recovered?,
           "estimated_incremental_clicks" => estimated_incremental_clicks.to_f.round(2),
           "estimated_rank_delta" => estimated_rank_delta&.to_f&.round(2),
           "estimated_ctr_delta" => estimated_ctr_delta.to_f.round(4),
@@ -131,6 +148,8 @@ module Aicoo
         metadata.dig("gsc_metrics", "impressions"),
         metadata.dig("supporting_metrics", "impressions"),
         metadata.dig("opportunity", "supporting_metrics", "impressions"),
+        gsc_query_row&.dig("impressions"),
+        business_serp_keyword&.latest_impressions,
         metadata["expected_pv"],
         fallback: 0
       )
@@ -144,7 +163,9 @@ module Aicoo
           metadata.dig("gsc", "ctr"),
           metadata.dig("gsc_metrics", "ctr"),
           metadata.dig("supporting_metrics", "ctr"),
-          metadata.dig("opportunity", "supporting_metrics", "ctr")
+          metadata.dig("opportunity", "supporting_metrics", "ctr"),
+          gsc_query_row&.dig("ctr"),
+          business_serp_keyword&.latest_ctr
         )
         explicit || ctr_for_position(current_position) || 0.to_d
       end
@@ -173,6 +194,9 @@ module Aicoo
         metadata.dig("gsc_metrics", "position"),
         metadata.dig("gsc_metrics", "average_position"),
         metadata.dig("supporting_metrics", "position"),
+        gsc_query_row&.dig("position"),
+        gsc_query_row&.dig("average_position"),
+        business_serp_keyword&.latest_rank,
         fallback: nil
       )
     end
@@ -277,6 +301,7 @@ module Aicoo
 
     def input_source
       {
+        "source_query" => input_source_for(:source_query),
         "impressions" => input_source_for(:impressions),
         "current_ctr" => input_source_for(:current_ctr),
         "target_ctr" => input_source_for(:target_ctr),
@@ -316,16 +341,32 @@ module Aicoo
 
     def input_source_for(input)
       case input
+      when :source_query
+        return "metadata.source_query" if metadata["source_query"].present?
+        return "metadata.query" if metadata["query"].present?
+        return "metadata.keyword" if metadata["keyword"].present?
+        return "metadata.search_query" if metadata["search_query"].present?
+        return "metadata.article_query" if metadata["article_query"].present?
+        return "metadata.opportunity_query" if metadata["opportunity_query"].present?
+        return "metadata.source_keyword" if metadata["source_keyword"].present?
+        return "metadata.serp_query" if metadata["serp_query"].present?
+        return "metadata.article_plan.query" if metadata.dig("article_plan", "query").present?
+        return "metadata.evidence.query" if metadata.dig("evidence", "query").present?
+        return "title.quoted_new_article_candidate" if query_from_title.present?
       when :impressions
         return "metadata.impressions" if metadata["impressions"].present?
         return "metadata.gsc.impressions" if metadata.dig("gsc", "impressions").present?
         return "metadata.gsc_metrics.impressions" if metadata.dig("gsc_metrics", "impressions").present?
         return "metadata.supporting_metrics.impressions" if metadata.dig("supporting_metrics", "impressions").present?
+        return "gsc_snapshot.query_row.impressions" if gsc_query_row&.dig("impressions").present?
+        return "business_serp_keywords.latest_impressions" if business_serp_keyword&.latest_impressions.present?
         return "metadata.expected_pv" if metadata["expected_pv"].present?
       when :current_ctr
         return "metadata.current_ctr" if metadata["current_ctr"].present?
         return "metadata.ctr" if metadata["ctr"].present?
         return "metadata.gsc.ctr" if metadata.dig("gsc", "ctr").present?
+        return "gsc_snapshot.query_row.ctr" if gsc_query_row&.dig("ctr").present?
+        return "business_serp_keywords.latest_ctr" if business_serp_keyword&.latest_ctr.present?
         return "assumption.position_curve" if current_position.present?
       when :target_ctr
         return "metadata.target_ctr" if metadata["target_ctr"].present?
@@ -352,6 +393,67 @@ module Aicoo
       end
 
       "missing"
+    end
+
+    def source_query
+      @source_query ||= begin
+        query = query_from_metadata.presence || query_from_title.presence
+        query.to_s.squish.presence
+      end
+    end
+
+    def query_recovered?
+      metadata["source_query"].blank? && source_query.present?
+    end
+
+    def query_from_metadata
+      QUERY_METADATA_PATHS.lazy.filter_map { |path| metadata.dig(*path).presence }.first
+    end
+
+    def query_from_title
+      match = candidate.title.to_s.squish.match(TITLE_QUERY_PATTERN)
+      match[:query].to_s.squish if match
+    end
+
+    def normalized_source_query
+      @normalized_source_query ||= BusinessSerpKeyword.normalize(source_query) if source_query.present?
+    end
+
+    def business_serp_keyword
+      return @business_serp_keyword if defined?(@business_serp_keyword)
+
+      @business_serp_keyword = nil
+      return nil if candidate.business.blank? || normalized_source_query.blank?
+
+      @business_serp_keyword = candidate.business.business_serp_keywords.find_by(normalized_keyword: normalized_source_query)
+    end
+
+    def gsc_query_row
+      return @gsc_query_row if defined?(@gsc_query_row)
+
+      @gsc_query_row = nil
+      return nil if candidate.business_id.blank? || normalized_source_query.blank?
+
+      AicooDataSnapshot.where(source_type: "gsc").recent.limit(50).each do |snapshot|
+        payload = snapshot.payload.to_h.deep_stringify_keys
+        next if payload["business_id"].present? && payload["business_id"].to_i != candidate.business_id.to_i && snapshot.source_id.to_i != candidate.business_id.to_i
+
+        row = gsc_rows(payload).find do |candidate_row|
+          BusinessSerpKeyword.normalize(candidate_row.to_h.deep_stringify_keys["query"]) == normalized_source_query
+        end
+        next if row.blank?
+
+        @gsc_query_row = row.to_h.deep_stringify_keys
+        break
+      end
+
+      @gsc_query_row
+    end
+
+    def gsc_rows(payload)
+      rows = payload["rows"] || payload.dig("metrics", "rows")
+      rows = payload["metrics"] if rows.blank? && payload["metrics"].is_a?(Array)
+      Array(rows)
     end
 
     def ctr_for_position(position)

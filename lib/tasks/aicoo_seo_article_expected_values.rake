@@ -5,14 +5,17 @@ namespace :aicoo do
     scope = ActionCandidate.where(action_type: Aicoo::SeoArticleExpectedValue::ARTICLE_ACTION_TYPES)
 
     checked = 0
+    eligible = 0
     recalculated = 0
     unchanged = 0
     previously_capped = 0
     cap_removed = 0
+    query_recovered = 0
     actual = 0
     estimated = 0
     insufficient_data = 0
     assumption_used = 0
+    skipped_terminal_status = 0
     failed = 0
     before_total_yen = 0
     after_total_yen = 0
@@ -22,12 +25,21 @@ namespace :aicoo do
 
     scope.find_each do |candidate|
       checked += 1
+
+      if AicooSeoArticleExpectedValueRake.terminal_status?(candidate)
+        skipped_terminal_status += 1
+        next
+      end
+
+      eligible += 1
       before_value = candidate.final_expected_value_yen.to_i
       before_total_yen += before_value
 
       result = Aicoo::SeoArticleExpectedValue.call(candidate)
       after_value = result.final_expected_value_yen.to_i
       after_total_yen += after_value
+      query_was_recovered = candidate.metadata.to_h["source_query"].blank? && result.metadata["source_query"].present?
+      query_recovered += 1 if query_was_recovered
       capped_before = AicooSeoArticleExpectedValueRake.previously_capped?(candidate)
       previously_capped += 1 if capped_before
       case result.metadata["calculation_status"].to_s
@@ -45,7 +57,7 @@ namespace :aicoo do
       recalculated += 1
       cap_removed += 1 if capped_before
       candidate_ids << candidate.id
-      puts "candidate_id=#{candidate.id} before=#{before_value} after=#{after_value} raw=#{result.raw_expected_value_yen} status=#{result.metadata['calculation_status']} previously_capped=#{capped_before}"
+      puts AicooSeoArticleExpectedValueRake.candidate_line(candidate, result, before_value:, after_value:, capped_before:)
 
       next unless apply
 
@@ -82,6 +94,8 @@ namespace :aicoo do
     end
 
     puts "checked=#{checked}"
+    puts "eligible=#{eligible}"
+    puts "query_recovered=#{query_recovered}"
     puts "recalculated=#{recalculated}"
     puts "unchanged=#{unchanged}"
     puts "previously_capped=#{previously_capped}"
@@ -90,6 +104,7 @@ namespace :aicoo do
     puts "estimated=#{estimated}"
     puts "insufficient_data=#{insufficient_data}"
     puts "assumption_used=#{assumption_used}"
+    puts "skipped_terminal_status=#{skipped_terminal_status}"
     puts "failed=#{failed}"
     puts "before_total_yen=#{before_total_yen}"
     puts "after_total_yen=#{after_total_yen}"
@@ -99,9 +114,15 @@ namespace :aicoo do
 end
 
 module AicooSeoArticleExpectedValueRake
+  TERMINAL_STATUSES = %w[
+    archived rejected done canceled cancelled invalid resolved superseded rejected_duplicate rejected_irrelevant
+  ].freeze
+
   def self.current?(candidate, result)
     metadata = candidate.metadata.to_h
     metadata.dig("seo_article_value_model", "calculation_version").to_s == Aicoo::SeoArticleExpectedValue::CALCULATION_VERSION &&
+      metadata["source_query"].to_s == result.metadata["source_query"].to_s &&
+      metadata["calculation_status"].to_s == result.metadata["calculation_status"].to_s &&
       candidate.expected_profit_yen.to_i == result.final_expected_value_yen.to_i &&
       candidate.expected_revenue_value_yen.to_i == result.final_expected_value_yen.to_i &&
       candidate.expected_total_value_yen.to_i == result.final_expected_value_yen.to_i &&
@@ -116,5 +137,25 @@ module AicooSeoArticleExpectedValueRake
       metadata["cap_reason"].present? ||
       metadata.dig("seo_article_value_model", "cap_yen").present? ||
       metadata.dig("seo_article_value_model", "cap_applied").to_s == "true"
+  end
+
+  def self.terminal_status?(candidate)
+    candidate.status.to_s.in?(TERMINAL_STATUSES)
+  end
+
+  def self.candidate_line(candidate, result, before_value:, after_value:, capped_before:)
+    [
+      "candidate_id=#{candidate.id}",
+      "query=#{result.metadata['source_query'].presence || '-'}",
+      "before=#{before_value}",
+      "after=#{after_value}",
+      "estimated_incremental_clicks=#{result.metadata['estimated_incremental_clicks']}",
+      "conversion_rate=#{result.metadata['conversion_rate']}",
+      "profit_per_conversion_yen=#{result.metadata['profit_per_conversion_yen']}",
+      "success_probability=#{result.metadata['success_probability']}",
+      "assumed_fields=#{Array(result.metadata['assumed_fields']).join('|')}",
+      "calculation_status=#{result.metadata['calculation_status']}",
+      "previously_capped=#{capped_before}"
+    ].join(" ")
   end
 end
