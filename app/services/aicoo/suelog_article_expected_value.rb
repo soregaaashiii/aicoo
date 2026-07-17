@@ -1,3 +1,6 @@
+require "csv"
+require "json"
+
 module Aicoo
   class SuelogArticleExpectedValue
     CALCULATION_VERSION = "suelog_article_v1".freeze
@@ -29,6 +32,14 @@ module Aicoo
           "value_model" => value_model_metadata(value),
           "suelog_article_value_model" => value_model_metadata(value),
           "gsc_inputs" => gsc_metadata,
+          "source_query" => query.presence,
+          "query_source" => query_source,
+          "query_match_type" => gsc_query_match_type,
+          "matched_query" => matched_gsc_query,
+          "gsc_query_impressions" => impressions,
+          "gsc_query_clicks" => clicks,
+          "gsc_query_ctr" => current_ctr.to_f.round(4),
+          "gsc_query_position" => position&.to_f&.round(2),
           "ga4_inputs" => ga4_metadata,
           "shopclick_inputs" => shopclick_metadata,
           "business_metric_inputs" => business_metric_metadata,
@@ -77,7 +88,11 @@ module Aicoo
         "target_ctr" => target_ctr.to_f.round(4),
         "ctr_lift" => ctr_lift.to_f.round(4),
         "position" => position&.to_f&.round(2),
-        "landing_page" => gsc_inputs["landing_page"].presence
+        "landing_page" => resolved_gsc_inputs["landing_page"].presence,
+        "query_match_type" => gsc_query_match_type,
+        "matched_query" => matched_gsc_query,
+        "query_source" => query_source,
+        "fallback_reason" => gsc_fallback_reason
       }.compact
     end
 
@@ -147,16 +162,16 @@ module Aicoo
     end
 
     def impressions
-      @impressions ||= first_numeric(gsc_inputs["impressions"], article_inputs["impressions"]).to_i
+      @impressions ||= first_numeric(resolved_gsc_inputs["impressions"], article_inputs["impressions"]).to_i
     end
 
     def clicks
-      @clicks ||= first_numeric(gsc_inputs["clicks"], article_inputs["clicks"]).to_i
+      @clicks ||= first_numeric(resolved_gsc_inputs["clicks"], article_inputs["clicks"]).to_i
     end
 
     def current_ctr
       @current_ctr ||= begin
-        value = first_numeric(gsc_inputs["ctr"], gsc_inputs["current_ctr"], article_inputs["ctr"])
+        value = first_numeric(resolved_gsc_inputs["ctr"], resolved_gsc_inputs["current_ctr"], article_inputs["ctr"])
         value = clicks.to_d / impressions if value.zero? && impressions.positive?
         normalize_ctr(value)
       end
@@ -164,7 +179,7 @@ module Aicoo
 
     def target_ctr
       @target_ctr ||= begin
-        provided = first_numeric(gsc_inputs["target_ctr"], article_inputs["target_ctr"])
+        provided = first_numeric(resolved_gsc_inputs["target_ctr"], article_inputs["target_ctr"])
         return normalize_ctr(provided) if provided.positive?
 
         baseline =
@@ -187,9 +202,224 @@ module Aicoo
 
     def position
       @position ||= begin
-        value = first_numeric(gsc_inputs["position"], gsc_inputs["average_position"], article_inputs["position"])
+        value = first_numeric(resolved_gsc_inputs["position"], resolved_gsc_inputs["average_position"], article_inputs["position"])
         value.positive? ? value : nil
       end
+    end
+
+    def resolved_gsc_inputs
+      @resolved_gsc_inputs ||= begin
+        row = matched_query_row
+        if row.present?
+          {
+            "query" => row["query"],
+            "impressions" => first_numeric(row["impressions"]),
+            "clicks" => first_numeric(row["clicks"]),
+            "ctr" => first_numeric(row["ctr"], row["current_ctr"], row["ctr_percent"]),
+            "position" => first_numeric(row["position"], row["average_position"]),
+            "landing_page" => row["landing_page"].presence || row["page"].presence || row["url"].presence,
+            "source" => row["source"].presence || "gsc_query_row",
+            "query_match_type" => gsc_query_match_type
+          }.compact
+        else
+          gsc_inputs.merge(
+            "query" => query.presence,
+            "query_match_type" => "fallback",
+            "fallback_reason" => gsc_fallback_reason
+          ).compact
+        end
+      end
+    end
+
+    def matched_query_row
+      return @matched_query_row if defined?(@matched_query_row)
+
+      @matched_query_row = nil
+      return @matched_query_row if query.blank?
+
+      rows = gsc_query_rows
+      exact = rows.find { |row| row["query"].to_s.squish == query }
+      if exact
+        @gsc_query_match_type = "exact"
+        @matched_query_row = exact
+        return @matched_query_row
+      end
+
+      normalized = rows.find { |row| normalize_query(row["query"]) == normalized_query }
+      if normalized
+        @gsc_query_match_type = "normalized"
+        @matched_query_row = normalized
+        return @matched_query_row
+      end
+
+      partial = rows.find { |row| partial_query_match?(row["query"]) }
+      if partial
+        @gsc_query_match_type = "partial"
+        @matched_query_row = partial
+        return @matched_query_row
+      end
+
+      @gsc_query_match_type = "fallback"
+      @matched_query_row
+    end
+
+    def gsc_query_match_type
+      matched_query_row unless defined?(@gsc_query_match_type)
+      @gsc_query_match_type || "fallback"
+    end
+
+    def matched_gsc_query
+      matched_query_row&.dig("query").presence
+    end
+
+    def query_source
+      gsc_inputs["query_source"].presence || "argument_query"
+    end
+
+    def gsc_fallback_reason
+      return nil unless gsc_query_match_type == "fallback"
+
+      query.present? ? "gsc_query_row_not_found" : "source_query_blank"
+    end
+
+    def gsc_query_rows
+      @gsc_query_rows ||= (gsc_rows_from_data_imports + gsc_rows_from_snapshots).filter_map do |row|
+        normalized_gsc_row(row)
+      end
+    end
+
+    def gsc_rows_from_data_imports
+      return [] unless business.respond_to?(:data_sources)
+
+      business.data_sources
+        .where(source_type: "gsc")
+        .includes(:data_imports)
+        .flat_map { |source| source.data_imports.recent.limit(3).to_a }
+        .sort_by { |data_import| [ data_import.imported_at || Time.zone.at(0), data_import.created_at || Time.zone.at(0) ] }
+        .reverse
+        .first(3)
+        .flat_map { |data_import| rows_from_gsc_import(data_import) }
+    end
+
+    def rows_from_gsc_import(data_import)
+      rows = rows_from_gsc_processed_text(data_import.processed_text)
+      rows = rows_from_gsc_raw_text(data_import.raw_text) if rows.empty?
+      rows
+    end
+
+    def rows_from_gsc_processed_text(processed_text)
+      return [] if processed_text.blank?
+
+      CSV.parse(processed_text, headers: true).filter_map do |row|
+        query_value = value_from_row(row, "query", "検索クエリ", "keyword")
+        next if query_value.blank?
+
+        {
+          "query" => query_value,
+          "impressions" => numeric_value(value_from_row(row, "impressions", "表示回数")),
+          "clicks" => numeric_value(value_from_row(row, "clicks", "クリック数")),
+          "ctr" => ctr_value(value_from_row(row, "ctr", "CTR")),
+          "position" => numeric_value(value_from_row(row, "position", "掲載順位", "平均掲載順位")),
+          "landing_page" => value_from_row(row, "page", "ページ", "url"),
+          "source" => "gsc_data_import"
+        }
+      end
+    rescue CSV::MalformedCSVError
+      []
+    end
+
+    def rows_from_gsc_raw_text(raw_text)
+      return [] if raw_text.blank?
+
+      parsed = JSON.parse(raw_text)
+      Array(parsed["rows"]).filter_map do |row|
+        row = row.to_h.deep_stringify_keys
+        query_value = Array(row["keys"]).first.presence || row["query"].presence
+        next if query_value.blank?
+
+        {
+          "query" => query_value,
+          "impressions" => numeric_value(row["impressions"]),
+          "clicks" => numeric_value(row["clicks"]),
+          "ctr" => ctr_value(row["ctr"]),
+          "position" => numeric_value(row["position"]),
+          "landing_page" => row["page"].presence || row["url"].presence,
+          "source" => "gsc_raw_import"
+        }
+      end
+    rescue JSON::ParserError
+      []
+    end
+
+    def gsc_rows_from_snapshots
+      AicooDataSnapshot.where(source_type: "gsc").recent.limit(50).flat_map do |snapshot|
+        payload = snapshot.payload.to_h.deep_stringify_keys
+        next [] unless snapshot_belongs_to_business?(snapshot, payload)
+
+        rows = payload["rows"] || payload.dig("metrics", "rows")
+        rows = payload["metrics"] if rows.blank? && payload["metrics"].is_a?(Array)
+        Array(rows)
+      end
+    end
+
+    def snapshot_belongs_to_business?(snapshot, payload)
+      return payload["business_id"].to_i == business.id if payload["business_id"].present?
+      return true if snapshot.source_id.to_i == business.id.to_i
+
+      source_record = snapshot.source_record
+      source_record.respond_to?(:business_id) && source_record.business_id.to_i == business.id.to_i
+    end
+
+    def normalized_gsc_row(row)
+      row = row.to_h.deep_stringify_keys
+      row_query = Array(row["keys"]).first.presence || row["query"].presence || row["keyword"].presence
+      return nil if row_query.blank?
+
+      {
+        "query" => row_query.to_s.squish,
+        "impressions" => first_numeric(row["impressions"], row["表示回数"]),
+        "clicks" => first_numeric(row["clicks"], row["クリック数"]),
+        "ctr" => first_numeric(row["ctr"], row["current_ctr"], row["ctr_percent"], row["CTR"]),
+        "position" => first_numeric(row["position"], row["average_position"], row["掲載順位"], row["平均掲載順位"]),
+        "landing_page" => row["landing_page"].presence || row["page"].presence || row["url"].presence || row["ページ"].presence,
+        "source" => row["source"].presence || "gsc_snapshot"
+      }.compact
+    end
+
+    def partial_query_match?(row_query)
+      row_normalized = normalize_query(row_query)
+      return false if row_normalized.blank? || normalized_query.blank?
+      return false if [ row_normalized.length, normalized_query.length ].min < 4
+
+      row_normalized.include?(normalized_query) || normalized_query.include?(row_normalized)
+    end
+
+    def normalized_query
+      @normalized_query ||= normalize_query(query)
+    end
+
+    def normalize_query(value)
+      raw = value.to_s.squish
+      return "" if raw.blank?
+
+      if defined?(BusinessSerpKeyword)
+        BusinessSerpKeyword.normalize(raw)
+      else
+        raw.downcase.gsub(/[[:space:]]+/, " ").strip
+      end
+    end
+
+    def value_from_row(row, *keys)
+      keys.lazy.map { |key| row[key] || row[key.to_s] || row[key.to_sym] }.find(&:present?)
+    end
+
+    def numeric_value(value)
+      value.to_s.delete(",").to_d
+    end
+
+    def ctr_value(value)
+      numeric = numeric_value(value)
+      numeric > 1 ? numeric / 100 : numeric
     end
 
     def value_per_click_yen

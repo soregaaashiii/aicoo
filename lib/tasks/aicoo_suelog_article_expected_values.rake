@@ -80,10 +80,11 @@ module AicooSuelogArticleExpectedValueRake
 
   def calculate(candidate)
     metadata = candidate.metadata.to_h.deep_stringify_keys
+    query, query_source = source_query_with_source(candidate, metadata)
     Aicoo::SuelogArticleExpectedValue.call(
       business: candidate.business,
-      query: source_query(candidate, metadata),
-      gsc_inputs: gsc_inputs(metadata),
+      query:,
+      gsc_inputs: gsc_inputs(metadata).merge("query_source" => query_source),
       ga4_inputs: ga4_inputs(metadata),
       shopclick_inputs: shopclick_inputs(metadata),
       article_inputs: article_inputs(metadata),
@@ -165,16 +166,27 @@ module AicooSuelogArticleExpectedValueRake
   end
 
   def source_query(candidate, metadata)
+    source_query_with_source(candidate, metadata).first
+  end
+
+  def source_query_with_source(candidate, metadata)
     [
-      metadata["source_query"],
-      metadata["query"],
-      metadata["search_query"],
-      metadata["target_query"],
-      metadata.dig("article_candidate", "search_query"),
-      metadata.dig("gsc_inputs", "query"),
-      metadata.dig("value_model", "query"),
-      candidate.title.to_s.match(TITLE_QUERY_PATTERN)&.[](:query)
-    ].compact_blank.first.to_s.squish
+      [ metadata["source_query"], "metadata.source_query" ],
+      [ metadata["query"], "metadata.query" ],
+      [ metadata["keyword"], "metadata.keyword" ],
+      [ metadata["article_query"], "metadata.article_query" ],
+      [ candidate.title.to_s.match(TITLE_QUERY_PATTERN)&.[](:query), "title" ],
+      [ metadata["search_query"], "metadata.search_query" ],
+      [ metadata["target_query"], "metadata.target_query" ],
+      [ metadata.dig("article_candidate", "search_query"), "metadata.article_candidate.search_query" ],
+      [ metadata.dig("gsc_inputs", "query"), "metadata.gsc_inputs.query" ],
+      [ metadata.dig("value_model", "query"), "metadata.value_model.query" ]
+    ].each do |value, source|
+      normalized = value.to_s.squish
+      return [ normalized, source ] if normalized.present?
+    end
+
+    [ "", "blank" ]
   end
 
   def gsc_inputs(metadata)
@@ -226,10 +238,15 @@ module AicooSuelogArticleExpectedValueRake
       "before_final_expected_value_yen=#{before_value}",
       "after_final_expected_value_yen=#{after_value}",
       "value_model_name=#{result.metadata.dig('value_model', 'name')}",
+      "source_query=#{result.metadata['source_query']}",
+      "matched_query=#{result.metadata['matched_query']}",
+      "match_type=#{result.metadata['query_match_type']}",
       "estimated_incremental_clicks=#{result.metadata['estimated_incremental_clicks']}",
       "value_per_click_yen=#{result.metadata.dig('value_model', 'value_per_click_yen')}",
       "gsc_impressions=#{result.metadata.dig('gsc_inputs', 'impressions')}",
       "gsc_clicks=#{result.metadata.dig('gsc_inputs', 'clicks')}",
+      "gsc_ctr=#{result.metadata.dig('gsc_inputs', 'current_ctr')}",
+      "gsc_position=#{result.metadata.dig('gsc_inputs', 'position')}",
       "ga4_pageviews=#{result.metadata.dig('ga4_inputs', 'pageviews')}",
       "shop_clicks=#{result.metadata.dig('shopclick_inputs', 'recent_shop_clicks')}",
       "calculation_reason=#{result.metadata['calculation_reason']}",

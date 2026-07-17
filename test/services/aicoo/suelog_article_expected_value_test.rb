@@ -4,6 +4,8 @@ module Aicoo
   class SuelogArticleExpectedValueTest < ActiveSupport::TestCase
     setup do
       @business = businesses(:suelog)
+      @business.data_sources.where(source_type: "gsc").destroy_all
+      AicooDataSnapshot.where(source_type: "gsc").delete_all
       @business.business_metric_dailies.delete_all
       @business.business_metric_dailies.create!(
         recorded_on: Date.current,
@@ -62,6 +64,132 @@ module Aicoo
       assert result.metadata["estimated_shop_visits"].positive?
       assert result.metadata.key?("estimated_booking_clicks")
       assert_equal result.expected_profit_yen, result.metadata["expected_profit_yen"]
+    end
+
+    test "uses exact matching gsc query row instead of business aggregate fallback" do
+      create_gsc_import <<~CSV
+        query,impressions,clicks,ctr,position,page
+        東通り 居酒屋 喫煙可,1200,24,0.02,11,/articles/higashidori-smoking-izakaya
+        難波 喫煙 居酒屋,9000,90,0.01,18,/articles/namba-smoking-izakaya
+      CSV
+
+      result = SuelogArticleExpectedValue.call(
+        business: @business,
+        query: "東通り 居酒屋 喫煙可",
+        gsc_inputs: business_aggregate_gsc_inputs,
+        success_probability: 0.5
+      )
+
+      assert_equal "exact", result.metadata["query_match_type"]
+      assert_equal "東通り 居酒屋 喫煙可", result.metadata["matched_query"]
+      assert_equal 1200, result.metadata["gsc_query_impressions"]
+      assert_equal 24, result.metadata["gsc_query_clicks"]
+      assert_equal 1200, result.metadata.dig("gsc_inputs", "impressions")
+      assert_not_equal 4308, result.metadata.dig("gsc_inputs", "impressions")
+    end
+
+    test "uses normalized matching gsc query row" do
+      create_gsc_import <<~CSV
+        query,impressions,clicks,ctr,position,page
+        SUELOG 比較,3000,45,0.015,13,/articles/suelog-comparison
+      CSV
+
+      result = SuelogArticleExpectedValue.call(
+        business: @business,
+        query: "suelog 比較",
+        gsc_inputs: business_aggregate_gsc_inputs,
+        success_probability: 0.5
+      )
+
+      assert_equal "normalized", result.metadata["query_match_type"]
+      assert_equal "SUELOG 比較", result.metadata["matched_query"]
+      assert_equal 3000, result.metadata["gsc_query_impressions"]
+    end
+
+    test "uses partial matching gsc query row" do
+      create_gsc_import <<~CSV
+        query,impressions,clicks,ctr,position,page
+        難波 喫煙 居酒屋 おすすめ,7000,35,0.005,21,/articles/namba-smoking-izakaya
+      CSV
+
+      result = SuelogArticleExpectedValue.call(
+        business: @business,
+        query: "難波 喫煙 居酒屋",
+        gsc_inputs: business_aggregate_gsc_inputs,
+        success_probability: 0.5
+      )
+
+      assert_equal "partial", result.metadata["query_match_type"]
+      assert_equal "難波 喫煙 居酒屋 おすすめ", result.metadata["matched_query"]
+      assert_equal 7000, result.metadata["gsc_query_impressions"]
+    end
+
+    test "uses business aggregate only as fallback when no query row matches" do
+      create_gsc_import <<~CSV
+        query,impressions,clicks,ctr,position,page
+        梅田 喫煙 カフェ,5000,20,0.004,22,/articles/umeda-smoking-cafe
+      CSV
+
+      result = SuelogArticleExpectedValue.call(
+        business: @business,
+        query: "曽根崎 バー 喫煙可能",
+        gsc_inputs: business_aggregate_gsc_inputs,
+        success_probability: 0.5
+      )
+
+      assert_equal "fallback", result.metadata["query_match_type"]
+      assert_nil result.metadata["matched_query"]
+      assert_equal "gsc_query_row_not_found", result.metadata.dig("gsc_inputs", "fallback_reason")
+      assert_equal 4308, result.metadata["gsc_query_impressions"]
+      assert_equal 82, result.metadata["gsc_query_clicks"]
+    end
+
+    test "query specific gsc rows make higashidori and namba values differ with same fallback aggregate" do
+      create_gsc_import <<~CSV
+        query,impressions,clicks,ctr,position,page
+        東通り 居酒屋 喫煙可,1200,24,0.02,11,/articles/higashidori-smoking-izakaya
+        難波 喫煙 居酒屋,9000,90,0.01,18,/articles/namba-smoking-izakaya
+      CSV
+
+      higashidori = SuelogArticleExpectedValue.call(
+        business: @business,
+        query: "東通り 居酒屋 喫煙可",
+        gsc_inputs: business_aggregate_gsc_inputs,
+        success_probability: 0.5
+      )
+      namba = SuelogArticleExpectedValue.call(
+        business: @business,
+        query: "難波 喫煙 居酒屋",
+        gsc_inputs: business_aggregate_gsc_inputs,
+        success_probability: 0.5
+      )
+
+      assert_equal "exact", higashidori.metadata["query_match_type"]
+      assert_equal "exact", namba.metadata["query_match_type"]
+      assert_not_equal higashidori.metadata["gsc_query_impressions"], namba.metadata["gsc_query_impressions"]
+      assert_not_equal higashidori.expected_profit_yen, namba.expected_profit_yen
+    end
+
+    private
+
+    def create_gsc_import(processed_text)
+      source = @business.data_sources.create!(name: "GSC", source_type: "gsc")
+      source.data_imports.create!(
+        filename: "gsc.csv",
+        imported_at: Time.current,
+        processed_text:,
+        row_count: processed_text.lines.size - 1
+      )
+    end
+
+    def business_aggregate_gsc_inputs
+      {
+        impressions: 4308,
+        clicks: 82,
+        ctr: 82.to_d / 4308,
+        position: 12,
+        landing_page: "/"
+      }
     end
   end
 end
