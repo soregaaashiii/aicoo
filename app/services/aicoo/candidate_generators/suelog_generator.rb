@@ -201,18 +201,18 @@ module Aicoo
       end
 
       def create_article_update_candidate(row:, article:)
+        article_value = suelog_article_value(row, article:)
         create_candidate(
           action_type: "article_update",
           title: "「#{row[:query]}」流入の既存記事を改訂する",
           description: "#{article.title} / CTR #{percent(row[:ctr])} / 平均順位 #{row[:position]}",
           external_record_id: article.id,
           target_query: row[:query],
-          immediate_value_yen: article_expected_value(row),
+          immediate_value_yen: article_value.expected_profit_yen,
           expected_hours: 0.75,
           success_probability: 0.58,
           strategic_value_score: 55,
-          metadata: article_metadata(row).merge(
-            "value_model" => suelog_value_model,
+          metadata: article_metadata(row).merge(article_value.metadata).merge(
             "article_id" => article.id,
             "article_title" => article.title,
             "article_slug" => article.slug,
@@ -240,18 +240,19 @@ module Aicoo
 
       def create_article_create_candidate(row:)
         slug = recommended_slug_for(row[:query])
+        article_value = suelog_article_value(row)
+        candidate_shops = candidate_shops_for(row[:query])
         create_candidate(
           action_type: "article_create",
           title: "「#{row[:query]}」向けの記事を作成する",
           description: "対応する公開済みArticleが見つかりません。impressions=#{row[:impressions]} clicks=#{row[:clicks]}",
           external_record_id: query_external_id(row[:query]),
           target_query: row[:query],
-          immediate_value_yen: article_expected_value(row),
+          immediate_value_yen: article_value.expected_profit_yen,
           expected_hours: 1.5,
           success_probability: 0.48,
           strategic_value_score: 60,
-          metadata: article_metadata(row).merge(
-            "value_model" => suelog_value_model,
+          metadata: article_metadata(row).merge(article_value.metadata).merge(
             "recommended_title" => "#{row[:query]}｜喫煙できる飲食店を探すなら吸えログ",
             "recommended_slug" => slug,
             "recommended_url" => "/articles/#{slug}",
@@ -263,7 +264,7 @@ module Aicoo
             "article_reason" => "GSCに検索需要がありますが、吸えログDB上に対応する公開済みArticleが存在しません。",
             "article_outline" => [ "H1 #{row[:query]}", "H2 探している人の条件", "H2 喫煙可否で選ぶ", "H2 エリア/ジャンル別の探し方", "H2 FAQ" ],
             "required_data" => [ "掲載候補店舗", "内部リンク元候補", "必要画像", "確認事項" ],
-            "candidate_shops" => candidate_shops_for(row[:query]),
+            "candidate_shops" => candidate_shops,
             "internal_link_candidates" => internal_link_candidates_for(row[:query]),
             "page_exists" => false,
             "matched_article_id" => nil,
@@ -547,12 +548,36 @@ module Aicoo
       end
 
       def article_expected_value(row)
-        impressions = row[:impressions].to_i
-        current_ctr = row[:ctr].to_d
-        target_ctr = target_ctr_for(row)
-        incremental_clicks = [ impressions * [ target_ctr - current_ctr, 0.005.to_d ].max, 500 ].min
-        value = incremental_clicks * suelog_value_model.fetch("value_per_click_yen").to_d
-        [ value.round, 1_200 ].max
+        suelog_article_value(row).expected_profit_yen
+      end
+
+      def suelog_article_value(row, article: nil)
+        shops = candidate_shops_for(row[:query])
+        shop_clicks = click_counts_for(shops.filter_map { |shop| shop["shop_id"] })
+        Aicoo::SuelogArticleExpectedValue.call(
+          business:,
+          query: row[:query],
+          gsc_inputs: {
+            "impressions" => row[:impressions],
+            "clicks" => row[:clicks],
+            "ctr" => row[:ctr],
+            "position" => row[:position],
+            "target_ctr" => target_ctr_for(row),
+            "landing_page" => row[:landing_page]
+          },
+          ga4_inputs: {},
+          shopclick_inputs: {
+            "matched_shop_count" => shops.size,
+            "recent_shop_clicks" => shop_clicks.values.sum,
+            "lookback_days" => CLICK_LOOKBACK.to_i / 1.day.to_i
+          },
+          article_inputs: {
+            "article_id" => article&.id,
+            "article_title" => article&.title,
+            "article_path" => article&.public_path
+          },
+          success_probability: article.present? ? 0.58 : 0.48
+        )
       end
 
       def expected_pv(row)

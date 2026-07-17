@@ -305,7 +305,7 @@ module Aicoo
       end
 
       def metadata_for(item, key)
-        {
+        metadata = {
           "suelog_site_insights" => true,
           "suelog_insight_key" => key,
           "source_script" => "script/site_insights.rb",
@@ -383,6 +383,10 @@ module Aicoo
           "execution_units" => execution_units_for(item),
           "evidence" => evidence_for(item)
         }.compact
+        if suelog_article_expected_value_item?(item)
+          metadata.merge!(suelog_article_expected_value_for(item).metadata)
+        end
+        metadata
       end
 
       def action_plan_for(item)
@@ -587,7 +591,43 @@ module Aicoo
       end
 
       def expected_value_yen_for(item)
+        return suelog_article_expected_value_for(item).expected_profit_yen if suelog_article_expected_value_item?(item)
+
         [ (item[:expected_score].to_f * 120).round, 3_000 ].max
+      end
+
+      def suelog_article_expected_value_item?(item)
+        action_type_for(item).in?(%w[new_article_candidate seo_article article_create article_update])
+      end
+
+      def suelog_article_expected_value_for(item)
+        item[:suelog_article_expected_value] ||= Aicoo::SuelogArticleExpectedValue.call(
+          business:,
+          query: item[:query],
+          gsc_inputs: {
+            "impressions" => item[:impressions],
+            "clicks" => item[:clicks],
+            "ctr" => item[:ctr_percent],
+            "position" => item[:position],
+            "landing_page" => item[:landing_page]
+          },
+          ga4_inputs: {
+            "pageviews" => item[:ga4_views],
+            "active_users" => item[:ga4_active_users],
+            "engagement_seconds" => item[:ga4_engagement_seconds]
+          },
+          shopclick_inputs: {
+            "matched_shop_count" => item[:shops_count],
+            "recent_shop_clicks" => item[:confirmed_count],
+            "lookback_days" => 90
+          },
+          article_inputs: {
+            "article_relevance_count" => item[:article_relevance_count],
+            "article_relevance_path" => item[:article_relevance_path],
+            "article_relevance_title" => item[:article_relevance_title]
+          },
+          success_probability: success_probability_for(item)
+        )
       end
 
       def success_probability_for(item)
