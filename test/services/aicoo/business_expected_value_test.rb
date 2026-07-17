@@ -119,6 +119,100 @@ module Aicoo
       assert_equal "new_business_metadata", result.calculation_method
     end
 
+    test "launched business uses base plus action opportunity value" do
+      @business.revenue_events.delete_all
+      @business.business_metric_dailies.delete_all
+      @business.revenue_events.create!(
+        amount: 50_000,
+        event_type: "profit",
+        occurred_on: Date.current
+      )
+      create_candidate!(
+        title: "吸えログの改善施策",
+        value: 20_000,
+        metadata: { "query" => "吸えログ 改善" }
+      )
+
+      result = BusinessExpectedValue.call(@business)
+
+      assert_equal 50_000, result.base_business_value_yen
+      assert_equal 20_000, result.action_opportunity_value_yen
+      assert_equal 70_000, result.expected_total_value_yen
+      assert_equal "existing_business_base_plus_actions", result.calculation_method
+      assert_equal "existing_business_base_plus_actions", @business.reload.metadata.dig("business_value_model", "model_name")
+    end
+
+    test "suelog existing business is detected without fixed business id" do
+      business = Business.create!(
+        name: "大阪喫煙メディア",
+        status: "launched",
+        business_type: "seo_media",
+        project_key: "suelog"
+      )
+      business.business_metric_dailies.create!(
+        recorded_on: Date.current,
+        clicks: 100,
+        phone_clicks: 2,
+        map_clicks: 3,
+        affiliate_clicks: 1
+      )
+
+      BusinessExpectedValue.call(business)
+
+      assert_equal "suelog_existing_business", business.reload.metadata.dig("business_value_model", "base_business_value", "source_model")
+    end
+
+    test "uses proxy weighted conversion clicks when measured profit is absent" do
+      @business.revenue_events.delete_all
+      @business.business_metric_dailies.delete_all
+      @business.business_metric_dailies.create!(
+        recorded_on: Date.current,
+        clicks: 1_000,
+        impressions: 10_000,
+        sessions: 800,
+        pageviews: 1_200,
+        users: 500,
+        phone_clicks: 2,
+        map_clicks: 3,
+        affiliate_clicks: 1
+      )
+
+      result = BusinessExpectedValue.call(@business)
+
+      assert_equal 64, result.base_business_value_yen
+      assert_equal "business_metric_dailies_proxy_weighted_clicks", result.base_business_value.source
+      assert_match(/BusinessMetricDaily/, result.base_business_value.double_count_prevention)
+    end
+
+    test "does not monetize gsc or ga4 traffic without revenue or conversion clicks" do
+      @business.revenue_events.delete_all
+      @business.business_metric_dailies.delete_all
+      @business.business_metric_dailies.create!(
+        recorded_on: Date.current,
+        clicks: 500,
+        impressions: 20_000,
+        sessions: 700,
+        pageviews: 1_400,
+        users: 600
+      )
+
+      result = BusinessExpectedValue.call(@business)
+
+      assert_equal 0, result.base_business_value_yen
+      assert_equal "insufficient_monetization_data", result.base_business_value.calculation_status
+      assert_equal false, result.base_business_value.gsc_inputs["used_for_profit"]
+      assert_equal false, result.base_business_value.ga4_inputs["used_for_profit"]
+    end
+
+    test "terminal statuses are not included in action opportunity value" do
+      create_candidate!(title: "有効施策", value: 10_000, metadata: { "query" => "有効" })
+      create_candidate!(title: "却下施策", value: 90_000, metadata: { "query" => "却下" }).update!(status: "rejected")
+
+      result = BusinessExpectedValue.call(@business)
+
+      assert_equal 10_000, result.action_opportunity_value_yen
+    end
+
     test "exploring business expected value is not fixed capped" do
       business = Business.create!(
         name: "大型SERP発見事業",

@@ -12,6 +12,10 @@ namespace :aicoo do
     result = Aicoo::BusinessExpectedValue.call(business)
     puts "business_id=#{business.id}"
     puts "business_name=#{business.name}"
+    puts "business_state=#{business.metadata.to_h.dig('business_value_model', 'business_state') || (result.new_business_value ? 'new_business' : 'existing')}"
+    puts "model_name=#{business.metadata.to_h.dig('business_value_model', 'model_name') || result.calculation_method}"
+    puts "base_business_value_yen=#{result.base_business_value_yen}"
+    puts "action_opportunity_value_yen=#{result.action_opportunity_value_yen}"
     puts "candidate_raw_sum=#{result.raw_candidate_sum_yen}"
     puts "unique_opportunity_count=#{result.unique_opportunity_count}"
     puts "duplicate_candidate_count=#{result.duplicate_candidate_count}"
@@ -23,6 +27,20 @@ namespace :aicoo do
     puts "final_expected_value_yen=#{result.expected_total_value_yen}"
     puts "calculation_method=#{result.calculation_method}"
     puts "confidence=#{result.confidence}"
+    if result.base_business_value
+      base = result.base_business_value
+      puts "base_value_source=#{base.source}"
+      puts "business_metric_period=#{base.observed_period_start}..#{base.observed_period_end} days=#{base.observed_days}"
+      puts "business_metric_profit_yen=#{base.business_metric_inputs['measured_profit_yen']}"
+      puts "shop_click_counts=#{base.shop_click_inputs.inspect}"
+      puts "gsc_clicks=#{base.gsc_inputs['clicks']}"
+      puts "gsc_impressions=#{base.gsc_inputs['impressions']}"
+      puts "ga4_pageviews=#{base.ga4_inputs['pageviews']}"
+      puts "ga4_active_users=#{base.ga4_inputs['active_users']}"
+      puts "proxy_weight_inputs=#{base.proxy_weight_inputs.inspect}"
+      puts "double_count_prevention=#{base.double_count_prevention}"
+      puts "active_candidate_count=#{business.action_candidates.active_for_ranking.count}"
+    end
 
     if result.new_business_value
       value = result.new_business_value

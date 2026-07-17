@@ -8,6 +8,8 @@ module Aicoo
     Result = Data.define(
       :business,
       :raw_candidate_sum_yen,
+      :base_business_value_yen,
+      :action_opportunity_value_yen,
       :unique_opportunity_count,
       :duplicate_candidate_count,
       :duplicate_adjustment_yen,
@@ -21,6 +23,7 @@ module Aicoo
       :calculation_method,
       :confidence,
       :opportunities,
+      :base_business_value,
       :new_business_value
     )
     OpportunityRow = Data.define(
@@ -47,6 +50,22 @@ module Aicoo
       :calculation_method,
       :confidence,
       :missing_inputs
+    )
+    BaseBusinessValue = Data.define(
+      :base_business_value_yen,
+      :source,
+      :calculation_status,
+      :observed_period_start,
+      :observed_period_end,
+      :observed_days,
+      :normalized_to_90_days,
+      :business_metric_inputs,
+      :shop_click_inputs,
+      :gsc_inputs,
+      :ga4_inputs,
+      :proxy_weight_inputs,
+      :double_count_prevention,
+      :source_model
     )
 
     def self.call(business)
@@ -90,11 +109,15 @@ module Aicoo
       cost_yen = rows.sum(&:cost_yen)
       expected_revenue_value_yen = opportunity_total_yen - cost_yen
       expected_learning_value_yen = active_candidates.sum { |candidate| candidate.expected_learning_value_yen.to_i }
-      expected_total_value_yen = expected_revenue_value_yen + expected_learning_value_yen
+      action_opportunity_value_yen = expected_revenue_value_yen + expected_learning_value_yen
+      base_value = existing_business_base_value_applies? ? base_business_value : empty_base_business_value
+      expected_total_value_yen = base_value.base_business_value_yen + action_opportunity_value_yen
 
       result = Result.new(
         business:,
         raw_candidate_sum_yen:,
+        base_business_value_yen: base_value.base_business_value_yen,
+        action_opportunity_value_yen:,
         unique_opportunity_count: rows.size,
         duplicate_candidate_count:,
         duplicate_adjustment_yen:,
@@ -105,9 +128,10 @@ module Aicoo
         expected_revenue_value_yen:,
         expected_learning_value_yen:,
         expected_total_value_yen:,
-        calculation_method: "opportunity_grouped_market_limited_sum",
+        calculation_method: existing_business_base_value_applies? ? "existing_business_base_plus_actions" : "opportunity_grouped_market_limited_sum",
         confidence: rows.any? ? average(rows.map { |row| row.final_value_yen.positive? ? 0.7 : 0.4 }) : 0.3,
         opportunities: rows,
+        base_business_value: base_value,
         new_business_value: nil
       )
       persist_business_value!(result)
@@ -119,6 +143,8 @@ module Aicoo
       result = Result.new(
         business:,
         raw_candidate_sum_yen: value.estimated_90d_profit_yen,
+        base_business_value_yen: 0,
+        action_opportunity_value_yen: value.final_expected_value_yen,
         unique_opportunity_count: 1,
         duplicate_candidate_count: 0,
         duplicate_adjustment_yen: 0,
@@ -132,6 +158,7 @@ module Aicoo
         calculation_method: value.calculation_method,
         confidence: value.confidence,
         opportunities: [],
+        base_business_value: nil,
         new_business_value: value
       )
       persist_business_value!(result)
@@ -283,6 +310,10 @@ module Aicoo
       metadata = business.metadata.to_h
       payload = {
         "raw_candidate_sum_yen" => result.raw_candidate_sum_yen,
+        "model_name" => result.base_business_value ? "existing_business_base_plus_actions" : nil,
+        "business_state" => result.base_business_value ? "existing" : nil,
+        "base_business_value_yen" => result.base_business_value_yen,
+        "action_opportunity_value_yen" => result.action_opportunity_value_yen,
         "unique_opportunity_count" => result.unique_opportunity_count,
         "duplicate_candidate_count" => result.duplicate_candidate_count,
         "duplicate_adjustment_yen" => result.duplicate_adjustment_yen,
@@ -296,6 +327,7 @@ module Aicoo
         "calculation_method" => result.calculation_method,
         "confidence" => result.confidence.to_f,
         "calculation_version" => CALCULATION_VERSION,
+        "base_business_value" => base_business_payload(result.base_business_value),
         "new_business_value" => new_business_payload(result.new_business_value),
         "calculated_at" => Time.current.iso8601
       }.compact
@@ -318,6 +350,27 @@ module Aicoo
         "confidence" => value.confidence,
         "missing_inputs" => value.missing_inputs
       }
+    end
+
+    def base_business_payload(value)
+      return unless value
+
+      {
+        "source_model" => value.source_model,
+        "base_business_value_yen" => value.base_business_value_yen,
+        "base_value_source" => value.source,
+        "base_calculation_status" => value.calculation_status,
+        "observed_period_start" => value.observed_period_start&.iso8601,
+        "observed_period_end" => value.observed_period_end&.iso8601,
+        "observed_days" => value.observed_days,
+        "normalized_to_90_days" => value.normalized_to_90_days,
+        "business_metric_inputs" => value.business_metric_inputs,
+        "shop_click_inputs" => value.shop_click_inputs,
+        "gsc_inputs" => value.gsc_inputs,
+        "ga4_inputs" => value.ga4_inputs,
+        "proxy_weight_inputs" => value.proxy_weight_inputs,
+        "double_count_prevention" => value.double_count_prevention
+      }.compact
     end
 
     def new_business_value
@@ -361,6 +414,242 @@ module Aicoo
 
     def exploration_business?
       business.business_type == "exploration" || business.status.in?(%w[discovered draft exploring])
+    end
+
+    def existing_business_base_value_applies?
+      return false if exploration_business?
+
+      business.status.to_s.in?(%w[launched active]) || business.launched?
+    end
+
+    def suelog_business?
+      metadata = business.metadata.to_h
+      keys = [
+        business.name,
+        business.business_type,
+        business.project_key,
+        business.repository_name,
+        business.local_project_path,
+        business.source,
+        business.gsc_site_url,
+        metadata["source_app"],
+        metadata["source_system"],
+        metadata["business_key"],
+        metadata["slug"],
+        metadata["project_key"]
+      ].compact.map(&:to_s)
+      keys.any? { |value| value.match?(/吸えログ|suelog|sue-log/i) }
+    end
+
+    def empty_base_business_value
+      BaseBusinessValue.new(
+        base_business_value_yen: 0,
+        source: "not_applicable",
+        calculation_status: "not_applicable",
+        observed_period_start: nil,
+        observed_period_end: nil,
+        observed_days: 0,
+        normalized_to_90_days: false,
+        business_metric_inputs: {},
+        shop_click_inputs: {},
+        gsc_inputs: {},
+        ga4_inputs: {},
+        proxy_weight_inputs: {},
+        double_count_prevention: "base value not applied to this business state",
+        source_model: nil
+      )
+    end
+
+    def base_business_value
+      @base_business_value ||= begin
+        revenue_yen = measured_profit_yen
+        metric_inputs = business_metric_inputs
+        source = nil
+        status = nil
+        base_yen = 0
+
+        if revenue_yen.positive?
+          base_yen = revenue_yen
+          source = measured_profit_source
+          status = "actual_profit"
+        elsif metric_inputs["near_conversion_proxy_value_90d"].to_d.positive?
+          base_yen = metric_inputs["near_conversion_proxy_value_90d"].to_d.round
+          source = "business_metric_dailies_proxy_weighted_clicks"
+          status = "proxy_weighted_conversions"
+        else
+          source = "traffic_without_monetization"
+          status = "insufficient_monetization_data"
+        end
+
+        BaseBusinessValue.new(
+          base_business_value_yen: base_yen,
+          source:,
+          calculation_status: status,
+          observed_period_start: observed_period_start,
+          observed_period_end: observed_period_end,
+          observed_days: observed_days,
+          normalized_to_90_days: false,
+          business_metric_inputs: metric_inputs.merge("measured_profit_yen" => revenue_yen),
+          shop_click_inputs: shop_click_inputs,
+          gsc_inputs: gsc_inputs(metric_inputs),
+          ga4_inputs: ga4_inputs(metric_inputs),
+          proxy_weight_inputs: proxy_weight_inputs,
+          double_count_prevention: base_double_count_prevention(source),
+          source_model: suelog_business? ? "suelog_existing_business" : "existing_business"
+        )
+      end
+    end
+
+    def measured_profit_yen
+      revenue = revenue_events_profit_yen
+      return revenue if revenue.positive?
+
+      business_metric_profit_yen
+    end
+
+    def measured_profit_source
+      return "revenue_events_90d" if revenue_events_profit_yen.positive?
+      return "business_metric_dailies_measured_profit_90d" if business_metric_profit_yen.positive?
+
+      "none"
+    end
+
+    def revenue_events_profit_yen
+      return 0 unless business.respond_to?(:revenue_events)
+
+      business.revenue_events.where(occurred_on: lookback_range).sum(:amount).to_i
+    end
+
+    def business_metric_profit_yen
+      metrics = recent_business_metrics
+      total = 0
+      total += metrics.sum(:profit_yen).to_i if BusinessMetricDaily.column_names.include?("profit_yen")
+      total += metrics.sum(:revenue_yen).to_i if BusinessMetricDaily.column_names.include?("revenue_yen")
+      total
+    end
+
+    def business_metric_inputs
+      @business_metric_inputs ||= begin
+        metrics = recent_business_metrics
+        weights = ProxyScoreWeight.for_business(business)
+        phone_clicks = metrics.sum(:phone_clicks).to_i
+        map_clicks = metrics.sum(:map_clicks).to_i
+        affiliate_clicks = metrics.sum(:affiliate_clicks).to_i
+        near_conversion_count = phone_clicks + map_clicks + affiliate_clicks
+        near_conversion_value =
+          (phone_clicks * weights.weight_for(:phone_clicks).to_d) +
+          (map_clicks * weights.weight_for(:map_clicks).to_d) +
+          (affiliate_clicks * weights.weight_for(:affiliate_clicks).to_d)
+
+        {
+          "source" => "business_metric_dailies_90d",
+          "clicks" => metrics.sum(:clicks).to_i,
+          "impressions" => metrics.sum(:impressions).to_i,
+          "sessions" => metrics.sum(:sessions).to_i,
+          "pageviews" => metrics.sum(:pageviews).to_i,
+          "users" => metrics.sum(:users).to_i,
+          "phone_clicks" => phone_clicks,
+          "map_clicks" => map_clicks,
+          "affiliate_clicks" => affiliate_clicks,
+          "near_conversion_count" => near_conversion_count,
+          "near_conversion_proxy_value_90d" => near_conversion_value.round(2).to_s,
+          "observed_days" => observed_days
+        }
+      end
+    end
+
+    def shop_click_inputs
+      @shop_click_inputs ||= begin
+        if suelog_business? && defined?(::Suelog::ShopClick)
+          scope = ::Suelog::ShopClick.where(created_at: lookback_start.beginning_of_day..lookback_end.end_of_day)
+          columns = ::Suelog::ShopClick.column_names
+          click_type_column = %w[click_type kind event_type action].find { |column| columns.include?(column) }
+          counts = { "total_clicks" => scope.count }
+          if click_type_column
+            grouped = scope.group(click_type_column).count
+            counts.merge!(
+              "phone_clicks" => grouped.values_at("phone", "phone_click", "tel").compact.sum,
+              "map_clicks" => grouped.values_at("map", "map_click").compact.sum,
+              "affiliate_clicks" => grouped.values_at("affiliate", "affiliate_click", "reservation", "booking").compact.sum,
+              "article_shop_clicks" => grouped.values_at("article_shop", "shop", "shop_click").compact.sum,
+              "click_type_column" => click_type_column
+            )
+          end
+          counts.merge("source" => "suelog_shop_clicks_90d")
+        else
+          { "source" => "not_available", "total_clicks" => 0 }
+        end
+      rescue StandardError => e
+        { "source" => "suelog_shop_clicks_90d", "error" => e.class.name, "total_clicks" => 0 }
+      end
+    end
+
+    def gsc_inputs(metric_inputs = business_metric_inputs)
+      {
+        "source" => "business_metric_dailies_90d",
+        "clicks" => metric_inputs["clicks"].to_i,
+        "impressions" => metric_inputs["impressions"].to_i,
+        "used_for_profit" => false
+      }
+    end
+
+    def ga4_inputs(metric_inputs = business_metric_inputs)
+      {
+        "source" => "business_metric_dailies_90d",
+        "pageviews" => metric_inputs["pageviews"].to_i,
+        "active_users" => metric_inputs["users"].to_i,
+        "sessions" => metric_inputs["sessions"].to_i,
+        "used_for_profit" => false
+      }
+    end
+
+    def proxy_weight_inputs
+      weights = ProxyScoreWeight.for_business(business)
+      {
+        "source_type" => weights.source_type,
+        "confidence_score" => weights.confidence_score,
+        "phone_clicks_weight" => weights.weight_for(:phone_clicks).to_f,
+        "map_clicks_weight" => weights.weight_for(:map_clicks).to_f,
+        "affiliate_clicks_weight" => weights.weight_for(:affiliate_clicks).to_f
+      }
+    end
+
+    def base_double_count_prevention(source)
+      if source == "business_metric_dailies_proxy_weighted_clicks"
+        "base value uses BusinessMetricDaily conversion clicks; Suelog::ShopClick is evidence only and is not added"
+      elsif source == "revenue_events_90d"
+        "base value uses measured RevenueEvent amount first; click proxy values are evidence only"
+      else
+        "GSC/GA4 traffic is stored as evidence only and is not monetized without conversion or revenue data"
+      end
+    end
+
+    def recent_business_metrics
+      @recent_business_metrics ||= business.business_metric_dailies.where(recorded_on: lookback_range)
+    end
+
+    def observed_period_start
+      @observed_period_start ||= recent_business_metrics.minimum(:recorded_on) || lookback_start
+    end
+
+    def observed_period_end
+      @observed_period_end ||= recent_business_metrics.maximum(:recorded_on) || lookback_end
+    end
+
+    def observed_days
+      @observed_days ||= recent_business_metrics.distinct.count(:recorded_on)
+    end
+
+    def lookback_range
+      lookback_start..lookback_end
+    end
+
+    def lookback_start
+      89.days.ago.to_date
+    end
+
+    def lookback_end
+      Date.current
     end
 
     def first_positive_integer(*values)
