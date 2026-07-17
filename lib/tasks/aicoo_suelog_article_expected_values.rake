@@ -68,6 +68,71 @@ namespace :aicoo do
     puts "delta_yen=#{after_total_yen - before_total_yen}"
     puts "candidate_ids=#{candidate_ids.uniq.join(',')}"
   end
+
+  desc "Diagnose Suelog GSC query rows used by SuelogArticleExpectedValue"
+  task diagnose_suelog_gsc_queries: :environment do
+    business = AicooSuelogArticleExpectedValueRake.suelog_business_scope.first
+
+    if business.blank?
+      puts "Business=not_found"
+      next
+    end
+
+    puts "Business=#{business.name} id=#{business.id}"
+    business_diagnostics = Aicoo::SuelogArticleExpectedValue.new(
+      business:,
+      query: "",
+      gsc_inputs: {}
+    ).gsc_diagnostics
+    rows = Array(business_diagnostics["query_rows"])
+
+    puts "保存先モデル=#{business_diagnostics['search_models'].join(',')}"
+    puts "検索対象テーブル=#{business_diagnostics['search_tables'].join(',')}"
+    puts "Query総数=#{rows.size}"
+    puts "保存件数 data_imports=#{AicooSuelogArticleExpectedValueRake.suelog_gsc_data_import_count(business)} snapshots=#{AicooSuelogArticleExpectedValueRake.suelog_gsc_snapshot_count(business)}"
+    puts "Query一覧"
+    rows.each do |row|
+      puts [
+        "query=#{row['query']}",
+        "clicks=#{row['clicks']}",
+        "impressions=#{row['impressions']}",
+        "ctr=#{row['ctr']}",
+        "position=#{row['position']}",
+        "landing_page=#{row['landing_page']}",
+        "保存元モデル=#{row['source_model'].presence || row['source']}",
+        "保存元テーブル=#{row['source_table']}"
+      ].join(" ")
+    end
+
+    candidates = AicooSuelogArticleExpectedValueRake.suelog_article_candidate_scope(business)
+    candidates = candidates.where(id: ENV["CANDIDATE_IDS"].to_s.split(",").map(&:presence).compact) if ENV["CANDIDATE_IDS"].present?
+    candidates = candidates.where(id: [ 330, 331, 332, 333, 334, 335 ]) if ENV["CANDIDATE_IDS"].blank?
+
+    puts "候補一致状況"
+    candidates.find_each do |candidate|
+      metadata = candidate.metadata.to_h.deep_stringify_keys
+      source_query, query_source = AicooSuelogArticleExpectedValueRake.source_query_with_source(candidate, metadata)
+      diagnostics = Aicoo::SuelogArticleExpectedValue.new(
+        business:,
+        query: source_query,
+        gsc_inputs: AicooSuelogArticleExpectedValueRake.gsc_inputs(metadata).merge("query_source" => query_source)
+      ).gsc_diagnostics
+
+      puts [
+        "candidate_id=#{candidate.id}",
+        "source_query=#{source_query}",
+        "query_source=#{query_source}",
+        "一致候補数=#{diagnostics['query_rows_count']}",
+        "exact一致数=#{diagnostics['exact_count']}",
+        "normalized一致数=#{diagnostics['normalized_count']}",
+        "partial一致数=#{diagnostics['partial_count']}",
+        "一致したQuery=#{diagnostics['matched_query']}",
+        "保存モデル=#{Array(diagnostics['query_rows']).find { |row| row['query'] == diagnostics['matched_query'] }&.dig('source_model')}",
+        "match_type=#{diagnostics['match_type']}",
+        "fallback理由=#{diagnostics['fallback_reason']}"
+      ].join(" ")
+    end
+  end
 end
 
 module AicooSuelogArticleExpectedValueRake
@@ -165,6 +230,38 @@ module AicooSuelogArticleExpectedValueRake
       business.source_app_connections.where(source_app: %w[suelog sue-log 吸えログ]).exists?
   end
 
+  def suelog_business_scope
+    Business.kept.order(:id).select { |business| suelog_business?(business) }
+  end
+
+  def suelog_article_candidate_scope(business)
+    business.action_candidates
+      .where(generation_source: GENERATION_SOURCES)
+      .where(action_type: ARTICLE_ACTION_TYPES)
+      .where.not(status: TERMINAL_STATUSES)
+  end
+
+  def suelog_gsc_data_import_count(business)
+    data_import_ids = business.data_sources.where(source_type: "gsc").joins(:data_imports).pluck("data_imports.id")
+    analytics_site_ids = AicooAnalyticsSite.where(business_id: business.id).pluck(:id)
+    analytics_site_ids += AicooAnalyticsSite.where(gsc_site_url: business.gsc_site_url).pluck(:id) if business.gsc_site_url.present?
+    data_import_ids += DataImport.joins(:data_source).where(data_sources: { source_type: "gsc" }, aicoo_analytics_site_id: analytics_site_ids.uniq).pluck(:id) if analytics_site_ids.any?
+    data_import_ids.uniq.size
+  end
+
+  def suelog_gsc_snapshot_count(business)
+    analytics_site_ids = AicooAnalyticsSite.where(business_id: business.id).pluck(:id)
+    analytics_site_ids += AicooAnalyticsSite.where(gsc_site_url: business.gsc_site_url).pluck(:id) if business.gsc_site_url.present?
+    AicooDataSnapshot.where(source_type: "gsc").select do |snapshot|
+      payload = snapshot.payload.to_h
+      source_record = snapshot.source_record
+      payload["business_id"].to_i == business.id ||
+        analytics_site_ids.map(&:to_s).include?(payload["analytics_site_id"].to_s) ||
+        snapshot.source_id.to_i == business.id ||
+        (source_record.respond_to?(:aicoo_analytics_site_id) && analytics_site_ids.include?(source_record.aicoo_analytics_site_id))
+    end.size
+  end
+
   def source_query(candidate, metadata)
     source_query_with_source(candidate, metadata).first
   end
@@ -241,6 +338,11 @@ module AicooSuelogArticleExpectedValueRake
       "source_query=#{result.metadata['source_query']}",
       "matched_query=#{result.metadata['matched_query']}",
       "match_type=#{result.metadata['query_match_type']}",
+      "query_rows_count=#{result.metadata['gsc_query_rows_count']}",
+      "exact_count=#{result.metadata['gsc_query_exact_count']}",
+      "normalized_count=#{result.metadata['gsc_query_normalized_count']}",
+      "partial_count=#{result.metadata['gsc_query_partial_count']}",
+      "fallback_reason=#{result.metadata.dig('gsc_inputs', 'fallback_reason')}",
       "estimated_incremental_clicks=#{result.metadata['estimated_incremental_clicks']}",
       "value_per_click_yen=#{result.metadata.dig('value_model', 'value_per_click_yen')}",
       "gsc_impressions=#{result.metadata.dig('gsc_inputs', 'impressions')}",

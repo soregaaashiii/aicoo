@@ -1,5 +1,6 @@
 require "csv"
 require "json"
+require "uri"
 
 module Aicoo
   class SuelogArticleExpectedValue
@@ -40,6 +41,12 @@ module Aicoo
           "gsc_query_clicks" => clicks,
           "gsc_query_ctr" => current_ctr.to_f.round(4),
           "gsc_query_position" => position&.to_f&.round(2),
+          "gsc_query_rows_count" => gsc_query_rows.size,
+          "gsc_query_exact_count" => exact_query_rows.size,
+          "gsc_query_normalized_count" => normalized_query_rows.size,
+          "gsc_query_partial_count" => partial_query_rows.size,
+          "gsc_search_models" => gsc_search_models,
+          "gsc_search_tables" => gsc_search_tables,
           "ga4_inputs" => ga4_metadata,
           "shopclick_inputs" => shopclick_metadata,
           "business_metric_inputs" => business_metric_metadata,
@@ -50,6 +57,24 @@ module Aicoo
           "calculation_reason" => calculation_reason
         }
       )
+    end
+
+    def gsc_diagnostics
+      {
+        "business_id" => business.id,
+        "business_name" => business.name,
+        "source_query" => query,
+        "search_models" => gsc_search_models,
+        "search_tables" => gsc_search_tables,
+        "query_rows_count" => gsc_query_rows.size,
+        "exact_count" => exact_query_rows.size,
+        "normalized_count" => normalized_query_rows.size,
+        "partial_count" => partial_query_rows.size,
+        "matched_query" => matched_gsc_query,
+        "match_type" => gsc_query_match_type,
+        "fallback_reason" => gsc_fallback_reason,
+        "query_rows" => gsc_query_rows
+      }
     end
 
     private
@@ -92,6 +117,12 @@ module Aicoo
         "query_match_type" => gsc_query_match_type,
         "matched_query" => matched_gsc_query,
         "query_source" => query_source,
+        "query_rows_count" => gsc_query_rows.size,
+        "exact_count" => exact_query_rows.size,
+        "normalized_count" => normalized_query_rows.size,
+        "partial_count" => partial_query_rows.size,
+        "search_models" => gsc_search_models,
+        "search_tables" => gsc_search_tables,
         "fallback_reason" => gsc_fallback_reason
       }.compact
     end
@@ -237,22 +268,21 @@ module Aicoo
       @matched_query_row = nil
       return @matched_query_row if query.blank?
 
-      rows = gsc_query_rows
-      exact = rows.find { |row| row["query"].to_s.squish == query }
+      exact = exact_query_rows.first
       if exact
         @gsc_query_match_type = "exact"
         @matched_query_row = exact
         return @matched_query_row
       end
 
-      normalized = rows.find { |row| normalize_query(row["query"]) == normalized_query }
+      normalized = normalized_query_rows.first
       if normalized
         @gsc_query_match_type = "normalized"
         @matched_query_row = normalized
         return @matched_query_row
       end
 
-      partial = rows.find { |row| partial_query_match?(row["query"]) }
+      partial = partial_query_rows.first
       if partial
         @gsc_query_match_type = "partial"
         @matched_query_row = partial
@@ -261,6 +291,18 @@ module Aicoo
 
       @gsc_query_match_type = "fallback"
       @matched_query_row
+    end
+
+    def exact_query_rows
+      @exact_query_rows ||= gsc_query_rows.select { |row| row["query"].to_s.squish == query }
+    end
+
+    def normalized_query_rows
+      @normalized_query_rows ||= gsc_query_rows.select { |row| normalize_query(row["query"]) == normalized_query }
+    end
+
+    def partial_query_rows
+      @partial_query_rows ||= gsc_query_rows.select { |row| partial_query_match?(row["query"]) }
     end
 
     def gsc_query_match_type
@@ -291,14 +333,34 @@ module Aicoo
     def gsc_rows_from_data_imports
       return [] unless business.respond_to?(:data_sources)
 
-      business.data_sources
-        .where(source_type: "gsc")
-        .includes(:data_imports)
-        .flat_map { |source| source.data_imports.recent.limit(3).to_a }
+      gsc_data_imports
         .sort_by { |data_import| [ data_import.imported_at || Time.zone.at(0), data_import.created_at || Time.zone.at(0) ] }
         .reverse
-        .first(3)
+        .first(10)
         .flat_map { |data_import| rows_from_gsc_import(data_import) }
+    end
+
+    def gsc_data_imports
+      imports = []
+      imports.concat(
+        business.data_sources
+          .where(source_type: "gsc")
+          .includes(:data_imports)
+          .flat_map { |source| source.data_imports.recent.limit(3).to_a }
+      )
+
+      if matching_analytics_site_ids.any?
+        imports.concat(
+          DataImport
+            .joins(:data_source)
+            .where(data_sources: { source_type: "gsc" }, aicoo_analytics_site_id: matching_analytics_site_ids)
+            .recent
+            .limit(10)
+            .to_a
+        )
+      end
+
+      imports.uniq(&:id)
     end
 
     def rows_from_gsc_import(data_import)
@@ -321,7 +383,9 @@ module Aicoo
           "ctr" => ctr_value(value_from_row(row, "ctr", "CTR")),
           "position" => numeric_value(value_from_row(row, "position", "掲載順位", "平均掲載順位")),
           "landing_page" => value_from_row(row, "page", "ページ", "url"),
-          "source" => "gsc_data_import"
+          "source" => "gsc_data_import",
+          "source_model" => "DataImport",
+          "source_table" => "data_imports"
         }
       end
     rescue CSV::MalformedCSVError
@@ -344,7 +408,9 @@ module Aicoo
           "ctr" => ctr_value(row["ctr"]),
           "position" => numeric_value(row["position"]),
           "landing_page" => row["page"].presence || row["url"].presence,
-          "source" => "gsc_raw_import"
+          "source" => "gsc_raw_import",
+          "source_model" => "DataImport",
+          "source_table" => "data_imports"
         }
       end
     rescue JSON::ParserError
@@ -358,16 +424,25 @@ module Aicoo
 
         rows = payload["rows"] || payload.dig("metrics", "rows")
         rows = payload["metrics"] if rows.blank? && payload["metrics"].is_a?(Array)
-        Array(rows)
+        Array(rows).map do |row|
+          row.to_h.deep_stringify_keys.merge(
+            "source_model" => "AicooDataSnapshot",
+            "source_table" => "aicoo_data_snapshots"
+          )
+        end
       end
     end
 
     def snapshot_belongs_to_business?(snapshot, payload)
-      return payload["business_id"].to_i == business.id if payload["business_id"].present?
+      return true if payload["business_id"].present? && payload["business_id"].to_i == business.id
+      return true if matching_analytics_site_ids.map(&:to_s).include?(payload["analytics_site_id"].to_s)
       return true if snapshot.source_id.to_i == business.id.to_i
 
       source_record = snapshot.source_record
-      source_record.respond_to?(:business_id) && source_record.business_id.to_i == business.id.to_i
+      return true if source_record.respond_to?(:business_id) && source_record.business_id.to_i == business.id.to_i
+      return true if source_record.respond_to?(:aicoo_analytics_site_id) && matching_analytics_site_ids.include?(source_record.aicoo_analytics_site_id)
+
+      false
     end
 
     def normalized_gsc_row(row)
@@ -382,7 +457,9 @@ module Aicoo
         "ctr" => first_numeric(row["ctr"], row["current_ctr"], row["ctr_percent"], row["CTR"]),
         "position" => first_numeric(row["position"], row["average_position"], row["掲載順位"], row["平均掲載順位"]),
         "landing_page" => row["landing_page"].presence || row["page"].presence || row["url"].presence || row["ページ"].presence,
-        "source" => row["source"].presence || "gsc_snapshot"
+        "source" => row["source"].presence || "gsc_snapshot",
+        "source_model" => row["source_model"].presence,
+        "source_table" => row["source_table"].presence
       }.compact
     end
 
@@ -392,6 +469,56 @@ module Aicoo
       return false if [ row_normalized.length, normalized_query.length ].min < 4
 
       row_normalized.include?(normalized_query) || normalized_query.include?(row_normalized)
+    end
+
+    def matching_analytics_site_ids
+      @matching_analytics_site_ids ||= begin
+        scopes = [ AicooAnalyticsSite.where(business_id: business.id) ]
+        scopes << AicooAnalyticsSite.where(gsc_site_url: business.gsc_site_url) if business.gsc_site_url.present?
+        domain_values.each do |domain|
+          scopes << AicooAnalyticsSite.where(domain:)
+          scopes << AicooAnalyticsSite.where("public_url ILIKE ?", "%#{ActiveRecord::Base.sanitize_sql_like(domain)}%")
+        end
+
+        scopes.flat_map { |scope| scope.pluck(:id) }.uniq
+      end
+    end
+
+    def domain_values
+      @domain_values ||= [
+        domain_from_gsc_site_url(business.gsc_site_url),
+        domain_from_url(business.metadata.to_h["production_url"]),
+        domain_from_url(business.metadata.to_h["public_url"]),
+        business.metadata.to_h["domain"]
+      ].compact_blank.uniq
+    end
+
+    def domain_from_gsc_site_url(value)
+      raw = value.to_s.strip
+      return if raw.blank?
+
+      raw.sub(/\Asc-domain:/, "").presence || domain_from_url(raw)
+    end
+
+    def domain_from_url(value)
+      raw = value.to_s.strip
+      return if raw.blank?
+
+      URI.parse(raw.start_with?("http") ? raw : "https://#{raw}").host
+    rescue URI::InvalidURIError
+      nil
+    end
+
+    def gsc_search_models
+      [
+        "DataImport(data_sources.business_id)",
+        ("DataImport(aicoo_analytics_site_id)" if matching_analytics_site_ids.any?),
+        "AicooDataSnapshot"
+      ].compact
+    end
+
+    def gsc_search_tables
+      %w[data_imports data_sources aicoo_analytics_sites aicoo_data_snapshots]
     end
 
     def normalized_query

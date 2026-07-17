@@ -170,6 +170,60 @@ module Aicoo
       assert_not_equal higashidori.expected_profit_yen, namba.expected_profit_yen
     end
 
+    test "uses gsc data import linked through analytics site" do
+      @business.update!(gsc_site_url: "sc-domain:suelog.jp")
+      site = AicooAnalyticsSite.create!(
+        business: @business,
+        name: "吸えログ",
+        domain: "suelog.jp",
+        gsc_site_url: "sc-domain:suelog.jp"
+      )
+      system_business = Business.find_or_create_by!(name: Business::SYSTEM_BUSINESS_NAMES.first)
+      data_source = system_business.data_sources.create!(name: "GSC貼り付け", source_type: "gsc")
+      data_source.data_imports.create!(
+        aicoo_analytics_site: site,
+        filename: "gsc_site.csv",
+        imported_at: Time.current,
+        processed_text: <<~CSV,
+          query,clicks,impressions,ctr,position,page
+          梅田 喫煙 カフェ,44,4400,0.01,14,/articles/umeda-smoking-cafe
+        CSV
+        row_count: 1
+      )
+
+      result = SuelogArticleExpectedValue.call(
+        business: @business,
+        query: "梅田 喫煙 カフェ",
+        gsc_inputs: business_aggregate_gsc_inputs,
+        success_probability: 0.5
+      )
+
+      assert_equal "exact", result.metadata["query_match_type"]
+      assert_equal "梅田 喫煙 カフェ", result.metadata["matched_query"]
+      assert_equal 4400, result.metadata["gsc_query_impressions"]
+      assert_includes result.metadata["gsc_search_models"], "DataImport(aicoo_analytics_site_id)"
+      assert_not_equal 4308, result.metadata["gsc_query_impressions"]
+    end
+
+    test "diagnostics reports query counts and fallback reason" do
+      create_gsc_import <<~CSV
+        query,impressions,clicks,ctr,position,page
+        東通り 居酒屋 喫煙可,1200,24,0.02,11,/articles/higashidori-smoking-izakaya
+      CSV
+
+      diagnostics = SuelogArticleExpectedValue.new(
+        business: @business,
+        query: "東通り 居酒屋 喫煙可",
+        gsc_inputs: business_aggregate_gsc_inputs
+      ).gsc_diagnostics
+
+      assert_equal 1, diagnostics["query_rows_count"]
+      assert_equal 1, diagnostics["exact_count"]
+      assert_equal "exact", diagnostics["match_type"]
+      assert_nil diagnostics["fallback_reason"]
+      assert_includes diagnostics["search_tables"], "data_imports"
+    end
+
     private
 
     def create_gsc_import(processed_text)
