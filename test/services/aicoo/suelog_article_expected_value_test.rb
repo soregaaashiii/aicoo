@@ -55,7 +55,9 @@ module Aicoo
         success_probability: 0.48
       )
 
-      assert_equal "suelog_article", result.metadata.dig("value_model", "name")
+      assert_equal "theme_learning_v2", result.metadata.dig("value_model", "name")
+      assert_equal "theme_learning_v2", result.metadata["value_model_name"]
+      assert_equal "梅田", result.metadata.dig("theme_cluster", "area")
       assert_equal 10_000, result.metadata.dig("gsc_inputs", "impressions")
       assert_equal 600, result.metadata.dig("ga4_inputs", "pageviews")
       assert_equal 120, result.metadata.dig("shopclick_inputs", "recent_shop_clicks")
@@ -63,7 +65,98 @@ module Aicoo
       assert result.metadata["estimated_incremental_clicks"].positive?
       assert result.metadata["estimated_shop_visits"].positive?
       assert result.metadata.key?("estimated_booking_clicks")
+      assert result.metadata.key?("theme_search_value")
+      assert result.metadata.key?("theme_engagement_value")
+      assert result.metadata.key?("theme_shop_value")
+      assert result.metadata.key?("learning_adjustment")
       assert_equal result.expected_profit_yen, result.metadata["expected_profit_yen"]
+    end
+
+    test "uses related query group instead of a single exact query only" do
+      create_gsc_import <<~CSV
+        query,impressions,clicks,ctr,position,page
+        東通り 居酒屋 喫煙可,1200,24,0.02,11,/articles/higashidori-smoking-izakaya
+        東通り 居酒屋,2400,48,0.02,12,/articles/higashidori-izakaya
+        東通り 喫煙,1800,18,0.01,18,/articles/higashidori-smoking
+      CSV
+
+      result = SuelogArticleExpectedValue.call(
+        business: @business,
+        query: "東通り 居酒屋 喫煙可",
+        gsc_inputs: business_aggregate_gsc_inputs,
+        success_probability: 0.5
+      )
+
+      assert_includes result.metadata["matched_queries"], "東通り 居酒屋 喫煙可"
+      assert_includes result.metadata["matched_queries"], "東通り 居酒屋"
+      assert_includes result.metadata["matched_queries"], "東通り 喫煙"
+      assert_operator result.metadata["gsc_query_impressions"], :>, 1200
+    end
+
+    test "can evaluate from related ga4 data when gsc query is missing" do
+      result = SuelogArticleExpectedValue.call(
+        business: @business,
+        query: "北新地 個室 喫煙",
+        gsc_inputs: {},
+        ga4_inputs: { pageviews: 900, active_users: 300, engagement_seconds: 120, article_to_shop_transitions: 8 },
+        shopclick_inputs: { recent_shop_clicks: 0, matched_shop_count: 0 },
+        success_probability: 0.5
+      )
+
+      assert_equal "fallback", result.metadata["query_match_type"]
+      assert_equal 0, result.metadata["theme_search_value"]
+      assert_operator result.metadata["theme_engagement_value"], :>, 0
+      assert_operator result.expected_profit_yen, :>, 0
+    end
+
+    test "uses shopclick value as separate theme component" do
+      result = SuelogArticleExpectedValue.call(
+        business: @business,
+        query: "梅田 喫煙 カフェ",
+        gsc_inputs: {},
+        ga4_inputs: {},
+        shopclick_inputs: { recent_shop_clicks: 12, matched_shop_count: 4 },
+        success_probability: 0.5
+      )
+
+      assert_operator result.metadata["theme_shop_value"], :>, 0
+      assert_equal 12, result.metadata.dig("shopclick_inputs", "recent_shop_clicks")
+    end
+
+    test "uses learning only as an adjustment factor" do
+      candidate = @business.action_candidates.create!(
+        title: "梅田 喫煙 カフェの記事を作る",
+        action_type: "new_article_candidate",
+        generation_source: "business_analyzer",
+        immediate_value_yen: 1000,
+        expected_profit_yen: 1000,
+        expected_revenue_value_yen: 1000,
+        expected_total_value_yen: 1000,
+        final_expected_value_yen: 1000,
+        success_probability: 0.5
+      )
+      ActionResult.create!(
+        action_candidate: candidate,
+        business: @business,
+        executed_on: 10.days.ago.to_date,
+        evaluated_on: Date.current,
+        evaluation_status: "evaluated",
+        predicted_expected_profit_yen: 1000,
+        actual_profit_yen: 1400
+      )
+
+      result = SuelogArticleExpectedValue.call(
+        business: @business,
+        query: "梅田 喫煙 カフェ",
+        gsc_inputs: { impressions: 1000, clicks: 10, ctr: 0.01, position: 11 },
+        ga4_inputs: {},
+        shopclick_inputs: {},
+        success_probability: 0.5
+      )
+
+      assert_operator result.metadata["learning_adjustment"], :>, 1.0
+      assert_equal 1400, result.metadata.dig("learning_inputs", "actual_profit_yen")
+      refute_equal 1400, result.expected_profit_yen
     end
 
     test "uses exact matching gsc query row instead of business aggregate fallback" do

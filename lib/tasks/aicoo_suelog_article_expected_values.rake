@@ -133,6 +133,45 @@ namespace :aicoo do
       ].join(" ")
     end
   end
+
+  desc "Diagnose article expected value v2 by theme, related queries, GA4, ShopClick and Learning"
+  task diagnose_article_value: :environment do
+    business = AicooSuelogArticleExpectedValueRake.suelog_business_scope.first
+
+    if business.blank?
+      puts "Business=not_found"
+      next
+    end
+
+    puts "Business=#{business.name} id=#{business.id}"
+    candidates = AicooSuelogArticleExpectedValueRake.suelog_article_candidate_scope(business)
+    candidates = candidates.where(id: ENV["CANDIDATE_IDS"].to_s.split(",").map(&:presence).compact) if ENV["CANDIDATE_IDS"].present?
+    candidates = candidates.limit(20) if ENV["CANDIDATE_IDS"].blank?
+
+    candidates.find_each do |candidate|
+      metadata = candidate.metadata.to_h.deep_stringify_keys
+      result = AicooSuelogArticleExpectedValueRake.calculate(candidate)
+      value_model = result.metadata["value_model"].to_h
+
+      puts [
+        "candidate_id=#{candidate.id}",
+        "title=#{candidate.title.to_s.squish}",
+        "theme=#{result.metadata['source_query']}",
+        "theme_cluster=#{result.metadata['theme_cluster'].to_json}",
+        "利用Query=#{Array(result.metadata['matched_queries']).join('|')}",
+        "関連記事GA4=#{result.metadata['ga4_inputs'].to_json}",
+        "ShopClick=#{result.metadata['shopclick_inputs'].to_json}",
+        "Learning=#{result.metadata['learning_inputs'].to_json}",
+        "theme_search_value=#{result.metadata['theme_search_value']}",
+        "theme_engagement_value=#{result.metadata['theme_engagement_value']}",
+        "theme_shop_value=#{result.metadata['theme_shop_value']}",
+        "learning_adjustment=#{result.metadata['learning_adjustment']}",
+        "expected_profit=#{result.expected_profit_yen}",
+        "reason=#{result.metadata['calculation_reason']}",
+        "value_model=#{value_model['name']}"
+      ].join(" ")
+    end
+  end
 end
 
 module AicooSuelogArticleExpectedValueRake
@@ -146,7 +185,7 @@ module AicooSuelogArticleExpectedValueRake
   def calculate(candidate)
     metadata = candidate.metadata.to_h.deep_stringify_keys
     query, query_source = source_query_with_source(candidate, metadata)
-    Aicoo::SuelogArticleExpectedValue.call(
+    Aicoo::ArticleExpectedValueV2.call(
       business: candidate.business,
       query:,
       gsc_inputs: gsc_inputs(metadata).merge("query_source" => query_source),
@@ -193,7 +232,7 @@ module AicooSuelogArticleExpectedValueRake
       candidate.final_expected_value_yen.to_i == value &&
       metadata["seo_expected_value_skipped"] == true &&
       metadata["skip_reason"].to_s == "suelog_generated" &&
-      metadata.dig("value_model", "name").to_s == "suelog_article" &&
+      metadata.dig("value_model", "name").to_s == "theme_learning_v2" &&
       metadata["calculation_reason"].to_s == result.metadata["calculation_reason"].to_s
   end
 

@@ -4,7 +4,7 @@ require "uri"
 
 module Aicoo
   class SuelogArticleExpectedValue
-    CALCULATION_VERSION = "suelog_article_v1".freeze
+    CALCULATION_VERSION = "theme_learning_v2".freeze
 
     Result = Data.define(:expected_profit_yen, :metadata)
 
@@ -25,13 +25,18 @@ module Aicoo
     end
 
     def call
-      value = (estimated_incremental_clicks * value_per_click_yen).round
+      value = expected_profit_yen
 
       Result.new(
         expected_profit_yen: value,
         metadata: {
           "value_model" => value_model_metadata(value),
           "suelog_article_value_model" => value_model_metadata(value),
+          "value_model_name" => "theme_learning_v2",
+          "value_model_version" => CALCULATION_VERSION,
+          "theme_cluster" => theme_cluster,
+          "theme_queries" => theme_queries,
+          "matched_queries" => matched_theme_queries,
           "gsc_inputs" => gsc_metadata,
           "source_query" => query.presence,
           "query_source" => query_source,
@@ -50,6 +55,12 @@ module Aicoo
           "ga4_inputs" => ga4_metadata,
           "shopclick_inputs" => shopclick_metadata,
           "business_metric_inputs" => business_metric_metadata,
+          "learning_inputs" => learning_inputs,
+          "theme_search_value" => theme_search_value.to_i,
+          "theme_engagement_value" => theme_engagement_value.to_i,
+          "theme_shop_value" => theme_shop_value.to_i,
+          "learning_adjustment" => learning_adjustment.to_f.round(2),
+          "confidence" => confidence,
           "estimated_incremental_clicks" => estimated_incremental_clicks.to_f.round(2),
           "estimated_shop_visits" => estimated_shop_visits.to_f.round(2),
           "estimated_booking_clicks" => estimated_booking_clicks.to_f.round(2),
@@ -83,10 +94,16 @@ module Aicoo
 
     def value_model_metadata(value)
       {
-        "name" => "suelog_article",
+        "name" => "theme_learning_v2",
+        "legacy_name" => "suelog_article",
         "calculation_version" => CALCULATION_VERSION,
-        "formula" => "estimated_incremental_clicks * value_per_click_yen",
+        "formula" => "(theme_search_value + theme_engagement_value + theme_shop_value) * learning_adjustment",
         "query" => query,
+        "theme_cluster" => theme_cluster,
+        "theme_search_value" => theme_search_value.to_i,
+        "theme_engagement_value" => theme_engagement_value.to_i,
+        "theme_shop_value" => theme_shop_value.to_i,
+        "learning_adjustment" => learning_adjustment.to_f.round(2),
         "estimated_incremental_clicks" => estimated_incremental_clicks.to_f.round(2),
         "estimated_shop_visits" => estimated_shop_visits.to_f.round(2),
         "estimated_booking_clicks" => estimated_booking_clicks.to_f.round(2),
@@ -163,14 +180,18 @@ module Aicoo
 
     def calculation_reason
       [
-        "GSCの表示回数・CTR・順位から増加クリックを推定",
-        "BusinessMetricDailyの電話/地図/予約クリックをProxyScoreWeightで円換算",
-        "SERPやBusiness全体価値は記事期待値へ加算しない"
+        "記事テーマをThemeClusterへ分解し、関連Query群の検索需要を合算",
+        "関連記事のGA4実績とShopClick送客を別コンポーネントとして評価",
+        "Learningは期待値を上書きせず補正係数としてのみ適用"
       ].join(" / ")
     end
 
+    def expected_profit_yen
+      @expected_profit_yen ||= ((theme_search_value + theme_engagement_value + theme_shop_value) * learning_adjustment).round
+    end
+
     def estimated_incremental_clicks
-      @estimated_incremental_clicks ||= (impressions.to_d * ctr_lift).round(2)
+      @estimated_incremental_clicks ||= matched_theme_query_rows.sum { |row| incremental_clicks_for(row) }.round(2)
     end
 
     def estimated_shop_visits
@@ -193,11 +214,11 @@ module Aicoo
     end
 
     def impressions
-      @impressions ||= first_numeric(resolved_gsc_inputs["impressions"], article_inputs["impressions"]).to_i
+      @impressions ||= matched_theme_query_rows.sum { |row| first_numeric(row["impressions"]) }.to_i
     end
 
     def clicks
-      @clicks ||= first_numeric(resolved_gsc_inputs["clicks"], article_inputs["clicks"]).to_i
+      @clicks ||= matched_theme_query_rows.sum { |row| first_numeric(row["clicks"]) }.to_i
     end
 
     def current_ctr
@@ -260,6 +281,170 @@ module Aicoo
           ).compact
         end
       end
+    end
+
+    def theme_cluster
+      @theme_cluster ||= begin
+        tokens = query.to_s.squish.split(/[[:space:]]+/)
+        {
+          "theme" => query,
+          "area" => detect_area(tokens),
+          "genre" => detect_genre(tokens),
+          "smoking" => tokens.any? { |token| token.match?(/喫煙|タバコ|煙草|smoking/i) } ? "あり" : nil,
+          "intent" => detect_intent(tokens),
+          "tokens" => tokens
+        }.compact
+      end
+    end
+
+    def theme_queries
+      @theme_queries ||= begin
+        tokens = Array(theme_cluster["tokens"])
+        area = theme_cluster["area"]
+        genre = theme_cluster["genre"]
+        smoking = theme_cluster["smoking"].present? ? "喫煙" : nil
+        candidates = [
+          query,
+          [ area, genre, smoking ].compact.join(" "),
+          [ area, genre ].compact.join(" "),
+          [ area, smoking ].compact.join(" "),
+          [ genre, smoking ].compact.join(" "),
+          [ area, "飲み放題" ].compact.join(" "),
+          [ area, "バー" ].compact.join(" "),
+          [ area, "居酒屋" ].compact.join(" "),
+          tokens.first(2).join(" "),
+          tokens.first(3).join(" ")
+        ]
+        candidates.compact_blank.uniq { |candidate| normalize_query(candidate) }
+      end
+    end
+
+    def matched_theme_query_rows
+      @matched_theme_query_rows ||= begin
+        rows = gsc_query_rows.select { |row| theme_related_query?(row["query"]) }
+        rows = [ resolved_gsc_inputs ] if rows.empty? && resolved_gsc_inputs["impressions"].present?
+        rows.uniq { |row| normalize_query(row["query"]) }
+      end
+    end
+
+    def matched_theme_queries
+      matched_theme_query_rows.map { |row| row["query"] }.compact_blank
+    end
+
+    def theme_search_value
+      @theme_search_value ||= (estimated_incremental_clicks * value_per_click_yen).round
+    end
+
+    def theme_engagement_value
+      @theme_engagement_value ||= begin
+        pv = first_numeric(ga4_inputs["pageviews"], ga4_inputs["views"])
+        active_users = first_numeric(ga4_inputs["active_users"], ga4_inputs["users"])
+        engagement_seconds = first_numeric(ga4_inputs["engagement_seconds"], ga4_inputs["average_engagement_time_seconds"])
+        article_transitions = first_numeric(ga4_inputs["article_to_shop_transitions"], ga4_inputs["internal_clicks"])
+        engagement_score = (pv * 0.02.to_d) + (active_users * 0.03.to_d) + (engagement_seconds * 0.1.to_d) + (article_transitions * value_per_shop_click_yen)
+        engagement_score.round
+      end
+    end
+
+    def theme_shop_value
+      @theme_shop_value ||= begin
+        recent_clicks = first_numeric(shopclick_inputs["recent_shop_clicks"], shopclick_inputs["clicks"])
+        matched_shops = first_numeric(shopclick_inputs["matched_shop_count"], shopclick_inputs["shop_count"])
+        ((recent_clicks * value_per_shop_click_yen) + (matched_shops * 2.to_d)).round
+      end
+    end
+
+    def learning_adjustment
+      @learning_adjustment ||= begin
+        ratios = learning_action_results.filter_map do |result|
+          predicted = result.predicted_expected_profit_yen.to_i
+          actual = result.actual_profit_yen.to_i
+          next if predicted <= 0 || actual <= 0
+
+          actual.to_d / predicted
+        end
+        if ratios.empty?
+          1.to_d
+        else
+          average = ratios.sum / ratios.size
+          clamp_decimal(average, min: 0.7, max: 1.5)
+        end
+      end
+    end
+
+    def learning_inputs
+      {
+        "source" => "action_results_similar_article_theme",
+        "similar_result_count" => learning_action_results.size,
+        "adjustment" => learning_adjustment.to_f.round(2),
+        "candidate_ids" => learning_action_results.map(&:action_candidate_id),
+        "actual_profit_yen" => learning_action_results.sum(&:actual_profit_yen),
+        "predicted_expected_profit_yen" => learning_action_results.sum(&:predicted_expected_profit_yen)
+      }
+    end
+
+    def learning_action_results
+      @learning_action_results ||= begin
+        tokens = Array(theme_cluster["tokens"]).map { |token| normalize_query(token) }.reject { |token| token.length < 2 }
+        scope = ActionResult.evaluated.includes(:action_candidate).where(business_id: business.id).order(evaluated_on: :desc).limit(50)
+        scope.select do |result|
+          candidate = result.action_candidate
+          next false unless candidate
+          next false unless candidate.action_type.to_s.in?(%w[article_create article_update new_article_candidate seo_article])
+
+          text = normalize_query([ candidate.title, candidate.metadata.to_h["source_query"], candidate.metadata.to_h["query"] ].compact.join(" "))
+          tokens.any? { |token| text.include?(token) }
+        end.first(10)
+      end
+    end
+
+    def theme_related_query?(row_query)
+      normalized = normalize_query(row_query)
+      return false if normalized.blank?
+
+      theme_queries.any? { |theme_query| normalized.include?(normalize_query(theme_query)) || normalize_query(theme_query).include?(normalized) } ||
+        Array(theme_cluster["tokens"]).count { |token| normalized.include?(normalize_query(token)) && token.to_s.length >= 2 } >= 2
+    end
+
+    def incremental_clicks_for(row)
+      row_impressions = first_numeric(row["impressions"])
+      row_ctr = normalize_ctr(first_numeric(row["ctr"], row["current_ctr"], row["ctr_percent"]))
+      row_clicks = first_numeric(row["clicks"])
+      row_ctr = row_clicks / row_impressions if row_ctr.zero? && row_impressions.positive?
+      row_position = first_numeric(row["position"], row["average_position"])
+      row_target_ctr = target_ctr_for_position(row_position, row_ctr)
+      (row_impressions * [ row_target_ctr - row_ctr, 0.to_d ].max).round(2)
+    end
+
+    def target_ctr_for_position(row_position, row_ctr)
+      baseline =
+        if row_position.positive? && row_position <= 5
+          0.035.to_d
+        elsif row_position.positive? && row_position <= 10
+          0.025.to_d
+        elsif row_position.positive? && row_position <= 30
+          0.015.to_d
+        else
+          0.01.to_d
+        end
+      [ baseline, row_ctr + 0.005.to_d ].max
+    end
+
+    def detect_area(tokens)
+      known_areas = %w[東通り 曽根崎 梅田 難波 なんば 心斎橋 北新地 堂山 西中島 本町 天満 福島 中崎町]
+      tokens.find { |token| known_areas.include?(token) } || tokens.first
+    end
+
+    def detect_genre(tokens)
+      known_genres = %w[居酒屋 バー カフェ 焼肉 焼鳥 ラーメン レストラン]
+      tokens.find { |token| known_genres.include?(token) }
+    end
+
+    def detect_intent(tokens)
+      return "比較記事" if tokens.any? { |token| token.match?(/比較|vs/i) }
+      return "まとめ記事" if tokens.any? { |token| token.match?(/居酒屋|バー|カフェ|焼肉|焼鳥/) }
+
+      "記事"
     end
 
     def matched_query_row
