@@ -121,6 +121,83 @@ class ActionCandidateTest < ActiveSupport::TestCase
     assert_equal "/articles/suelog-comparison", metadata.dig("action_plan", "target")
   end
 
+  test "does not overwrite suelog db seo article value with generic seo model" do
+    action_candidate = ActionCandidate.create!(
+      business: businesses(:suelog),
+      title: "「東通り 居酒屋 喫煙可」向けの記事を作成する",
+      action_type: "article_create",
+      generation_source: "suelog_db",
+      immediate_value_yen: 12_345,
+      success_probability: 0.1,
+      expected_hours: 1.5,
+      metadata: {
+        "custom_marker" => "kept",
+        "created_by" => "Aicoo::CandidateGenerators::SuelogGenerator",
+        "target_query" => "東通り 居酒屋 喫煙可"
+      }
+    )
+
+    action_candidate.reload
+    assert_equal 12_345, action_candidate.expected_profit_yen
+    assert_equal 12_345, action_candidate.expected_revenue_value_yen
+    assert_equal 12_345, action_candidate.expected_total_value_yen
+    assert_equal 12_345, action_candidate.final_expected_value_yen
+    assert_equal true, action_candidate.metadata["seo_expected_value_skipped"]
+    assert_equal "suelog_generated", action_candidate.metadata["skip_reason"]
+    assert_equal "suelog_db", action_candidate.metadata["generation_source"]
+    assert_equal "kept", action_candidate.metadata["custom_marker"]
+  end
+
+  test "does not overwrite suelog site insights business analyzer value with generic seo model" do
+    action_candidate = ActionCandidate.create!(
+      business: businesses(:suelog),
+      title: "「梅田 喫煙 カフェ」向けの新規記事候補を作成する",
+      action_type: "new_article_candidate",
+      generation_source: "business_analyzer",
+      immediate_value_yen: 34_000,
+      success_probability: 0.2,
+      expected_hours: 2,
+      metadata: {
+        "custom_marker" => "kept",
+        "suelog_site_insights" => true,
+        "query" => "梅田 喫煙 カフェ"
+      }
+    )
+
+    action_candidate.reload
+    assert_equal 34_000, action_candidate.expected_profit_yen
+    assert_equal 34_000, action_candidate.final_expected_value_yen
+    assert_equal true, action_candidate.metadata["seo_expected_value_skipped"]
+    assert_equal "suelog_generated", action_candidate.metadata["skip_reason"]
+    assert_equal "business_analyzer", action_candidate.metadata["generation_source"]
+    assert_equal "kept", action_candidate.metadata["custom_marker"]
+  end
+
+  test "generic seo article candidates still use SeoArticleExpectedValue" do
+    action_candidate = ActionCandidate.create!(
+      business: businesses(:suelog),
+      title: "通常SEO記事候補",
+      action_type: "new_article_candidate",
+      generation_source: "manual",
+      immediate_value_yen: 99_999,
+      success_probability: 0.5,
+      expected_hours: 1,
+      metadata: {
+        "impressions" => 10_000,
+        "current_ctr" => 0.01,
+        "target_ctr" => 0.03,
+        "conversion_rate" => 0.02,
+        "profit_per_conversion" => 1_000
+      }
+    )
+
+    action_candidate.reload
+    assert_equal 2_000, action_candidate.expected_profit_yen
+    assert_equal 2_000, action_candidate.final_expected_value_yen
+    assert_nil action_candidate.metadata["seo_expected_value_skipped"]
+    assert_equal Aicoo::SeoArticleExpectedValue::CALCULATION_VERSION, action_candidate.metadata.dig("seo_article_value_model", "calculation_version")
+  end
+
   test "marks broken article path as invalid target" do
     action_candidate = ActionCandidate.create!(
       business: businesses(:suelog),

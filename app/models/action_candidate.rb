@@ -209,6 +209,7 @@ class ActionCandidate < ApplicationRecord
   end
 
   def calculate_scores
+    generator_expected_profit_yen = suelog_generated_expected_profit_yen
     calibration = prediction_calibration
     raw_expected_profit_yen = immediate_value_yen.to_d * success_probability.to_d
     adjusted_success_probability = apply_probability_calibration(success_probability.to_d, calibration)
@@ -220,7 +221,13 @@ class ActionCandidate < ApplicationRecord
       adjusted_expected_profit_yen:,
       adjusted_success_probability:
     )
-    apply_seo_article_expected_value if seo_article_expected_value_candidate?
+    if seo_article_expected_value_candidate?
+      if skip_seo_article_expected_value?
+        mark_seo_article_expected_value_skipped!(generator_expected_profit_yen:)
+      else
+        apply_seo_article_expected_value
+      end
+    end
     self.expected_hourly_value_yen = calculate_expected_hourly_value
     self.roi = calculate_roi
     self.final_score = calculate_final_score
@@ -329,6 +336,49 @@ class ActionCandidate < ApplicationRecord
 
   def seo_article_expected_value_candidate?
     Aicoo::SeoArticleExpectedValue.applies_to?(self)
+  end
+
+  def skip_seo_article_expected_value?
+    suelog_generated_candidate?
+  end
+
+  def suelog_generated_candidate?
+    source = generation_source.to_s
+    metadata_hash = metadata.to_h
+    source.in?(%w[suelog_db business_analyzer]) ||
+      metadata_hash["suelog_site_insights"] == true ||
+      metadata_hash["external_source"].to_s == "suelog_db" ||
+      metadata_hash["analysis_source"].to_s.match?(/suelog/i).present? ||
+      metadata_hash["generator"].to_s.match?(/suelog/i).present? ||
+      metadata_hash["source_system"].to_s.match?(/suelog/i).present? ||
+      metadata_hash["created_by"].to_s.match?(/suelog/i).present?
+  end
+
+  def suelog_generated_expected_profit_yen
+    return nil unless seo_article_expected_value_candidate? && suelog_generated_candidate?
+
+    metadata_hash = metadata.to_h
+    [
+      expected_profit_yen,
+      metadata_hash["expected_profit_yen"],
+      metadata_hash["raw_immediate_value_yen"],
+      metadata_hash.dig("value_model", "raw_immediate_value_yen"),
+      metadata_hash.dig("value_model", "raw_expected_value_yen"),
+      immediate_value_yen
+    ].map { |value| value.to_i }.find(&:positive?)
+  end
+
+  def mark_seo_article_expected_value_skipped!(generator_expected_profit_yen:)
+    self.expected_profit_yen = generator_expected_profit_yen.to_i if generator_expected_profit_yen.to_i.positive?
+    self.metadata = metadata.to_h.merge(
+      "seo_expected_value_skipped" => true,
+      "skip_reason" => "suelog_generated",
+      "generator_name" => metadata.to_h["created_by"].presence || metadata.to_h["generator"].presence || generation_source,
+      "generation_source" => generation_source
+    )
+    Rails.logger.info(
+      "SKIP SeoArticleExpectedValue candidate_id=#{id || 'new'} generation_source=#{generation_source} reason=suelog_generated"
+    )
   end
 
   def apply_seo_article_expected_value
