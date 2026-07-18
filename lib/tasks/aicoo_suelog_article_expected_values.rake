@@ -134,8 +134,8 @@ namespace :aicoo do
     end
   end
 
-  desc "Diagnose article expected value v2 by theme, related queries, GA4, ShopClick and Learning"
-  task diagnose_article_value: :environment do
+  desc "Diagnose article opportunities by integrated GSC, GA4, ShopClick and Learning analysis"
+  task diagnose_article_opportunity: :environment do
     business = AicooSuelogArticleExpectedValueRake.suelog_business_scope.first
 
     if business.blank?
@@ -157,14 +157,15 @@ namespace :aicoo do
         "candidate_id=#{candidate.id}",
         "title=#{candidate.title.to_s.squish}",
         "theme=#{result.metadata['source_query']}",
+        "analysis=#{result.metadata['analysis'].to_json}",
+        "signals=#{result.metadata['signals'].to_json}",
+        "opportunity_type=#{result.metadata['opportunity_type']}",
+        "expected_effect=#{result.metadata['expected_effect'].to_json}",
         "theme_cluster=#{result.metadata['theme_cluster'].to_json}",
         "利用Query=#{Array(result.metadata['matched_queries']).join('|')}",
         "関連記事GA4=#{result.metadata['ga4_inputs'].to_json}",
         "ShopClick=#{result.metadata['shopclick_inputs'].to_json}",
         "Learning=#{result.metadata['learning_inputs'].to_json}",
-        "theme_search_value=#{result.metadata['theme_search_value']}",
-        "theme_engagement_value=#{result.metadata['theme_engagement_value']}",
-        "theme_shop_value=#{result.metadata['theme_shop_value']}",
         "learning_adjustment=#{result.metadata['learning_adjustment']}",
         "expected_profit=#{result.expected_profit_yen}",
         "reason=#{result.metadata['calculation_reason']}",
@@ -185,7 +186,7 @@ module AicooSuelogArticleExpectedValueRake
   def calculate(candidate)
     metadata = candidate.metadata.to_h.deep_stringify_keys
     query, query_source = source_query_with_source(candidate, metadata)
-    Aicoo::ArticleExpectedValueV2.call(
+    Aicoo::ArticleOpportunityAnalyzer.call(
       business: candidate.business,
       query:,
       gsc_inputs: gsc_inputs(metadata).merge("query_source" => query_source),
@@ -232,7 +233,7 @@ module AicooSuelogArticleExpectedValueRake
       candidate.final_expected_value_yen.to_i == value &&
       metadata["seo_expected_value_skipped"] == true &&
       metadata["skip_reason"].to_s == "suelog_generated" &&
-      metadata.dig("value_model", "name").to_s == "theme_learning_v2" &&
+      metadata.dig("value_model", "name").to_s == "article_opportunity_analyzer" &&
       metadata["calculation_reason"].to_s == result.metadata["calculation_reason"].to_s
   end
 

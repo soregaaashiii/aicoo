@@ -55,9 +55,16 @@ module Aicoo
         success_probability: 0.48
       )
 
-      assert_equal "theme_learning_v2", result.metadata.dig("value_model", "name")
-      assert_equal "theme_learning_v2", result.metadata["value_model_name"]
+      assert_equal "article_opportunity_analyzer", result.metadata.dig("value_model", "name")
+      assert_equal "article_opportunity_analyzer", result.metadata["value_model_name"]
       assert_equal "梅田", result.metadata.dig("theme_cluster", "area")
+      assert result.metadata["analysis"].present?
+      assert result.metadata["signals"].present?
+      assert result.metadata["opportunity_type"].present?
+      assert result.metadata["expected_effect"].present?
+      assert_equal true, result.metadata["used_gsc"]
+      assert_equal true, result.metadata["used_ga4"]
+      assert_equal true, result.metadata["used_shopclick"]
       assert_equal 10_000, result.metadata.dig("gsc_inputs", "impressions")
       assert_equal 600, result.metadata.dig("ga4_inputs", "pageviews")
       assert_equal 120, result.metadata.dig("shopclick_inputs", "recent_shop_clicks")
@@ -65,11 +72,24 @@ module Aicoo
       assert result.metadata["estimated_incremental_clicks"].positive?
       assert result.metadata["estimated_shop_visits"].positive?
       assert result.metadata.key?("estimated_booking_clicks")
-      assert result.metadata.key?("theme_search_value")
-      assert result.metadata.key?("theme_engagement_value")
-      assert result.metadata.key?("theme_shop_value")
       assert result.metadata.key?("learning_adjustment")
       assert_equal result.expected_profit_yen, result.metadata["expected_profit_yen"]
+    end
+
+    test "detects opportunity before converting effect to profit" do
+      result = SuelogArticleExpectedValue.call(
+        business: @business,
+        query: "東通り 居酒屋 喫煙可",
+        gsc_inputs: { impressions: 20_000, clicks: 120, ctr: 0.006, position: 12 },
+        ga4_inputs: { pageviews: 2_000, active_users: 900, engagement_seconds: 120 },
+        shopclick_inputs: { recent_shop_clicks: 4, matched_shop_count: 8 },
+        success_probability: 0.48
+      )
+
+      assert_includes %w[title_ctr_improvement cta_improvement internal_link_improvement same_theme_new_article], result.metadata["opportunity_type"]
+      assert result.metadata.dig("analysis", "opportunities").any?
+      assert result.metadata["reason"].present?
+      assert_equal result.expected_profit_yen, result.metadata["expected_profit"]
     end
 
     test "uses related query group instead of a single exact query only" do
@@ -104,8 +124,8 @@ module Aicoo
       )
 
       assert_equal "fallback", result.metadata["query_match_type"]
-      assert_equal 0, result.metadata["theme_search_value"]
-      assert_operator result.metadata["theme_engagement_value"], :>, 0
+      assert_equal "cta_improvement", result.metadata["opportunity_type"]
+      assert_operator result.metadata.dig("expected_effect", "estimated_incremental_shop_clicks"), :>, 0
       assert_operator result.expected_profit_yen, :>, 0
     end
 
@@ -114,12 +134,13 @@ module Aicoo
         business: @business,
         query: "梅田 喫煙 カフェ",
         gsc_inputs: {},
-        ga4_inputs: {},
+        ga4_inputs: { pageviews: 1000, active_users: 320, engagement_seconds: 80 },
         shopclick_inputs: { recent_shop_clicks: 12, matched_shop_count: 4 },
         success_probability: 0.5
       )
 
-      assert_operator result.metadata["theme_shop_value"], :>, 0
+      assert_equal "cta_improvement", result.metadata["opportunity_type"]
+      assert_equal true, result.metadata["used_shopclick"]
       assert_equal 12, result.metadata.dig("shopclick_inputs", "recent_shop_clicks")
     end
 

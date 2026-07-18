@@ -47,7 +47,7 @@ class AicooSuelogArticleExpectedValuesRakeTest < ActiveSupport::TestCase
     assert_includes output, "eligible=1"
     assert_includes output, "recalculated=1"
     assert_includes output, "candidate_id=#{candidate.id}"
-    assert_includes output, "value_model_name=suelog_article"
+    assert_includes output, "value_model_name=article_opportunity_analyzer"
     assert_equal 39, candidate.reload.expected_profit_yen
     assert_nil candidate.metadata["seo_expected_value_skipped"]
   end
@@ -81,7 +81,7 @@ class AicooSuelogArticleExpectedValuesRakeTest < ActiveSupport::TestCase
     assert_equal candidate.expected_profit_yen, candidate.final_expected_value_yen
     assert_equal true, candidate.metadata["seo_expected_value_skipped"]
     assert_equal "suelog_generated", candidate.metadata["skip_reason"]
-    assert_equal "suelog_article", candidate.metadata.dig("value_model", "name")
+    assert_equal "article_opportunity_analyzer", candidate.metadata.dig("value_model", "name")
     assert candidate.metadata["gsc_inputs"].present?
     assert candidate.metadata["ga4_inputs"].present?
     assert candidate.metadata["shopclick_inputs"].present?
