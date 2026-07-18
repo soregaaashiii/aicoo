@@ -173,6 +173,18 @@ namespace :aicoo do
       ].join(" ")
     end
   end
+
+  desc "Diagnose whether Suelog GSC, GA4, ShopClick and Article data are saved and joinable by article URL"
+  task diagnose_suelog_article_data_sources: :environment do
+    business = AicooSuelogArticleExpectedValueRake.suelog_business_scope.first
+
+    if business.blank?
+      puts "Business=not_found"
+      next
+    end
+
+    puts Aicoo::SuelogArticleDataSourcesDiagnostic.call(business:)
+  end
 end
 
 module AicooSuelogArticleExpectedValueRake
