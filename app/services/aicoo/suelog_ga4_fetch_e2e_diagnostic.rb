@@ -147,14 +147,14 @@ module Aicoo
     def diagnose_api_response
       section("4. APIレスポンス生データ診断")
       @api_result = fetch_api_diagnostic
-      if api_result[:skipped]
+      if @api_result[:skipped]
         line("api_diagnostic_skipped=true")
-        line("skip_reason=#{api_result[:reason]}")
-        blocking_reasons << api_result[:reason]
+        line("skip_reason=#{@api_result[:reason]}")
+        blocking_reasons << @api_result[:reason]
         return
       end
 
-      rows = api_result[:rows]
+      rows = @api_result[:rows]
       parsed_rows = normalize_api_rows(rows)
       path_counts = path_category_counts(parsed_rows.map { |row| row[:page_path] })
       host_counts = parsed_rows.group_by { |row| row[:host_name].presence || "-" }.transform_values(&:size)
@@ -175,7 +175,7 @@ module Aicoo
 
     def diagnose_save_flow
       section("5. 保存前後比較")
-      if api_result.blank? || api_result[:skipped]
+      if @api_result.blank? || @api_result[:skipped]
         line("API受信行数=unknown")
         line("parse成功行数=unknown")
         line("filter通過行数=unknown")
@@ -185,19 +185,19 @@ module Aicoo
         return
       end
 
-      parsed_rows = normalize_api_rows(api_result[:rows])
+      parsed_rows = normalize_api_rows(@api_result[:rows])
       existing_import_rows = stored_ga4_rows
       existing_snapshot_rows = stored_snapshot_rows
       api_article_rows = parsed_rows.select { |row| article_path?(row[:page_path]) }
       stored_article_rows = existing_import_rows.select { |row| article_path?(row["page"]) }
 
-      line("API受信行数=#{api_result[:rows].size}")
+      line("API受信行数=#{@api_result[:rows].size}")
       line("parse成功行数=#{parsed_rows.size}")
       line("filter通過行数=#{parsed_rows.size}")
       line("DataImport保存行数=#{existing_import_rows.size}")
       line("AicooDataSnapshot保存行数=#{existing_snapshot_rows.size}")
-      line("除外行数=#{[ api_result[:rows].size - parsed_rows.size, 0 ].max}")
-      line("除外理由.dimension_parse_failure=#{[ api_result[:rows].size - parsed_rows.size, 0 ].max}")
+      line("除外行数=#{[ @api_result[:rows].size - parsed_rows.size, 0 ].max}")
+      line("除外理由.dimension_parse_failure=#{[ @api_result[:rows].size - parsed_rows.size, 0 ].max}")
       line("除外理由.wrong_host=0")
       line("除外理由.unsupported_path=0")
       line("除外理由.lp_only_filter=0")
@@ -269,7 +269,7 @@ module Aicoo
     def diagnose_summary
       section("最終サマリー")
       request = diagnostic_request_body
-      api_rows = api_result && !api_result[:skipped] ? normalize_api_rows(api_result[:rows]) : []
+      api_rows = @api_result && !@api_result[:skipped] ? normalize_api_rows(@api_result[:rows]) : []
       api_path_counts = path_category_counts(api_rows.map { |row| row[:page_path] })
       stored_path_counts = path_category_counts(stored_ga4_rows.map { |row| row["page"] })
       root = root_cause(api_path_counts:, stored_path_counts:)
@@ -279,7 +279,7 @@ module Aicoo
       line("requested_dimensions=#{request[:dimensions].map { |row| row[:name] }.join(',')}")
       line("requested_metrics=#{request[:metrics].map { |row| row[:name] }.join(',')}")
       line("request_has_lp_filter=false")
-      line("api_response_row_count=#{api_result && !api_result[:skipped] ? api_result[:rows].size : 'unknown'}")
+      line("api_response_row_count=#{@api_result && !@api_result[:skipped] ? @api_result[:rows].size : 'unknown'}")
       line("api_response_contains_articles=#{api_path_counts[:articles].positive?}")
       line("api_response_article_count=#{api_path_counts[:articles]}")
       line("stored_article_count=#{stored_path_counts[:articles]}")
@@ -533,7 +533,7 @@ module Aicoo
       return "wrong_business_connection" if selected_ga4_setting.blank?
       return "wrong_ga4_property" if property_matches_suelog(selected_ga4_setting) == "false"
       return "oauth_expired_using_stale_data" if oauth_reconnect_required?(selected_ga4_setting, effective_credential(selected_ga4_setting), oauth_invalid_grant?)
-      return "api_response_has_no_articles" if api_result&.fetch(:skipped, false) == false && api_path_counts[:articles].zero?
+      return "api_response_has_no_articles" if @api_result&.fetch(:skipped, false) == false && api_path_counts[:articles].zero?
       return "save_filter_excludes_articles" if api_path_counts[:articles].positive? && stored_path_counts[:articles].zero?
       return "mixed_business_data" if mixed_business_data?
 
