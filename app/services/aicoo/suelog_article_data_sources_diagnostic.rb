@@ -113,6 +113,7 @@ module Aicoo
       end.sort_by { |row| -row[:pageviews] }.first(SAMPLE_LIMIT).each do |row|
         line("- page=#{row[:raw]} normalized=#{row[:path]} pageviews=#{row[:pageviews].to_i} active_users=#{row[:active_users].to_i}")
       end
+      diagnose_ga4_article_matches(rows)
     end
 
     def diagnose_shop_click
@@ -194,14 +195,14 @@ module Aicoo
 
       line("正規化ルール=scheme削除, host削除, 末尾スラッシュ統一, query削除, fragment削除, URL decode, lowercase, www削除, canonical優先")
       gsc_pages = normalized_page_set(gsc_rows(imports: data_imports_for("gsc"), snapshots: snapshots_for("gsc")))
-      ga4_pages = normalized_page_set(ga4_rows(imports: data_imports_for("ga4"), snapshots: snapshots_for("ga4")))
+      ga4_match = ga4_article_match_summary(ga4_rows(imports: data_imports_for("ga4"), snapshots: snapshots_for("ga4")))
       shop_pages = normalized_shop_click_pages
 
       article_records(published_article_scope).first(SAMPLE_LIMIT).each do |article|
         url = article_canonical_url(article) || article_path(article)
         normalized = normalize_url(url)
         gsc_joinable = normalized.present? && gsc_pages.include?(normalized)
-        ga4_joinable = normalized.present? && ga4_pages.include?(normalized)
+        ga4_joinable = ga4_match[:matched_article_ids].include?(article.id)
         shopclick_joinable = normalized.present? && shop_pages.include?(normalized)
         line([
           "article_id=#{article.id}",
@@ -222,12 +223,13 @@ module Aicoo
       gsc_rows_cache = gsc_rows(imports: data_imports_for("gsc"), snapshots: snapshots_for("gsc"))
       ga4_rows_cache = ga4_rows(imports: data_imports_for("ga4"), snapshots: snapshots_for("ga4"))
       gsc_pages = normalized_page_set(gsc_rows_cache)
-      ga4_pages = normalized_page_set(ga4_rows_cache)
+      ga4_match = ga4_article_match_summary(ga4_rows_cache)
+      ga4_pages = ga4_match[:normalized_pages]
       shop_pages = suelog_available? ? normalized_shop_click_pages : Set.new
       article_paths = suelog_available? ? article_records(published_article_scope).map { |article| normalize_url(article_canonical_url(article) || article_path(article)) }.compact_blank : []
 
       gsc_joinable = article_paths.count { |path| gsc_pages.include?(path) }
-      ga4_joinable = article_paths.count { |path| ga4_pages.include?(path) }
+      ga4_joinable = ga4_match[:matched_article_ids].size
       shop_joinable = article_paths.count { |path| shop_pages.include?(path) }
 
       line("gsc_connected=#{data_imports_for('gsc').any? || snapshots_for('gsc').any?}")
@@ -238,6 +240,10 @@ module Aicoo
       line("article_url_available=#{article_paths.any?}")
       line("gsc_joinable_article_count=#{gsc_joinable}")
       line("ga4_joinable_article_count=#{ga4_joinable}")
+      line("ga4_matched_articles=#{ga4_joinable}")
+      line("ga4_unmatched_pages=#{ga4_match[:unmatched_pages].size}")
+      line("ga4_match_type_counts=#{ga4_match[:match_type_counts].map { |type, count| "#{type}:#{count}" }.join(',').presence || '-'}")
+      line("ga4_article_match_rate=#{article_paths.any? ? ((ga4_joinable.to_d / article_paths.size) * 100).round(1) : 0}%")
       line("shopclick_joinable_article_count=#{shop_joinable}")
       line("fully_joinable_article_count=#{article_paths.count { |path| gsc_pages.include?(path) && ga4_pages.include?(path) && shop_pages.include?(path) }}")
       collect_blocking_reasons(gsc_rows_cache:, ga4_rows_cache:, article_paths:, gsc_pages:, ga4_pages:, shop_pages:)
@@ -366,12 +372,13 @@ module Aicoo
 
     def normalize_ga4_rows(rows)
       rows.filter_map do |row|
-        page = first_present(row["page_path"], row["landing_page"], row["page"], row["url"], row["pagePath"], row["fullPageUrl"], dimension_value(row))
+        page = ga4_page_value(row)
         event_name = first_present(row["event_name"], row["eventName"])
         next if page.blank? && event_name.blank? && metric_values(row).blank?
 
         {
           "page" => page,
+          "page_source" => ga4_page_source(row, page),
           "pageviews" => decimal(first_present(row["pageviews"], row["page_views"], row["screenPageViews"], row["views"], metric_value(row, 0))),
           "active_users" => decimal(first_present(row["active_users"], row["activeUsers"], row["users"], row["totalUsers"], metric_value(row, 1))),
           "sessions" => decimal(first_present(row["sessions"], metric_value(row, 2))),
@@ -385,11 +392,44 @@ module Aicoo
       end
     end
 
-    def dimension_value(row)
+    def ga4_page_value(row)
+      first_present(
+        row["page_path"],
+        row["landing_page"],
+        row["page_location"],
+        row["pageLocation"],
+        row["page"],
+        row["url"],
+        row["pagePath"],
+        row["fullPageUrl"],
+        row["page_title"],
+        row["pageTitle"],
+        dimension_page_value(row)
+      )
+    end
+
+    def ga4_page_source(row, page)
+      return if page.blank?
+
+      %w[page_path landing_page page_location pageLocation page url pagePath fullPageUrl page_title pageTitle].find { |key| row[key].to_s == page.to_s } ||
+        "dimensionValues"
+    end
+
+    def dimension_page_value(row)
       values = row["dimensionValues"]
       return if values.blank?
 
-      Array(values).filter_map { |value| value.to_h["value"] }.find(&:present?)
+      candidates = Array(values).filter_map { |value| value.to_h["value"].presence }
+      candidates.find { |value| ga4_page_like?(value) } || candidates.find { |value| !date_dimension?(value) }
+    end
+
+    def ga4_page_like?(value)
+      text = value.to_s
+      text.start_with?("/") || text.match?(%r{\Ahttps?://}i) || text.include?("/articles/")
+    end
+
+    def date_dimension?(value)
+      value.to_s.match?(/\A\d{8}\z/) || value.to_s.match?(/\A\d{4}-\d{2}-\d{2}\z/)
     end
 
     def metric_values(row)
@@ -440,6 +480,53 @@ module Aicoo
       return "page_level_rows_available" if rows.any? { |row| row["page"].present? }
 
       "business_or_event_level_rows_without_page_path"
+    end
+
+    def diagnose_ga4_article_matches(rows)
+      summary = ga4_article_match_summary(rows)
+      line("GA4→Article一致")
+      line("ga4_matched_articles=#{summary[:matched_article_ids].size}")
+      line("ga4_unmatched_pages=#{summary[:unmatched_pages].size}")
+      line("match_type件数=#{summary[:match_type_counts].map { |type, count| "#{type}:#{count}" }.join(',').presence || '-'}")
+      line("一致率=#{summary[:article_count].positive? ? ((summary[:matched_article_ids].size.to_d / summary[:article_count]) * 100).round(1) : 0}%")
+      line("GA4未一致pageサンプル20件")
+      summary[:unmatched_pages].first(SAMPLE_LIMIT).each do |row|
+        line("- page=#{row[:page]} normalized=#{row[:normalized]} reason=#{row[:reason]}")
+      end
+    end
+
+    def ga4_article_match_summary(rows)
+      @ga4_article_match_summary ||= {}
+      key = rows.map { |row| [ row["page"], row["source_id"] ] }
+      @ga4_article_match_summary[key] ||= begin
+        articles = suelog_available? ? article_records(published_article_scope) : []
+        matcher = Aicoo::ArticleUrlMatcher.new(articles:)
+        unique_pages = rows.filter_map { |row| row["page"].presence }.uniq
+        matched_article_ids = Set.new
+        unmatched_pages = []
+        match_type_counts = Hash.new(0)
+        normalized_pages = Set.new
+
+        unique_pages.each do |page|
+          normalized = normalize_url(page)
+          normalized_pages << normalized if normalized.present?
+          match = matcher.match(page)
+          match_type_counts[match.match_type] += 1
+          if match.article_id.present?
+            matched_article_ids << match.article_id
+          else
+            unmatched_pages << { page:, normalized:, reason: match.reason }
+          end
+        end
+
+        {
+          article_count: articles.size,
+          matched_article_ids:,
+          unmatched_pages:,
+          match_type_counts:,
+          normalized_pages:
+        }
+      end
     end
 
     def suelog_available?
@@ -538,17 +625,7 @@ module Aicoo
     end
 
     def normalize_url(value)
-      raw = value.to_s.strip
-      return if raw.blank?
-
-      raw = CGI.unescape(raw)
-      uri = URI.parse(raw.match?(%r{\Ahttps?://}i) ? raw : "https://suelog.jp#{raw.start_with?('/') ? raw : "/#{raw}"}")
-      path = uri.path.to_s.downcase
-      path = "/" if path.blank?
-      path = path.chomp("/") unless path == "/"
-      path
-    rescue URI::InvalidURIError
-      nil
+      Aicoo::UrlNormalizer.call(value)
     end
 
     def sample_values(values)

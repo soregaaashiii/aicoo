@@ -46,5 +46,30 @@ module Aicoo
       assert_equal 120, rows.first["active_users"].to_i
       assert_equal "scroll", rows.first["event_name"]
     end
+
+    test "normalizes ga4 dimension values by selecting page-like dimension instead of date" do
+      rows = @diagnostic.send(:normalize_ga4_rows, [
+        {
+          "dimensionValues" => [ { "value" => "20260717" }, { "value" => "/articles/umeda-smoking-cafe" } ],
+          "metricValues" => [ { "value" => "500" }, { "value" => "120" }, { "value" => "150" } ]
+        }
+      ])
+
+      assert_equal 1, rows.size
+      assert_equal "/articles/umeda-smoking-cafe", rows.first["page"]
+      assert_equal "dimensionValues", rows.first["page_source"]
+      assert_equal 500, rows.first["pageviews"].to_i
+    end
+
+    test "normalizes ga4 page title when no page path exists" do
+      rows = @diagnostic.send(:normalize_ga4_rows, [
+        {
+          "dimensionValues" => [ { "value" => "20260717" }, { "value" => "梅田 喫煙 カフェ | 吸えログ" } ],
+          "metricValues" => [ { "value" => "80" } ]
+        }
+      ])
+
+      assert_equal "梅田 喫煙 カフェ | 吸えログ", rows.first["page"]
+    end
   end
 end
