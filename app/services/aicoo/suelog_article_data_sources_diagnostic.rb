@@ -124,13 +124,13 @@ module Aicoo
         return
       end
 
-      scope = Suelog::ShopClick.all
+      scope = ::Suelog::ShopClick.all
       recent_scope = scope
-      recent_scope = recent_scope.where(created_at: 90.days.ago..) if column?(Suelog::ShopClick, "created_at")
-      click_type_column = first_column(Suelog::ShopClick, %w[click_type event_type kind action])
-      article_id_column = first_column(Suelog::ShopClick, %w[article_id])
-      source_url_column = first_column(Suelog::ShopClick, SHOP_CLICK_URL_COLUMNS)
-      shop_id_column = first_column(Suelog::ShopClick, %w[shop_id])
+      recent_scope = recent_scope.where(created_at: 90.days.ago..) if column?(::Suelog::ShopClick, "created_at")
+      click_type_column = first_column(::Suelog::ShopClick, %w[click_type event_type kind action])
+      article_id_column = first_column(::Suelog::ShopClick, %w[article_id])
+      source_url_column = first_column(::Suelog::ShopClick, SHOP_CLICK_URL_COLUMNS)
+      shop_id_column = first_column(::Suelog::ShopClick, %w[shop_id])
 
       line("総レコード数=#{scope.count}")
       line("直近90日件数=#{recent_scope.count}")
@@ -160,7 +160,7 @@ module Aicoo
         return
       end
 
-      scope = Suelog::Article.all
+      scope = ::Suelog::Article.all
       published = published_article_scope
       line("記事総数=#{scope.count}")
       line("公開記事数=#{published.count}")
@@ -234,7 +234,7 @@ module Aicoo
       line("gsc_page_data_available=#{gsc_pages.any?}")
       line("ga4_connected=#{data_imports_for('ga4').any? || snapshots_for('ga4').any?}")
       line("ga4_page_data_available=#{ga4_pages.any?}")
-      line("shopclick_available=#{suelog_available? && Suelog::ShopClick.exists?}")
+      line("shopclick_available=#{suelog_available? && ::Suelog::ShopClick.exists?}")
       line("article_url_available=#{article_paths.any?}")
       line("gsc_joinable_article_count=#{gsc_joinable}")
       line("ga4_joinable_article_count=#{ga4_joinable}")
@@ -453,13 +453,13 @@ module Aicoo
     end
 
     def article_records(scope)
-      scope.order(order_column(Suelog::Article) => :desc).limit(200).to_a
+      scope.order(order_column(::Suelog::Article) => :desc).limit(200).to_a
     end
 
     def published_article_scope
-      scope = Suelog::Article.all
-      scope = scope.where(published: true) if column?(Suelog::Article, "published")
-      scope = scope.where("published_at IS NULL OR published_at <= ?", Time.current) if column?(Suelog::Article, "published_at")
+      scope = ::Suelog::Article.all
+      scope = scope.where(published: true) if column?(::Suelog::Article, "published")
+      scope = scope.where("published_at IS NULL OR published_at <= ?", Time.current) if column?(::Suelog::Article, "published_at")
       scope
     end
 
@@ -492,13 +492,13 @@ module Aicoo
     def normalized_shop_click_pages
       return Set.new unless suelog_available?
 
-      source_url_column = first_column(Suelog::ShopClick, SHOP_CLICK_URL_COLUMNS)
-      article_id_column = first_column(Suelog::ShopClick, %w[article_id])
+      source_url_column = first_column(::Suelog::ShopClick, SHOP_CLICK_URL_COLUMNS)
+      article_id_column = first_column(::Suelog::ShopClick, %w[article_id])
       paths = []
-      paths += Suelog::ShopClick.where.not(source_url_column => [ nil, "" ]).limit(5000).pluck(source_url_column) if source_url_column
+      paths += ::Suelog::ShopClick.where.not(source_url_column => [ nil, "" ]).limit(5000).pluck(source_url_column) if source_url_column
       if article_id_column
-        article_ids = Suelog::ShopClick.where.not(article_id_column => nil).limit(5000).pluck(article_id_column).uniq
-        paths += Suelog::Article.where(id: article_ids).limit(5000).map { |article| article_canonical_url(article) || article_path(article) }
+        article_ids = ::Suelog::ShopClick.where.not(article_id_column => nil).limit(5000).pluck(article_id_column).uniq
+        paths += ::Suelog::Article.where(id: article_ids).limit(5000).map { |article| article_canonical_url(article) || article_path(article) }
       end
       Set.new(paths.filter_map { |path| normalize_url(path) })
     rescue StandardError
@@ -524,7 +524,7 @@ module Aicoo
     def article_click_rows(scope, article_id_column:, source_url_column:)
       if article_id_column
         rows = scope.where.not(article_id_column => nil).group(article_id_column).count.map do |article_id, count|
-          article = Suelog::Article.find_by(id: article_id)
+          article = ::Suelog::Article.find_by(id: article_id)
           { article_id:, article_url: article && (article_canonical_url(article) || article_path(article)), clicks: count }
         end
         return rows.sort_by { |row| -row[:clicks] }
