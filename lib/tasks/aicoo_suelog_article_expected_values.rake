@@ -197,6 +197,70 @@ namespace :aicoo do
 
     puts Aicoo::SuelogGa4FetchE2eDiagnostic.call(business:)
   end
+
+  desc "Resync Suelog GA4 page data after Google OAuth reconnect. Dry-run by default; use APPLY=1 to save."
+  task resync_suelog_ga4: :environment do
+    business = AicooSuelogArticleExpectedValueRake.suelog_business_scope.first
+
+    if business.blank?
+      puts "Business=not_found"
+      next
+    end
+
+    result = Aicoo::SuelogGa4Resync.call(business:, apply: ENV["APPLY"] == "1")
+    puts "mode=#{result.mode}"
+    puts "business_id=#{result.business&.id || '-'}"
+    puts "business_name=#{result.business&.name || '-'}"
+    puts "ga4_property_id=#{result.setting&.property_id || '-'}"
+    puts "date_range=#{result.start_date}..#{result.end_date}"
+    puts "oauth_usable=#{result.oauth_usable}"
+    puts "property_matches_suelog=#{result.property_matches_suelog}"
+    puts "business_matches_suelog=#{result.business_matches_suelog}"
+    puts "resync_allowed=#{result.resync_allowed}"
+    puts "blocking_reasons=#{result.blocking_reasons.join(' / ').presence || '-'}"
+    puts "api_row_count=#{result.api_row_count}"
+    puts "saved_row_count=#{result.saved_row_count}"
+    puts "article_row_count=#{result.article_row_count}"
+    puts "shop_row_count=#{result.shop_row_count}"
+    puts "lp_row_count=#{result.lp_row_count}"
+    puts "host_counts=#{result.host_counts.map { |host, count| "#{host}:#{count}" }.join(',').presence || '-'}"
+    puts "excluded_counts=#{result.excluded_counts.map { |reason, count| "#{reason}:#{count}" }.join(',').presence || '-'}"
+    puts "data_import_id=#{result.data_import_id || '-'}"
+    puts "snapshot_id=#{result.snapshot_id || '-'}"
+    puts "analytics_fetch_run_id=#{result.analytics_fetch_run_id || '-'}"
+    puts "google_api_import_run_id=#{result.google_api_import_run_id || '-'}"
+  end
+
+  desc "Check Suelog GA4 data integrity after resync"
+  task check_suelog_ga4_integrity: :environment do
+    business = AicooSuelogArticleExpectedValueRake.suelog_business_scope.first
+
+    if business.blank?
+      puts "Business=not_found"
+      next
+    end
+
+    result = Aicoo::SuelogGa4DataIntegrityCheck.call(business:)
+    puts "business_id=#{result.business_id || '-'}"
+    puts "property_id=#{result.property_id || '-'}"
+    puts "host=#{result.host || '-'}"
+    puts "latest_fetch_status=#{result.latest_fetch_status}"
+    puts "latest_success_at=#{result.latest_success_at || '-'}"
+    puts "latest_failure_at=#{result.latest_failure_at || '-'}"
+    puts "oauth_usable=#{result.oauth_usable}"
+    puts "stored_row_count=#{result.stored_row_count}"
+    puts "article_row_count=#{result.article_row_count}"
+    puts "shop_row_count=#{result.shop_row_count}"
+    puts "lp_row_count=#{result.lp_row_count}"
+    puts "mixed_business_row_count=#{result.mixed_business_row_count}"
+    puts "stale_row_count=#{result.stale_row_count}"
+    puts "ga4_matched_articles=#{result.ga4_matched_articles}"
+    puts "ga4_unmatched_articles=#{result.ga4_unmatched_articles}"
+    puts "ga4_article_match_rate=#{result.ga4_article_match_rate}%"
+    puts "fully_joinable_article_count=#{result.fully_joinable_article_count}"
+    puts "integrity_status=#{result.integrity_status}"
+    puts "blocking_reasons=#{result.blocking_reasons.join(' / ').presence || '-'}"
+  end
 end
 
 module AicooSuelogArticleExpectedValueRake

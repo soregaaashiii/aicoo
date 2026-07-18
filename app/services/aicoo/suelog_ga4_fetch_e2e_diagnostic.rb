@@ -316,9 +316,7 @@ module Aicoo
 
     def analytics_sites
       @analytics_sites ||= begin
-        scopes = [ AicooAnalyticsSite.where(business_id: business.id) ]
-        scopes << AicooAnalyticsSite.where(gsc_site_url: business.gsc_site_url) if business.respond_to?(:gsc_site_url) && business.gsc_site_url.present?
-        scopes.flat_map(&:to_a).uniq
+        AicooAnalyticsSite.where(business_id: business.id).to_a
       end
     end
 
@@ -419,7 +417,7 @@ module Aicoo
         payload = snapshot.payload.to_h.deep_stringify_keys
         data_imports.map(&:id).include?(snapshot.source_id.to_i) ||
           payload["business_id"].to_i == business.id ||
-          analytics_sites.map(&:id).map(&:to_s).include?(payload["analytics_site_id"].to_s)
+          source_record_belongs_to_business?(snapshot.source_record)
       end
     end
 
@@ -571,6 +569,15 @@ module Aicoo
       stored_ga4_rows.any? do |row|
         row["business_id"].present? && row["business_id"].to_i != business.id
       end
+    end
+
+    def source_record_belongs_to_business?(record)
+      return false unless record
+      return true if record.respond_to?(:business_id) && record.business_id.to_i == business.id
+      return true if record.respond_to?(:business) && record.business&.id.to_i == business.id
+      return true if record.respond_to?(:aicoo_analytics_site) && record.aicoo_analytics_site&.business_id.to_i == business.id
+
+      false
     end
 
     def oauth_reconnect_required?(setting, credential, invalid_grant)
