@@ -185,6 +185,18 @@ namespace :aicoo do
 
     puts Aicoo::SuelogArticleDataSourcesDiagnostic.call(business:)
   end
+
+  desc "Diagnose Suelog GA4 fetch request, response and saved page data end-to-end without modifying data"
+  task diagnose_suelog_ga4_fetch_e2e: :environment do
+    business = AicooSuelogArticleExpectedValueRake.suelog_business_scope.first
+
+    if business.blank?
+      puts "Business=not_found"
+      next
+    end
+
+    puts Aicoo::SuelogGa4FetchE2eDiagnostic.call(business:)
+  end
 end
 
 module AicooSuelogArticleExpectedValueRake
