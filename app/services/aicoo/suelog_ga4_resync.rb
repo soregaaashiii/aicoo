@@ -5,7 +5,7 @@ module Aicoo
     EXPECTED_BUSINESS_ID = 2
     EXPECTED_PROPERTY_ID = "543499803"
     ALLOWED_HOSTS = %w[suelog.jp www.suelog.jp].freeze
-    DIMENSIONS = %w[date pagePath hostName].freeze
+    DIMENSIONS = %w[date pagePath hostName pageLocation].freeze
     METRICS = %w[
       screenPageViews
       activeUsers
@@ -34,6 +34,9 @@ module Aicoo
       :lp_row_count,
       :host_counts,
       :excluded_counts,
+      :accepted_reason_counts,
+      :rejected_reason_counts,
+      :row_diagnostics,
       :data_import_id,
       :snapshot_id,
       :analytics_fetch_run_id,
@@ -67,15 +70,16 @@ module Aicoo
         limit: 10_000
       )
       rows = normalize_api_rows(Array(response["rows"]))
-      accepted_rows, excluded_counts = filter_rows(rows)
+      accepted_rows, excluded_counts, row_diagnostics = filter_rows(rows)
 
-      return dry_run_result(accepted_rows:, excluded_counts:) unless apply
+      return dry_run_result(accepted_rows:, excluded_counts:, row_diagnostics:) unless apply
 
       persisted = persist!(accepted_rows:, api_row_count: rows.size, excluded_counts:)
       build_result(
         accepted_rows:,
         api_row_count: rows.size,
         excluded_counts:,
+        row_diagnostics:,
         data_import_id: persisted.fetch(:data_import).id,
         snapshot_id: persisted.fetch(:snapshot)&.id,
         analytics_fetch_run_id: persisted.fetch(:analytics_fetch_run).id,
@@ -84,7 +88,7 @@ module Aicoo
     rescue StandardError => e
       blocking_reasons << "#{e.class}: #{e.message}"
       mark_failed_runs(e)
-      build_result(accepted_rows: [], api_row_count: 0, excluded_counts: Hash.new(0), resync_allowed: false)
+      build_result(accepted_rows: [], api_row_count: 0, excluded_counts: Hash.new(0), row_diagnostics: [], resync_allowed: false)
     end
 
     private
@@ -197,14 +201,18 @@ module Aicoo
       rows.filter_map do |row|
         dimensions = Array(row["dimensionValues"]).map { |value| value.to_h["value"] }
         metrics = Array(row["metricValues"]).map { |value| value.to_h["value"] }
-        page_path = dimensions[1].to_s
-        host = dimensions[2].to_s
+        dimension_map = DIMENSIONS.zip(dimensions).to_h
+        page_path = dimension_map["pagePath"].to_s
+        host = dimension_map["hostName"].to_s
+        page_location = dimension_map["pageLocation"].to_s
         next if dimensions.blank?
 
         {
           "date" => dimensions[0],
           "pagePath" => page_path,
           "hostName" => host,
+          "pageLocation" => page_location,
+          "dimensionValues" => dimension_map,
           "screenPageViews" => metrics[0].to_i,
           "activeUsers" => metrics[1].to_i,
           "sessions" => metrics[2].to_i,
@@ -220,25 +228,26 @@ module Aicoo
 
     def filter_rows(rows)
       excluded_counts = Hash.new(0)
-      accepted = rows.filter_map do |row|
+      diagnostics = []
+      accepted = rows.each_with_index.filter_map do |row, index|
         page_path = row["pagePath"].to_s
-        host = normalize_host(row["hostName"])
+        host_decision = host_acceptance(row)
+        diagnostics << diagnostic_row(index, row, host_decision)
         if page_path.blank?
           excluded_counts[:blank_page_path] += 1
           next
         end
-        if host.blank?
-          excluded_counts[:blank_host] += 1
-          next
-        end
-        unless ALLOWED_HOSTS.include?(host)
-          excluded_counts[:wrong_host] += 1
+        unless host_decision.fetch(:accepted)
+          excluded_counts[host_decision.fetch(:reason)] += 1
           next
         end
 
-        row
+        row.merge(
+          "hostName" => host_decision.fetch(:resolved_host).presence || row["hostName"],
+          "host_acceptance_reason" => host_decision.fetch(:reason)
+        )
       end
-      [ accepted, excluded_counts ]
+      [ accepted, excluded_counts, diagnostics ]
     end
 
     def persist!(accepted_rows:, api_row_count:, excluded_counts:)
@@ -302,12 +311,13 @@ module Aicoo
 
     def csv_text(rows)
       CSV.generate(headers: true) do |csv|
-        csv << %w[date pagePath hostName screenPageViews activeUsers sessions eventCount userEngagementDuration engagementRate keyEvents business_id property_id resync_source]
+        csv << %w[date pagePath hostName pageLocation screenPageViews activeUsers sessions eventCount userEngagementDuration engagementRate keyEvents business_id property_id resync_source host_acceptance_reason]
         rows.each do |row|
           csv << [
             row["date"],
             row["pagePath"],
             row["hostName"],
+            row["pageLocation"],
             row["screenPageViews"],
             row["activeUsers"],
             row["sessions"],
@@ -317,7 +327,8 @@ module Aicoo
             row["keyEvents"],
             business.id,
             setting.property_id,
-            "suelog_ga4_resync"
+            "suelog_ga4_resync",
+            row["host_acceptance_reason"]
           ]
         end
       end
@@ -343,8 +354,8 @@ module Aicoo
       }
     end
 
-    def dry_run_result(accepted_rows:, excluded_counts:)
-      build_result(accepted_rows:, api_row_count: accepted_rows.size + excluded_counts.values.sum, excluded_counts:)
+    def dry_run_result(accepted_rows:, excluded_counts:, row_diagnostics:)
+      build_result(accepted_rows:, api_row_count: accepted_rows.size + excluded_counts.values.sum, excluded_counts:, row_diagnostics:)
     end
 
     def result_from_preflight(preflight)
@@ -366,6 +377,9 @@ module Aicoo
         lp_row_count: 0,
         host_counts: {},
         excluded_counts: {},
+        accepted_reason_counts: {},
+        rejected_reason_counts: {},
+        row_diagnostics: [],
         data_import_id: nil,
         snapshot_id: nil,
         analytics_fetch_run_id: nil,
@@ -373,7 +387,7 @@ module Aicoo
       )
     end
 
-    def build_result(accepted_rows:, api_row_count:, excluded_counts:, resync_allowed: true, data_import_id: nil, snapshot_id: nil, analytics_fetch_run_id: nil, google_api_import_run_id: nil)
+    def build_result(accepted_rows:, api_row_count:, excluded_counts:, row_diagnostics: [], resync_allowed: true, data_import_id: nil, snapshot_id: nil, analytics_fetch_run_id: nil, google_api_import_run_id: nil)
       preflight = preflight_result
       path_counts = path_category_counts(accepted_rows.map { |row| row["pagePath"] })
       Result.new(
@@ -394,6 +408,9 @@ module Aicoo
         lp_row_count: path_counts[:lp],
         host_counts: accepted_rows.group_by { |row| row["hostName"].presence || "-" }.transform_values(&:size),
         excluded_counts: excluded_counts.transform_keys(&:to_s),
+        accepted_reason_counts: accepted_rows.group_by { |row| row["host_acceptance_reason"].presence || "unknown" }.transform_values(&:size),
+        rejected_reason_counts: row_diagnostics.reject { |row| row.fetch(:accepted) }.group_by { |row| row.fetch(:exclude_reason).presence || "unknown" }.transform_values(&:size),
+        row_diagnostics:,
         data_import_id:,
         snapshot_id:,
         analytics_fetch_run_id:,
@@ -422,8 +439,55 @@ module Aicoo
       counts
     end
 
+    def host_acceptance(row)
+      page_path = row["pagePath"].to_s
+      host_from_hostname = normalize_host(row["hostName"])
+      host_from_location = normalize_host(host_from_url(row["pageLocation"]))
+
+      if host_from_hostname.present?
+        return host_decision(host_from_hostname, :host_name_match) if ALLOWED_HOSTS.include?(host_from_hostname)
+        return { accepted: false, reason: :wrong_host, resolved_host: host_from_hostname, match_source: "hostName" }
+      end
+
+      if host_from_location.present?
+        return host_decision(host_from_location, :page_location_host_match, "pageLocation") if ALLOWED_HOSTS.include?(host_from_location)
+        return { accepted: false, reason: :wrong_host, resolved_host: host_from_location, match_source: "pageLocation" }
+      end
+
+      if page_path.present? && property_matches_suelog? && business&.id == expected_business_id && business_source_setting&.enabled? && setting&.enabled?
+        return { accepted: true, reason: :property_business_setting_match_no_host, resolved_host: ALLOWED_HOSTS.first, match_source: "property_business_setting" }
+      end
+
+      { accepted: false, reason: :blank_host, resolved_host: nil, match_source: "none" }
+    end
+
+    def host_decision(host, reason, match_source = "hostName")
+      { accepted: true, reason:, resolved_host: host, match_source: }
+    end
+
+    def diagnostic_row(index, row, host_decision)
+      {
+        row_index: index,
+        hostName: row["hostName"],
+        pagePath: row["pagePath"],
+        pageLocation: row["pageLocation"],
+        dimensionValues: row["dimensionValues"],
+        normalized_host: normalize_host(row["hostName"]).presence || normalize_host(host_from_url(row["pageLocation"])),
+        normalized_path: Aicoo::UrlNormalizer.call(row["pagePath"]),
+        expected_hosts: ALLOWED_HOSTS,
+        host_match_source: host_decision.fetch(:match_source),
+        host_match_method: "hostName -> pageLocation host -> property/business/source-setting",
+        accepted: host_decision.fetch(:accepted),
+        exclude_reason: host_decision.fetch(:accepted) ? nil : host_decision.fetch(:reason),
+        accepted_reason: host_decision.fetch(:accepted) ? host_decision.fetch(:reason) : nil
+      }
+    end
+
     def normalize_host(value)
-      value.to_s.strip.downcase.sub(/\Awww\./, "www.")
+      normalized = value.to_s.strip.downcase
+      return nil if normalized.blank? || normalized == "(not set)"
+
+      host_from_url(normalized).presence || normalized
     end
 
     def host_from_url(value)

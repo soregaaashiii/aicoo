@@ -97,10 +97,49 @@ module Aicoo
       assert_not_includes data_import.raw_text, "aicoo.onrender.com"
     end
 
+    test "accepts blank host when page location belongs to suelog" do
+      result = SuelogGa4Resync.call(
+        business: @business,
+        apply: false,
+        client: FakeGa4Client.new(rows: [
+          FakeGa4Client.row("20260717", "/articles/namba-smoking-izakaya", "", 80, page_location: "https://suelog.jp/articles/namba-smoking-izakaya")
+        ]),
+        access_token: "access",
+        expected_business_id: @business.id
+      )
+
+      assert_equal 1, result.saved_row_count
+      assert_equal 1, result.article_row_count
+      assert_equal({ "page_location_host_match" => 1 }, result.accepted_reason_counts.stringify_keys)
+      assert_empty result.excluded_counts
+      assert_equal "suelog.jp", result.row_diagnostics.first.fetch(:normalized_host)
+    end
+
+    test "accepts blank host without page location only when business property and setting are verified" do
+      result = SuelogGa4Resync.call(
+        business: @business,
+        apply: false,
+        client: FakeGa4Client.new(rows: [
+          FakeGa4Client.row("20260717", "/articles/higashidori-smoking", "(not set)", 60)
+        ]),
+        access_token: "access",
+        expected_business_id: @business.id
+      )
+
+      assert_equal 1, result.saved_row_count
+      assert_equal 1, result.article_row_count
+      assert_equal({ "property_business_setting_match_no_host" => 1 }, result.accepted_reason_counts.stringify_keys)
+      assert_empty result.excluded_counts
+    end
+
     class FakeGa4Client
+      def initialize(rows: nil)
+        @rows = rows
+      end
+
       def run_report(property_id:, start_date:, end_date:, dimensions:, metrics:, limit:)
         {
-          "rows" => [
+          "rows" => @rows || [
             row("20260717", "/articles/umeda-smoking-cafe", "suelog.jp", 120),
             row("20260717", "/lp", "www.suelog.jp", 20),
             row("20260717", "/lp", "aicoo.onrender.com", 999)
@@ -110,19 +149,32 @@ module Aicoo
 
       private
 
-      def row(date, path, host, views)
+      def self.row(date, path, host, views, page_location: nil)
         {
-          "dimensionValues" => [ { "value" => date }, { "value" => path }, { "value" => host } ],
-          "metricValues" => [
-            { "value" => views.to_s },
-            { "value" => "10" },
-            { "value" => "12" },
-            { "value" => "3" },
-            { "value" => "60" },
-            { "value" => "0.5" },
-            { "value" => "1" }
-          ]
+          "dimensionValues" => [
+            { "value" => date },
+            { "value" => path },
+            { "value" => host },
+            { "value" => page_location.to_s }
+          ],
+          "metricValues" => metric_values(views)
         }
+      end
+
+      def self.metric_values(views)
+        [
+          { "value" => views.to_s },
+          { "value" => "10" },
+          { "value" => "12" },
+          { "value" => "3" },
+          { "value" => "60" },
+          { "value" => "0.5" },
+          { "value" => "1" }
+        ]
+      end
+
+      def row(date, path, host, views)
+        self.class.row(date, path, host, views)
       end
     end
   end

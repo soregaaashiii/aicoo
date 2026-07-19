@@ -225,6 +225,28 @@ namespace :aicoo do
     puts "lp_row_count=#{result.lp_row_count}"
     puts "host_counts=#{result.host_counts.map { |host, count| "#{host}:#{count}" }.join(',').presence || '-'}"
     puts "excluded_counts=#{result.excluded_counts.map { |reason, count| "#{reason}:#{count}" }.join(',').presence || '-'}"
+    puts "accepted_rows=#{result.saved_row_count}"
+    puts "rejected_rows=#{result.excluded_counts.values.sum}"
+    puts "accepted_reason_counts=#{result.accepted_reason_counts.map { |reason, count| "#{reason}:#{count}" }.join(',').presence || '-'}"
+    puts "rejected_reason_counts=#{result.rejected_reason_counts.map { |reason, count| "#{reason}:#{count}" }.join(',').presence || '-'}"
+    puts "host_judgement_expected_hosts=#{Aicoo::SuelogGa4Resync::ALLOWED_HOSTS.join(',')}"
+    puts "host_judgement_method=hostName -> pageLocation host -> property/business/source-setting"
+    puts "row_diagnostics:"
+    result.row_diagnostics.each do |row|
+      puts [
+        "row_index=#{row.fetch(:row_index)}",
+        "hostName=#{row.fetch(:hostName).presence || '-'}",
+        "pagePath=#{row.fetch(:pagePath).presence || '-'}",
+        "pageLocation=#{row.fetch(:pageLocation).presence || '-'}",
+        "dimensionValues=#{row.fetch(:dimensionValues).inspect}",
+        "normalized_host=#{row.fetch(:normalized_host).presence || '-'}",
+        "normalized_path=#{row.fetch(:normalized_path).presence || '-'}",
+        "host_match_source=#{row.fetch(:host_match_source)}",
+        "accepted=#{row.fetch(:accepted)}",
+        "accepted_reason=#{row.fetch(:accepted_reason).presence || '-'}",
+        "exclude_reason=#{row.fetch(:exclude_reason).presence || '-'}"
+      ].join(" ")
+    end
     puts "data_import_id=#{result.data_import_id || '-'}"
     puts "snapshot_id=#{result.snapshot_id || '-'}"
     puts "analytics_fetch_run_id=#{result.analytics_fetch_run_id || '-'}"
