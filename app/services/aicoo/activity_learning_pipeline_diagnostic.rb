@@ -140,7 +140,10 @@ module Aicoo
     end
 
     def latest_evaluation(log)
-      log.activity_evaluations.max_by { |evaluation| [ evaluation.evaluation_window_days.to_i, evaluation.id.to_i ] }
+      log.activity_evaluations.max_by do |evaluation|
+        status_priority = { "evaluated" => 2, "pending" => 1, "skipped" => 0 }.fetch(evaluation.status, -1)
+        [ status_priority, evaluation.evaluation_window_days.to_i, evaluation.id.to_i ]
+      end
     end
 
     def action_result_for(evaluation)
@@ -202,7 +205,7 @@ module Aicoo
       Summary.new(
         activity_api_received_count: BusinessActivityLog.where(source_method: "logger").count,
         business_activity_log_count: BusinessActivityLog.count,
-        activity_evaluation_count: ActivityEvaluation.count,
+        activity_evaluation_count: ActivityEvaluation.distinct.count(:business_activity_log_id),
         activity_to_action_result_count: generated_action_results.count,
         action_result_auto_evaluated_count: generated_action_results.count,
         calibration_count: calibrations,

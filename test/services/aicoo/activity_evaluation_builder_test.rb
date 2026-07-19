@@ -140,6 +140,83 @@ module Aicoo
       assert_equal "action_candidate_not_found", evaluation.metadata.dig("action_result_bridge", "reason")
     end
 
+    test "creates pending evaluations immediately before evaluation windows are due" do
+      business = businesses(:suelog)
+      activity_log = BusinessActivityLog.create!(
+        business:,
+        source_app: "suelog",
+        activity_type: "article_updated",
+        resource_type: "Article",
+        resource_id: "recent-article",
+        title: "直近の記事更新",
+        occurred_at: 1.hour.ago,
+        detected_at: 1.hour.ago,
+        idempotency_key: "recent-article-updated"
+      )
+
+      result = ActivityEvaluationBuilder.new.call(business:)
+
+      assert_equal 3, result.created_count
+      assert_equal 3, result.pending_count
+      assert_equal ActivityEvaluationBuilder::WINDOWS, activity_log.activity_evaluations.order(:evaluation_window_days).pluck(:evaluation_window_days)
+      assert activity_log.activity_evaluations.all?(&:pending?)
+      assert_equal "evaluation_window_not_due", activity_log.activity_evaluations.first.metadata.dig("activity_evaluation_builder", "reason")
+      assert_equal "pending", activity_log.reload.evaluation_status
+    end
+
+    test "continues processing pending windows after an earlier window was evaluated" do
+      business = businesses(:suelog)
+      occurred_at = 20.days.ago
+      activity_log = BusinessActivityLog.create!(
+        business:,
+        source_app: "suelog",
+        activity_type: "article_updated",
+        resource_type: "Article",
+        resource_id: "multi-window-article",
+        title: "複数期間の記事更新",
+        occurred_at:,
+        detected_at: occurred_at,
+        idempotency_key: "multi-window-article-updated"
+      )
+      create_metrics(business, (occurred_at.to_date - 7.days)...occurred_at.to_date, clicks: 10, sessions: 20)
+      create_metrics(business, (occurred_at.to_date + 1.day)..(occurred_at.to_date + 30.days), clicks: 30, sessions: 60)
+
+      first = ActivityEvaluationBuilder.new.call(business:)
+      assert_equal 2, first.evaluated_count
+      assert_equal "evaluated", activity_log.reload.evaluation_status
+      assert activity_log.activity_evaluations.find_by!(evaluation_window_days: 30).pending?
+
+      second = travel 11.days do
+        ActivityEvaluationBuilder.new.call(business:)
+      end
+
+      assert_equal 1, second.evaluated_count
+      assert activity_log.activity_evaluations.find_by!(evaluation_window_days: 30).evaluated?
+    end
+
+    test "continues with later activities when one evaluation fails" do
+      business = businesses(:suelog)
+      failed_log = create_activity_log(business, "failed-evaluation", 10.days.ago)
+      successful_log = create_activity_log(business, "successful-evaluation", 10.days.ago)
+      builder = ActivityEvaluationBuilder.new
+      snapshots = {
+        baseline: { "clicks" => 1.0 },
+        result: { "clicks" => 2.0 }
+      }
+
+      builder.stub(:snapshots_for, lambda { |activity_log, _window|
+        raise "snapshot failure" if activity_log.id == failed_log.id
+
+        snapshots
+      }) do
+        result = builder.call(business:)
+        assert_equal 1, result.failed_count
+      end
+
+      assert_match "snapshot failure", failed_log.reload.metadata["evaluation_error"]
+      assert successful_log.activity_evaluations.evaluated.exists?
+    end
+
     private
 
     def create_metrics(business, range, clicks:, sessions:)
@@ -153,6 +230,20 @@ module Aicoo
           pageviews: sessions * 2
         )
       end
+    end
+
+    def create_activity_log(business, key, occurred_at)
+      BusinessActivityLog.create!(
+        business:,
+        source_app: "suelog",
+        activity_type: "article_updated",
+        resource_type: "Article",
+        resource_id: key,
+        title: key,
+        occurred_at:,
+        detected_at: occurred_at,
+        idempotency_key: key
+      )
     end
   end
 end

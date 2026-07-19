@@ -15,19 +15,50 @@ module Aicoo
       conversions
     ].freeze
 
-    Result = Struct.new(:created_count, :evaluated_count, :skipped_count, :pending_count, :action_results_generated_count, keyword_init: true)
+    Result = Struct.new(
+      :created_count,
+      :evaluated_count,
+      :skipped_count,
+      :pending_count,
+      :failed_count,
+      :action_results_generated_count,
+      keyword_init: true
+    )
 
     def call(business: nil)
-      result = Result.new(created_count: 0, evaluated_count: 0, skipped_count: 0, pending_count: 0, action_results_generated_count: 0)
-      scope = BusinessActivityLog.evaluation_due
+      result = Result.new(
+        created_count: 0,
+        evaluated_count: 0,
+        skipped_count: 0,
+        pending_count: 0,
+        failed_count: 0,
+        action_results_generated_count: 0
+      )
+      scope = evaluation_scope
       scope = scope.where(business:) if business
       scope.find_each do |activity_log|
-        evaluate_log(activity_log, result)
+        begin
+          evaluate_log(activity_log, result)
+        rescue StandardError => e
+          result.failed_count += 1
+          Rails.logger.error(
+            "[ActivityEvaluationBuilder] failed activity_log_id=#{activity_log.id} " \
+            "activity_type=#{activity_log.activity_type} error=#{e.class}: #{e.message}"
+          )
+        end
       end
       result
     end
 
     private
+
+    def evaluation_scope
+      pending_log_ids = ActivityEvaluation.pending.select(:business_activity_log_id)
+      BusinessActivityLog
+        .where(evaluation_status: %w[pending evaluating])
+        .or(BusinessActivityLog.where(id: pending_log_ids))
+        .distinct
+    end
 
     def evaluate_log(activity_log, result)
       activity_log.evaluation_evaluating!
@@ -41,12 +72,17 @@ module Aicoo
     end
 
     def evaluate_window(activity_log, window, result)
+      evaluation = ActivityEvaluation.find_or_initialize_by(business_activity_log: activity_log, evaluation_window_days: window)
+      return if evaluation.persisted? && !evaluation.pending?
+
       if activity_log.occurred_at + window.days > Time.current
+        assign_pending_evaluation(evaluation, activity_log, window)
+        result.created_count += 1 if evaluation.new_record?
+        evaluation.save!
         result.pending_count += 1
         return
       end
 
-      evaluation = ActivityEvaluation.find_or_initialize_by(business_activity_log: activity_log, evaluation_window_days: window)
       result.created_count += 1 if evaluation.new_record?
       snapshots = snapshots_for(activity_log, window)
       if snapshots[:baseline].blank? || snapshots[:result].blank?
@@ -56,7 +92,14 @@ module Aicoo
           skip_reason: "insufficient_metric_data",
           evaluated_at: Time.current,
           baseline_snapshot: snapshots[:baseline] || {},
-          result_snapshot: snapshots[:result] || {}
+          result_snapshot: snapshots[:result] || {},
+          metadata: evaluation.metadata.to_h.merge(
+            "activity_evaluation_builder" => builder_metadata(
+              state: "skipped",
+              reason: "insufficient_metric_data",
+              due_at: activity_log.occurred_at + window.days
+            )
+          )
         )
         evaluation.save!
         result.skipped_count += 1
@@ -70,12 +113,43 @@ module Aicoo
         result_snapshot: snapshots[:result],
         metric_deltas: delta_for(snapshots[:baseline], snapshots[:result]),
         evaluated_at: Time.current,
-        skip_reason: nil
+        skip_reason: nil,
+        metadata: evaluation.metadata.to_h.merge(
+          "activity_evaluation_builder" => builder_metadata(
+            state: "evaluated",
+            due_at: activity_log.occurred_at + window.days
+          )
+        )
       )
       evaluation.save!
       result.evaluated_count += 1
       bridge_result = Aicoo::ActivityActionResultBridge.call(evaluation)
       result.action_results_generated_count += 1 if bridge_result.status == "generated"
+    end
+
+    def assign_pending_evaluation(evaluation, activity_log, window)
+      evaluation.assign_attributes(
+        business: activity_log.business,
+        status: "pending",
+        evaluated_at: nil,
+        skip_reason: nil,
+        metadata: evaluation.metadata.to_h.merge(
+          "activity_evaluation_builder" => builder_metadata(
+            state: "pending",
+            reason: "evaluation_window_not_due",
+            due_at: activity_log.occurred_at + window.days
+          )
+        )
+      )
+    end
+
+    def builder_metadata(state:, due_at:, reason: nil)
+      {
+        "state" => state,
+        "reason" => reason,
+        "due_at" => due_at.iso8601,
+        "last_checked_at" => Time.current.iso8601
+      }.compact
     end
 
     def snapshots_for(activity_log, window)
@@ -188,6 +262,14 @@ module Aicoo
       else
         activity_log.evaluation_pending!
       end
+      clear_evaluation_error(activity_log)
+    end
+
+    def clear_evaluation_error(activity_log)
+      metadata = activity_log.metadata.to_h
+      return unless metadata.key?("evaluation_error")
+
+      activity_log.update!(metadata: metadata.except("evaluation_error"))
     end
   end
 end

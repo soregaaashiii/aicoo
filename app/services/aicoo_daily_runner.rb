@@ -903,12 +903,13 @@ class AicooDailyRunner
         evaluated_count: result.evaluated_count,
         skipped_count: result.skipped_count,
         pending_count: result.pending_count,
+        failed_count: result.failed_count.to_i,
         action_results_generated_count:
       }
     )
     log!(
       "ActivityEvaluation created=#{result.created_count} evaluated=#{result.evaluated_count} " \
-      "skipped=#{result.skipped_count} pending=#{result.pending_count} " \
+      "skipped=#{result.skipped_count} pending=#{result.pending_count} failed=#{result.failed_count.to_i} " \
       "action_results_generated=#{action_results_generated_count}"
     )
   rescue StandardError => e
