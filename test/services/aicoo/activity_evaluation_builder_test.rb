@@ -202,6 +202,29 @@ module Aicoo
       assert_nil learning["action_candidate_id"]
     end
 
+    test "does not record aicoo internal events as independent learning" do
+      business = businesses(:suelog)
+      activity_log = BusinessActivityLog.create!(
+        business:,
+        source_app: "aicoo",
+        activity_type: "landing_page_update",
+        resource_type: "AicooLabLandingPage",
+        resource_id: "internal-lp",
+        title: "LP更新",
+        occurred_at: 1.hour.ago,
+        detected_at: 1.hour.ago,
+        idempotency_key: "internal-lp-independent-learning"
+      )
+
+      ActivityEvaluationBuilder.new.call(business:)
+
+      evaluation = activity_log.activity_evaluations.find_by!(evaluation_window_days: 7)
+      assert_nil evaluation.metadata["independent_activity_learning"]
+      assert_nil evaluation.metadata["learning_track"]
+      assert_equal "internal_event", evaluation.metadata.dig("independent_activity_learning_eligibility", "excluded_reason")
+      assert_equal true, evaluation.metadata.dig("independent_activity_learning_eligibility", "is_internal_event")
+    end
+
     test "creates pending evaluations immediately before evaluation windows are due" do
       business = businesses(:suelog)
       activity_log = BusinessActivityLog.create!(

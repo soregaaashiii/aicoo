@@ -18,8 +18,20 @@ module Aicoo
       track = ActivityLearningTrack.call(evaluation)
       return if track.name == "action_candidate"
 
+      eligibility = IndependentActivityEligibility.call(activity_log)
+      unless eligibility.included?
+        evaluation.update!(metadata: evaluation.metadata.to_h.except(
+          "learning_track",
+          "independent_activity_learning"
+        ).merge(
+          "independent_activity_learning_eligibility" => eligibility.metadata
+        ))
+        return
+      end
+
       evaluation.update!(metadata: evaluation.metadata.to_h.merge(
         "learning_track" => "independent_activity",
+        "independent_activity_learning_eligibility" => eligibility.metadata,
         "independent_activity_learning" => attributes
       ))
       evaluation
@@ -42,6 +54,8 @@ module Aicoo
         "action_candidate_id" => nil,
         "activity_type" => activity_log.activity_type,
         "business_id" => activity_log.business_id,
+        "source_app" => "suelog",
+        "source_model" => activity_log.resource_type.to_s.demodulize,
         "area" => dimensions["area"],
         "station" => dimensions["station"],
         "genre" => dimensions["genre"],
@@ -50,7 +64,8 @@ module Aicoo
         "article_count" => resource_count(logs, "Article"),
         "created_count" => logs.count { |log| created_activity?(log.activity_type) },
         "updated_count" => logs.count { |log| updated_activity?(log.activity_type) },
-        "source" => activity_log.source_app,
+        "deleted_count" => logs.count { |log| deleted_activity?(log.activity_type) },
+        "source" => "suelog",
         "source_method" => activity_log.source_method,
         "manual_activity" => true,
         "group_key" => group_key(dimensions),
@@ -70,22 +85,29 @@ module Aicoo
       BusinessActivityLog
         .where(
           business_id: activity_log.business_id,
-          source_app: activity_log.source_app,
+          source_app: IndependentActivityEligibility::SUELOG_SOURCE_APPS,
           activity_type: activity_log.activity_type,
           occurred_at: burst_range
         )
         .to_a
         .select do |log|
-          activity_dimensions(log).slice("area", "station", "genre", "smoking_type") ==
+          IndependentActivityEligibility.call(log).included? &&
+            activity_dimensions(log).slice("area", "station", "genre", "smoking_type") ==
             dimensions.slice("area", "station", "genre", "smoking_type")
         end
     end
 
     def overlapping_activity_types
       BusinessActivityLog
-        .where(business_id: activity_log.business_id, occurred_at: burst_range)
-        .distinct
-        .pluck(:activity_type)
+        .where(
+          business_id: activity_log.business_id,
+          source_app: IndependentActivityEligibility::SUELOG_SOURCE_APPS,
+          occurred_at: burst_range
+        )
+        .to_a
+        .select { |log| IndependentActivityEligibility.call(log).included? }
+        .map(&:activity_type)
+        .uniq
         .sort
     end
 
@@ -131,21 +153,30 @@ module Aicoo
     end
 
     def resource_count(logs, resource_type)
-      logs.select { |log| log.resource_type == resource_type }.map(&:resource_id).reject(&:blank?).uniq.size
+      logs
+        .select { |log| log.resource_type.to_s.demodulize == resource_type }
+        .map(&:resource_id)
+        .reject(&:blank?)
+        .uniq
+        .size
     end
 
     def created_activity?(activity_type)
-      activity_type.to_s.match?(/(?:created|added)\z/)
+      activity_type.to_s.match?(/(?:create|created|add|added)\z/)
     end
 
     def updated_activity?(activity_type)
-      activity_type.to_s.match?(/(?:updated|improvement|changed|addition)\z/)
+      activity_type.to_s.match?(/(?:update|updated|improve|improved|improvement|change|changed|addition|verify|verified)\z/)
+    end
+
+    def deleted_activity?(activity_type)
+      activity_type.to_s.match?(/(?:delete|deleted|destroy|destroyed|remove|removed)\z/)
     end
 
     def group_key(dimensions)
       Digest::SHA256.hexdigest([
         activity_log.business_id,
-        activity_log.source_app,
+        "suelog",
         activity_log.activity_type,
         dimensions["area"],
         dimensions["station"],
