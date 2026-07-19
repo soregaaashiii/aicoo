@@ -315,6 +315,23 @@ namespace :aicoo do
     result = Aicoo::ArticleAnalyticsSnapshotBuilder.new(business:).diagnostic_result
     AicooArticleAnalyticsSnapshotRake.print_result(result)
   end
+
+  desc "Compare legacy article analyzer with the new ArticleAnalyticsSnapshot-based analyzer. Dry-run by default; use APPLY=1 to save comparison-only candidates."
+  task compare_article_analyzers: :environment do
+    business = AicooSuelogArticleExpectedValueRake.suelog_business_scope.first
+
+    if business.blank?
+      puts "Business=not_found"
+      next
+    end
+
+    result = Aicoo::ArticleOpportunityAnalyzer.compare_with_legacy(
+      business:,
+      apply: ENV["APPLY"] == "1",
+      limit: ENV["LIMIT"]
+    )
+    AicooArticleAnalyticsSnapshotRake.print_analyzer_comparison(result)
+  end
 end
 
 module AicooArticleAnalyticsSnapshotRake
@@ -473,6 +490,58 @@ module AicooArticleAnalyticsSnapshotRake
         "duplicate_snapshots=#{summary[:duplicate_snapshot_count] || summary['duplicate_snapshot_count']}",
         "duplicate_rate=#{summary[:duplicate_rate] || summary['duplicate_rate']}%"
       ].join(" ")
+    end
+  end
+
+  def print_analyzer_comparison(result)
+    puts "mode=#{result.mode}"
+    puts "business_id=#{result.business&.id || '-'}"
+    puts "business_name=#{result.business&.name || '-'}"
+    puts "legacy_analyzer=existing_expected_value_article_candidates"
+    puts "new_analyzer=Aicoo::ArticleOpportunityAnalyzer.from_snapshots"
+    puts "legacy_article_count=#{result.legacy_article_count}"
+    puts "new_article_count=#{result.new_article_count}"
+    puts "legacy_action_candidate_count=#{result.legacy_action_candidate_count}"
+    puts "new_action_candidate_count=#{result.new_action_candidate_count}"
+    puts "created_count=#{result.created_count}"
+    puts "failed_count=#{result.failed_count}"
+    puts "match_count=#{result.match_count}"
+    puts "match_rate=#{result.match_rate}%"
+    puts "candidate_ids=#{result.candidate_ids.join(',').presence || '-'}"
+    puts "new_article_results:"
+    result.article_results.each do |row|
+      puts [
+        "snapshot_id=#{row.snapshot_id}",
+        "article_id=#{row.article_id}",
+        "path=#{row.normalized_path || '-'}",
+        "score=#{row.opportunity_score}",
+        "seo=#{row.score_breakdown['seo_opportunity']}",
+        "ctr=#{row.score_breakdown['ctr_opportunity']}",
+        "pv=#{row.score_breakdown['pv_opportunity']}",
+        "click=#{row.score_breakdown['click_opportunity']}",
+        "content=#{row.score_breakdown['content_opportunity']}",
+        "learning=#{row.score_breakdown['learning_confidence']}",
+        "opportunities=#{row.opportunities.map { |opportunity| opportunity['opportunity_type'] }.join('|').presence || '-'}",
+        "title=#{row.title.to_s.squish.presence || '-'}"
+      ].join(" ")
+    end
+    puts "rank_differences:"
+    if result.rank_differences.empty?
+      puts "-"
+    else
+      result.rank_differences.first(50).each do |row|
+        puts [
+          "article=#{row['article_key'] || '-'}",
+          "legacy_candidate_id=#{row['legacy_candidate_id'] || '-'}",
+          "legacy_rank=#{row['legacy_rank'] || '-'}",
+          "legacy_expected_value_yen=#{row['legacy_expected_value_yen'] || 0}",
+          "new_snapshot_id=#{row['new_snapshot_id'] || '-'}",
+          "new_rank=#{row['new_rank'] || '-'}",
+          "new_opportunity_score=#{row['new_opportunity_score'] || '-'}",
+          "rank_delta=#{row['rank_delta'] || '-'}",
+          "new_opportunities=#{Array(row['new_opportunities']).join('|').presence || '-'}"
+        ].join(" ")
+      end
     end
   end
 end

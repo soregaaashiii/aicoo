@@ -12,6 +12,14 @@ module Aicoo
       def call(...)
         new(...).call
       end
+
+      def from_snapshots(...)
+        SnapshotRunner.new(...).call
+      end
+
+      def compare_with_legacy(...)
+        SnapshotComparator.new(...).call
+      end
     end
 
     def initialize(business:, query:, gsc_inputs:, ga4_inputs: {}, shopclick_inputs: {}, article_inputs: {}, success_probability: nil)
