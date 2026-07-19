@@ -329,7 +329,7 @@ module Aicoo
           "used_ga4" => metrics["ga4"],
           "used_shop_click" => metrics["shop_click"],
           "used_learning" => metrics["learning"],
-          "rank_improvement_diagnostics" => estimate[:rank_diagnostics],
+          "rank_improvement_diagnostics" => estimate[:rank_diagnostics]&.deep_stringify_keys,
           "calculation_reason" => calculation_reason(improvement_type, estimate, success_probability, work_cost, source)
         }.compact
       }
