@@ -69,6 +69,59 @@ module Aicoo
         )
       end
 
+      def score_diagnostics
+        snapshots.filter_map do |snapshot|
+          payload = snapshot.payload.to_h.deep_stringify_keys
+          breakdown = score_breakdown(payload)
+          search_demand = search_demand_score(payload)
+          improvement_potential = improvement_potential_score(breakdown)
+          opportunities = opportunities_for(payload, breakdown)
+          opportunities = opportunities.map { |opportunity| enrich_opportunity(opportunity, payload, search_demand, improvement_potential) }
+          primary = primary_opportunity(opportunities)
+          expected_improvement = decimal(primary&.dig("expected_improvement_score"))
+          gsc = gsc_metrics(payload)
+          ga4 = ga4_metrics(payload)
+          shop_click = shop_click_metrics(payload)
+
+          {
+            "article_id" => payload["article_id"],
+            "title" => payload.dig("article", "title").presence || payload["slug"].to_s,
+            "snapshot_id" => snapshot.id,
+            "gsc" => gsc,
+            "ga4" => ga4,
+            "shop_click" => shop_click,
+            "seo_opportunity" => breakdown["seo_opportunity"],
+            "seo_condition_result" => breakdown["seo_opportunity"].to_d.positive? ? "eligible" : "not_eligible",
+            "seo_reason" => seo_reason(payload),
+            "ctr_opportunity" => breakdown["ctr_opportunity"],
+            "ctr_condition_result" => breakdown["ctr_opportunity"].to_d.positive? ? "eligible" : "not_eligible",
+            "ctr_reason" => ctr_reason(payload),
+            "search_demand_score" => search_demand,
+            "search_demand_breakdown" => search_demand_breakdown(payload),
+            "improvement_potential_score" => improvement_potential,
+            "improvement_potential_breakdown" => {
+              "seo" => breakdown["seo_opportunity"],
+              "ctr" => breakdown["ctr_opportunity"],
+              "pv" => breakdown["pv_opportunity"],
+              "click" => breakdown["click_opportunity"],
+              "content" => breakdown["content_opportunity"],
+              "learning" => breakdown["learning_confidence"]
+            },
+            "expected_improvement_score" => expected_improvement.to_f.round(2),
+            "expected_improvement_formula" => {
+              "search_demand_score" => search_demand,
+              "improvement_potential_score" => improvement_potential,
+              "business_value" => primary&.dig("business_value"),
+              "success_probability" => primary&.dig("success_probability"),
+              "estimated_work_hours" => primary&.dig("estimated_work_hours")
+            }
+          }
+        rescue StandardError => e
+          Rails.logger.warn("[Aicoo::ArticleOpportunityAnalyzer::SnapshotRunner] diagnostic skipped snapshot_id=#{snapshot.id} #{e.class}: #{e.message}")
+          nil
+        end
+      end
+
       private
 
       attr_reader :business, :apply, :limit, :created_count, :failed_count, :candidate_ids
@@ -133,7 +186,7 @@ module Aicoo
       end
 
       def seo_score(payload)
-        gsc = payload["gsc"].to_h
+        gsc = gsc_metrics(payload)
         return 0 unless gsc["available"]
 
         impressions = decimal(gsc["impressions"])
@@ -168,7 +221,7 @@ module Aicoo
       end
 
       def ctr_score(payload)
-        gsc = payload["gsc"].to_h
+        gsc = gsc_metrics(payload)
         return 0 unless gsc["available"]
 
         impressions = decimal(gsc["impressions"])
@@ -185,7 +238,7 @@ module Aicoo
       end
 
       def pv_score(payload)
-        ga4 = payload["ga4"].to_h
+        ga4 = ga4_metrics(payload)
         return 0 unless ga4["available"]
 
         pageviews = decimal(ga4["pageviews"])
@@ -208,8 +261,8 @@ module Aicoo
       end
 
       def click_score(payload)
-        ga4 = payload["ga4"].to_h
-        shop_click = payload["shop_click"].to_h
+        ga4 = ga4_metrics(payload)
+        shop_click = shop_click_metrics(payload)
         return 0 unless ga4["available"] || shop_click["available"]
 
         pageviews = decimal(ga4["pageviews"])
@@ -345,6 +398,19 @@ module Aicoo
           "score_breakdown" => breakdown,
           "total_score" => score,
           "score_reasons" => score_reasons(payload),
+          "score_diagnostics" => {
+            "seo_reason" => seo_reason(payload),
+            "ctr_reason" => ctr_reason(payload),
+            "search_demand_breakdown" => search_demand_breakdown(payload),
+            "improvement_potential_breakdown" => {
+              "seo" => breakdown["seo_opportunity"],
+              "ctr" => breakdown["ctr_opportunity"],
+              "pv" => breakdown["pv_opportunity"],
+              "click" => breakdown["click_opportunity"],
+              "content" => breakdown["content_opportunity"],
+              "learning" => breakdown["learning_confidence"]
+            }
+          },
           "opportunities" => opportunities,
           "ranking_reason" => ranking_reason(payload, score, search_demand_score, improvement_potential_score, expected_improvement_score, breakdown, opportunities),
           "evidence" => evidence(payload),
@@ -356,18 +422,18 @@ module Aicoo
 
       def evidence(payload)
         {
-          "gsc" => payload["gsc"].to_h.slice("available", "impressions", "clicks", "ctr", "average_position", "query_count", "top_queries", "rank_delta", "position_delta", "average_position_delta"),
-          "ga4" => payload["ga4"].to_h.slice("available", "pageviews", "active_users", "sessions", "engagement_seconds", "pageviews_delta", "pv_delta", "pageviews_change"),
-          "shop_click" => payload["shop_click"].to_h.slice("available", "total_clicks", "article_shop_clicks", "phone_clicks", "map_clicks", "affiliate_clicks"),
+          "gsc" => gsc_metrics(payload).slice("available", "impressions", "clicks", "ctr", "average_position", "query_count", "top_queries", "rank_delta", "position_delta", "average_position_delta"),
+          "ga4" => ga4_metrics(payload).slice("available", "pageviews", "active_users", "sessions", "engagement_seconds", "pageviews_delta", "pv_delta", "pageviews_change"),
+          "shop_click" => shop_click_metrics(payload).slice("available", "total_clicks", "article_shop_clicks", "phone_clicks", "map_clicks", "affiliate_clicks"),
           "article" => payload["article"].to_h.slice("title", "word_count", "internal_link_count", "shop_count", "verified_shop_count", "content_source"),
           "learning" => payload["learning"].to_h.slice("improvement_count", "improvement_success_count", "last_improvement_at")
         }
       end
 
       def score_reasons(payload)
-        gsc = payload["gsc"].to_h
-        ga4 = payload["ga4"].to_h
-        shop_click = payload["shop_click"].to_h
+        gsc = gsc_metrics(payload)
+        ga4 = ga4_metrics(payload)
+        shop_click = shop_click_metrics(payload)
         article = payload["article"].to_h
         learning = payload["learning"].to_h
         impressions = decimal(gsc["impressions"])
@@ -434,9 +500,9 @@ module Aicoo
       end
 
       def search_demand_score(payload)
-        gsc = payload["gsc"].to_h
-        ga4 = payload["ga4"].to_h
-        shop_click = payload["shop_click"].to_h
+        gsc = gsc_metrics(payload)
+        ga4 = ga4_metrics(payload)
+        shop_click = shop_click_metrics(payload)
         impressions = decimal(gsc["impressions"])
         query_count = decimal(gsc["query_count"])
         position = decimal(gsc["average_position"])
@@ -447,19 +513,7 @@ module Aicoo
 
         impression_score = clamp(impressions / 3_000, 0, 1)
         query_score = clamp(query_count / 8, 0, 1)
-        rank_score = if position >= 11 && position <= 20
-                       1.to_d
-                     elsif position > 5 && position <= 10
-                       0.65.to_d
-                     elsif position > 20 && position <= 30
-                       0.55.to_d
-                     elsif position > 30 && position <= 50
-                       0.25.to_d
-                     elsif position.positive?
-                       0.08.to_d
-                     else
-                       0.to_d
-                     end
+        rank_score = rank_demand_component(position)
         ctr_gap_score = target_ctr(position).positive? ? clamp((target_ctr(position) - ctr) / target_ctr(position), 0, 1) : 0.to_d
         pv_score = clamp(pageviews / 1_000, 0, 1)
         active_user_score = clamp(active_users / 500, 0, 1)
@@ -557,9 +611,9 @@ module Aicoo
       end
 
       def search_demand_reason(payload, search_demand_score)
-        gsc = payload["gsc"].to_h
-        ga4 = payload["ga4"].to_h
-        shop_click = payload["shop_click"].to_h
+        gsc = gsc_metrics(payload)
+        ga4 = ga4_metrics(payload)
+        shop_click = shop_click_metrics(payload)
         impressions = decimal(gsc["impressions"])
         position = decimal(gsc["average_position"])
         ctr = normalize_rate(gsc["ctr"])
@@ -581,6 +635,135 @@ module Aicoo
 
       def primary_metric(opportunities, key)
         primary_opportunity(opportunities)&.dig(key)
+      end
+
+      def gsc_metrics(payload)
+        gsc = payload["gsc"].to_h
+        impressions = first_present(gsc["impressions"], gsc["表示回数"])
+        clicks = first_present(gsc["clicks"], gsc["クリック数"])
+        ctr = first_present(gsc["ctr"], gsc["current_ctr"], gsc["CTR"])
+        position = first_present(gsc["average_position"], gsc["position"], gsc["avg_position"], gsc["掲載順位"], gsc["平均掲載順位"])
+        {
+          "available" => truthy?(gsc["available"]) || [ impressions, clicks, ctr, position ].any?(&:present?),
+          "impressions" => impressions,
+          "clicks" => clicks,
+          "ctr" => ctr,
+          "average_position" => position,
+          "query_count" => first_present(gsc["query_count"], gsc["queries_count"], Array(gsc["top_queries"]).size),
+          "top_queries" => gsc["top_queries"],
+          "rank_delta" => first_present(gsc["rank_delta"], gsc["position_delta"], gsc["average_position_delta"]),
+          "position_delta" => gsc["position_delta"],
+          "average_position_delta" => gsc["average_position_delta"]
+        }
+      end
+
+      def ga4_metrics(payload)
+        ga4 = payload["ga4"].to_h
+        pageviews = first_present(ga4["pageviews"], ga4["views"], ga4["screenPageViews"])
+        active_users = first_present(ga4["active_users"], ga4["activeUsers"], ga4["users"])
+        sessions = ga4["sessions"]
+        engagement_seconds = first_present(ga4["engagement_seconds"], ga4["userEngagementDuration"])
+        {
+          "available" => truthy?(ga4["available"]) || [ pageviews, active_users, sessions, engagement_seconds ].any?(&:present?),
+          "pageviews" => pageviews,
+          "active_users" => active_users,
+          "sessions" => sessions,
+          "engagement_seconds" => engagement_seconds,
+          "pageviews_delta" => first_present(ga4["pageviews_delta"], ga4["pv_delta"], ga4["pageviews_change"]),
+          "pv_delta" => ga4["pv_delta"],
+          "pageviews_change" => ga4["pageviews_change"]
+        }
+      end
+
+      def shop_click_metrics(payload)
+        shop_click = payload["shop_click"].to_h
+        phone = decimal(shop_click["phone_clicks"])
+        map = decimal(shop_click["map_clicks"])
+        affiliate = decimal(shop_click["affiliate_clicks"])
+        article_shop = decimal(shop_click["article_shop_clicks"])
+        total = first_present(shop_click["total_clicks"], phone + map + affiliate + article_shop)
+        {
+          "available" => truthy?(shop_click["available"]) || decimal(total).positive?,
+          "total_clicks" => total,
+          "article_shop_clicks" => shop_click["article_shop_clicks"],
+          "phone_clicks" => shop_click["phone_clicks"],
+          "map_clicks" => shop_click["map_clicks"],
+          "affiliate_clicks" => shop_click["affiliate_clicks"]
+        }
+      end
+
+      def seo_reason(payload)
+        gsc = gsc_metrics(payload)
+        return "GSC unavailable" unless gsc["available"]
+
+        impressions = decimal(gsc["impressions"])
+        position = decimal(gsc["average_position"])
+        ctr = normalize_rate(gsc["ctr"])
+        return "表示不足" if impressions < 100
+        return "average_position nil" if position.zero?
+        return "順位50位以降で改善確度が低い" if position > 50
+        return "順位11〜20・表示あり・CTR改善余地あり" if position >= 11 && position <= 20 && target_ctr(position) > ctr
+
+        "SEO対象。ただし最優先条件外"
+      end
+
+      def ctr_reason(payload)
+        gsc = gsc_metrics(payload)
+        return "GSC unavailable" unless gsc["available"]
+
+        impressions = decimal(gsc["impressions"])
+        position = decimal(gsc["average_position"])
+        ctr = normalize_rate(gsc["ctr"])
+        target = target_ctr(position)
+        return "表示不足" if impressions < 100
+        return "average_position nil" if position.zero?
+        return "CTR十分高い" if target <= ctr
+        return "順位対象外" if position > 30
+
+        "表示あり・CTR改善余地あり"
+      end
+
+      def search_demand_breakdown(payload)
+        gsc = gsc_metrics(payload)
+        ga4 = ga4_metrics(payload)
+        shop_click = shop_click_metrics(payload)
+        impressions = decimal(gsc["impressions"])
+        query_count = decimal(gsc["query_count"])
+        position = decimal(gsc["average_position"])
+        ctr = normalize_rate(gsc["ctr"])
+        pageviews = decimal(ga4["pageviews"])
+        active_users = decimal(ga4["active_users"])
+        total_clicks = decimal(shop_click["total_clicks"])
+
+        {
+          "impression" => clamp(impressions / 3_000, 0, 1).to_f.round(2),
+          "query" => clamp(query_count / 8, 0, 1).to_f.round(2),
+          "rank" => rank_demand_component(position).to_f.round(2),
+          "ctr_gap" => (target_ctr(position).positive? ? clamp((target_ctr(position) - ctr) / target_ctr(position), 0, 1) : 0.to_d).to_f.round(2),
+          "pv" => clamp(pageviews / 1_000, 0, 1).to_f.round(2),
+          "active" => clamp(active_users / 500, 0, 1).to_f.round(2),
+          "shop_click" => clamp(total_clicks / 50, 0, 1).to_f.round(2)
+        }
+      end
+
+      def rank_demand_component(position)
+        if position >= 11 && position <= 20
+          1.to_d
+        elsif position > 5 && position <= 10
+          0.65.to_d
+        elsif position > 20 && position <= 30
+          0.55.to_d
+        elsif position > 30 && position <= 50
+          0.25.to_d
+        elsif position.positive?
+          0.08.to_d
+        else
+          0.to_d
+        end
+      end
+
+      def truthy?(value)
+        value == true || value.to_s == "true" || value.to_s == "1"
       end
 
       def action_type_for(opportunity)

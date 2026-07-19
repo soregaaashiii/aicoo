@@ -332,6 +332,22 @@ namespace :aicoo do
     )
     AicooArticleAnalyticsSnapshotRake.print_analyzer_comparison(result)
   end
+
+  desc "Diagnose ArticleOpportunityAnalyzer SEO/CTR/SearchDemand score inputs from ArticleAnalyticsSnapshot"
+  task diagnose_article_opportunity_scores: :environment do
+    business = AicooSuelogArticleExpectedValueRake.suelog_business_scope.first
+
+    if business.blank?
+      puts "Business=not_found"
+      next
+    end
+
+    rows = Aicoo::ArticleOpportunityAnalyzer::SnapshotRunner.new(
+      business:,
+      limit: ENV["LIMIT"]
+    ).score_diagnostics
+    AicooArticleAnalyticsSnapshotRake.print_article_opportunity_score_diagnostics(business, rows)
+  end
 end
 
 module AicooArticleAnalyticsSnapshotRake
@@ -527,6 +543,8 @@ module AicooArticleAnalyticsSnapshotRake
         "click=#{row.score_breakdown['click_opportunity']}",
         "content=#{row.score_breakdown['content_opportunity']}",
         "learning=#{row.score_breakdown['learning_confidence']}",
+        "seo_reason=#{row.metadata.dig('score_diagnostics', 'seo_reason') || '-'}",
+        "ctr_reason=#{row.metadata.dig('score_diagnostics', 'ctr_reason') || '-'}",
         "opportunities=#{row.opportunities.map { |opportunity| opportunity['opportunity_type'] }.join('|').presence || '-'}",
         "ranking_reason=#{row.metadata['ranking_reason'].to_s.squish.presence || '-'}",
         "title=#{row.title.to_s.squish.presence || '-'}"
@@ -568,6 +586,47 @@ module AicooArticleAnalyticsSnapshotRake
           "new_opportunities=#{Array(row['new_opportunities']).join('|').presence || '-'}"
         ].join(" ")
       end
+    end
+  end
+
+  def print_article_opportunity_score_diagnostics(business, rows)
+    puts "business_id=#{business.id}"
+    puts "business_name=#{business.name}"
+    puts "checked=#{rows.size}"
+    rows.each do |row|
+      gsc = row["gsc"].to_h
+      ga4 = row["ga4"].to_h
+      shop_click = row["shop_click"].to_h
+      formula = row["expected_improvement_formula"].to_h
+      puts [
+        "article_id=#{row['article_id']}",
+        "title=#{row['title'].to_s.squish.presence || '-'}",
+        "snapshot_id=#{row['snapshot_id']}",
+        "gsc.available=#{gsc['available']}",
+        "impressions=#{gsc['impressions'] || '-'}",
+        "clicks=#{gsc['clicks'] || '-'}",
+        "ctr=#{gsc['ctr'] || '-'}",
+        "average_position=#{gsc['average_position'] || '-'}",
+        "query_count=#{gsc['query_count'] || '-'}",
+        "ga4.pageviews=#{ga4['pageviews'] || '-'}",
+        "shop_click.total_clicks=#{shop_click['total_clicks'] || '-'}"
+      ].join(" ")
+      puts [
+        "  seo_opportunity=#{row['seo_opportunity']}",
+        "seo_condition_result=#{row['seo_condition_result']}",
+        "seo_reason=#{row['seo_reason']}"
+      ].join(" ")
+      puts [
+        "  ctr_opportunity=#{row['ctr_opportunity']}",
+        "ctr_condition_result=#{row['ctr_condition_result']}",
+        "ctr_reason=#{row['ctr_reason']}"
+      ].join(" ")
+      puts "  search_demand_score=#{row['search_demand_score']} search_demand_breakdown=#{row['search_demand_breakdown'].to_json}"
+      puts "  improvement_potential_score=#{row['improvement_potential_score']} improvement_potential_breakdown=#{row['improvement_potential_breakdown'].to_json}"
+      puts [
+        "  expected_improvement_score=#{row['expected_improvement_score']}",
+        "formula=SearchDemand:#{formula['search_demand_score']} * ImprovementPotential:#{formula['improvement_potential_score']} * BusinessValue:#{formula['business_value']} * SuccessProbability:#{formula['success_probability']} / EstimatedWorkHours:#{formula['estimated_work_hours']}"
+      ].join(" ")
     end
   end
 end

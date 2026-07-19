@@ -239,6 +239,25 @@ module Aicoo
       assert_operator high_gap.expected_improvement_score, :>, low_gap.expected_improvement_score
     end
 
+    test "uses gsc aliases when average_position and available are missing" do
+      create_article_snapshot(
+        article_id: 210,
+        path: "/articles/alias-gsc",
+        title: "GSC別名",
+        gsc: { "impressions" => 2_000, "clicks" => 10, "current_ctr" => 0.005, "position" => 14, "queries_count" => 5 },
+        ga4: { "pageviews" => 300, "activeUsers" => 120, "sessions" => 150, "userEngagementDuration" => 12_000 },
+        shop_click: { "total_clicks" => 3 },
+        article: { "title" => "GSC別名", "word_count" => 2_400, "internal_link_count" => 3, "shop_count" => 8, "verified_shop_count" => 8 }
+      )
+
+      result = ArticleOpportunityAnalyzer.from_snapshots(business: @business).article_results.first
+
+      assert_operator result.score_breakdown["seo_opportunity"], :>, 0
+      assert_operator result.score_breakdown["ctr_opportunity"], :>, 0
+      assert_equal "順位11〜20・表示あり・CTR改善余地あり", result.metadata.dig("score_diagnostics", "seo_reason")
+      assert_equal "表示あり・CTR改善余地あり", result.metadata.dig("score_diagnostics", "ctr_reason")
+    end
+
     private
 
     def create_article_snapshot(article_id:, path:, title: "記事", gsc: nil, ga4: nil, shop_click: nil, article: nil, learning: nil)
