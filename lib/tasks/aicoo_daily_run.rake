@@ -1,30 +1,90 @@
 namespace :aicoo do
   desc "Run AICOO Daily Run from cron. Usage: bundle exec rails aicoo:daily_run"
   task daily_run: :environment do
-    result = Aicoo::DailyRunCronTask.call
-    puts result.message
-
-    if result.daily_run
-      run = result.daily_run
-      puts "daily_run_id=#{run.id}"
-      puts "target_date=#{run.target_date}"
-      puts "status=#{run.status}"
-      puts "source=#{run.source}"
-      puts "retry_count=#{run.retry_count}"
-      puts "analytics_fetch_count=#{run.analytics_fetch_count}"
-      puts "snapshot_count=#{run.snapshot_count}"
-      puts "insight_generated_count=#{run.insight_generated_count}"
-      puts "business_metrics_imported_count=#{run.business_metrics_imported_count}"
-      puts "proxy_weights_adjusted_count=#{run.proxy_weights_adjusted_count}"
-      puts "action_candidates_generated_count=#{run.action_candidates_generated_count}"
-      puts "action_results_evaluated_count=#{run.action_results_evaluated_count}"
-      puts "score_snapshots_created_count=#{run.score_snapshots_created_count}"
-      puts "score_snapshot_rank_up_count=#{run.score_snapshot_rank_up_count}"
-      puts "score_snapshot_rank_down_count=#{run.score_snapshot_rank_down_count}"
-      puts "score_snapshot_no_adjustment_count=#{run.score_snapshot_no_adjustment_count}"
-      puts "data_preparation_candidates_count=#{run.data_preparation_candidates_count}"
-      puts "data_preparation_auto_queued_count=#{run.data_preparation_auto_queued_count}"
+    source = daily_run_source
+    if source == "cron"
+      result = Aicoo::DailyRunCronTask.call
+      puts result.message
+      print_daily_run(result.daily_run) if result.daily_run
+    else
+      Rails.logger.info("AICOO Daily Run manual schedule check started source=#{source}")
+      result = AicooDailyRunScheduler.check!(source:)
+      if result.is_a?(AicooDailyRun)
+        puts "AICOO Daily Run manual finished: daily_run_id=#{result.id} status=#{result.status} target_date=#{result.target_date}"
+        print_daily_run(result)
+      else
+        puts "AICOO Daily Run manual schedule check: reason=#{result.reason} target_date=#{result.target_date}"
+        puts "source=#{result.source}"
+      end
     end
+  end
+
+  desc "Diagnose Daily Run retry blocking. Usage: bin/rails aicoo:diagnose_daily_run_retry TARGET_DATE=2026-07-18"
+  task diagnose_daily_run_retry: :environment do
+    target_date = parse_daily_run_target_date
+    row = Aicoo::DailyRunRetryDiagnostic.call(target_date:)
+
+    puts "latest_run_id=#{row.latest_run&.id || '-'}"
+    puts "target_date=#{row.target_date}"
+    puts "run_status=#{row.latest_run&.status || '-'}"
+    puts "execution_source=#{row.latest_run&.source || '-'}"
+    puts "retry_count=#{row.retry_count}"
+    puts "retry_limit=#{row.retry_limit}"
+    puts "retry_limit_reached=#{row.retry_limit_reached}"
+    puts "blocking_step_id=#{row.blocking_step&.id || '-'}"
+    puts "blocking_step_name=#{row.blocking_step&.step_name || '-'}"
+    puts "blocking_step_status=#{row.blocking_step&.status || '-'}"
+    puts "blocking_step_retry_count=#{row.blocking_step&.recovery_attempt_count || 0}"
+    puts "blocking_reason=#{row.blocking_reason || '-'}"
+    puts "blocked_since=#{row.blocked_since&.iso8601 || '-'}"
+    puts "active_running_run_id=#{row.active_running_run&.id || '-'}"
+    puts "lock_available=#{row.active_running_run.nil?}"
+    puts "manual_run_allowed=#{row.manual_run_allowed}"
+    puts "cron_run_allowed=#{row.cron_run_allowed}"
+    puts "recoverable_steps=#{row.recoverable_steps.map(&:step_name).join(',').presence || '-'}"
+    puts "next_action=#{row.next_action}"
+    puts
+    puts "steps:"
+    row.steps.each do |step_row|
+      puts [
+        "step_name=#{step_row.step_name}",
+        "status=#{step_row.status}",
+        "retry_count=#{step_row.retry_count}",
+        "retry_limit=#{step_row.retry_limit}",
+        "recoverable=#{step_row.recoverable}",
+        "last_error=#{step_row.last_error.presence || '-'}",
+        "started_at=#{step_row.started_at&.iso8601 || '-'}",
+        "finished_at=#{step_row.finished_at&.iso8601 || '-'}",
+        "next_action=#{step_row.next_action}"
+      ].join(" ")
+    end
+  end
+
+  desc "Dry-run manual Daily Run recovery. Use APPLY=1 to execute. Optional TARGET_STEP=article_opportunity_analysis"
+  task daily_run_manual: :environment do
+    apply = ENV.fetch("APPLY", nil).to_s == "1"
+    target_date = parse_daily_run_target_date
+    target_step = ENV.fetch("TARGET_STEP", nil).presence
+    requested_by = ENV.fetch("REQUESTED_BY", "render_shell")
+    result = Aicoo::DailyRunManualRunner.call(target_date:, target_step:, apply:, requested_by:)
+
+    puts "mode=#{result.mode}"
+    puts "target_date=#{result.target_date}"
+    puts "source=#{result.source}"
+    puts "retry_limit_bypassed=#{result.retry_limit_bypassed}"
+    puts "blocking_reason=#{result.blocking_reason || '-'}"
+    puts "run_id=#{result.daily_run&.id || '-'}"
+    puts "run_status=#{result.daily_run&.status || '-'}"
+    puts "target_steps=#{result.selected_steps.join(',').presence || '-'}"
+    puts "success=#{result.success}"
+    puts "message=#{result.message.presence || '-'}"
+    result.executed_steps.each do |step|
+      puts "executed_step=#{step.step_name} status=#{step.status} message=#{step.message.presence || '-'} error=#{step.error_message.presence || '-'}"
+    end
+    result.skipped_steps.each do |step|
+      puts "skipped_step=#{step.step_name} status=#{step.status} message=#{step.message.presence || '-'} error=#{step.error_message.presence || '-'}"
+    end
+    puts "next_action=#{apply ? 'bin/rails aicoo:diagnose_daily_run_retry' : 'APPLY=1 bin/rails aicoo:daily_run_manual'}"
   end
 
   desc "Dry-run cleanup of cron schedule-check skipped Daily Run rows. Use APPLY=1 to delete."
@@ -226,6 +286,42 @@ namespace :aicoo do
     puts "duplicates_found=#{duplicate_ids.size}"
     puts "deleted=#{deleted_count}"
     puts "ids=#{duplicate_ids.join(',')}" unless apply || duplicate_ids.empty?
+  end
+
+  def daily_run_source
+    source = ENV.fetch("AICOO_RUN_SOURCE", nil).presence || ENV.fetch("SOURCE", nil).presence || "cron"
+    source = source.to_s
+    return source if AicooDailyRun::SOURCES.include?(source)
+
+    "cron"
+  end
+
+  def parse_daily_run_target_date
+    value = ENV.fetch("TARGET_DATE", nil).presence
+    value ? Date.parse(value) : nil
+  rescue ArgumentError
+    abort "TARGET_DATE is invalid"
+  end
+
+  def print_daily_run(run)
+    puts "daily_run_id=#{run.id}"
+    puts "target_date=#{run.target_date}"
+    puts "status=#{run.status}"
+    puts "source=#{run.source}"
+    puts "retry_count=#{run.retry_count}"
+    puts "analytics_fetch_count=#{run.analytics_fetch_count}"
+    puts "snapshot_count=#{run.snapshot_count}"
+    puts "insight_generated_count=#{run.insight_generated_count}"
+    puts "business_metrics_imported_count=#{run.business_metrics_imported_count}"
+    puts "proxy_weights_adjusted_count=#{run.proxy_weights_adjusted_count}"
+    puts "action_candidates_generated_count=#{run.action_candidates_generated_count}"
+    puts "action_results_evaluated_count=#{run.action_results_evaluated_count}"
+    puts "score_snapshots_created_count=#{run.score_snapshots_created_count}"
+    puts "score_snapshot_rank_up_count=#{run.score_snapshot_rank_up_count}"
+    puts "score_snapshot_rank_down_count=#{run.score_snapshot_rank_down_count}"
+    puts "score_snapshot_no_adjustment_count=#{run.score_snapshot_no_adjustment_count}"
+    puts "data_preparation_candidates_count=#{run.data_preparation_candidates_count}"
+    puts "data_preparation_auto_queued_count=#{run.data_preparation_auto_queued_count}"
   end
 
   def format_duration(seconds)

@@ -41,12 +41,12 @@ class AicooDailyRunScheduler
     return skipped("already_success", source:) if successful_today?
     return running_run if running_run
     return skipped("step_retry_limit_reached", source:) if cron_retry_step_limit_reached?(source)
-    return skipped("retry_limit_reached", source:) if retry_limit_reached?
+    return skipped("retry_limit_reached", source:) if retry_limit_reached?(source)
 
     return skipped("already_success", source:) if successful_today?
     return running_run if running_run
     return skipped("step_retry_limit_reached", source:) if cron_retry_step_limit_reached?(source)
-    return skipped("retry_limit_reached", source:) if retry_limit_reached?
+    return skipped("retry_limit_reached", source:) if retry_limit_reached?(source)
 
     AicooDailyRunner.run!(target_date:, source:)
   end
@@ -62,7 +62,7 @@ class AicooDailyRunScheduler
       retry_count: retry_count,
       max_retry_per_day: setting.max_retry_per_day,
       last_error: latest_run&.error_message,
-      ready: due? && !successful_today? && !running_run && !cron_retry_step_limit_reached?("cron") && !retry_limit_reached?,
+      ready: due? && !successful_today? && !running_run && !cron_retry_step_limit_reached?("cron") && !retry_limit_reached?("cron"),
       reason: status_reason
     )
   end
@@ -119,7 +119,9 @@ class AicooDailyRunScheduler
     AicooDailyRun.where(target_date:).where.not(status: %w[skipped duplicate_skipped]).count
   end
 
-  def retry_limit_reached?
+  def retry_limit_reached?(source = "cron")
+    return false if source.to_s == "manual"
+
     return retry_count.positive? unless setting.retry_until_success?
 
     retry_count >= setting.max_retry_per_day
@@ -149,7 +151,7 @@ class AicooDailyRunScheduler
     return "本日成功済み" if successful_today?
     return "実行中" if running_run
     return "同じStepの失敗が#{MAX_FAILED_RETRIES_PER_STEP}回以上続いたため自動再試行を停止" if cron_retry_step_limit_reached?("cron")
-    return "最大再試行回数に到達" if retry_limit_reached?
+    return "最大再試行回数に到達" if retry_limit_reached?("cron")
 
     "実行可能"
   end

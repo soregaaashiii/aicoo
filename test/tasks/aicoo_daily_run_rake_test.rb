@@ -5,6 +5,8 @@ class AicooDailyRunRakeTest < ActiveSupport::TestCase
   setup do
     Rails.application.load_tasks unless Rake::Task.task_defined?("aicoo:daily_run")
     Rake::Task["aicoo:daily_run"].reenable
+    Rake::Task["aicoo:diagnose_daily_run_retry"].reenable if Rake::Task.task_defined?("aicoo:diagnose_daily_run_retry")
+    Rake::Task["aicoo:daily_run_manual"].reenable if Rake::Task.task_defined?("aicoo:daily_run_manual")
   end
 
   test "daily_run task exists" do
@@ -46,6 +48,30 @@ class AicooDailyRunRakeTest < ActiveSupport::TestCase
 
         assert_includes out, "daily_run_id=#{daily_run.id}"
         assert_includes out, "status=success"
+      end
+    end
+
+    assert called
+  end
+
+  test "daily_run task calls scheduler as manual when source is manual" do
+    called = false
+    daily_run = AicooDailyRun.create!(target_date: Date.yesterday, status: "success", source: "manual")
+
+    with_env("AICOO_DAILY_RUN_ENABLED", nil) do
+      with_env("SOURCE", "manual") do
+        with_scheduler_stub(->(source:) {
+          called = true
+          assert_equal "manual", source
+          daily_run
+        }) do
+          out, = capture_io do
+            Rake::Task["aicoo:daily_run"].invoke
+          end
+
+          assert_includes out, "source=manual"
+          assert_includes out, "status=success"
+        end
       end
     end
 

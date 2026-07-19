@@ -95,6 +95,37 @@ class AicooDailyRunSchedulerTest < ActiveSupport::TestCase
     end
   end
 
+  test "manual run bypasses same step cron retry limit" do
+    setting = AicooDailyRunSetting.create!(run_hour: 0, run_minute: 0, retry_until_success: true, max_retry_per_day: 10)
+    make_due!(setting)
+    3.times do
+      run = AicooDailyRun.create!(
+        target_date: Date.yesterday,
+        status: "stuck",
+        source: "cron",
+        started_at: 1.hour.ago,
+        finished_at: 50.minutes.ago
+      )
+      run.aicoo_daily_run_steps.create!(
+        step_name: "insight_generation",
+        status: "failed",
+        started_at: 1.hour.ago,
+        finished_at: 50.minutes.ago
+      )
+    end
+    manual_run = nil
+
+    with_runner_stub(->(target_date:, source:) {
+      assert_equal "manual", source
+      manual_run = AicooDailyRun.create!(target_date:, status: "success", source:)
+      manual_run
+    }) do
+      result = AicooDailyRunScheduler.new(setting:).check!(source: "manual")
+
+      assert_equal manual_run, result
+    end
+  end
+
   test "active heartbeat running run remains duplicate blocker" do
     setting = AicooDailyRunSetting.create!(run_hour: 0, run_minute: 0)
     make_due!(setting)
@@ -123,6 +154,23 @@ class AicooDailyRunSchedulerTest < ActiveSupport::TestCase
         assert_equal "schedule_check", result.status
         assert_equal "retry_limit_reached", result.reason
       end
+    end
+  end
+
+  test "manual run bypasses max retry per day" do
+    setting = AicooDailyRunSetting.create!(run_hour: 0, run_minute: 0, max_retry_per_day: 1)
+    make_due!(setting)
+    AicooDailyRun.create!(target_date: Date.yesterday, status: "failed", source: "cron")
+    manual_run = nil
+
+    with_runner_stub(->(target_date:, source:) {
+      assert_equal "manual", source
+      manual_run = AicooDailyRun.create!(target_date:, status: "success", source:)
+      manual_run
+    }) do
+      result = AicooDailyRunScheduler.new(setting:).check!(source: "manual")
+
+      assert_equal manual_run, result
     end
   end
 
