@@ -895,18 +895,21 @@ class AicooDailyRunner
   def run_activity_log_evaluation_queue_build!(run)
     step = start_step!(run, "activity_log_evaluation_queue_build")
     result = Aicoo::ActivityEvaluationBuilder.new.call
+    action_results_generated_count = result.action_results_generated_count.to_i
     finish_step!(
       step,
       metadata: {
         created_count: result.created_count,
         evaluated_count: result.evaluated_count,
         skipped_count: result.skipped_count,
-        pending_count: result.pending_count
+        pending_count: result.pending_count,
+        action_results_generated_count:
       }
     )
     log!(
       "ActivityEvaluation created=#{result.created_count} evaluated=#{result.evaluated_count} " \
-      "skipped=#{result.skipped_count} pending=#{result.pending_count}"
+      "skipped=#{result.skipped_count} pending=#{result.pending_count} " \
+      "action_results_generated=#{action_results_generated_count}"
     )
   rescue StandardError => e
     error_message = "#{e.class}: #{e.message}"

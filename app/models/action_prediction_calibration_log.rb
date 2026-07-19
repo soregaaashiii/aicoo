@@ -4,6 +4,7 @@ class ActionPredictionCalibrationLog < ApplicationRecord
     daily_run
     step_recovery
     action_result_evaluator
+    activity_learning_pipeline
     action_result_create
     action_result_update
     owner_auto_revision_action_result

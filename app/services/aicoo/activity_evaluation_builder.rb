@@ -15,10 +15,10 @@ module Aicoo
       conversions
     ].freeze
 
-    Result = Struct.new(:created_count, :evaluated_count, :skipped_count, :pending_count, keyword_init: true)
+    Result = Struct.new(:created_count, :evaluated_count, :skipped_count, :pending_count, :action_results_generated_count, keyword_init: true)
 
     def call(business: nil)
-      result = Result.new(created_count: 0, evaluated_count: 0, skipped_count: 0, pending_count: 0)
+      result = Result.new(created_count: 0, evaluated_count: 0, skipped_count: 0, pending_count: 0, action_results_generated_count: 0)
       scope = BusinessActivityLog.evaluation_due
       scope = scope.where(business:) if business
       scope.find_each do |activity_log|
@@ -74,6 +74,8 @@ module Aicoo
       )
       evaluation.save!
       result.evaluated_count += 1
+      bridge_result = Aicoo::ActivityActionResultBridge.call(evaluation)
+      result.action_results_generated_count += 1 if bridge_result.status == "generated"
     end
 
     def snapshots_for(activity_log, window)

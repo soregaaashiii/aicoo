@@ -96,6 +96,7 @@ class ActionResult < ApplicationRecord
 
   def normalize_manual_actual_metadata
     return if manual_actuals_recorded?
+    return if metadata.to_h.dig("activity_learning_pipeline", "auto_generated") == true
     return unless saved_manual_actual_fields.any?
 
     mark_manual_actuals_recorded!(source: "action_result_model")

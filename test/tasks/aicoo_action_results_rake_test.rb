@@ -19,6 +19,10 @@ class AicooActionResultsRakeTest < ActiveSupport::TestCase
     assert Rake::Task.task_defined?("aicoo:diagnose_action_result_manual_actuals")
   end
 
+  test "diagnose_activity_learning_pipeline task exists" do
+    assert Rake::Task.task_defined?("aicoo:diagnose_activity_learning_pipeline")
+  end
+
   test "runs action result evaluation" do
     ActionResult.create!(
       action_candidate: action_candidates(:nagazakicho_article),
