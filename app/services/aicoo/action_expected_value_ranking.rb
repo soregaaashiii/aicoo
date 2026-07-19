@@ -1,6 +1,7 @@
 module Aicoo
   class ActionExpectedValueRanking
     DEFAULT_PER_PAGE = 20
+    ARTICLE_OPPORTUNITY_MODEL_NAME = "article_opportunity_analyzer_snapshot_v1".freeze
 
     Result = Data.define(
       :items,
@@ -53,6 +54,18 @@ module Aicoo
     end
 
     def sort_key(item)
+      if article_opportunity_item?(item)
+        return [
+          -article_opportunity_metric(item, "expected_improvement_score"),
+          -article_opportunity_metric(item, "search_demand_score"),
+          -article_opportunity_metric(item, "improvement_potential_score"),
+          -article_opportunity_metric(item, "success_probability"),
+          article_opportunity_metric(item, "estimated_work_hours"),
+          -record_timestamp(item),
+          -record_id(item)
+        ]
+      end
+
       [
         -delta_value(item),
         -confidence_value(item),
@@ -98,6 +111,7 @@ module Aicoo
     def representative_item(group)
       group.max_by do |item|
         [
+          article_opportunity_item?(item) ? 1 : 0,
           delta_value(item),
           confidence_value(item),
           record_timestamp(item),
@@ -151,6 +165,22 @@ module Aicoo
       return item.confidence.to_d if item.respond_to?(:confidence)
 
       item.respond_to?(:success_probability) ? item.success_probability.to_d : 0.to_d
+    end
+
+    def article_opportunity_item?(item)
+      record = item.respond_to?(:record) ? item.record : nil
+      return false unless record.is_a?(ActionCandidate)
+
+      metadata = record.metadata.to_h
+      metadata["value_model_name"].to_s == ARTICLE_OPPORTUNITY_MODEL_NAME &&
+        metadata["analysis_source"].to_s == "article_analytics_snapshot" &&
+        metadata["snapshot_id"].present? &&
+        metadata["expected_improvement_score"].present?
+    end
+
+    def article_opportunity_metric(item, key)
+      record = item.respond_to?(:record) ? item.record : nil
+      record&.metadata.to_h[key].to_s.delete(",").to_d
     end
 
     def record_timestamp(item)

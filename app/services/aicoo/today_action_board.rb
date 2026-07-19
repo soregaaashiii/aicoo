@@ -14,6 +14,8 @@ module Aicoo
     DAILY_RUN_STANDARD_LEARNING_LOSS_PER_BUSINESS_YEN = 1_000
     DAILY_RUN_OWNER_HOURLY_COST_YEN = 6_000
     DAILY_RUN_REPAIR_COST_YEN = 10_000
+    ARTICLE_OPPORTUNITY_MODEL_NAME = "article_opportunity_analyzer_snapshot_v1".freeze
+    ARTICLE_OPPORTUNITY_RANKING_SCALE = 10_000
     ARTICLE_PATH_PATTERN = %r{\A/articles/([^/?#]+)}.freeze
     ABSTRACT_PATTERNS = [
       /検索需要があるテーマ/,
@@ -102,7 +104,11 @@ module Aicoo
       :revenue_score,
       :learning_score,
       :balanced_score,
-      :score
+      :score,
+      :expected_improvement_score,
+      :search_demand_score,
+      :improvement_potential_score,
+      :improvement_type_label
     )
 
     def initialize(mode: nil, page: nil, page_param: :today_actions_page, per_page: PER_PAGE)
@@ -169,7 +175,30 @@ module Aicoo
     end
 
     def select_today_items(items)
-      items.uniq(&:stable_id)
+      suppress_article_opportunity_duplicates(items.uniq(&:stable_id))
+    end
+
+    def suppress_article_opportunity_duplicates(items)
+      grouped = Hash.new { |hash, key| hash[key] = [] }
+      passthrough = []
+
+      items.each do |item|
+        key = article_opportunity_dedupe_key(item)
+        key.present? ? grouped[key] << item : passthrough << item
+      end
+
+      kept = grouped.values.map do |group|
+        representative = group.max_by { |item| article_opportunity_preference_key(item) }
+        group.each do |item|
+          next if item == representative
+          next unless item.record.is_a?(ActionCandidate)
+
+          mark_today_exclusion!(item.record, article_opportunity_candidate?(representative.record) ? "duplicate_suppressed_by_article_opportunity" : "duplicate_suppressed")
+        end
+        representative
+      end
+
+      passthrough + kept
     end
 
     def action_candidate_items
@@ -198,14 +227,20 @@ module Aicoo
 
       valuation = action_candidate_valuation(candidate)
       expected_value_yen = valuation.fetch(:action_expected_value_delta_yen)
-      expected_hours = positive_decimal(candidate.expected_hours)
-      success_probability = candidate.success_probability.to_d
+      article_scores = article_opportunity_scores(candidate)
+      article_opportunity = article_opportunity_candidate?(candidate)
+      expected_hours = article_opportunity ? positive_decimal(article_scores.fetch(:estimated_work_hours)) : positive_decimal(candidate.expected_hours)
+      success_probability = article_opportunity ? article_scores.fetch(:success_probability) : candidate.success_probability.to_d
       raw_concrete_task = concrete_task_for(candidate, presenter, action_plan)
       raw_target = target_for(candidate, presenter, action_plan)
       planned_url = planned_url_for(candidate)
       raw_owner_next_step = owner_next_step_for(presenter, action_plan, approval_task)
       concrete_task = raw_concrete_task.presence || candidate.title.presence || "施策内容を確認する"
-      target = new_content_action?(candidate) ? "未作成" : (raw_target.presence || detected_target_url_for(candidate).presence || "対象未特定")
+      target = if article_opportunity
+        article_target_for(candidate)
+      else
+        new_content_action?(candidate) ? "未作成" : (raw_target.presence || detected_target_url_for(candidate).presence || "対象未特定")
+      end
       owner_next_step = (readiness_next_action(candidate, readiness).presence if readiness_applicable) || raw_owner_next_step.presence || "詳細を確認する"
       quality_warnings = today_quality_warnings_for(
         candidate,
@@ -216,13 +251,21 @@ module Aicoo
         valuation:
       )
 
-      revenue_score = valuation_adjusted_revenue_score(
-        candidate,
-        expected_value_yen:,
-        expected_hours:,
-        success_probability:
-      )
-      learning_score = learning_score_for(candidate)
+      revenue_score = if article_opportunity
+        article_scores.fetch(:expected_improvement_score)
+      else
+        valuation_adjusted_revenue_score(
+          candidate,
+          expected_value_yen:,
+          expected_hours:,
+          success_probability:
+        )
+      end
+      learning_score = if article_opportunity
+        article_opportunity_learning_score(candidate)
+      else
+        learning_score_for(candidate)
+      end
       balanced_score = (revenue_score * 0.6) + (learning_score * 0.4)
       selected_score = score_for(revenue_score:, learning_score:, balanced_score:)
 
@@ -249,22 +292,26 @@ module Aicoo
         expected_hourly_value_yen: expected_hours.positive? ? (expected_value_yen.to_d / expected_hours).round.to_i : 0,
         success_probability:,
         execution_mode: readiness_applicable && !readiness.ready? ? readiness.readiness : execution_mode,
-        execution_mode_label: readiness_applicable ? readiness_execution_mode_label(candidate, readiness, presenter) : presenter.execution_mode_label,
-        data_sources_label: presenter.source_label,
+        execution_mode_label: article_opportunity ? article_opportunity_label(candidate) : (readiness_applicable ? readiness_execution_mode_label(candidate, readiness, presenter) : presenter.execution_mode_label),
+        data_sources_label: article_opportunity ? "ArticleAnalyticsSnapshot" : presenter.source_label,
         approval_required: approval_task.present?,
-        codex_target: readiness_applicable && readiness.ready? && candidate.metadata.to_h["codex_eligible"] == true,
-        auto_execution: readiness_applicable && readiness.ready? && candidate.metadata.to_h["auto_revision"] == true && candidate.business&.automatic_auto_revision?,
+        codex_target: !article_opportunity && readiness_applicable && readiness.ready? && candidate.metadata.to_h["codex_eligible"] == true,
+        auto_execution: !article_opportunity && readiness_applicable && readiness.ready? && candidate.metadata.to_h["auto_revision"] == true && candidate.business&.automatic_auto_revision?,
         owner_next_step:,
         planned_url:,
         detail_url: action_workspace_path(candidate),
-        reason: presenter.reason,
+        reason: article_opportunity ? article_opportunity_reason(candidate, presenter) : presenter.reason,
         stopped_reason: today_warning_text((readiness_stop_reason(readiness).presence if readiness_applicable) || stopped_reason_for(approval_task), quality_warnings),
         group_count: 1,
         group_summary: nil,
         revenue_score: revenue_score.round(2),
         learning_score: learning_score.round(2),
         balanced_score: balanced_score.round(2),
-        score: selected_score.round(2)
+        score: selected_score.round(2),
+        expected_improvement_score: article_scores.fetch(:expected_improvement_score, nil),
+        search_demand_score: article_scores.fetch(:search_demand_score, nil),
+        improvement_potential_score: article_scores.fetch(:improvement_potential_score, nil),
+        improvement_type_label: article_opportunity ? article_opportunity_label(candidate) : nil
       )
     end
 
@@ -335,7 +382,11 @@ module Aicoo
           revenue_score: valuation.action_expected_value_delta_yen.to_d,
           learning_score: valuation.daily_learning_loss_yen.to_d,
           balanced_score: (valuation.action_expected_value_delta_yen.to_d * 0.6) + (valuation.daily_learning_loss_yen.to_d * 0.4)
-        ).round(2)
+        ).round(2),
+        expected_improvement_score: nil,
+        search_demand_score: nil,
+        improvement_potential_score: nil,
+        improvement_type_label: nil
       )
     end
 
@@ -407,7 +458,11 @@ module Aicoo
         revenue_score: revenue_score.round(2),
         learning_score: learning_score.round(2),
         balanced_score: balanced_score.round(2),
-        score: score_for(revenue_score:, learning_score:, balanced_score:).round(2)
+        score: score_for(revenue_score:, learning_score:, balanced_score:).round(2),
+        expected_improvement_score: nil,
+        search_demand_score: nil,
+        improvement_potential_score: nil,
+        improvement_type_label: nil
       )
     end
 
@@ -800,6 +855,7 @@ module Aicoo
     end
 
     def action_candidate_valuation(candidate)
+      return article_opportunity_valuation(candidate) if article_opportunity_candidate?(candidate)
       return seo_article_candidate_valuation(candidate) if Aicoo::SeoArticleExpectedValue.applies_to?(candidate)
 
       metadata = candidate.metadata.to_h
@@ -966,6 +1022,137 @@ module Aicoo
         metadata["final_expected_value"],
         candidate.expected_profit_yen
       ).to_i
+    end
+
+    def article_opportunity_candidate?(candidate)
+      return false unless candidate.is_a?(ActionCandidate)
+
+      metadata = candidate.metadata.to_h
+      metadata["value_model_name"].to_s == ARTICLE_OPPORTUNITY_MODEL_NAME &&
+        metadata["analysis_source"].to_s == "article_analytics_snapshot" &&
+        metadata["snapshot_id"].present? &&
+        metadata["expected_improvement_score"].present?
+    end
+
+    def article_opportunity_scores(candidate)
+      metadata = candidate.metadata.to_h
+      {
+        expected_improvement_score: decimal_value(metadata["expected_improvement_score"], fallback: 0),
+        search_demand_score: decimal_value(metadata["search_demand_score"], fallback: 0),
+        improvement_potential_score: decimal_value(metadata["improvement_potential_score"], fallback: 0),
+        success_probability: decimal_value(metadata["success_probability"], fallback: candidate.success_probability),
+        estimated_work_hours: decimal_value(metadata["estimated_work_hours"], fallback: candidate.expected_hours),
+        business_value: decimal_value(metadata["business_value"], fallback: 0)
+      }
+    end
+
+    def article_opportunity_valuation(candidate)
+      scores = article_opportunity_scores(candidate)
+      scaled_value = (scores.fetch(:expected_improvement_score) * ARTICLE_OPPORTUNITY_RANKING_SCALE).round.to_i
+      {
+        expected_value_if_no_action_yen: 0,
+        expected_value_if_action_yen: scaled_value,
+        execution_cost_yen: 0,
+        action_expected_value_delta_yen: scaled_value,
+        valuation_period_days: 90,
+        calculation_method: "article_opportunity_expected_improvement_score",
+        confidence: scores.fetch(:success_probability),
+        valuation_status: scaled_value.positive? ? "positive" : "neutral"
+      }
+    end
+
+    def article_opportunity_learning_score(candidate)
+      metadata = candidate.metadata.to_h
+      breakdown = metadata["score_breakdown"].to_h
+      [
+        decimal_value(breakdown["learning_confidence"], fallback: 0),
+        decimal_value(metadata.dig("score_diagnostics", "improvement_potential_breakdown", "learning"), fallback: 0)
+      ].max
+    end
+
+    def article_opportunity_label(candidate)
+      metadata = candidate.metadata.to_h
+      label = metadata["opportunity_label"].presence
+      return label if label.present?
+
+      {
+        "ctr_improvement" => "CTR改善",
+        "rank_improvement" => "順位改善",
+        "internal_link_addition" => "内部リンク追加",
+        "content_update" => "本文更新",
+        "shop_addition" => "店舗追加",
+        "verified_shop_addition" => "確認済店舗追加",
+        "cta_improvement" => "送客CTA改善",
+        "monitoring" => "継続観測"
+      }.fetch(metadata["opportunity_type"].to_s, "記事改善")
+    end
+
+    def article_target_for(candidate)
+      metadata = candidate.metadata.to_h
+      metadata["article_path"].presence ||
+        metadata.dig("evidence", "article", "path").presence ||
+        metadata.dig("evidence", "gsc", "page_path").presence ||
+        "対象記事未特定"
+    end
+
+    def article_opportunity_reason(candidate, presenter)
+      metadata = candidate.metadata.to_h
+      metadata["ranking_reason"].presence ||
+        metadata.dig("score_diagnostics", "seo_reason").presence ||
+        metadata.dig("score_diagnostics", "ctr_reason").presence ||
+        presenter.reason
+    end
+
+    def article_opportunity_dedupe_key(item)
+      record = item.respond_to?(:record) ? item.record : nil
+      return unless record.is_a?(ActionCandidate)
+
+      metadata = record.metadata.to_h
+      article_key = metadata["article_id"].presence ||
+        metadata["article_path"].presence ||
+        metadata["target_url"].presence ||
+        metadata.dig("action_plan", "target").presence ||
+        (item.target if item.respond_to?(:target)).presence
+      improvement_key = article_improvement_key(record, metadata)
+      return if article_key.blank? || improvement_key.blank?
+
+      [ record.business_id, article_key.to_s, improvement_key.to_s ].join("::")
+    end
+
+    def article_improvement_key(record, metadata)
+      explicit_key = metadata["opportunity_type"].presence || metadata["seo_action_type"].presence || metadata["work_type"].presence
+      return explicit_key if explicit_key.present?
+
+      title = record.title.to_s
+      return "internal_link_addition" if title.match?(/内部リンク|関連記事/)
+      return "ctr_improvement" if title.match?(/CTR|クリック率|タイトル|title|meta/i)
+      return "rank_improvement" if title.match?(/順位|SEO/)
+      return "shop_addition" if title.match?(/店舗追加|店舗不足/)
+      return "verified_shop_addition" if title.match?(/確認済|喫煙確認/)
+      return "cta_improvement" if title.match?(/CTA|送客|クリック導線/)
+      return "content_update" if title.match?(/本文|リライト|更新|記事改善/)
+
+      record.action_type.to_s.presence
+    end
+
+    def article_opportunity_preference_key(item)
+      record = item.respond_to?(:record) ? item.record : nil
+      return [ 0, 0, 0, 0 ] unless record.is_a?(ActionCandidate)
+
+      metadata = record.metadata.to_h
+      [
+        article_opportunity_candidate?(record) ? 1 : 0,
+        article_opportunity_snapshot_timestamp(record),
+        record.created_at.to_i,
+        record.id.to_i
+      ]
+    end
+
+    def article_opportunity_snapshot_timestamp(candidate)
+      snapshot_id = candidate.metadata.to_h["snapshot_id"]
+      return 0 if snapshot_id.blank?
+
+      AicooDataSnapshot.where(id: snapshot_id).pick(:captured_at)&.to_i || 0
     end
 
     def business_expected_value_for(business)

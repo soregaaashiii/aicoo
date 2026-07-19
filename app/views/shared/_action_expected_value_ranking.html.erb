@@ -35,6 +35,14 @@
             <% if item.reason.present? %>
               <br><small>理由: <%= item.reason %></small>
             <% end %>
+            <% if item.respond_to?(:expected_improvement_score) && item.expected_improvement_score.present? %>
+              <br><small>
+                改善タイプ: <%= item.improvement_type_label.presence || "-" %> /
+                ExpectedImprovement: <%= number_with_precision(item.expected_improvement_score, precision: 2, strip_insignificant_zeros: true) %> /
+                SearchDemand: <%= number_with_precision(item.search_demand_score, precision: 2, strip_insignificant_zeros: true) %> /
+                ImprovementPotential: <%= number_with_precision(item.improvement_potential_score, precision: 2, strip_insignificant_zeros: true) %>
+              </small>
+            <% end %>
             <% if item.group_summary.present? %>
               <br><small><%= item.group_summary %></small>
             <% end %>

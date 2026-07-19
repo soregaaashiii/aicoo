@@ -349,6 +349,23 @@ namespace :aicoo do
     rows = runner.score_diagnostics
     AicooArticleAnalyticsSnapshotRake.print_article_opportunity_score_diagnostics(business, rows, runner.business_score_statistics)
   end
+
+  desc "Diagnose ArticleOpportunityAnalyzer candidates connected to Today"
+  task diagnose_article_opportunity_today: :environment do
+    business = AicooSuelogArticleExpectedValueRake.suelog_business_scope.first
+
+    if business.blank?
+      puts "Business=not_found"
+      next
+    end
+
+    result = Aicoo::ArticleOpportunityTodayConnector.new(
+      business:,
+      apply: ENV["APPLY"] == "1",
+      limit: ENV["LIMIT"]
+    ).call
+    AicooArticleAnalyticsSnapshotRake.print_article_opportunity_today_result(result)
+  end
 end
 
 module AicooArticleAnalyticsSnapshotRake
@@ -647,6 +664,43 @@ module AicooArticleAnalyticsSnapshotRake
         "  expected_improvement_score=#{row['expected_improvement_score']}",
         "formula=SearchDemand:#{formula['search_demand_score']} * ImprovementPotential:#{formula['improvement_potential_score']} * BusinessValue:#{formula['business_value']} * SuccessProbability:#{formula['success_probability']} / EstimatedWorkHours:#{formula['estimated_work_hours']}"
       ].join(" ")
+    end
+  end
+
+  def print_article_opportunity_today_result(result)
+    puts "mode=#{result.mode}"
+    puts "business_id=#{result.business.id}"
+    puts "business_name=#{result.business.name}"
+    puts "latest_snapshot_at=#{result.latest_snapshot_at || '-'}"
+    puts "analyzer_result_count=#{result.analyzer_result_count}"
+    puts "analyzer_action_candidate_count=#{result.analyzer_action_candidate_count}"
+    puts "today_eligible_count=#{result.today_eligible_count}"
+    puts "duplicate_suppressed_count=#{result.duplicate_suppressed_count}"
+    puts "archived_count=#{result.archived_count}"
+    puts "status_excluded_count=#{result.status_excluded_count}"
+    puts "fallback_used=#{result.fallback_used}"
+    puts "activated_count=#{result.activated_count}"
+    puts "today_top10:"
+    if result.top10.empty?
+      puts "-"
+    else
+      result.top10.each.with_index(1) do |row, index|
+        puts [
+          "rank=#{index}",
+          "candidate_id=#{row.candidate_id}",
+          "article_id=#{row.article_id || '-'}",
+          "article_path=#{row.article_path || '-'}",
+          "improvement_type=#{row.improvement_type_label}",
+          "expected_improvement_score=#{row.expected_improvement_score.to_f.round(2)}",
+          "search_demand_score=#{row.search_demand_score.to_f.round(2)}",
+          "improvement_potential_score=#{row.improvement_potential_score.to_f.round(2)}",
+          "success_probability=#{row.success_probability.to_f.round(2)}",
+          "estimated_work_hours=#{row.estimated_work_hours.to_f.round(2)}",
+          "status=#{row.status}",
+          "generation_source=#{row.generation_source}",
+          "today_exclusion_reason=#{row.today_exclusion_reason || '-'}"
+        ].join(" ")
+      end
     end
   end
 end
