@@ -329,6 +329,21 @@ module AicooArticleAnalyticsSnapshotRake
     puts "three_source_joined_count=#{result.three_source_joined_count}"
     puts "failed_count=#{result.failed_count}"
     puts "snapshot_ids=#{result.snapshot_ids.join(',').presence || '-'}"
+    puts "available_false_counts=#{result.unavailable_counts.map { |source, count| "#{source}:#{count}" }.join(',').presence || '-'}"
+    puts "article_info_rates:"
+    result.article_info_rates.each do |field, stats|
+      puts "#{field}=#{stats['present']}/#{stats['total']} #{stats['rate']}%"
+    end
+    puts "gsc_duplicate_candidates:"
+    print_duplicate_candidates(result.gsc_duplicate_candidates)
+    puts "ga4_duplicate_candidates:"
+    print_duplicate_candidates(result.ga4_duplicate_candidates)
+    puts "snapshot_samples:"
+    result.sample_payloads.first(5).each do |payload|
+      puts JSON.pretty_generate(
+        payload.slice("article_id", "normalized_path", "gsc", "ga4", "shop_click", "article", "learning")
+      )
+    end
     puts "missing_articles:"
     if result.missing_articles.empty?
       puts "-"
@@ -341,6 +356,25 @@ module AicooArticleAnalyticsSnapshotRake
           "missing=#{Array(row['missing']).join(',')}"
         ].join(" ")
       end
+    end
+  end
+
+  def print_duplicate_candidates(rows)
+    if rows.empty?
+      puts "-"
+      return
+    end
+
+    rows.each do |row|
+      puts [
+        "page=#{row['page'] || '-'}",
+        "normalized_path=#{row['normalized_path'] || '-'}",
+        "query=#{row['query'] || '-'}",
+        "date=#{row['date'] || '-'}",
+        "duplicate_count=#{row['duplicate_count']}",
+        "source_models=#{Array(row['source_models']).join('|')}",
+        "source_ids=#{Array(row['source_ids']).join('|')}"
+      ].join(" ")
     end
   end
 end

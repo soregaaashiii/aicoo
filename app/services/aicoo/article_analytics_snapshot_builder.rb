@@ -22,7 +22,12 @@ module Aicoo
       :three_source_joined_count,
       :missing_articles,
       :failed_count,
-      :snapshot_ids
+      :snapshot_ids,
+      :gsc_duplicate_candidates,
+      :ga4_duplicate_candidates,
+      :article_info_rates,
+      :unavailable_counts,
+      :sample_payloads
     )
 
     Snapshot = Data.define(:article, :payload)
@@ -77,7 +82,12 @@ module Aicoo
         three_source_joined_count: payloads.count { |payload| joined?(payload, "gsc", "impressions", "clicks") && joined?(payload, "ga4", "pageviews", "active_users", "sessions") && joined?(payload, "shop_click", "total_clicks") },
         missing_articles: missing,
         failed_count: 0,
-        snapshot_ids: snapshots.map(&:id)
+        snapshot_ids: snapshots.map(&:id),
+        gsc_duplicate_candidates: gsc_duplicate_candidates,
+        ga4_duplicate_candidates: ga4_duplicate_candidates,
+        article_info_rates: article_info_rates(payloads),
+        unavailable_counts: unavailable_counts(payloads),
+        sample_payloads: payloads.first(5)
       )
     end
 
@@ -191,7 +201,12 @@ module Aicoo
         three_source_joined_count: payloads.count { |payload| joined?(payload, "gsc", "impressions", "clicks") && joined?(payload, "ga4", "pageviews", "active_users", "sessions") && joined?(payload, "shop_click", "total_clicks") },
         missing_articles: missing_articles_for(payloads, articles.index_by { |article| normalized_article_path(article) }),
         failed_count: @failed_count,
-        snapshot_ids: @snapshot_ids
+        snapshot_ids: @snapshot_ids,
+        gsc_duplicate_candidates: gsc_duplicate_candidates,
+        ga4_duplicate_candidates: ga4_duplicate_candidates,
+        article_info_rates: article_info_rates(payloads),
+        unavailable_counts: unavailable_counts(payloads),
+        sample_payloads: payloads.first(5)
       )
     end
 
@@ -207,7 +222,54 @@ module Aicoo
     end
 
     def joined?(payload, section, *fields)
-      fields.any? { |field| payload.dig(section, field).to_d.positive? }
+      payload.dig(section, "available") == true
+    end
+
+    def gsc_duplicate_candidates
+      duplicate_candidates_for(gsc_rows, :gsc)
+    end
+
+    def ga4_duplicate_candidates
+      duplicate_candidates_for(ga4_rows, :ga4)
+    end
+
+    def duplicate_candidates_for(rows, source_type)
+      rows
+        .group_by { |row| metric_row_key(row, source_type) }
+        .select { |_key, grouped| grouped.size > 1 }
+        .first(20)
+        .map do |_key, grouped|
+          row = grouped.first
+          {
+            "page" => row["page"],
+            "normalized_path" => normalize_url(row["page"]),
+            "query" => row["query"],
+            "date" => row["date"],
+            "duplicate_count" => grouped.size,
+            "source_models" => grouped.map { |item| item["source_model"] }.compact.uniq,
+            "source_ids" => grouped.map { |item| item["source_id"] }.compact.uniq
+          }
+        end
+    end
+
+    def article_info_rates(payloads)
+      total = payloads.size
+      return {} if total.zero?
+
+      %w[shop_count verified_shop_count word_count internal_link_count].index_with do |field|
+        present = payloads.count { |payload| !payload.dig("article", field).nil? }
+        {
+          "present" => present,
+          "total" => total,
+          "rate" => ((present.to_d / total) * 100).round(1).to_f
+        }
+      end
+    end
+
+    def unavailable_counts(payloads)
+      %w[gsc ga4 shop_click].index_with do |source|
+        payloads.count { |payload| payload.dig(source, "available") != true }
+      end
     end
 
     def missing_articles_for(payloads, article_paths)
@@ -243,36 +305,48 @@ module Aicoo
     end
 
     def aggregate_gsc_rows(rows)
-      rows.group_by { |row| normalize_url(row["page"]) }.transform_values do |grouped|
-        impressions = grouped.sum { |row| decimal(row["impressions"]) }
-        clicks = grouped.sum { |row| decimal(row["clicks"]) }
-        positions = grouped.filter_map { |row| decimal(row["position"]).presence }
-        queries = grouped.group_by { |row| row["query"].to_s }.filter_map do |query, query_rows|
+      deduped_rows = deduplicate_metric_rows(rows, :gsc)
+      deduped_rows.group_by { |row| normalize_url(row["page"]) }.transform_values do |grouped|
+        totals = grouped
+          .group_by { |row| row["date"].to_s.presence || "unknown_date" }
+          .values
+          .map { |date_rows| gsc_total_row_for_date(date_rows) }
+        impressions = totals.sum { |row| decimal(row["impressions"]) }
+        clicks = totals.sum { |row| decimal(row["clicks"]) }
+        positions = totals.filter_map { |row| decimal(row["position"]).presence }
+        query_rows = grouped.select { |row| row["query"].present? }
+        queries = query_rows.group_by { |row| row["query"].to_s }.filter_map do |query, rows_for_query|
           next if query.blank?
 
           {
             "query" => query,
-            "impressions" => query_rows.sum { |row| decimal(row["impressions"]) }.to_i,
-            "clicks" => query_rows.sum { |row| decimal(row["clicks"]) }.to_i,
-            "average_position" => average(query_rows.map { |row| decimal(row["position"]) }).to_f.round(2)
+            "impressions" => rows_for_query.sum { |row| decimal(row["impressions"]) }.to_i,
+            "clicks" => rows_for_query.sum { |row| decimal(row["clicks"]) }.to_i,
+            "average_position" => average(rows_for_query.map { |row| decimal(row["position"]) }).to_f.round(2)
           }
         end.sort_by { |row| [ -row["impressions"], -row["clicks"] ] }.first(10)
 
         {
+          "available" => true,
           "impressions" => impressions.to_i,
           "clicks" => clicks.to_i,
           "ctr" => impressions.positive? ? (clicks / impressions).to_f.round(4) : 0,
           "average_position" => average(positions).to_f.round(2),
           "query_count" => queries.size,
-          "top_queries" => queries
+          "top_queries" => queries,
+          "aggregation_method" => "deduped_page_daily_totals",
+          "source_row_count" => grouped.size,
+          "deduped_total_row_count" => totals.size
         }
       end
     end
 
     def aggregate_ga4_rows(rows)
-      rows.group_by { |row| normalize_url(row["page"]) }.transform_values do |grouped|
+      deduped_rows = deduplicate_metric_rows(rows, :ga4)
+      deduped_rows.group_by { |row| normalize_url(row["page"]) }.transform_values do |grouped|
         dates = grouped.filter_map { |row| parse_date(row["date"]) }
         {
+          "available" => true,
           "pageviews" => grouped.sum { |row| decimal(row["pageviews"]) }.to_i,
           "active_users" => grouped.sum { |row| decimal(row["active_users"]) }.to_i,
           "sessions" => grouped.sum { |row| decimal(row["sessions"]) }.to_i,
@@ -281,8 +355,53 @@ module Aicoo
           "landing_page_views" => grouped.sum { |row| decimal(row["landing_page_views"]) }.to_i,
           "page_path" => grouped.first["page"],
           "first_seen" => dates.min&.iso8601,
-          "last_seen" => dates.max&.iso8601
+          "last_seen" => dates.max&.iso8601,
+          "aggregation_method" => "deduped_daily_page_rows",
+          "source_row_count" => grouped.size
         }
+      end
+    end
+
+    def gsc_total_row_for_date(rows)
+      page_only_rows = rows.select { |row| row["query"].blank? }
+      if page_only_rows.any?
+        return page_only_rows.max_by { |row| row["source_priority"].to_i }
+      end
+
+      {
+        "impressions" => rows.sum { |row| decimal(row["impressions"]) },
+        "clicks" => rows.sum { |row| decimal(row["clicks"]) },
+        "position" => average(rows.map { |row| decimal(row["position"]) })
+      }
+    end
+
+    def deduplicate_metric_rows(rows, source_type)
+      rows
+        .group_by { |row| metric_row_key(row, source_type) }
+        .values
+        .map { |duplicates| duplicates.max_by { |row| row["source_priority"].to_i } }
+    end
+
+    def metric_row_key(row, source_type)
+      case source_type
+      when :gsc
+        [
+          row["date"].to_s,
+          normalize_url(row["page"]),
+          row["query"].to_s.downcase.squish,
+          decimal(row["impressions"]).to_s("F"),
+          decimal(row["clicks"]).to_s("F"),
+          decimal(row["position"]).round(4).to_s("F")
+        ]
+      when :ga4
+        [
+          row["date"].to_s,
+          normalize_url(row["page"]),
+          decimal(row["pageviews"]).to_s("F"),
+          decimal(row["active_users"]).to_s("F"),
+          decimal(row["sessions"]).to_s("F"),
+          decimal(row["event_count"]).to_s("F")
+        ]
       end
     end
 
@@ -304,6 +423,7 @@ module Aicoo
         next if article_id.blank?
 
         row = rows[article_id.to_i].dup
+        row = available_shop_click(row)
         click_type = safe_attr(click, click_type_column).to_s if click_type_column
         normalized_type = normalized_click_type(click_type)
         row["total_clicks"] += 1
@@ -318,6 +438,21 @@ module Aicoo
       rows
     rescue StandardError
       Hash.new { |hash, key| hash[key] = empty_shop_click }
+    end
+
+    def available_shop_click(row)
+      return row if row["available"]
+
+      {
+        "available" => true,
+        "total_clicks" => 0,
+        "article_shop_clicks" => 0,
+        "shop_clicks" => 0,
+        "phone_clicks" => 0,
+        "map_clicks" => 0,
+        "affiliate_clicks" => 0,
+        "click_type_counts" => {}
+      }
     end
 
     def normalized_click_type(value)
@@ -340,8 +475,26 @@ module Aicoo
     end
 
     def raw_rows_for(source_type)
-      data_imports_for(source_type).flat_map { |import| rows_from_import(import) } +
-        snapshots_for(source_type).flat_map { |snapshot| rows_from_snapshot(snapshot) }
+      selected_snapshots = latest_snapshots_for(source_type)
+      return selected_snapshots.flat_map { |snapshot| rows_from_snapshot(snapshot) } if selected_snapshots.any?
+
+      latest_imports_for(source_type).flat_map { |import| rows_from_import(import) }
+    end
+
+    def latest_snapshots_for(source_type)
+      snapshots = snapshots_for(source_type)
+      latest_day = snapshots.filter_map { |snapshot| snapshot.captured_at&.to_date }.max
+      return [] unless latest_day
+
+      snapshots.select { |snapshot| snapshot.captured_at&.to_date == latest_day }
+    end
+
+    def latest_imports_for(source_type)
+      imports = data_imports_for(source_type)
+      latest_day = imports.filter_map { |data_import| data_import.imported_at&.to_date }.max
+      return [] unless latest_day
+
+      imports.select { |data_import| data_import.imported_at&.to_date == latest_day }
     end
 
     def data_imports_for(source_type)
@@ -427,7 +580,10 @@ module Aicoo
           "clicks" => decimal(first_present(row["clicks"], row["クリック数"])),
           "ctr" => decimal(first_present(row["ctr"], row["CTR"], row["current_ctr"])),
           "position" => decimal(first_present(row["position"], row["掲載順位"], row["平均掲載順位"], row["average_position"])),
-          "date" => first_present(row["date"], row["日付"], row["start_date"], row["end_date"])
+          "date" => first_present(row["date"], row["日付"], row["start_date"], row["end_date"]),
+          "source_model" => row["source_model"],
+          "source_id" => row["source_id"],
+          "source_priority" => source_priority(row)
         }
       end
     end
@@ -445,7 +601,10 @@ module Aicoo
           "engagement_seconds" => decimal(first_present(row["engagement_seconds"], row["userEngagementDuration"], row["averageEngagementTime"], row["average_engagement_time_seconds"], metric_value(row, 4))),
           "event_count" => decimal(first_present(row["event_count"], row["eventCount"], metric_value(row, 3))),
           "landing_page_views" => decimal(first_present(row["landing_page_views"], row["landingPageViews"])),
-          "date" => first_present(row["date"], row["日付"], row["start_date"], row["end_date"])
+          "date" => first_present(row["date"], row["日付"], row["start_date"], row["end_date"]),
+          "source_model" => row["source_model"],
+          "source_id" => row["source_id"],
+          "source_priority" => source_priority(row)
         }
       end
     end
@@ -477,15 +636,16 @@ module Aicoo
     end
 
     def article_payload(article)
-      content = first_existing_attr(article, %w[body content markdown html text])
+      content, content_source = article_content_with_source(article)
       {
         "published_at" => safe_attr(article, "published_at")&.iso8601,
         "updated_at" => safe_attr(article, "updated_at")&.iso8601,
         "title" => safe_attr(article, "title"),
-        "word_count" => content.to_s.length,
+        "word_count" => content.present? ? content.to_s.length : nil,
+        "content_source" => content_source,
         "shop_count" => article_shop_count(article),
         "verified_shop_count" => verified_shop_count(article),
-        "internal_link_count" => internal_link_count(content),
+        "internal_link_count" => content.present? ? internal_link_count(content) : nil,
         "category" => first_existing_attr(article, %w[category category_name]),
         "genre" => first_existing_attr(article, %w[genre genres]),
         "area" => first_existing_attr(article, %w[area recommended_areas local_area])
@@ -493,23 +653,80 @@ module Aicoo
     end
 
     def article_shop_count(article)
-      return safe_attr(article, "shop_count").to_i if article.respond_to?(:shop_count)
+      return safe_attr(article, "shop_count").to_i if article.respond_to?(:shop_count) && safe_attr(article, "shop_count").present?
       return article.shops.count if article.respond_to?(:shops)
+      return article_join_rows(article).count if article_join_table
 
-      0
+      nil
     rescue StandardError
-      0
+      nil
     end
 
     def verified_shop_count(article)
-      return safe_attr(article, "verified_shop_count").to_i if article.respond_to?(:verified_shop_count)
-      return 0 unless article.respond_to?(:shops)
+      return safe_attr(article, "verified_shop_count").to_i if article.respond_to?(:verified_shop_count) && safe_attr(article, "verified_shop_count").present?
 
-      relation = article.shops
-      verified_column = %w[verified smoking_verified smoking_confirmed confirmed].find { |column| relation.klass.column_names.include?(column) }
-      verified_column ? relation.where(verified_column => true).count : 0
+      shops = shops_for_article(article)
+      return nil unless shops
+
+      verified_column = %w[verified smoking_verified smoking_confirmed confirmed approved].find { |column| shops.klass.column_names.include?(column) }
+      verified_column ? shops.where(verified_column => true).count : nil
     rescue StandardError
-      0
+      nil
+    end
+
+    def article_content_with_source(article)
+      %w[
+        body content markdown html text article_body main_text rendered_body
+        published_body rich_text_content summary meta_description description
+      ].each do |column|
+        value = safe_attr(article, column)
+        return [ value, column ] if value.present?
+      end
+
+      [ nil, nil ]
+    end
+
+    def article_join_table
+      @article_join_table ||= begin
+        tables = ::Suelog::Article.connection.tables
+        tables.find { |table| table.in?(%w[article_shops articles_shops article_shop_relations article_shop_links]) } ||
+          tables.find { |table| table.match?(/article.*shop|shop.*article/) }
+      end
+    rescue StandardError
+      nil
+    end
+
+    def article_join_columns
+      @article_join_columns ||= begin
+        return {} unless article_join_table
+
+        columns = ::Suelog::Article.connection.columns(article_join_table).map(&:name)
+        {
+          article_id: columns.find { |column| column == "article_id" || column.match?(/article.*id/) },
+          shop_id: columns.find { |column| column == "shop_id" || column.match?(/shop.*id/) }
+        }
+      end
+    end
+
+    def article_join_rows(article)
+      return [] unless article_join_table && article_join_columns[:article_id]
+
+      connection = ::Suelog::Article.connection
+      sql = ::Suelog::Article.sanitize_sql_array([
+        "SELECT * FROM #{connection.quote_table_name(article_join_table)} WHERE #{connection.quote_column_name(article_join_columns[:article_id])} = ?",
+        article.id
+      ])
+      connection.exec_query(sql).to_a
+    end
+
+    def shops_for_article(article)
+      return article.shops if article.respond_to?(:shops)
+      return unless article_join_table && article_join_columns[:shop_id]
+
+      shop_ids = article_join_rows(article).filter_map { |row| row[article_join_columns[:shop_id]].presence }.uniq
+      return ::Suelog::Shop.none if shop_ids.empty?
+
+      ::Suelog::Shop.where(id: shop_ids)
     end
 
     def internal_link_count(content)
@@ -580,23 +797,25 @@ module Aicoo
 
     def empty_gsc
       {
-        "impressions" => 0,
-        "clicks" => 0,
-        "ctr" => 0,
-        "average_position" => 0,
-        "query_count" => 0,
+        "available" => false,
+        "impressions" => nil,
+        "clicks" => nil,
+        "ctr" => nil,
+        "average_position" => nil,
+        "query_count" => nil,
         "top_queries" => []
       }
     end
 
     def empty_ga4
       {
-        "pageviews" => 0,
-        "active_users" => 0,
-        "sessions" => 0,
-        "engagement_seconds" => 0,
-        "event_count" => 0,
-        "landing_page_views" => 0,
+        "available" => false,
+        "pageviews" => nil,
+        "active_users" => nil,
+        "sessions" => nil,
+        "engagement_seconds" => nil,
+        "event_count" => nil,
+        "landing_page_views" => nil,
         "page_path" => nil,
         "first_seen" => nil,
         "last_seen" => nil
@@ -605,14 +824,19 @@ module Aicoo
 
     def empty_shop_click
       {
-        "total_clicks" => 0,
-        "article_shop_clicks" => 0,
-        "shop_clicks" => 0,
-        "phone_clicks" => 0,
-        "map_clicks" => 0,
-        "affiliate_clicks" => 0,
+        "available" => false,
+        "total_clicks" => nil,
+        "article_shop_clicks" => nil,
+        "shop_clicks" => nil,
+        "phone_clicks" => nil,
+        "map_clicks" => nil,
+        "affiliate_clicks" => nil,
         "click_type_counts" => {}
       }
+    end
+
+    def source_priority(row)
+      row["source_model"].to_s == "AicooDataSnapshot" ? 2 : 1
     end
 
     def article_path(article)
