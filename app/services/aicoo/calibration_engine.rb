@@ -114,7 +114,12 @@ module Aicoo
     )
 
     def grouped_results
-      eligible_results.group_by { |result| result.action_candidate.action_type.presence || "other" }
+      groups = Hash.new { |hash, key| hash[key] = [] }
+      eligible_results.each do |result|
+        groups[result.action_candidate.action_type.presence || "other"] << result
+        article_opportunity_calibration_action_type(result)&.then { |action_type| groups[action_type] << result }
+      end
+      groups
     end
 
     def eligible_results
@@ -123,6 +128,24 @@ module Aicoo
                   .where.not(action_candidate_id: nil)
                   .where.not(predicted_expected_profit_yen: nil)
                   .select { |result| result.action_candidate.present? && !result.actual_profit_yen.nil? }
+    end
+
+    def article_opportunity_calibration_action_type(result)
+      metadata = result.action_candidate.metadata.to_h
+      article_opportunity = metadata["value_model_name"].to_s == Aicoo::ArticleOpportunityAnalyzer::SnapshotRunner::MODEL_NAME ||
+        metadata.dig("expected_profit_model", "name").to_s == Aicoo::ArticleOpportunityExpectedProfit::MODEL_NAME ||
+        metadata.dig("expected_profit_model", "value_model").to_s == "grounded_article_opportunity_profit"
+      return nil unless article_opportunity
+
+      improvement_type = [
+        metadata["opportunity_type"],
+        metadata["improvement_type"],
+        metadata.dig("expected_profit_model", "improvement_type"),
+        metadata.dig("execution_brief", "target", "improvement_type")
+      ].find(&:present?)
+      return nil if improvement_type.blank?
+
+      "article_opportunity:#{improvement_type}"
     end
 
     def calculate_stats(results)

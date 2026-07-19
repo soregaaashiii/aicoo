@@ -49,7 +49,7 @@ module Aicoo
     def call
       improvement_type = resolved_improvement_type
       metrics = resolved_metrics
-      coefficients = resolved_coefficients
+      coefficients = resolved_coefficients(improvement_type)
       success_probability = calibrated_success_probability(improvement_type)
       work_hours = decimal(first_present(metadata["estimated_work_hours"], candidate.expected_hours, 1))
       work_cost = work_hours * coefficients.fetch("owner_hourly_cost_yen")
@@ -120,7 +120,8 @@ module Aicoo
         end
     end
 
-    def resolved_coefficients
+    def resolved_coefficients(improvement_type)
+      @learning_coefficients = Aicoo::ArticleOpportunityLearningCoefficients.call(candidate, improvement_type)
       {
         "ctr_gain_rate" => coefficient("ctr_gain_rate", business_metadata_keys: %w[ctr_gain_rate article_ctr_gain_rate]),
         "rank_gain_positions" => coefficient("rank_gain_positions", business_metadata_keys: %w[rank_gain_positions article_rank_gain_positions]),
@@ -130,11 +131,15 @@ module Aicoo
         "profit_per_conversion_yen" => coefficient("profit_per_conversion_yen", business_metadata_keys: %w[profit_per_conversion_yen revenue_per_conversion_yen article_profit_per_conversion_yen]),
         "internal_link_pageview_lift_rate" => coefficient("internal_link_pageview_lift_rate", business_metadata_keys: %w[internal_link_pageview_lift_rate]),
         "content_ctr_gain_rate" => coefficient("content_ctr_gain_rate", business_metadata_keys: %w[content_ctr_gain_rate]),
-        "owner_hourly_cost_yen" => coefficient("owner_hourly_cost_yen", business_metadata_keys: %w[owner_hourly_cost_yen])
-      }
+        "owner_hourly_cost_yen" => coefficient("owner_hourly_cost_yen", business_metadata_keys: %w[owner_hourly_cost_yen]),
+        "rank_impression_gain_rate" => optional_coefficient("rank_impression_gain_rate", business_metadata_keys: %w[rank_impression_gain_rate article_rank_impression_gain_rate rank_improvement_impression_gain_rate])
+      }.compact
     end
 
     def coefficient(key, business_metadata_keys:)
+      learned_value = learning_coefficient(key)
+      return learned_value if learned_value.present?
+
       business_metadata_keys.each do |metadata_key|
         value = business_metadata[metadata_key]
         if value.present?
@@ -147,6 +152,29 @@ module Aicoo
       assumption_reasons[key] = "existing_initial_coefficient"
       input_sources[key] = "initial_coefficients"
       decimal(INITIAL_COEFFICIENTS.fetch(key))
+    end
+
+    def optional_coefficient(key, business_metadata_keys:)
+      learned_value = learning_coefficient(key)
+      return learned_value if learned_value.present?
+
+      business_metadata_keys.each do |metadata_key|
+        value = business_metadata[metadata_key]
+        if value.present?
+          input_sources[key] = "business_metadata.#{metadata_key}"
+          return normalize_rate(value)
+        end
+      end
+
+      nil
+    end
+
+    def learning_coefficient(key)
+      value = @learning_coefficients&.coefficients&.[](key)
+      return nil unless value.present?
+
+      input_sources[key] = @learning_coefficients.sources.fetch(key)
+      decimal(value)
     end
 
     def business_metadata
@@ -183,7 +211,7 @@ module Aicoo
       improved_position = [ position - coefficients.fetch("rank_gain_positions"), 1.to_d ].max
       rank_ctr_gain = [ rank_improvement_ctr_for(improved_position) - rank_improvement_ctr_for(position), 0.to_d ].max
       expected_ctr_gain = coefficients.fetch("content_ctr_gain_rate") + rank_ctr_gain
-      impression_gain_rate = rank_impression_gain_rate(metrics, position, improved_position)
+      impression_gain_rate = rank_impression_gain_rate(metrics, position, improved_position, coefficients)
       expected_impressions_after = impressions * (1 + impression_gain_rate)
       expected_ctr_after = current_ctr + expected_ctr_gain
       click_gain_from_ctr = impressions * expected_ctr_gain
@@ -272,15 +300,18 @@ module Aicoo
 
     def model_source_for(improvement_type)
       return "business_learning" if business_learning_stats(improvement_type)&.active?
+      return "business_learning" if @learning_coefficients&.source == "business_learning"
 
       calibration = calibration_for(improvement_type)
       return "improvement_type_learning" if calibration.active?
+      return @learning_coefficients.source if @learning_coefficients&.source.present?
 
       assumed_fields.any? ? "initial_coefficients" : "business_settings"
     end
 
     def learning_source_for(improvement_type, model_source)
       return "business:#{candidate.business_id}:#{improvement_type}" if model_source == "business_learning"
+      return "action_result_coefficients:#{model_source}:#{improvement_type}" if model_source.in?(%w[improvement_type_learning global_learning])
 
       calibration = calibration_for(improvement_type)
       return calibration.action_type if calibration.active?
@@ -294,6 +325,8 @@ module Aicoo
         0.91.to_d
       when "improvement_type_learning"
         0.72.to_d
+      when "global_learning"
+        0.58.to_d
       when "business_settings"
         0.65.to_d
       else
@@ -319,11 +352,14 @@ module Aicoo
           "confidence" => confidence.to_f.round(4),
           "model_source" => source,
           "learning_source" => learning_source_for(improvement_type, source),
+          "learning_coefficients" => @learning_coefficients&.learning_values || {},
+          "learning_sample_counts" => @learning_coefficients&.sample_counts || {},
           "calibration_update_targets" => calibration_update_targets(improvement_type),
           "input_sources" => input_sources,
           "assumption_used" => assumed_fields.any?,
           "assumed_fields" => assumed_fields.uniq,
           "assumption_reasons" => assumption_reasons,
+          "coefficients" => coefficients,
           "initial_coefficients" => INITIAL_COEFFICIENTS,
           "used_gsc" => metrics["gsc"],
           "used_ga4" => metrics["ga4"],
@@ -377,7 +413,9 @@ module Aicoo
       lower.last + ((upper.last - lower.last) * progress)
     end
 
-    def rank_impression_gain_rate(metrics, position, improved_position)
+    def rank_impression_gain_rate(metrics, position, improved_position, coefficients)
+      return normalize_rate(coefficients["rank_impression_gain_rate"]) if coefficients["rank_impression_gain_rate"].present?
+
       learning_rate = first_present(
         metrics.dig("learning", "rank_impression_gain_rate"),
         metrics.dig("learning", "average_rank_impression_gain_rate"),
@@ -441,8 +479,23 @@ module Aicoo
       return false unless related_candidate
 
       related_metadata = related_candidate.metadata.to_h
-      related_metadata["value_model_name"].to_s == Aicoo::ArticleOpportunityAnalyzer::SnapshotRunner::MODEL_NAME &&
-        related_metadata["opportunity_type"].to_s == improvement_type.to_s
+      article_opportunity_metadata?(related_metadata) &&
+        result_improvement_type(related_metadata) == improvement_type.to_s
+    end
+
+    def article_opportunity_metadata?(metadata)
+      metadata["value_model_name"].to_s == Aicoo::ArticleOpportunityAnalyzer::SnapshotRunner::MODEL_NAME ||
+        metadata.dig("expected_profit_model", "name").to_s == MODEL_NAME ||
+        metadata.dig("expected_profit_model", "value_model").to_s == "grounded_article_opportunity_profit"
+    end
+
+    def result_improvement_type(metadata)
+      first_present(
+        metadata["opportunity_type"],
+        metadata["improvement_type"],
+        metadata.dig("expected_profit_model", "improvement_type"),
+        metadata.dig("execution_brief", "target", "improvement_type")
+      ).to_s
     end
 
     def build_business_learning_stats(results)

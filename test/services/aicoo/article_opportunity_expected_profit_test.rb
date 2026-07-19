@@ -137,6 +137,33 @@ module Aicoo
       assert_equal 0.91, result.confidence
     end
 
+    test "business learning coefficients are preferred over initial coefficients" do
+      candidate = create_candidate!("ctr_improvement")
+      3.times do |index|
+        learned_candidate = create_candidate!("ctr_improvement", expected_improvement_score: 8 + index)
+        ActionResult.create!(
+          action_candidate: learned_candidate,
+          business: @business,
+          executed_on: 20.days.ago.to_date,
+          evaluated_on: 10.days.ago.to_date,
+          evaluation_status: "evaluated",
+          predicted_expected_profit_yen: 1_000,
+          predicted_success_probability: 0.5,
+          actual_clicks_delta: 120,
+          actual_profit_yen: 60_000,
+          actual_revenue_yen: 60_000
+        )
+      end
+
+      result = ArticleOpportunityExpectedProfit.call(candidate)
+      model = result.metadata.fetch("expected_profit_model")
+
+      assert_equal "business_learning", result.model_source
+      assert_equal "business_learning", model.dig("input_sources", "ctr_gain_rate")
+      assert_operator model.dig("learning_coefficients", "ctr_gain_rate").to_d, :>, 0
+      assert_equal 3, model.dig("learning_sample_counts", "business_learning")
+    end
+
     private
 
     def create_candidate!(opportunity_type, expected_improvement_score: 12.5, snapshot_id: @snapshot.id)

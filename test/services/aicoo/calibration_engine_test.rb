@@ -133,9 +133,29 @@ module Aicoo
       assert_equal 1.to_d, calibration.probability_calibration_factor
     end
 
+    test "also aggregates article opportunity results by improvement type" do
+      create_results(
+        action_type: "article_update",
+        count: 10,
+        predicted_profit: 1_000,
+        actual_profit: 1_500,
+        metadata: {
+          "value_model_name" => Aicoo::ArticleOpportunityAnalyzer::SnapshotRunner::MODEL_NAME,
+          "opportunity_type" => "ctr_improvement"
+        }
+      )
+
+      CalibrationEngine.run!
+
+      calibration = ActionPredictionCalibration.find_by!(action_type: "article_opportunity:ctr_improvement")
+      assert_equal 10, calibration.sample_count
+      assert_equal "medium", calibration.confidence_level
+      assert_equal 1, ActionPredictionCalibrationLog.where(action_type: "article_opportunity:ctr_improvement").count
+    end
+
     private
 
-    def create_results(action_type:, count:, predicted_profit:, actual_profit:, predicted_probability: 0.5)
+    def create_results(action_type:, count:, predicted_profit:, actual_profit:, predicted_probability: 0.5, metadata: {})
       count.times do |index|
         candidate = ActionCandidate.create!(
           business: businesses(:suelog),
@@ -143,7 +163,8 @@ module Aicoo
           action_type:,
           immediate_value_yen: predicted_profit,
           success_probability: predicted_probability,
-          expected_hours: 1
+          expected_hours: 1,
+          metadata:
         )
 
         ActionResult.create!(
