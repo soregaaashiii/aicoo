@@ -9,6 +9,9 @@ module Aicoo
       pageviews
       users
       engagement_rate
+      event_count
+      internal_search_events
+      scroll_events
       phone_clicks
       map_clicks
       affiliate_clicks
@@ -79,6 +82,7 @@ module Aicoo
         assign_pending_evaluation(evaluation, activity_log, window)
         result.created_count += 1 if evaluation.new_record?
         evaluation.save!
+        record_independent_learning(evaluation)
         result.pending_count += 1
         return
       end
@@ -102,6 +106,7 @@ module Aicoo
           )
         )
         evaluation.save!
+        record_independent_learning(evaluation)
         result.skipped_count += 1
         return
       end
@@ -122,6 +127,7 @@ module Aicoo
         )
       )
       evaluation.save!
+      record_independent_learning(evaluation)
       result.evaluated_count += 1
       bridge_result = Aicoo::ActivityActionResultBridge.call(evaluation)
       result.action_results_generated_count += 1 if bridge_result.status == "generated"
@@ -152,6 +158,10 @@ module Aicoo
       }.compact
     end
 
+    def record_independent_learning(evaluation)
+      Aicoo::IndependentActivityLearning.record!(evaluation)
+    end
+
     def snapshots_for(activity_log, window)
       occurred_on = activity_log.occurred_at.to_date
       baseline_range = (occurred_on - 7.days)...occurred_on
@@ -174,8 +184,15 @@ module Aicoo
         end
       end
       metric_values.merge(
+        ctr: ratio(metric_values[:clicks], metric_values[:impressions]),
         revenue_yen: business.revenue_events.revenue.where(occurred_on: range).sum(:amount).to_f
       )
+    end
+
+    def ratio(numerator, denominator)
+      return 0.0 if denominator.to_f.zero?
+
+      (numerator.to_f / denominator.to_f).round(6)
     end
 
     def resource_snapshot(activity_log, range)

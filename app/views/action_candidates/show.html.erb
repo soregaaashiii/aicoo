@@ -293,11 +293,15 @@ end %>
         <span class="muted">実行日時: <%= l(Time.zone.parse(executed_at.to_s), format: :short) rescue executed_at %></span>
       <% end %>
     <% elsif !%w[rejected archived].include?(@action_candidate.status) %>
-      <%= button_to "実行済みにする",
-                    mark_executed_action_candidate_path(@action_candidate),
-                    method: :patch,
-                    class: "button",
-                    data: { turbo_confirm: "この施策を実行済みにしますか？\n実行済みにすると、今日処理するActionから除外されます。" } %>
+      <%= form_with url: mark_executed_action_candidate_path(@action_candidate), method: :patch, class: "compact-actions" do |form| %>
+        <div class="field compact-field">
+          <%= form.label :registered_count, "登録件数" %>
+          <%= form.number_field :registered_count, min: 0, step: 1, inputmode: "numeric" %>
+        </div>
+        <%= form.submit "完了",
+                        class: "button",
+                        data: { turbo_confirm: "この施策を実行済みにしますか？\n実行済みにすると、今日処理するActionから除外されます。" } %>
+      <% end %>
     <% end %>
     <% unless %w[rejected archived completed done].include?(@action_candidate.status) %>
       <%= button_to "却下する", reject_action_candidate_path(@action_candidate, today_return_params), method: :patch, class: "button danger" %>

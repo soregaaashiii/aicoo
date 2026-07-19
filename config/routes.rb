@@ -323,6 +323,7 @@ Rails.application.routes.draw do
 
     namespace :aicoo_lab do
       root "experiments#index"
+      get "independent_learning", to: "independent_learning#index", as: :independent_learning
       get "approvals", to: "experiments#approvals", as: :approvals
       get "approved", to: "approved_experiments#index", as: :approved_experiments
       post "approved/bulk_running", to: "approved_experiments#bulk_running", as: :approved_experiments_bulk_running

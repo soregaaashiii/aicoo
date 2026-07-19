@@ -130,7 +130,10 @@ class ActionCandidatesController < ApplicationController
       return
     end
 
-    @action_candidate.mark_executed!(executed_by: "owner")
+    @action_candidate.mark_executed!(
+      executed_by: "owner",
+      registered_count: params[:registered_count]
+    )
     OwnerTaskCompletionLog.record_success!(
       task_type: "action_candidate_execution",
       target: @action_candidate,
@@ -141,6 +144,7 @@ class ActionCandidatesController < ApplicationController
         action_candidate_id: @action_candidate.id,
         action_execution_id: @action_candidate.action_execution&.id,
         action_result_id: @action_candidate.action_result&.id,
+        registered_count: @action_candidate.action_result&.metadata.to_h.dig("action_candidate_completion", "registered_count"),
         executed_at: @action_candidate.metadata.to_h["executed_at"]
       }
     )

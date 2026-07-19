@@ -26,6 +26,7 @@ module Aicoo
       evaluation = activity_log.activity_evaluations.find_by!(evaluation_window_days: 7)
       assert_equal "evaluated", evaluation.status
       assert_equal 1000.0, evaluation.result_snapshot["revenue_yen"]
+      assert_equal 0.1, evaluation.result_snapshot["ctr"]
       assert_equal "evaluated", activity_log.reload.evaluation_status
     end
 
@@ -107,7 +108,7 @@ module Aicoo
       assert_equal [ [ action_result, "activity_learning_pipeline" ] ], refresh_calls
     end
 
-    test "records skipped reason when activity cannot be linked to action candidate" do
+    test "records independent learning when activity has no explicit action candidate" do
       business = businesses(:suelog)
       occurred_at = 10.days.ago
       activity_log = BusinessActivityLog.create!(
@@ -135,9 +136,70 @@ module Aicoo
       result = ActivityActionResultBridge.call(evaluation)
 
       assert_equal "skipped", result.status
-      assert_equal "action_candidate_not_found", result.reason
+      assert_equal "independent_activity_without_candidate", result.reason
       assert_equal "skipped", evaluation.reload.metadata.dig("action_result_bridge", "status")
-      assert_equal "action_candidate_not_found", evaluation.metadata.dig("action_result_bridge", "reason")
+      assert_equal "independent_activity_without_candidate", evaluation.metadata.dig("action_result_bridge", "reason")
+    end
+
+    test "does not infer action candidate learning from a matching resource alone" do
+      business = businesses(:suelog)
+      candidate = action_candidates(:nagazakicho_article)
+      candidate.update!(metadata: candidate.metadata.to_h.merge("article_id" => "resource-only"))
+      activity_log = BusinessActivityLog.create!(
+        business:,
+        source_app: "suelog",
+        activity_type: "article_updated",
+        resource_type: "Article",
+        resource_id: "resource-only",
+        title: "候補外の記事更新",
+        occurred_at: 10.days.ago,
+        detected_at: 10.days.ago,
+        idempotency_key: "resource-only-independent"
+      )
+      evaluation = ActivityEvaluation.create!(
+        business:,
+        business_activity_log: activity_log,
+        evaluation_window_days: 7,
+        status: "evaluated",
+        evaluated_at: Time.current,
+        baseline_snapshot: { "clicks" => 1 },
+        result_snapshot: { "clicks" => 2 },
+        metric_deltas: { "clicks" => { "before" => 1, "after" => 2, "delta" => 1 } }
+      )
+
+      assert_no_difference("ActionResult.count") do
+        result = ActivityActionResultBridge.call(evaluation)
+        assert_equal "independent_activity_without_candidate", result.reason
+      end
+    end
+
+    test "registers pending independent activity learning with aggregated context" do
+      business = businesses(:suelog)
+      occurred_at = 1.hour.ago
+      two_logs = [ "shop-a", "shop-b" ].map do |resource_id|
+        BusinessActivityLog.create!(
+          business:,
+          source_app: "suelog",
+          activity_type: "shop_created",
+          resource_type: "Shop",
+          resource_id:,
+          title: "店舗追加",
+          occurred_at:,
+          detected_at: occurred_at,
+          idempotency_key: "#{resource_id}-independent",
+          metadata: { "area" => "梅田", "genre" => "居酒屋", "smoking_type" => "喫煙可" }
+        )
+      end
+
+      ActivityEvaluationBuilder.new.call(business:)
+
+      learning = two_logs.first.activity_evaluations.find_by!(evaluation_window_days: 7).metadata.fetch("independent_activity_learning")
+      assert_equal "independent_activity", two_logs.first.activity_evaluations.first.metadata["learning_track"]
+      assert_equal 2, learning["shop_count"]
+      assert_equal 2, learning["created_count"]
+      assert_equal "梅田", learning["area"]
+      assert_equal "居酒屋", learning["genre"]
+      assert_nil learning["action_candidate_id"]
     end
 
     test "creates pending evaluations immediately before evaluation windows are due" do

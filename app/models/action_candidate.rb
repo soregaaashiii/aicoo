@@ -137,13 +137,15 @@ class ActionCandidate < ApplicationRecord
     status == "done" || action_result.present? || action_execution&.status == "completed"
   end
 
-  def mark_executed!(executed_by: "owner", executed_at: Time.current)
+  def mark_executed!(executed_by: "owner", executed_at: Time.current, registered_count: nil)
     transaction do
       execution = ensure_action_execution!
       execution.complete!(
         result_summary: "施策詳細から実行済みにしました。"
       ) unless execution.status == "completed"
 
+      completion_context = Aicoo::ActionCandidateCompletionContext.call(self)
+      completion_context["registered_count"] = normalized_registered_count(registered_count)
       create_action_result!(
         action_execution: execution,
         business: business,
@@ -154,7 +156,9 @@ class ActionCandidate < ApplicationRecord
         metadata: {
           "marked_executed_from" => "action_candidate_detail",
           "executed_by" => executed_by,
-          "executed_at" => executed_at.iso8601
+          "executed_at" => executed_at.iso8601,
+          "learning_track" => "action_candidate",
+          "action_candidate_completion" => completion_context
         }
       ) unless action_result
 
@@ -186,6 +190,12 @@ class ActionCandidate < ApplicationRecord
   end
 
   private
+
+  def normalized_registered_count(value)
+    return if value.blank?
+
+    [ value.to_i, 0 ].max
+  end
 
   def set_defaults
     self.action_type = "other" if action_type.blank?

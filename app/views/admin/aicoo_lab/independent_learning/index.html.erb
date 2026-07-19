@@ -1,0 +1,55 @@
+<% content_for :title, "Independent Learning" %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "Independent Learning",
+             description: "ActionCandidateに紐付かない自然な活動の成果だけを確認します。",
+             active_main: :lab,
+             actions: link_to("新規事業へ戻る", admin_aicoo_lab_root_path, class: "button secondary") %>
+
+  <section class="dashboard-section">
+    <div class="metric-grid">
+      <div class="metric-card"><span>活動グループ</span><strong><%= @result.summary.group_count %></strong></div>
+      <div class="metric-card"><span>評価済み</span><strong><%= @result.summary.evaluated_count %></strong></div>
+      <div class="metric-card"><span>評価待ち</span><strong><%= @result.summary.pending_count %></strong></div>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <h2>エリア・ジャンル別の独立学習</h2>
+      <p>同じ時間帯に行われた同一種別の活動をまとめ、7日・14日・30日後の実績を分離して表示します。</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>エリア</th><th>ジャンル</th><th>活動</th><th>店舗</th><th>記事</th>
+            <th>状態</th><th>成果</th><th>信頼度</th><th>ROI</th><th>7日</th><th>14日</th><th>30日</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @result.rows.each do |row| %>
+            <tr>
+              <td><%= row.area.presence || "-" %></td>
+              <td><%= row.genre.presence || "-" %></td>
+              <td><%= row.activity_type %></td>
+              <td class="number"><%= row.shop_count %></td>
+              <td class="number"><%= row.article_count %></td>
+              <td><span class="pill"><%= row.learning_status %></span></td>
+              <td>
+                <% changes = row.outcome.filter_map { |metric, values| "#{metric}: #{values.to_h['delta']}" if values.to_h['delta'].to_f.nonzero? }.first(3) %>
+                <%= changes.presence&.join(" / ") || "-" %>
+              </td>
+              <td class="number"><%= number_to_percentage(row.confidence.to_d * 100, precision: 0) %></td>
+              <td class="number"><%= row.roi.nil? ? "-" : number_with_precision(row.roi, precision: 2) %></td>
+              <% [ 7, 14, 30 ].each do |days| %>
+                <td><%= row.evaluations.dig(days, "status") || "-" %></td>
+              <% end %>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>

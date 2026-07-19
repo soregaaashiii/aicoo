@@ -133,7 +133,7 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Judge補正スコア履歴"
     assert_includes response.body, "Judge補正で順位低下"
     assert_includes response.body, "部門"
-    assert_includes response.body, "実行済みにする"
+    assert_includes response.body, "登録件数"
     assert_includes response.body, "なぜやるのか"
     assert_includes response.body, "やること"
     assert_includes response.body, "今回やること"
@@ -190,7 +190,7 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Today"
     assert_includes response.body, "Action"
     assert_includes response.body, "戻る"
-    assert_includes response.body, "実行済みにする"
+    assert_includes response.body, "登録件数"
     assert_includes response.body, "この施策を実行済みにしますか？"
     assert_includes response.body, "保留"
     assert_includes response.body, "却下する"
@@ -295,7 +295,7 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_not_includes response.body, "Executorへ送る"
-    assert_includes response.body, "実行済みにする"
+    assert_includes response.body, "登録件数"
   end
 
   test "sends data preparation action candidate to executor" do
@@ -402,7 +402,7 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
     assert_difference("ActionExecution.count", 1) do
       assert_difference("ActionResult.count", 1) do
         assert_difference("OwnerTaskCompletionLog.count", 1) do
-          patch mark_executed_action_candidate_url(@action_candidate)
+          patch mark_executed_action_candidate_url(@action_candidate), params: { registered_count: 10 }
         end
       end
     end
@@ -415,6 +415,8 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
     assert_equal Date.current, @action_candidate.action_result.executed_on
     assert_equal "owner", @action_candidate.metadata["executed_by"]
     assert_not_nil @action_candidate.metadata["executed_at"]
+    assert_equal 10, @action_candidate.action_result.metadata.dig("action_candidate_completion", "registered_count")
+    assert_equal "action_candidate", @action_candidate.action_result.metadata["learning_track"]
   end
 
   test "mark executed is idempotent for already executed action" do
@@ -436,7 +438,15 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.body, "実行済み"
     assert_includes response.body, "実行日時"
-    assert_not_includes response.body, "実行済みにする"
+    assert_not_includes response.body, "登録件数"
+  end
+
+  test "action workspace asks only for registration count when completing" do
+    get action_workspace_url(@action_candidate)
+
+    assert_response :success
+    assert_includes response.body, "登録件数"
+    assert_includes response.body, "完了"
   end
 
   test "rejects from action workspace and returns to today" do
@@ -648,7 +658,7 @@ class ActionCandidatesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "期待する結果"
     assert_includes response.body, "app/views/articles/show.html.erb"
     assert_includes response.body, "大阪で喫煙できるお店を探す"
-    assert_includes response.body, "実行済みにする"
+    assert_includes response.body, "登録件数"
     assert_includes response.body, "却下する"
   end
 
