@@ -11,15 +11,16 @@ module Admin
       end
 
       business = oauth_business
-      state = business&.name || params[:business_name].presence
+      business_name = business&.name || params[:business_name].presence
+      state = oauth_state_for(business)
       source_key = oauth_source_key
       authorization_uri = AicooAnalytics::GoogleOauthAuthorization.authorization_uri(
         client_id: credentials[:client_id],
         redirect_uri: admin_analytics_oauth_callback_url,
         state:
       )
-      remember_oauth_credentials!(credentials, state, credential, source_key, business)
-      log_oauth_start!(credential:, credentials:, authorization_uri:, state:, source_key:, business:)
+      remember_oauth_credentials!(credentials, business_name, credential, source_key, business)
+      log_oauth_start!(credential:, credentials:, authorization_uri:, state:, source_key:, business:, business_name:)
       flash[:notice] = oauth_start_debug_message(authorization_uri, credential:, source_key:, business:)
       redirect_to authorization_uri.to_s, allow_other_host: true
     end
@@ -49,7 +50,7 @@ module Admin
         return
       end
 
-      settings = target_settings(params[:state].presence, oauth_source_key_from_session)
+      settings = target_settings(oauth_business_from_session&.name || session[:analytics_oauth_business_name].presence || params[:state].presence, oauth_source_key_from_session)
       google_credential = target_google_credential_from_session
       credentials = oauth_credentials(google_credential)
       log_oauth_callback_event!(
@@ -312,7 +313,7 @@ module Admin
       session.delete(:analytics_oauth_google_credential_id)
     end
 
-    def log_oauth_start!(credential:, credentials:, authorization_uri:, state:, source_key:, business:)
+    def log_oauth_start!(credential:, credentials:, authorization_uri:, state:, source_key:, business:, business_name:)
       query = Rack::Utils.parse_nested_query(authorization_uri.query)
       Rails.logger.info(
         [
@@ -327,7 +328,7 @@ module Admin
           "state=#{state.presence || 'blank'}",
           "source=#{source_key.presence || 'all'}",
           "business_id=#{business&.id || 'blank'}",
-          "business_name=#{business&.name || state.presence || 'blank'}",
+          "business_name=#{business_name.presence || 'blank'}",
           "oauth_url=#{authorization_uri}",
           "test_user_check=OAuth同意画面がテストモードの場合は利用するGoogleアカウントをテストユーザーに追加してください"
         ].join(" ")
@@ -436,10 +437,17 @@ module Admin
       return @oauth_business if defined?(@oauth_business)
 
       @oauth_business = Business.find_by(id: params[:business_id].presence)
+      @oauth_business ||= Business.find_by(name: params[:business_name].presence) if params[:business_name].present?
     end
 
     def oauth_business_from_session
       Business.find_by(id: session[:analytics_oauth_business_id].presence)
+    end
+
+    def oauth_state_for(business)
+      return "business_id:#{business.id}" if business
+
+      "google_oauth"
     end
   end
 end
