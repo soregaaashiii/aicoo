@@ -147,10 +147,30 @@ module AicooDataHub
       assert_equal landing_page.id, AicooDataSnapshot.find_by(source_type: "landing_page").source_id
     end
 
+    test "does not create duplicate gsc snapshots for the same metric payload" do
+      business = Business.create!(name: "DataHub duplicate gsc")
+      raw_text = JSON.generate(
+        rows: [
+          { "date" => "2026-07-18", "page" => "/articles/sample", "query" => "sample", "clicks" => 2, "impressions" => 10, "position" => 4.2 }
+        ]
+      )
+      create_data_import(source_type: "gsc", raw_text:, business:)
+      create_data_import(source_type: "gsc", raw_text:, business:)
+
+      assert_difference("AicooDataSnapshot.where(source_type: 'gsc').count", 1) do
+        result = SnapshotCollector.new.collect_gsc
+        assert_equal 1, result.count
+      end
+
+      snapshot = AicooDataSnapshot.find_by!(source_type: "gsc")
+      assert_equal "metric_rows_v1", snapshot.payload["snapshot_fingerprint_version"]
+      assert snapshot.payload["snapshot_fingerprint"].present?
+    end
+
     private
 
-    def create_data_import(source_type:, raw_text:)
-      business = Business.create!(name: "DataHub #{source_type}")
+    def create_data_import(source_type:, raw_text:, business: nil)
+      business ||= Business.create!(name: "DataHub #{source_type}")
       data_source = business.data_sources.create!(name: "DataHub #{source_type}", source_type:)
       data_source.data_imports.create!(
         filename: "#{source_type}.json",

@@ -330,6 +330,10 @@ module AicooArticleAnalyticsSnapshotRake
     puts "failed_count=#{result.failed_count}"
     puts "snapshot_ids=#{result.snapshot_ids.join(',').presence || '-'}"
     puts "available_false_counts=#{result.unavailable_counts.map { |source, count| "#{source}:#{count}" }.join(',').presence || '-'}"
+    puts "gsc_snapshot_quality=#{AicooArticleAnalyticsSnapshotRake.snapshot_quality_line(result.gsc_snapshot_quality)}"
+    puts "ga4_snapshot_quality=#{AicooArticleAnalyticsSnapshotRake.snapshot_quality_line(result.ga4_snapshot_quality)}"
+    puts "gsc_duplicate_sources:"
+    print_duplicate_sources(result.gsc_snapshot_quality)
     puts "article_info_rates:"
     result.article_info_rates.each do |field, stats|
       puts "#{field}=#{stats['present']}/#{stats['total']} #{stats['rate']}%"
@@ -374,6 +378,35 @@ module AicooArticleAnalyticsSnapshotRake
         "duplicate_count=#{row['duplicate_count']}",
         "source_models=#{Array(row['source_models']).join('|')}",
         "source_ids=#{Array(row['source_ids']).join('|')}"
+      ].join(" ")
+    end
+  end
+
+  def snapshot_quality_line(quality)
+    return "-" if quality.blank?
+
+    [
+      "snapshot_count=#{quality['snapshot_count']}",
+      "duplicate_snapshot_count=#{quality['duplicate_snapshot_count']}",
+      "duplicate_group_count=#{quality['duplicate_group_count']}",
+      "duplicate_rate=#{quality['duplicate_rate']}%"
+    ].join(" ")
+  end
+
+  def print_duplicate_sources(quality)
+    rows = Array(quality && quality["duplicate_sources"])
+    if rows.empty?
+      puts "-"
+      return
+    end
+
+    rows.each do |row|
+      puts [
+        "snapshot_ids=#{Array(row['snapshot_ids']).join('|')}",
+        "source_ids=#{Array(row['source_ids']).join('|')}",
+        "data_import_ids=#{Array(row['data_import_ids']).join('|')}",
+        "source_models=#{Array(row['source_models']).join('|')}",
+        "imported_at=#{Array(row['imported_at']).join('|')}"
       ].join(" ")
     end
   end

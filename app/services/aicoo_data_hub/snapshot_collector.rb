@@ -1,5 +1,6 @@
 require "json"
 require "csv"
+require "digest"
 
 module AicooDataHub
   class SnapshotCollector
@@ -106,11 +107,15 @@ module AicooDataHub
     def create_snapshot_unless_exists(source_type:, source_id:)
       return false if snapshot_exists_today?(source_type, source_id)
 
+      payload = yield
+      payload = payload_with_fingerprint(payload, source_type)
+      return false if duplicate_metric_snapshot_exists_today?(source_type, payload)
+
       AicooDataSnapshot.create!(
         source_type:,
         source_id:,
         captured_at: Time.current,
-        payload: yield
+        payload:
       )
       true
     end
@@ -120,6 +125,49 @@ module AicooDataHub
         .where(source_type:, source_id:)
         .where(captured_at: Time.current.all_day)
         .exists?
+    end
+
+    def duplicate_metric_snapshot_exists_today?(source_type, payload)
+      return false unless source_type.in?(%w[gsc ga4])
+
+      fingerprint = payload["snapshot_fingerprint"]
+      return false if fingerprint.blank?
+
+      scope = AicooDataSnapshot
+        .where(source_type:)
+        .where(captured_at: Time.current.all_day)
+        .where("payload ->> 'snapshot_fingerprint' = ?", fingerprint)
+
+      business_id = payload["business_id"].presence
+      analytics_site_id = payload["analytics_site_id"].presence
+      scope = scope.where("payload ->> 'business_id' = ?", business_id.to_s) if business_id.present?
+      scope = scope.where("payload ->> 'analytics_site_id' = ?", analytics_site_id.to_s) if analytics_site_id.present?
+      scope.exists?
+    end
+
+    def payload_with_fingerprint(payload, source_type)
+      return payload unless source_type.in?(%w[gsc ga4])
+
+      normalized_payload = payload.deep_stringify_keys
+      normalized_payload.merge(
+        "snapshot_fingerprint" => snapshot_fingerprint(normalized_payload),
+        "snapshot_fingerprint_version" => "metric_rows_v1"
+      )
+    end
+
+    def snapshot_fingerprint(payload)
+      canonical = {
+        source_type: payload["source_type"],
+        business_id: payload["business_id"],
+        analytics_site_id: payload["analytics_site_id"],
+        domain: payload["domain"],
+        rows: canonical_rows(payload["rows"])
+      }
+      Digest::SHA256.hexdigest(JSON.generate(canonical))
+    end
+
+    def canonical_rows(rows)
+      Array(rows).map { |row| row.to_h.deep_stringify_keys.sort.to_h }.sort_by(&:to_json)
     end
 
     def data_import_payload(data_import, source_type)

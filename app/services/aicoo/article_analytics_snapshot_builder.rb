@@ -1,6 +1,8 @@
 require "csv"
+require "digest"
 require "json"
 require "set"
+require "uri"
 
 module Aicoo
   class ArticleAnalyticsSnapshotBuilder
@@ -27,7 +29,9 @@ module Aicoo
       :ga4_duplicate_candidates,
       :article_info_rates,
       :unavailable_counts,
-      :sample_payloads
+      :sample_payloads,
+      :gsc_snapshot_quality,
+      :ga4_snapshot_quality
     )
 
     Snapshot = Data.define(:article, :payload)
@@ -87,7 +91,9 @@ module Aicoo
         ga4_duplicate_candidates: ga4_duplicate_candidates,
         article_info_rates: article_info_rates(payloads),
         unavailable_counts: unavailable_counts(payloads),
-        sample_payloads: payloads.first(5)
+        sample_payloads: payloads.first(5),
+        gsc_snapshot_quality: snapshot_quality_for("gsc"),
+        ga4_snapshot_quality: snapshot_quality_for("ga4")
       )
     end
 
@@ -206,7 +212,9 @@ module Aicoo
         ga4_duplicate_candidates: ga4_duplicate_candidates,
         article_info_rates: article_info_rates(payloads),
         unavailable_counts: unavailable_counts(payloads),
-        sample_payloads: payloads.first(5)
+        sample_payloads: payloads.first(5),
+        gsc_snapshot_quality: snapshot_quality_for("gsc"),
+        ga4_snapshot_quality: snapshot_quality_for("ga4")
       )
     end
 
@@ -270,6 +278,38 @@ module Aicoo
       %w[gsc ga4 shop_click].index_with do |source|
         payloads.count { |payload| payload.dig(source, "available") != true }
       end
+    end
+
+    def snapshot_quality_for(source_type)
+      source_snapshots = snapshots_for(source_type)
+      fingerprint_groups = source_snapshots.group_by { |snapshot| snapshot.payload.to_h["snapshot_fingerprint"].presence || legacy_snapshot_fingerprint(snapshot) }
+      duplicate_groups = fingerprint_groups.values.select { |grouped| grouped.size > 1 }
+      {
+        "snapshot_count" => source_snapshots.size,
+        "duplicate_snapshot_count" => duplicate_groups.sum { |grouped| grouped.size },
+        "duplicate_group_count" => duplicate_groups.size,
+        "duplicate_rate" => source_snapshots.any? ? ((duplicate_groups.sum(&:size).to_d / source_snapshots.size) * 100).round(1).to_f : 0,
+        "duplicate_sources" => duplicate_groups.first(20).map do |grouped|
+          {
+            "snapshot_ids" => grouped.map(&:id),
+            "source_ids" => grouped.map(&:source_id),
+            "source_models" => grouped.map { |snapshot| snapshot.payload.to_h["source_model"].presence || "AicooDataSnapshot" }.uniq,
+            "data_import_ids" => grouped.map { |snapshot| snapshot.payload.to_h["data_import_id"] }.compact.uniq,
+            "imported_at" => grouped.map { |snapshot| snapshot.payload.to_h["imported_at"] }.compact.uniq
+          }
+        end
+      }
+    end
+
+    def legacy_snapshot_fingerprint(snapshot)
+      payload = snapshot.payload.to_h.deep_stringify_keys
+      Digest::SHA256.hexdigest(JSON.generate(
+        "source_type" => payload["source_type"],
+        "business_id" => payload["business_id"],
+        "analytics_site_id" => payload["analytics_site_id"],
+        "domain" => payload["domain"],
+        "rows" => Array(payload["rows"]).map { |row| row.to_h.deep_stringify_keys.sort.to_h }.sort_by(&:to_json)
+      ))
     end
 
     def missing_articles_for(payloads, article_paths)
@@ -486,7 +526,9 @@ module Aicoo
       latest_day = snapshots.filter_map { |snapshot| snapshot.captured_at&.to_date }.max
       return [] unless latest_day
 
-      snapshots.select { |snapshot| snapshot.captured_at&.to_date == latest_day }
+      snapshots
+        .select { |snapshot| snapshot.captured_at&.to_date == latest_day }
+        .uniq { |snapshot| snapshot.payload.to_h["snapshot_fingerprint"].presence || legacy_snapshot_fingerprint(snapshot) }
     end
 
     def latest_imports_for(source_type)
@@ -637,11 +679,12 @@ module Aicoo
 
     def article_payload(article)
       content, content_source = article_content_with_source(article)
+      text_content = plain_text(content)
       {
         "published_at" => safe_attr(article, "published_at")&.iso8601,
         "updated_at" => safe_attr(article, "updated_at")&.iso8601,
         "title" => safe_attr(article, "title"),
-        "word_count" => content.present? ? content.to_s.length : nil,
+        "word_count" => text_content.present? ? text_content.length : nil,
         "content_source" => content_source,
         "shop_count" => article_shop_count(article),
         "verified_shop_count" => verified_shop_count(article),
@@ -656,6 +699,8 @@ module Aicoo
       return safe_attr(article, "shop_count").to_i if article.respond_to?(:shop_count) && safe_attr(article, "shop_count").present?
       return article.shops.count if article.respond_to?(:shops)
       return article_join_rows(article).count if article_join_table
+      return article_shop_ids_from_columns(article).size if article_shop_ids_from_columns(article).any?
+      return shop_click_shop_ids_for_article(article).size if shop_click_shop_ids_for_article(article).any?
 
       nil
     rescue StandardError
@@ -677,7 +722,7 @@ module Aicoo
     def article_content_with_source(article)
       %w[
         body content markdown html text article_body main_text rendered_body
-        published_body rich_text_content summary meta_description description
+        published_body rich_text_content
       ].each do |column|
         value = safe_attr(article, column)
         return [ value, column ] if value.present?
@@ -689,8 +734,13 @@ module Aicoo
     def article_join_table
       @article_join_table ||= begin
         tables = ::Suelog::Article.connection.tables
-        tables.find { |table| table.in?(%w[article_shops articles_shops article_shop_relations article_shop_links]) } ||
-          tables.find { |table| table.match?(/article.*shop|shop.*article/) }
+        preferred = %w[
+          article_shops articles_shops article_shop_relations article_shop_links
+          article_shop_assignments article_shop_items article_restaurants article_places
+          article_shop_lists article_shop_mappings
+        ]
+        tables.find { |table| preferred.include?(table) } ||
+          tables.find { |table| table.match?(/article.*(shop|restaurant|place)|(?:shop|restaurant|place).*article/) }
       end
     rescue StandardError
       nil
@@ -703,7 +753,7 @@ module Aicoo
         columns = ::Suelog::Article.connection.columns(article_join_table).map(&:name)
         {
           article_id: columns.find { |column| column == "article_id" || column.match?(/article.*id/) },
-          shop_id: columns.find { |column| column == "shop_id" || column.match?(/shop.*id/) }
+          shop_id: columns.find { |column| column.in?(%w[shop_id restaurant_id place_id]) || column.match?(/(?:shop|restaurant|place).*id/) }
         }
       end
     end
@@ -721,16 +771,77 @@ module Aicoo
 
     def shops_for_article(article)
       return article.shops if article.respond_to?(:shops)
-      return unless article_join_table && article_join_columns[:shop_id]
 
-      shop_ids = article_join_rows(article).filter_map { |row| row[article_join_columns[:shop_id]].presence }.uniq
+      shop_ids = if article_join_table && article_join_columns[:shop_id]
+                   article_join_rows(article).filter_map { |row| row[article_join_columns[:shop_id]].presence }.uniq
+                 else
+                   []
+                 end
+      shop_ids = article_shop_ids_from_columns(article) if shop_ids.empty?
+      shop_ids = shop_click_shop_ids_for_article(article) if shop_ids.empty?
       return ::Suelog::Shop.none if shop_ids.empty?
 
       ::Suelog::Shop.where(id: shop_ids)
     end
 
+    def article_shop_ids_from_columns(article)
+      id_columns = article.class.column_names.grep(/shop.*ids|restaurant.*ids|place.*ids/i)
+      id_columns.flat_map do |column|
+        extract_ids(safe_attr(article, column))
+      end.uniq
+    rescue StandardError
+      []
+    end
+
+    def shop_click_shop_ids_for_article(article)
+      return [] unless defined?(::Suelog::ShopClick)
+
+      article_id_column = first_column(::Suelog::ShopClick, %w[article_id])
+      shop_id_column = first_column(::Suelog::ShopClick, %w[shop_id restaurant_id place_id])
+      return [] unless article_id_column && shop_id_column
+
+      ::Suelog::ShopClick.where(article_id_column => article.id).where.not(shop_id_column => nil).distinct.pluck(shop_id_column)
+    rescue StandardError
+      []
+    end
+
+    def extract_ids(value)
+      case value
+      when Array
+        value
+      when Hash
+        value.values
+      else
+        text = value.to_s
+        return [] if text.blank?
+
+        parsed = JSON.parse(text) rescue nil
+        return extract_ids(parsed) if parsed
+
+        text.scan(/\d+/)
+      end.map(&:to_i).reject(&:zero?)
+    end
+
     def internal_link_count(content)
-      content.to_s.scan(%r{href=["'][^"']*/articles/|/articles/}).size
+      html = content.to_s
+      hrefs = html.scan(/href=["']([^"']+)["']/i).flatten
+      inline_paths = html.scan(%r{/(?:articles|shops|umeda|namba|shinsaibashi|kitashinchi|higashidori|sonezaki)[^\s"'<>)]*}i)
+      (hrefs + inline_paths).uniq.count { |value| internal_link?(value) }
+    end
+
+    def internal_link?(value)
+      text = value.to_s
+      return true if text.start_with?("/") && text.match?(%r{\A/(?:articles|shops|umeda|namba|shinsaibashi|kitashinchi|higashidori|sonezaki)(?:/|\z)}i)
+      return false unless text.match?(%r{\Ahttps?://}i)
+
+      uri = URI.parse(text)
+      uri.host.to_s.downcase.in?(%w[suelog.jp www.suelog.jp])
+    rescue URI::InvalidURIError
+      false
+    end
+
+    def plain_text(content)
+      ActionView::Base.full_sanitizer.sanitize(content.to_s).squish
     end
 
     def business_metric_payload
