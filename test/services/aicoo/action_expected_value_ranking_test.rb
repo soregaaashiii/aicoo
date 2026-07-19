@@ -107,6 +107,19 @@ module Aicoo
       assert_equal [ "action_candidate:low_improvement", "action_candidate:short_work", "action_candidate:high_improvement" ], result.items.map(&:stable_id)
     end
 
+    test "daily run record does not receive article opportunity metric lookup" do
+      daily_run = AicooDailyRun.new(id: 2542, status: "partial_failed", created_at: 1.hour.ago, updated_at: 30.minutes.ago)
+      daily_run_item = item(stable_id: "daily_run_issue:2542", delta: 50_000, confidence: 0.8, record: daily_run)
+
+      rows = ActionExpectedValueRanking.new(items: [ daily_run_item ], mode: "revenue").diagnostic_rows
+
+      assert_equal 1, rows.size
+      assert_equal 50_000, rows.first.total_expected_value_yen
+      assert_equal "total_expected_value_yen", rows.first.ranking_source
+      assert_nil rows.first.expected_improvement
+      assert_equal false, rows.first.non_yen_metric_used_for_ranking
+    end
+
     test "excludes unvalued items from ranking instead of treating them as zero" do
       unvalued = item(stable_id: "action_candidate:unvalued", delta: 0, confidence: 1, valuation_status: "unvalued")
       valued = item(stable_id: "action_candidate:valued", delta: 1, confidence: 0.5)

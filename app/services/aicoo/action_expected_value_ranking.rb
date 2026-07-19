@@ -243,7 +243,8 @@ module Aicoo
       execution_cost = item.respond_to?(:execution_cost_yen) ? item.execution_cost_yen.to_d : 0.to_d
       learning = record.is_a?(ActionCandidate) ? record.expected_learning_value_yen.to_d : 0.to_d
       expected_profit_model = metadata["expected_profit_model"].to_h
-      ranking_source = article_opportunity_item?(item) ? Aicoo::ArticleOpportunityExpectedProfit::MODEL_NAME : "total_expected_value_yen"
+      article_opportunity = article_opportunity_item?(item)
+      ranking_source = article_opportunity ? Aicoo::ArticleOpportunityExpectedProfit::MODEL_NAME : "total_expected_value_yen"
 
       {
         total_expected_value_yen: total,
@@ -257,7 +258,7 @@ module Aicoo
         risk_cost_yen: decimal_metadata(metadata, "risk_cost_yen"),
         opportunity_cost_yen: decimal_metadata(metadata, "opportunity_cost_yen"),
         ranking_source:,
-        expected_improvement: expected_profit_model["expected_improvement_score"].presence || article_opportunity_metric(item, "expected_improvement_score")
+        expected_improvement: article_opportunity ? expected_profit_model["expected_improvement_score"].presence || article_opportunity_metric(item, "expected_improvement_score") : nil
       }
     end
 
@@ -293,6 +294,8 @@ module Aicoo
     end
 
     def article_opportunity_metric(item, key)
+      return nil unless article_opportunity_item?(item)
+
       record = item.respond_to?(:record) ? item.record : nil
       record&.metadata.to_h[key].to_s.delete(",").to_d
     end
