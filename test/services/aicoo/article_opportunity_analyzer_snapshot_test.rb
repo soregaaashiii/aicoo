@@ -297,6 +297,37 @@ module Aicoo
       assert_operator high_relative.expected_improvement_score, :>, low_relative.expected_improvement_score
     end
 
+    test "diagnostic reasons match actual rank bands" do
+      create_article_snapshot(
+        article_id: 214,
+        path: "/articles/rank-9-7",
+        title: "順位9.7",
+        gsc: { "available" => true, "impressions" => 80, "clicks" => 1, "ctr" => 0.005, "average_position" => 9.7, "query_count" => 3 },
+        ga4: { "available" => true, "pageviews" => 70, "active_users" => 30, "sessions" => 40, "engagement_seconds" => 2_000 },
+        shop_click: { "available" => true, "total_clicks" => 1 },
+        article: { "title" => "順位9.7", "word_count" => 2_200, "internal_link_count" => 2, "shop_count" => 7, "verified_shop_count" => 7 }
+      )
+      create_article_snapshot(
+        article_id: 215,
+        path: "/articles/rank-42",
+        title: "順位42",
+        gsc: { "available" => true, "impressions" => 100, "clicks" => 1, "ctr" => 0.004, "average_position" => 42, "query_count" => 3 },
+        ga4: { "available" => true, "pageviews" => 90, "active_users" => 35, "sessions" => 50, "engagement_seconds" => 2_500 },
+        shop_click: { "available" => true, "total_clicks" => 1 },
+        article: { "title" => "順位42", "word_count" => 2_200, "internal_link_count" => 2, "shop_count" => 7, "verified_shop_count" => 7 }
+      )
+
+      results = ArticleOpportunityAnalyzer.from_snapshots(business: @business).article_results.index_by(&:normalized_path)
+      rank_9_reason = results["/articles/rank-9-7"].metadata.dig("score_diagnostics", "seo_reason")
+      rank_42_reason = results["/articles/rank-42"].metadata.dig("score_diagnostics", "seo_reason")
+
+      assert_includes rank_9_reason, "順位帯=6〜10位"
+      assert_not_includes rank_9_reason, "順位11〜20"
+      assert_includes rank_42_reason, "順位帯=31〜50位"
+      assert_not_includes rank_42_reason, "順位11〜20"
+      assert_not_includes results["/articles/rank-42"].metadata["ranking_reason"], "順位11〜20"
+    end
+
     private
 
     def create_article_snapshot(article_id:, path:, title: "記事", gsc: nil, ga4: nil, shop_click: nil, article: nil, learning: nil)

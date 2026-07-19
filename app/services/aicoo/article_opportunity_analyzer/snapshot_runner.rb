@@ -454,8 +454,8 @@ module Aicoo
         click_rate = pageviews.positive? ? total_clicks / pageviews : 0.to_d
         engagement_per_view = pageviews.positive? ? decimal(ga4["engagement_seconds"]) / pageviews : 0.to_d
         {
-          "seo_opportunity" => "順位#{position.to_f.round(1)}位、表示#{impressions.to_i}、CTR#{(ctr * 100).round(2)}%。11〜20位かつ表示が多い記事ほどSEO改善余地を高く評価。",
-          "ctr_opportunity" => "CTR改善見込みクリック=#{(impressions * [ target_ctr(position) - ctr, 0.to_d ].max).round(1)}。表示が少ない記事はCTRが低くても加点を抑制。",
+          "seo_opportunity" => seo_reason(payload),
+          "ctr_opportunity" => ctr_reason(payload),
           "pv_opportunity" => "PV=#{pageviews.to_i}、1PVあたりengagement=#{engagement_per_view.round(1)}秒。PVがあり、滞在や推移に改善余地がある場合のみ加点。",
           "click_opportunity" => "ShopClick率=#{(click_rate * 100).round(2)}%。PVに対して送客率が低いほど改善余地を評価。",
           "content_opportunity" => "文字数=#{article['word_count'] || '-'}、内部リンク=#{article['internal_link_count'] || '-'}、店舗数=#{article['shop_count'] || '-'}、確認済=#{article['verified_shop_count'] || '-'}。",
@@ -609,7 +609,8 @@ module Aicoo
       def expected_improvement_reason(opportunity, payload, search_demand_score, improvement_potential_score, success_probability, business_value, estimated_work_hours, expected_improvement_score)
         base_reason = opportunity["reason"].to_s.presence || "Snapshotから改善余地を検出。"
         demand_reason = search_demand_reason(payload, search_demand_score)
-        potential_reason = "改善余地#{improvement_potential_score.to_f.round(2)}。SEO/CTR/PV/送客/本文/Learningの複合で評価。"
+        potential_reason = "改善余地#{improvement_potential_score.to_f.round(2)}。内訳は#{improvement_potential_summary(payload)}。"
+        formula_reason = "式: SearchDemand #{search_demand_score.to_f.round(2)} × ImprovementPotential #{improvement_potential_score.to_f.round(2)} × BusinessValue #{business_value.to_f.round(2)} × SuccessProbability #{success_probability.to_f.round(2)} ÷ EstimatedWorkHours #{estimated_work_hours.to_f.round(1)} = #{expected_improvement_score.to_f.round(2)}。"
         work_reason = if estimated_work_hours <= 0.5.to_d
                         "短時間で実行できるため優先度を上げています。"
                       elsif estimated_work_hours >= 1.5.to_d
@@ -617,7 +618,7 @@ module Aicoo
                       else
                         "標準的な作業時間として評価しています。"
                       end
-        "#{base_reason} #{demand_reason} #{potential_reason} 成功率#{(success_probability * 100).round}%、事業価値係数#{business_value.to_f.round(2)}、推定#{estimated_work_hours.to_f.round(1)}時間で、今やる価値#{expected_improvement_score.to_f.round(2)}。#{work_reason}"
+        "#{base_reason} #{demand_reason} #{potential_reason} #{formula_reason} #{work_reason}"
       end
 
       def search_demand_reason(payload, search_demand_score)
@@ -629,13 +630,14 @@ module Aicoo
         ctr = normalize_rate(gsc["ctr"])
         pageviews = decimal(ga4["pageviews"])
         total_clicks = decimal(shop_click["total_clicks"])
+        relative = relative_metrics_for(payload)
 
-        if impressions >= 1_000 && position >= 11 && position <= 20 && target_ctr(position) > ctr
-          "表示回数#{impressions.to_i}・順位#{position.to_f.round(1)}位・CTR#{(ctr * 100).round(2)}%のため改善インパクトが非常に高い。"
-        elsif search_demand_score < 0.5.to_d
-          "検索需要が小さいため内部リンク改善だけでは優先度を抑制。"
+        if search_demand_score < 0.5.to_d
+          "検索需要係数#{search_demand_score.to_f.round(2)}。Business内表示順位#{relative['impression_rank'] || '-'}位、検索需要順位#{relative['search_demand_rank'] || '-'}位で、検索需要が小さい。#{low_sample_note(impressions)}"
+        elsif relative["impressions_in_top_20_percent"] || relative["impressions_in_top_30_percent"]
+          "検索需要係数#{search_demand_score.to_f.round(2)}。Business内表示順位#{relative['impression_rank'] || '-'}位、検索需要順位#{relative['search_demand_rank'] || '-'}位、順位#{position.to_f.round(1)}位、CTR#{(ctr * 100).round(2)}%。PV#{pageviews.to_i}、ShopClick#{total_clicks.to_i}も加味。#{low_sample_note(impressions)}"
         else
-          "検索需要係数#{search_demand_score.to_f.round(2)}。PV#{pageviews.to_i}、ShopClick#{total_clicks.to_i}も加味。"
+          "検索需要係数#{search_demand_score.to_f.round(2)}。Business内表示順位#{relative['impression_rank'] || '-'}位、検索需要順位#{relative['search_demand_rank'] || '-'}位。PV#{pageviews.to_i}、ShopClick#{total_clicks.to_i}も加味。#{low_sample_note(impressions)}"
         end
       end
 
@@ -713,12 +715,15 @@ module Aicoo
         return "表示0のためSEO改善対象外" if impressions.zero?
         return "average_position nil" if position.zero?
         return "順位50位以降で改善確度が低い" if position > 50
-        return "Business内表示上位#{relative['impression_percentile_label']}・順位11〜20・CTR平均との差あり" if position >= 11 && position <= 20 && relative["impressions_at_or_above_median"] && relative["ctr_gap_to_business"].to_d.positive?
-        return "Business内表示上位#{relative['impression_percentile_label']}・順位11〜20のためSEO改善余地あり" if position >= 11 && position <= 20 && relative["impressions_at_or_above_median"]
-        return "Business内表示下位のため優先度低" unless relative["impressions_in_top_30_percent"] || relative["impressions_at_or_above_median"]
-        return "CTRはBusiness平均以上だが順位改善余地あり" unless relative["ctr_gap_to_business"].to_d.positive?
+        return "Business内表示最下位のためSEO Opportunityは0。#{relative_position_summary(position, impressions, ctr, relative)}。順位帯=#{rank_band_label(position)}" if relative["impression_percentile"].to_d.zero?
 
-        "Business内表示上位#{relative['impression_percentile_label']}・CTR#{(ctr * 100).round(2)}%で改善余地あり"
+        parts = [relative_position_summary(position, impressions, ctr, relative)]
+        parts << "順位帯=#{rank_band_label(position)}"
+        parts << (relative["impressions_in_top_30_percent"] ? "Business内表示上位30%以内" : "Business内表示中央値以上") if relative["impressions_in_top_30_percent"] || relative["impressions_at_or_above_median"]
+        parts << "CTRがBusiness平均との差あり" if relative["ctr_gap_to_business"].to_d.positive?
+        parts << "CTRはBusiness平均以上" unless relative["ctr_gap_to_business"].to_d.positive?
+        parts << low_sample_note(impressions)
+        "#{parts.compact.join('。')}。"
       end
 
       def ctr_reason(payload)
@@ -732,10 +737,12 @@ module Aicoo
         return "表示0のためCTR改善対象外" if impressions.zero?
         return "average_position nil" if position.zero?
         return "順位50位以降でCTR改善確度が低い" if position > 50
-        return "Business内表示下位のためCTR改善優先度低" unless relative["impressions_in_top_30_percent"] || relative["impressions_at_or_above_median"]
-        return "CTRはBusiness平均以上" unless relative["ctr_gap_to_business"].to_d.positive?
+        return "Business内表示最下位のためCTR Opportunityは0。#{relative_position_summary(position, impressions, ctr, relative)}。順位帯=#{rank_band_label(position)}" if relative["impression_percentile"].to_d.zero?
+        return "Business内表示下位のためCTR改善優先度低。#{relative_position_summary(position, impressions, ctr, relative)}" unless relative["impressions_in_top_30_percent"] || relative["impressions_at_or_above_median"]
+        return "CTRはBusiness平均以上のためCTR Opportunityは0。#{relative_position_summary(position, impressions, ctr, relative)}" unless relative["ctr_gap_to_business"].to_d.positive?
 
-        "Business内表示上位#{relative['impression_percentile_label']}・CTR#{(ctr * 100).round(2)}%でBusiness平均との差あり"
+        estimated_click_gap = impressions * relative["ctr_gap_to_business"].to_d
+        "#{relative_position_summary(position, impressions, ctr, relative)}。Business平均CTRとの差あり。改善クリック見込み#{estimated_click_gap.round(1)}件。#{low_sample_note(impressions)}"
       end
 
       def search_demand_breakdown(payload)
@@ -779,6 +786,51 @@ module Aicoo
 
       def truthy?(value)
         value == true || value.to_s == "true" || value.to_s == "1"
+      end
+
+      def improvement_potential_summary(payload)
+        breakdown = score_breakdown(payload)
+        [
+          "SEO #{breakdown['seo_opportunity']}",
+          "CTR #{breakdown['ctr_opportunity']}",
+          "PV #{breakdown['pv_opportunity']}",
+          "送客 #{breakdown['click_opportunity']}",
+          "本文 #{breakdown['content_opportunity']}",
+          "Learning #{breakdown['learning_confidence']}"
+        ].join(" / ")
+      end
+
+      def relative_position_summary(position, impressions, ctr, relative)
+        [
+          "表示#{impressions.to_i}",
+          "順位#{position.to_f.round(1)}位",
+          "CTR#{(ctr * 100).round(2)}%",
+          "Business内表示順位#{relative['impression_rank'] || '-'}位",
+          "Business内CTR低さ順位#{relative['ctr_rank'] || '-'}位",
+          "Business内検索需要順位#{relative['search_demand_rank'] || '-'}位"
+        ].join("・")
+      end
+
+      def rank_band_label(position)
+        if position >= 11 && position <= 20
+          "11〜20位"
+        elsif position > 20 && position <= 30
+          "21〜30位"
+        elsif position > 5 && position <= 10
+          "6〜10位"
+        elsif position > 30 && position <= 50
+          "31〜50位"
+        elsif position.positive? && position <= 5
+          "1〜5位"
+        else
+          "順位不明"
+        end
+      end
+
+      def low_sample_note(impressions)
+        return nil if impressions >= 20
+
+        "Business内では上位でも表示#{impressions.to_i}件のためデータ信頼度は低め"
       end
 
       def business_statistics
