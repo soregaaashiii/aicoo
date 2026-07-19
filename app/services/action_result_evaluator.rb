@@ -1,13 +1,16 @@
 class ActionResultEvaluator
   def self.evaluate_pending!
-    ActionResult.where(evaluation_status: "pending").where(evaluated_on: ..Date.current).find_each.map do |action_result|
-      new(action_result).call
+    results = ActionResult.where(evaluation_status: "pending").where(evaluated_on: ..Date.current).find_each.map do |action_result|
+      new(action_result, refresh_learning: false).call
     end
+    Aicoo::ExpectedValueLearningRefresh.refresh_after_action_result!(results.find { |result| result.evaluation_status == "evaluated" }, source: "action_result_evaluator") if results.any? { |result| result.evaluation_status == "evaluated" }
+    results
   end
 
-  def initialize(action_result)
+  def initialize(action_result, refresh_learning: true)
     @action_result = action_result
     @business = action_result.business
+    @refresh_learning = refresh_learning
   end
 
   def call
@@ -18,12 +21,13 @@ class ActionResultEvaluator
     action_result.evaluation_status = "evaluated"
     action_result.note = [ action_result.note.presence, "ActionResultEvaluatorで評価しました" ].compact.join("\n")
     action_result.save!
+    Aicoo::ExpectedValueLearningRefresh.refresh_after_action_result!(action_result, source: "action_result_evaluator") if refresh_learning
     action_result
   end
 
   private
 
-  attr_reader :action_result, :business
+  attr_reader :action_result, :business, :refresh_learning
 
   def enough_metric_data?
     before_metrics.any? && after_metrics.any?

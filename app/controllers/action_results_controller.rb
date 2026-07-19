@@ -30,6 +30,7 @@ class ActionResultsController < ApplicationController
     apply_action_expansion_learning
 
     if @action_result.save
+      refresh_expected_value_learning(@action_result, source: "action_result_create")
       redirect_to safe_return_to || @action_result, notice: "Action result was successfully created."
     else
       @return_to = safe_return_to
@@ -43,6 +44,7 @@ class ActionResultsController < ApplicationController
   def update
     apply_action_expansion_learning
     if @action_result.update(action_result_params)
+      refresh_expected_value_learning(@action_result, source: "action_result_update")
       redirect_to @action_result, notice: "Action result was successfully updated."
     else
       render :edit, status: :unprocessable_content
@@ -116,5 +118,11 @@ class ActionResultsController < ApplicationController
     return if return_to.start_with?("//")
 
     return_to
+  end
+
+  def refresh_expected_value_learning(action_result, source:)
+    Aicoo::ExpectedValueLearningRefresh.refresh_after_action_result!(action_result, source:)
+  rescue StandardError => e
+    Rails.logger.warn("[ExpectedValueLearning] refresh failed action_result_id=#{action_result.id} source=#{source} error=#{e.class}: #{e.message}")
   end
 end

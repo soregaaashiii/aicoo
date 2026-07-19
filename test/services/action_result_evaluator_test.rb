@@ -47,6 +47,30 @@ class ActionResultEvaluatorTest < ActiveSupport::TestCase
     assert_match(/BusinessMetricDailyが不足/, result.note)
   end
 
+  test "refreshes expected value learning after evaluation" do
+    create_metric_window((@executed_on - 7)...@executed_on, clicks: 10)
+    create_metric_window((@executed_on + 1)..(@executed_on + 7), clicks: 20)
+    result = create_result
+    calls = []
+
+    Aicoo::ExpectedValueLearningRefresh.stub(:refresh_after_action_result!, ->(action_result, source:) { calls << [ action_result, source ] }) do
+      ActionResultEvaluator.new(result).call
+    end
+
+    assert_equal [ [ result, "action_result_evaluator" ] ], calls
+  end
+
+  test "does not refresh expected value learning when skipped" do
+    result = create_result
+    calls = []
+
+    Aicoo::ExpectedValueLearningRefresh.stub(:refresh_after_action_result!, ->(action_result, source:) { calls << [ action_result, source ] }) do
+      ActionResultEvaluator.new(result).call
+    end
+
+    assert_empty calls
+  end
+
   private
 
   def create_result

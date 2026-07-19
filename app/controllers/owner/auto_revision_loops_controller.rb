@@ -11,6 +11,7 @@ module Owner
       result = ActionResult.new(action_result_attributes(candidate))
 
       if result.save
+        refresh_expected_value_learning(result, source: "owner_auto_revision_action_result")
         redirect_to owner_auto_revision_loop_path(selected: "action_candidate:#{candidate.id}", anchor: "selected-task"),
                     notice: "ActionResultを登録しました。7日/14日/30日評価へ進めます。"
       else
@@ -160,6 +161,12 @@ module Owner
     def handle_missing_auto_revision_record
       redirect_to owner_auto_revision_loop_path(anchor: "revision-queue"),
                   alert: "対象が見つかりません。最新の改修キューからもう一度操作してください。"
+    end
+
+    def refresh_expected_value_learning(action_result, source:)
+      Aicoo::ExpectedValueLearningRefresh.refresh_after_action_result!(action_result, source:)
+    rescue StandardError => e
+      Rails.logger.warn("[ExpectedValueLearning] refresh failed action_result_id=#{action_result.id} source=#{source} error=#{e.class}: #{e.message}")
     end
   end
 end

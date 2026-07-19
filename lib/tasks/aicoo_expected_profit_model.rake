@@ -137,4 +137,118 @@ namespace :aicoo do
     puts "business_learning_counts=#{rows.group_by { |row| row[:business_id] }.transform_values { |items| items.sum { |row| row[:business_sample_count] } }.inspect}"
     puts "coefficient_sources=#{coefficient_keys.index_with { |key| rows.group_by { |row| row[:sources][key] || 'unused' }.transform_values(&:size) }.inspect}"
   end
+
+  desc "Diagnose ActionResult to Calibration to ExpectedValue learning pipeline"
+  task diagnose_learning_pipeline: :environment do
+    expected_types = %w[
+      ctr_improvement
+      rank_improvement
+      internal_link_addition
+      shop_addition
+      verified_shop_addition
+      content_update
+    ]
+
+    article_opportunity_candidate = lambda do |candidate|
+      metadata = candidate&.metadata.to_h
+      metadata["value_model_name"].to_s == Aicoo::ArticleOpportunityAnalyzer::SnapshotRunner::MODEL_NAME ||
+        metadata.dig("expected_profit_model", "name").to_s == Aicoo::ArticleOpportunityExpectedProfit::MODEL_NAME ||
+        metadata.dig("expected_profit_model", "value_model").to_s == "grounded_article_opportunity_profit"
+    end
+
+    improvement_type_for = lambda do |candidate|
+      metadata = candidate&.metadata.to_h
+      [
+        metadata["opportunity_type"],
+        metadata["improvement_type"],
+        metadata.dig("expected_profit_model", "improvement_type"),
+        metadata.dig("execution_brief", "target", "improvement_type")
+      ].find(&:present?).to_s
+    end
+
+    action_results = ActionResult.includes(:action_candidate, :business).all.to_a
+    evaluated_results = action_results.select { |result| result.evaluation_status == "evaluated" }
+    successful_results = evaluated_results.select { |result| result.actual_profit_yen.to_i.positive? }
+    article_results = evaluated_results.select { |result| article_opportunity_candidate.call(result.action_candidate) }
+    article_results_by_type = article_results.group_by { |result| improvement_type_for.call(result.action_candidate) }
+    article_results_by_business = article_results.group_by(&:business_id)
+    missing_candidate = action_results.count { |result| result.action_candidate.nil? }
+    missing_business = action_results.count { |result| result.business_id.blank? }
+    missing_improvement_type = article_results.count { |result| improvement_type_for.call(result.action_candidate).blank? }
+    unexpected_types = article_results_by_type.keys.reject(&:blank?) - expected_types
+
+    calibrations = ActionPredictionCalibration.all.to_a
+    article_calibrations = calibrations.select { |calibration| calibration.action_type.to_s.start_with?("article_opportunity:") }
+    article_calibrations_by_type = article_calibrations.index_by { |calibration| calibration.action_type.to_s.delete_prefix("article_opportunity:") }
+
+    expected_profit_candidates = ActionCandidate
+      .where.not(status: %w[rejected rejected_duplicate rejected_irrelevant superseded archived done])
+      .where("metadata ->> 'value_model_name' = ?", Aicoo::ArticleOpportunityAnalyzer::SnapshotRunner::MODEL_NAME)
+      .order(updated_at: :desc)
+      .limit(ENV.fetch("LIMIT", 200).to_i)
+
+    expected_profit_rows = expected_profit_candidates.map do |candidate|
+      result = Aicoo::ArticleOpportunityExpectedProfit.call(candidate)
+      model = result.metadata.fetch("expected_profit_model")
+      {
+        candidate_id: candidate.id,
+        business_id: candidate.business_id,
+        improvement_type: result.improvement_type,
+        model_source: result.model_source,
+        learning_source: result.learning_source,
+        business_sample_count: model.dig("learning_sample_counts", "business_learning").to_i,
+        improvement_type_sample_count: model.dig("learning_sample_counts", "improvement_type_learning").to_i,
+        global_sample_count: model.dig("learning_sample_counts", "global_learning").to_i
+      }
+    rescue StandardError => e
+      {
+        candidate_id: candidate.id,
+        error: "#{e.class}: #{e.message}"
+      }
+    end
+
+    learning_used_rows = expected_profit_rows.select { |row| row[:model_source].to_s.in?(%w[business_learning improvement_type_learning global_learning]) }
+    zero_stage =
+      if action_results.empty?
+        "action_results_empty"
+      elsif evaluated_results.empty?
+        "evaluated_action_results_empty"
+      elsif article_results.empty?
+        "article_opportunity_action_results_empty"
+      elsif missing_improvement_type == article_results.size
+        "improvement_type_missing"
+      elsif article_calibrations.empty?
+        "article_opportunity_calibrations_empty"
+      elsif learning_used_rows.empty?
+        "expected_profit_learning_not_used"
+      else
+        "learning_pipeline_connected"
+      end
+
+    puts "summary"
+    puts "action_result_total=#{action_results.size}"
+    puts "action_result_evaluated=#{evaluated_results.size}"
+    puts "action_result_success=#{successful_results.size}"
+    puts "action_result_missing_candidate=#{missing_candidate}"
+    puts "action_result_missing_business=#{missing_business}"
+    puts "article_opportunity_action_results=#{article_results.size}"
+    puts "article_opportunity_missing_improvement_type=#{missing_improvement_type}"
+    puts "article_opportunity_unexpected_improvement_types=#{unexpected_types.join(',')}"
+    puts "article_opportunity_results_by_type=#{article_results_by_type.transform_values(&:size).inspect}"
+    puts "article_opportunity_results_by_business=#{article_results_by_business.transform_values(&:size).inspect}"
+    puts "calibration_total=#{calibrations.size}"
+    puts "article_opportunity_calibration_count=#{article_calibrations.size}"
+    puts "article_opportunity_calibrations_by_type=#{article_calibrations_by_type.transform_values(&:sample_count).inspect}"
+    puts "expected_profit_candidates_checked=#{expected_profit_rows.size}"
+    puts "expected_profit_learning_used=#{learning_used_rows.size}"
+    puts "expected_profit_business_learning_used=#{expected_profit_rows.count { |row| row[:model_source] == 'business_learning' }}"
+    puts "expected_profit_improvement_learning_used=#{expected_profit_rows.count { |row| row[:model_source] == 'improvement_type_learning' }}"
+    puts "expected_profit_global_learning_used=#{expected_profit_rows.count { |row| row[:model_source] == 'global_learning' }}"
+    puts "expected_profit_initial_used=#{expected_profit_rows.count { |row| row[:model_source] == 'initial_coefficients' }}"
+    puts "zero_stage=#{zero_stage}"
+
+    expected_profit_rows.first(50).each do |row|
+      puts row.map { |key, value| "#{key}=#{value.presence || '-'}" }.join(" ")
+    end
+  end
 end
