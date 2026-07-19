@@ -68,13 +68,13 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
         analytics_fetch
         datahub_collect
         business_metrics_import
+        activity_log_evaluation_queue_build
         source_app_diff_detection
         proxy_weight_adjustment
         action_generation
         insight_generation
         explore_opportunity_generation
         action_result_evaluation
-        activity_log_evaluation_queue_build
         score_snapshot
         data_preparation_queue
         meta_evaluation_snapshot
@@ -95,7 +95,7 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
       ].sort, run.aicoo_daily_run_steps.skipped.pluck(:step_name).sort
       assert_equal "success", run.status
       assert_equal 1, AutoRevisionQueueRun.count
-      assert_equal %i[analytics datahub import source_diff adjust_all generate insight evaluate activity_eval snapshot queue meta_snapshot calibration owner_queue analysis playbook traffic_channel], order
+      assert_equal %i[analytics datahub import activity_eval source_diff adjust_all generate insight evaluate snapshot queue meta_snapshot calibration owner_queue analysis playbook traffic_channel], order
     end
   end
 

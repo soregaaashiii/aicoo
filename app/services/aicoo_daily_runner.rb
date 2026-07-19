@@ -182,6 +182,8 @@ class AicooDailyRunner
     log!("BusinessMetricDaily imported count=#{imported_results.size}")
     imported_results = nil
 
+    run_activity_log_evaluation_queue_build!(run)
+
     run_suelog_database_steps!(run)
 
     article_opportunity_result = run_article_opportunity_analysis!(run)
@@ -232,8 +234,6 @@ class AicooDailyRunner
     run.update!(action_results_evaluated_count: evaluated_results.size)
     log!("ActionResult evaluated_or_skipped count=#{evaluated_results.size}")
     evaluated_results = nil
-
-    run_activity_log_evaluation_queue_build!(run)
 
     snapshot_result = record_step!(run, "score_snapshot") do
       ActionCandidateScoreSnapshotter.new.snapshot_top_candidates!(date: target_date)
@@ -894,7 +894,10 @@ class AicooDailyRunner
 
   def run_activity_log_evaluation_queue_build!(run)
     step = start_step!(run, "activity_log_evaluation_queue_build")
-    result = Aicoo::ActivityEvaluationBuilder.new.call
+    trigger_result = Aicoo::ActivityEvaluationTrigger.call(invoked_by: "DailyRun")
+    result = trigger_result.builder_result
+    raise trigger_result.exception if result.nil? && trigger_result.exception.present?
+
     action_results_generated_count = result.action_results_generated_count.to_i
     finish_step!(
       step,
@@ -904,12 +907,18 @@ class AicooDailyRunner
         skipped_count: result.skipped_count,
         pending_count: result.pending_count,
         failed_count: result.failed_count.to_i,
+        builder_should_run_count: trigger_result.builder_should_run_count,
+        builder_invoked_count: trigger_result.builder_invoked_count,
+        builder_completed_count: trigger_result.builder_completed_count,
+        builder_failed_count: trigger_result.builder_failed_count,
         action_results_generated_count:
       }
     )
     log!(
       "ActivityEvaluation created=#{result.created_count} evaluated=#{result.evaluated_count} " \
       "skipped=#{result.skipped_count} pending=#{result.pending_count} failed=#{result.failed_count.to_i} " \
+      "builder_invoked=#{trigger_result.builder_invoked_count} " \
+      "builder_completed=#{trigger_result.builder_completed_count} " \
       "action_results_generated=#{action_results_generated_count}"
     )
   rescue StandardError => e

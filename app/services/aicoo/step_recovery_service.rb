@@ -82,8 +82,11 @@ module Aicoo
         result = Aicoo::SourceAppDiffDetector.new.call
         "Source app diff detection step recovery completed successfully created=#{result.created_count} skipped=#{result.skipped_count} errors=#{result.error_count}"
       when "activity_log_evaluation_queue_build"
-        result = Aicoo::ActivityEvaluationBuilder.new.call
-        "Activity evaluation queue step recovery completed successfully created=#{result.created_count} evaluated=#{result.evaluated_count}"
+        trigger_result = Aicoo::ActivityEvaluationTrigger.call(invoked_by: "Manual")
+        result = trigger_result.builder_result
+        raise trigger_result.exception if result.nil? && trigger_result.exception.present?
+
+        "Activity evaluation queue step recovery completed successfully created=#{result.created_count} evaluated=#{result.evaluated_count} invoked=#{trigger_result.builder_invoked_count}"
       when "data_preparation_queue"
         result = DataPreparationExecutorQueuer.new.call
         daily_run.update!(

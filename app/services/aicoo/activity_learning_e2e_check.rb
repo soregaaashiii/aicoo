@@ -77,7 +77,7 @@ module Aicoo
       when "create_cursors"
         create_cursors!
       when "build_evaluations"
-        Aicoo::ActivityEvaluationBuilder.new.call(business:)
+        Aicoo::ActivityEvaluationTrigger.call(business:, invoked_by: "Manual")
       when "rerun_daily_steps"
         rerun_daily_steps!
       else
@@ -266,7 +266,7 @@ module Aicoo
 
     def rerun_daily_steps!
       Aicoo::SourceAppDiffDetector.new.call
-      Aicoo::ActivityEvaluationBuilder.new.call(business:)
+      Aicoo::ActivityEvaluationTrigger.call(business:, invoked_by: "Manual")
     end
 
     def summary_for(checks)

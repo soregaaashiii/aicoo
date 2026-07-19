@@ -30,10 +30,18 @@ class BusinessActivityLog < ApplicationRecord
   def self.record!(business:, attributes:)
     normalized = normalize_attributes(attributes)
     find_or_initialize_by(business:, idempotency_key: normalized.fetch(:idempotency_key)).tap do |activity_log|
-      activity_log.assign_attributes(normalized) if activity_log.new_record?
+      created = activity_log.new_record?
+      activity_log.assign_attributes(normalized) if created
       activity_log.save!
+      if created
+        Aicoo::ActivityEvaluationTrigger.call(
+          business:,
+          invoked_by: "after_create",
+          trigger_event_id: activity_log.id
+        )
+      end
       Rails.logger.info(
-        "[BusinessActivityLog] #{activity_log.previously_new_record? ? 'created' : 'deduplicated'} " \
+        "[BusinessActivityLog] #{created ? 'created' : 'deduplicated'} " \
         "id=#{activity_log.id} business=#{business.name} activity_type=#{activity_log.activity_type} " \
         "resource=#{activity_log.resource_type}##{activity_log.resource_id}"
       )
