@@ -25,9 +25,11 @@ module Aicoo
       article_result = result.article_results.first
       assert_equal snapshot.id, article_result.snapshot_id
       assert_operator article_result.opportunity_score, :>, 0
+      assert_operator article_result.search_demand_score, :>, 0
       assert_operator article_result.expected_improvement_score, :>, 0
       assert article_result.score_breakdown.key?("seo_opportunity")
       assert article_result.score_breakdown.key?("learning_confidence")
+      assert article_result.metadata.key?("search_demand_score")
       assert article_result.metadata.key?("expected_improvement_score")
       assert article_result.metadata.key?("success_probability")
       assert article_result.metadata.key?("estimated_work_hours")
@@ -63,6 +65,7 @@ module Aicoo
       assert_equal false, candidate.metadata["today_connected"]
       assert_equal false, candidate.metadata["codex_connected"]
       assert_equal "article_opportunity_analyzer_snapshot_v1", candidate.metadata["value_model_name"]
+      assert candidate.metadata["search_demand_score"].present?
       assert candidate.metadata["expected_improvement_score"].present?
       assert candidate.metadata["success_probability"].present?
       assert candidate.metadata["estimated_work_hours"].present?
@@ -164,8 +167,40 @@ module Aicoo
 
       assert_equal "/articles/short-ctr-win", first.normalized_path
       assert_operator first.expected_improvement_score, :>, large_work.expected_improvement_score
+      assert_operator first.search_demand_score, :>, large_work.search_demand_score
       assert_operator large_work.opportunity_score, :>, 0
       assert_includes first.metadata["ranking_reason"], "expected_improvement_score"
+    end
+
+    test "search demand prevents low demand internal link gaps from dominating" do
+      create_article_snapshot(
+        article_id: 206,
+        path: "/articles/high-demand-ctr-gap",
+        title: "高需要CTR改善",
+        gsc: { "available" => true, "impressions" => 2_400, "clicks" => 17, "ctr" => 0.007, "average_position" => 13, "query_count" => 6 },
+        ga4: { "available" => true, "pageviews" => 650, "active_users" => 210, "sessions" => 260, "engagement_seconds" => 25_000 },
+        shop_click: { "available" => true, "total_clicks" => 8 },
+        article: { "title" => "高需要CTR改善", "word_count" => 2_800, "internal_link_count" => 3, "shop_count" => 8, "verified_shop_count" => 8 },
+        learning: { "improvement_count" => 2, "improvement_success_count" => 1 }
+      )
+      create_article_snapshot(
+        article_id: 207,
+        path: "/articles/the-single",
+        title: "THE SINGLE",
+        gsc: { "available" => true, "impressions" => 30, "clicks" => 1, "ctr" => 0.033, "average_position" => 55, "query_count" => 1 },
+        ga4: { "available" => true, "pageviews" => 80, "active_users" => 30, "sessions" => 45, "engagement_seconds" => 2_000 },
+        shop_click: { "available" => true, "total_clicks" => 0 },
+        article: { "title" => "THE SINGLE", "word_count" => 900, "internal_link_count" => 0, "shop_count" => 2, "verified_shop_count" => 1 },
+        learning: { "improvement_count" => 2, "improvement_success_count" => 2 }
+      )
+
+      results = ArticleOpportunityAnalyzer.from_snapshots(business: @business).article_results
+      high_demand = results.detect { |row| row.normalized_path == "/articles/high-demand-ctr-gap" }
+      low_demand = results.detect { |row| row.normalized_path == "/articles/the-single" }
+
+      assert_operator high_demand.search_demand_score, :>, low_demand.search_demand_score
+      assert_operator high_demand.expected_improvement_score, :>, low_demand.expected_improvement_score
+      assert_includes low_demand.metadata["ranking_reason"], "検索需要が小さい"
     end
 
     private
