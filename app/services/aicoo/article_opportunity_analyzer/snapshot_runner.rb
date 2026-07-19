@@ -25,6 +25,7 @@ module Aicoo
         :normalized_path,
         :opportunity_score,
         :search_demand_score,
+        :improvement_potential_score,
         :expected_improvement_score,
         :score_breakdown,
         :opportunities,
@@ -95,7 +96,8 @@ module Aicoo
         score = clamp(score, 0, 100).round
         opportunities = opportunities_for(payload, breakdown)
         search_demand_score = search_demand_score(payload)
-        opportunities = opportunities.map { |opportunity| enrich_opportunity(opportunity, payload, search_demand_score) }
+        improvement_potential_score = improvement_potential_score(breakdown)
+        opportunities = opportunities.map { |opportunity| enrich_opportunity(opportunity, payload, search_demand_score, improvement_potential_score) }
         expected_improvement_score = opportunities.map { |opportunity| decimal(opportunity["expected_improvement_score"]) }.max || 0.to_d
         drafts = opportunities.map { |opportunity| candidate_draft(snapshot, payload, opportunity, score, breakdown) }
 
@@ -106,11 +108,12 @@ module Aicoo
           normalized_path: payload["normalized_path"],
           opportunity_score: score,
           search_demand_score: search_demand_score.to_f.round(2),
+          improvement_potential_score: improvement_potential_score.to_f.round(2),
           expected_improvement_score: expected_improvement_score.to_f.round(2),
           score_breakdown: breakdown,
           opportunities:,
           candidate_drafts: drafts,
-          metadata: analysis_metadata(snapshot, payload, score, search_demand_score, expected_improvement_score, breakdown, opportunities)
+          metadata: analysis_metadata(snapshot, payload, score, search_demand_score, improvement_potential_score, expected_improvement_score, breakdown, opportunities)
         )
       rescue StandardError => e
         @failed_count += 1
@@ -276,12 +279,13 @@ module Aicoo
           action_type: action_type_for(opportunity),
           description: "#{payload['normalized_path']} のArticleAnalyticsSnapshotから #{opportunity['label']} Opportunity を検出しました。",
           execution_prompt: opportunity["next_action"],
-          metadata: analysis_metadata(snapshot, payload, score, opportunity["search_demand_score"], opportunity["expected_improvement_score"], breakdown, [ opportunity ]).merge(
+          metadata: analysis_metadata(snapshot, payload, score, opportunity["search_demand_score"], opportunity["improvement_potential_score"], opportunity["expected_improvement_score"], breakdown, [ opportunity ]).merge(
             "opportunity_type" => opportunity["opportunity_type"],
             "opportunity_label" => opportunity["label"],
             "next_action" => opportunity["next_action"],
             "opportunity_score_component" => opportunity["score"],
             "search_demand_score" => opportunity["search_demand_score"],
+            "improvement_potential_score" => opportunity["improvement_potential_score"],
             "expected_improvement_score" => opportunity["expected_improvement_score"],
             "success_probability" => opportunity["success_probability"],
             "estimated_work_hours" => opportunity["estimated_work_hours"],
@@ -324,7 +328,7 @@ module Aicoo
         end
       end
 
-      def analysis_metadata(snapshot, payload, score, search_demand_score, expected_improvement_score, breakdown, opportunities)
+      def analysis_metadata(snapshot, payload, score, search_demand_score, improvement_potential_score, expected_improvement_score, breakdown, opportunities)
         {
           "value_model_name" => MODEL_NAME,
           "analysis_source" => "article_analytics_snapshot",
@@ -333,6 +337,7 @@ module Aicoo
           "article_path" => payload["normalized_path"],
           "opportunity_score" => score,
           "search_demand_score" => search_demand_score.to_f.round(2),
+          "improvement_potential_score" => improvement_potential_score.to_f.round(2),
           "expected_improvement_score" => expected_improvement_score.to_f.round(2),
           "success_probability" => primary_metric(opportunities, "success_probability"),
           "estimated_work_hours" => primary_metric(opportunities, "estimated_work_hours"),
@@ -341,7 +346,7 @@ module Aicoo
           "total_score" => score,
           "score_reasons" => score_reasons(payload),
           "opportunities" => opportunities,
-          "ranking_reason" => ranking_reason(payload, score, search_demand_score, expected_improvement_score, breakdown, opportunities),
+          "ranking_reason" => ranking_reason(payload, score, search_demand_score, improvement_potential_score, expected_improvement_score, breakdown, opportunities),
           "evidence" => evidence(payload),
           "expected_profit_yen" => nil,
           "expected_profit_calculated" => false,
@@ -382,32 +387,50 @@ module Aicoo
         }
       end
 
-      def ranking_reason(payload, score, search_demand_score, expected_improvement_score, breakdown, opportunities)
+      def ranking_reason(payload, score, search_demand_score, improvement_potential_score, expected_improvement_score, breakdown, opportunities)
         primary = primary_opportunity(opportunities)
         main = breakdown.except("learning_confidence").max_by { |_key, value| value.to_d }
         reason = primary&.dig("ranking_reason").presence || score_reasons(payload)[main&.first].presence || "Snapshotから改善余地を評価。"
-        "#{primary&.dig('label') || main&.first || 'Opportunity'} が最優先。expected_improvement_score=#{expected_improvement_score.to_f.round(2)}、search_demand_score=#{search_demand_score.to_f.round(2)}、opportunity_score=#{score}。#{reason}"
+        "#{primary&.dig('label') || main&.first || 'Opportunity'} が最優先。expected_improvement_score=#{expected_improvement_score.to_f.round(2)}、search_demand_score=#{search_demand_score.to_f.round(2)}、improvement_potential_score=#{improvement_potential_score.to_f.round(2)}、opportunity_score=#{score}。#{reason}"
       end
 
-      def enrich_opportunity(opportunity, payload, search_demand_score)
+      def enrich_opportunity(opportunity, payload, search_demand_score, improvement_potential_score)
         success_probability = success_probability_for(payload, opportunity)
         estimated_work_hours = estimated_work_hours_for(opportunity)
         business_value = business_value_for(opportunity)
-        expected_improvement_score = expected_improvement_score_for(opportunity, search_demand_score, success_probability, business_value, estimated_work_hours)
+        expected_improvement_score = expected_improvement_score_for(search_demand_score, improvement_potential_score, success_probability, business_value, estimated_work_hours)
 
         opportunity.merge(
           "search_demand_score" => search_demand_score.to_f.round(2),
+          "improvement_potential_score" => improvement_potential_score.to_f.round(2),
           "success_probability" => success_probability.to_f.round(2),
           "estimated_work_hours" => estimated_work_hours.to_f.round(2),
           "business_value" => business_value.to_f.round(2),
           "expected_improvement_score" => expected_improvement_score.to_f.round(2),
-          "ranking_reason" => expected_improvement_reason(opportunity, payload, search_demand_score, success_probability, business_value, estimated_work_hours, expected_improvement_score)
+          "ranking_reason" => expected_improvement_reason(opportunity, payload, search_demand_score, improvement_potential_score, success_probability, business_value, estimated_work_hours, expected_improvement_score)
         )
       end
 
-      def expected_improvement_score_for(opportunity, search_demand_score, success_probability, business_value, estimated_work_hours)
+      def expected_improvement_score_for(search_demand_score, improvement_potential_score, success_probability, business_value, estimated_work_hours)
         work_hours = [ estimated_work_hours.to_d, 0.1.to_d ].max
-        (decimal(opportunity["score"]) * search_demand_score.to_d * success_probability.to_d * business_value.to_d / work_hours).round(2)
+        (search_demand_score.to_d * improvement_potential_score.to_d * success_probability.to_d * business_value.to_d / work_hours).round(2)
+      end
+
+      def improvement_potential_score(breakdown)
+        seo = decimal(breakdown["seo_opportunity"])
+        ctr = decimal(breakdown["ctr_opportunity"])
+        pv = decimal(breakdown["pv_opportunity"])
+        click = decimal(breakdown["click_opportunity"])
+        content = decimal(breakdown["content_opportunity"])
+        learning = decimal(breakdown["learning_confidence"])
+
+        weighted = (seo * 1.35) +
+          (ctr * 1.45) +
+          (pv * 0.9) +
+          (click * 1.0) +
+          (content * 0.75) +
+          (learning * 0.5)
+        clamp(weighted, 0, 100).round(2)
       end
 
       def search_demand_score(payload)
@@ -519,9 +542,10 @@ module Aicoo
         end
       end
 
-      def expected_improvement_reason(opportunity, payload, search_demand_score, success_probability, business_value, estimated_work_hours, expected_improvement_score)
+      def expected_improvement_reason(opportunity, payload, search_demand_score, improvement_potential_score, success_probability, business_value, estimated_work_hours, expected_improvement_score)
         base_reason = opportunity["reason"].to_s.presence || "Snapshotから改善余地を検出。"
         demand_reason = search_demand_reason(payload, search_demand_score)
+        potential_reason = "改善余地#{improvement_potential_score.to_f.round(2)}。SEO/CTR/PV/送客/本文/Learningの複合で評価。"
         work_reason = if estimated_work_hours <= 0.5.to_d
                         "短時間で実行できるため優先度を上げています。"
                       elsif estimated_work_hours >= 1.5.to_d
@@ -529,7 +553,7 @@ module Aicoo
                       else
                         "標準的な作業時間として評価しています。"
                       end
-        "#{base_reason} #{demand_reason} 成功率#{(success_probability * 100).round}%、事業価値係数#{business_value.to_f.round(2)}、推定#{estimated_work_hours.to_f.round(1)}時間で、今やる価値#{expected_improvement_score.to_f.round(2)}。#{work_reason}"
+        "#{base_reason} #{demand_reason} #{potential_reason} 成功率#{(success_probability * 100).round}%、事業価値係数#{business_value.to_f.round(2)}、推定#{estimated_work_hours.to_f.round(1)}時間で、今やる価値#{expected_improvement_score.to_f.round(2)}。#{work_reason}"
       end
 
       def search_demand_reason(payload, search_demand_score)

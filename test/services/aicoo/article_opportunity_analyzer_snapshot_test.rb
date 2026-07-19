@@ -26,10 +26,12 @@ module Aicoo
       assert_equal snapshot.id, article_result.snapshot_id
       assert_operator article_result.opportunity_score, :>, 0
       assert_operator article_result.search_demand_score, :>, 0
+      assert_operator article_result.improvement_potential_score, :>, 0
       assert_operator article_result.expected_improvement_score, :>, 0
       assert article_result.score_breakdown.key?("seo_opportunity")
       assert article_result.score_breakdown.key?("learning_confidence")
       assert article_result.metadata.key?("search_demand_score")
+      assert article_result.metadata.key?("improvement_potential_score")
       assert article_result.metadata.key?("expected_improvement_score")
       assert article_result.metadata.key?("success_probability")
       assert article_result.metadata.key?("estimated_work_hours")
@@ -66,6 +68,7 @@ module Aicoo
       assert_equal false, candidate.metadata["codex_connected"]
       assert_equal "article_opportunity_analyzer_snapshot_v1", candidate.metadata["value_model_name"]
       assert candidate.metadata["search_demand_score"].present?
+      assert candidate.metadata["improvement_potential_score"].present?
       assert candidate.metadata["expected_improvement_score"].present?
       assert candidate.metadata["success_probability"].present?
       assert candidate.metadata["estimated_work_hours"].present?
@@ -168,6 +171,7 @@ module Aicoo
       assert_equal "/articles/short-ctr-win", first.normalized_path
       assert_operator first.expected_improvement_score, :>, large_work.expected_improvement_score
       assert_operator first.search_demand_score, :>, large_work.search_demand_score
+      assert_operator first.improvement_potential_score, :>, 0
       assert_operator large_work.opportunity_score, :>, 0
       assert_includes first.metadata["ranking_reason"], "expected_improvement_score"
     end
@@ -201,6 +205,38 @@ module Aicoo
       assert_operator high_demand.search_demand_score, :>, low_demand.search_demand_score
       assert_operator high_demand.expected_improvement_score, :>, low_demand.expected_improvement_score
       assert_includes low_demand.metadata["ranking_reason"], "検索需要が小さい"
+    end
+
+    test "seo and ctr opportunities drive improvement potential" do
+      create_article_snapshot(
+        article_id: 208,
+        path: "/articles/rank-12-low-ctr",
+        title: "順位12位CTR低い",
+        gsc: { "available" => true, "impressions" => 3_000, "clicks" => 21, "ctr" => 0.007, "average_position" => 12, "query_count" => 7 },
+        ga4: { "available" => true, "pageviews" => 700, "active_users" => 240, "sessions" => 300, "engagement_seconds" => 35_000 },
+        shop_click: { "available" => true, "total_clicks" => 12 },
+        article: { "title" => "順位12位CTR低い", "word_count" => 2_700, "internal_link_count" => 3, "shop_count" => 8, "verified_shop_count" => 8 },
+        learning: { "improvement_count" => 3, "improvement_success_count" => 2 }
+      )
+      create_article_snapshot(
+        article_id: 209,
+        path: "/articles/demand-without-gap",
+        title: "需要はあるが改善余地小",
+        gsc: { "available" => true, "impressions" => 3_200, "clicks" => 160, "ctr" => 0.05, "average_position" => 3, "query_count" => 7 },
+        ga4: { "available" => true, "pageviews" => 800, "active_users" => 420, "sessions" => 520, "engagement_seconds" => 80_000 },
+        shop_click: { "available" => true, "total_clicks" => 80 },
+        article: { "title" => "需要はあるが改善余地小", "word_count" => 4_000, "internal_link_count" => 5, "shop_count" => 10, "verified_shop_count" => 10 },
+        learning: { "improvement_count" => 3, "improvement_success_count" => 2 }
+      )
+
+      results = ArticleOpportunityAnalyzer.from_snapshots(business: @business).article_results
+      high_gap = results.detect { |row| row.normalized_path == "/articles/rank-12-low-ctr" }
+      low_gap = results.detect { |row| row.normalized_path == "/articles/demand-without-gap" }
+
+      assert_operator high_gap.score_breakdown["seo_opportunity"], :>, 0
+      assert_operator high_gap.score_breakdown["ctr_opportunity"], :>, 0
+      assert_operator high_gap.improvement_potential_score, :>, low_gap.improvement_potential_score
+      assert_operator high_gap.expected_improvement_score, :>, low_gap.expected_improvement_score
     end
 
     private

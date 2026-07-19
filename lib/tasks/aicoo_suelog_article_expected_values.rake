@@ -516,6 +516,7 @@ module AicooArticleAnalyticsSnapshotRake
         "path=#{row.normalized_path || '-'}",
         "opportunity_score=#{row.opportunity_score}",
         "search_demand_score=#{row.search_demand_score}",
+        "improvement_potential_score=#{row.improvement_potential_score}",
         "expected_improvement_score=#{row.expected_improvement_score}",
         "success_probability=#{row.metadata['success_probability'] || '-'}",
         "estimated_work_hours=#{row.metadata['estimated_work_hours'] || '-'}",
@@ -536,6 +537,7 @@ module AicooArticleAnalyticsSnapshotRake
           "type=#{opportunity['opportunity_type'] || '-'}",
           "score=#{opportunity['score'] || 0}",
           "search_demand_score=#{opportunity['search_demand_score'] || '-'}",
+          "improvement_potential_score=#{opportunity['improvement_potential_score'] || '-'}",
           "expected_improvement_score=#{opportunity['expected_improvement_score'] || 0}",
           "success_probability=#{opportunity['success_probability'] || '-'}",
           "estimated_work_hours=#{opportunity['estimated_work_hours'] || '-'}",
@@ -560,6 +562,7 @@ module AicooArticleAnalyticsSnapshotRake
           "new_rank=#{row['new_rank'] || '-'}",
           "new_opportunity_score=#{row['new_opportunity_score'] || '-'}",
           "new_search_demand_score=#{row['new_search_demand_score'] || '-'}",
+          "new_improvement_potential_score=#{row['new_improvement_potential_score'] || '-'}",
           "new_expected_improvement_score=#{row['new_expected_improvement_score'] || '-'}",
           "rank_delta=#{row['rank_delta'] || '-'}",
           "new_opportunities=#{Array(row['new_opportunities']).join('|').presence || '-'}"

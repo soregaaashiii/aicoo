@@ -95,6 +95,7 @@ module Aicoo
             "new_rank" => current&.dig(:rank),
             "new_opportunity_score" => current&.dig(:result)&.opportunity_score,
             "new_search_demand_score" => current&.dig(:result)&.search_demand_score,
+            "new_improvement_potential_score" => current&.dig(:result)&.improvement_potential_score,
             "new_expected_improvement_score" => current&.dig(:result)&.expected_improvement_score,
             "rank_delta" => rank_delta(legacy&.dig(:rank), current&.dig(:rank)),
             "new_opportunities" => Array(current&.dig(:result)&.opportunities).map { |row| row["opportunity_type"] }
