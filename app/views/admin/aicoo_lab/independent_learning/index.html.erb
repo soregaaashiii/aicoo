@@ -17,6 +17,46 @@
 
   <section class="dashboard-section">
     <div class="section-heading">
+      <h2>ActionCandidate候補化</h2>
+      <p>7日評価、再現回数、ROI、confidenceを満たした成功パターンだけを通常施策へ変換します。</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>エリア</th><th>ジャンル</th><th>喫煙</th><th>活動</th><th>ROI</th>
+            <th>confidence</th><th>sample</th><th>状態</th><th>Candidate</th><th>理由</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @candidate_generation_result.rows.each do |row| %>
+            <% state = row.candidate_generated ? "生成済" : (row.eligible ? "候補化可能" : "却下") %>
+            <tr>
+              <td><%= row.area.presence || row.station.presence || "-" %></td>
+              <td><%= row.genre.presence || "-" %></td>
+              <td><%= row.smoking_type.presence || "-" %></td>
+              <td><%= row.activity_type %></td>
+              <td class="number"><%= number_to_percentage(row.roi.to_d * 100, precision: 1) %></td>
+              <td class="number"><%= number_to_percentage(row.confidence.to_d * 100, precision: 0) %></td>
+              <td class="number"><%= row.sample_count %></td>
+              <td><span class="pill"><%= state %></span></td>
+              <td>
+                <% if row.candidate_id %>
+                  <%= link_to "##{row.candidate_id}", action_candidate_path(row.candidate_id) %>
+                <% else %>
+                  -
+                <% end %>
+              </td>
+              <td><%= row.skip_reason.presence || row.generation_reason %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
       <h2>エリア・ジャンル別の独立学習</h2>
       <p>同じ時間帯に行われた同一種別の活動をまとめ、7日・14日・30日後の実績を分離して表示します。</p>
     </div>

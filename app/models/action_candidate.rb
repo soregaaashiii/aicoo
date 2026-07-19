@@ -34,7 +34,7 @@ class ActionCandidate < ApplicationRecord
 
   STATUSES = %w[idea proposal planning pending valuation_review_required approved executor_queued in_progress done rejected archived resolved superseded rejected_duplicate rejected_irrelevant invalid].freeze
   INACTIVE_STATUSES = %w[archived rejected done canceled cancelled invalid resolved superseded rejected_duplicate rejected_irrelevant].freeze
-  GENERATION_SOURCES = %w[manual seed ai_business ai_cross_business ai_reevaluation ai_insight learning_report opportunity_discovery business_analyzer suelog_db serp traffic_channel integrated_decision].freeze
+  GENERATION_SOURCES = %w[manual seed ai_business ai_cross_business ai_reevaluation ai_insight learning_report independent_learning opportunity_discovery business_analyzer suelog_db serp traffic_channel integrated_decision].freeze
   DEPARTMENTS = %w[general revenue lab new_business].freeze
 
   belongs_to :business, optional: true

@@ -9,6 +9,7 @@ module Admin
         assert_response :success
         assert_includes response.body, "Independent Learning"
         assert_includes response.body, "エリア・ジャンル別の独立学習"
+        assert_includes response.body, "ActionCandidate候補化"
       end
     end
   end

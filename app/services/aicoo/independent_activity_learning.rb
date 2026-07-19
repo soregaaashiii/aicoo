@@ -34,6 +34,7 @@ module Aicoo
         "independent_activity_learning_eligibility" => eligibility.metadata,
         "independent_activity_learning" => attributes
       ))
+      generate_candidate_if_ready
       evaluation
     end
 
@@ -77,6 +78,8 @@ module Aicoo
         "concurrent_activity_types" => activity_types,
         "outcome" => outcome,
         "roi" => roi(logs),
+        "estimated_work_seconds" => estimated_work_seconds(logs),
+        "work_cost_yen" => work_cost(logs),
         "recorded_at" => Time.current.iso8601
       }
     end
@@ -219,15 +222,44 @@ module Aicoo
     end
 
     def roi(logs)
-      work_seconds = logs.sum { |log| log.estimated_work_seconds.to_i }
-      return if work_seconds.zero?
+      cost = work_cost(logs)
+      return if cost.to_f.zero?
 
       revenue_delta = evaluation.metric_deltas.to_h.dig("revenue_yen", "delta").to_f
-      hourly_cost = AicooLabSetting.first&.hourly_cost_yen.to_f
-      work_cost = work_seconds / 3600.0 * hourly_cost
-      return if work_cost.zero?
 
-      (revenue_delta / work_cost).round(3)
+      (revenue_delta / cost).round(3)
+    end
+
+    def estimated_work_seconds(logs)
+      logs.sum { |log| log.estimated_work_seconds.to_i }
+    end
+
+    def work_cost(logs)
+      work_seconds = estimated_work_seconds(logs)
+      return if work_seconds.zero?
+
+      hourly_cost = AicooLabSetting.first&.hourly_cost_yen.to_f
+      return if hourly_cost.zero?
+
+      (work_seconds / 3600.0 * hourly_cost).round
+    end
+
+    def generate_candidate_if_ready
+      return unless evaluation.evaluated?
+
+      IndependentActivityCandidateGenerator.call(
+        business_id: activity_log.business_id,
+        apply: true
+      )
+    rescue StandardError => e
+      Rails.logger.warn(
+        "[IndependentActivityCandidateGenerator] failed " \
+        "evaluation_id=#{evaluation.id} activity_log_id=#{activity_log.id} error=#{e.class}: #{e.message}"
+      )
+
+      evaluation.update!(metadata: evaluation.metadata.to_h.merge(
+        "independent_candidate_generation_error" => "#{e.class}: #{e.message}".truncate(300)
+      ))
     end
   end
 end

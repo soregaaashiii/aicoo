@@ -24,7 +24,12 @@ module Aicoo
         evaluated_at: Time.current,
         metric_deltas: { "clicks" => { "delta" => 4 } }
       )
-      IndependentActivityLearning.record!(evaluation)
+      generation_calls = []
+      IndependentActivityCandidateGenerator.stub(:call, ->(**args) { generation_calls << args }) do
+        IndependentActivityLearning.record!(evaluation)
+      end
+
+      assert_equal [ { business_id: business.id, apply: true } ], generation_calls
 
       assert_no_difference([ "ActionResult.count", "ActionCandidate.count" ]) do
         result = IndependentActivityLearningDiagnostic.new(business_id: business.id).call
@@ -38,6 +43,7 @@ module Aicoo
         assert_equal false, row.is_internal_event
         assert_equal "evaluated", row.evaluations.dig(7, "status")
         assert_nil evaluation.reload.metadata.dig("independent_activity_learning", "action_candidate_id")
+        assert_equal 0, row.evaluations.dig(7, "estimated_work_seconds")
       end
     end
 

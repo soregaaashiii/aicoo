@@ -93,7 +93,11 @@ module Aicoo
           {
             "status" => evaluation.status,
             "evaluated_at" => evaluation.evaluated_at&.iso8601,
-            "metrics" => evaluation.metric_deltas
+            "metrics" => evaluation.metric_deltas,
+            "confidence" => item[:attributes]["confidence"],
+            "roi" => item[:attributes]["roi"],
+            "estimated_work_seconds" => item[:attributes]["estimated_work_seconds"],
+            "work_cost_yen" => item[:attributes]["work_cost_yen"]
           }
         ]
       end

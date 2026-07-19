@@ -9,7 +9,8 @@ module Aicoo
       "x" => "X",
       "reddit" => "Reddit",
       "news" => "News",
-      "activity_log" => "Activity Log"
+      "activity_log" => "Activity Log",
+      "independent_learning" => "Independent Learning"
     }.freeze
     SEO_ACTION_TYPE_LABELS = {
       "add_listings" => "掲載店舗追加",
