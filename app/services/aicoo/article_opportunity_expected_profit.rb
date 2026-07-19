@@ -4,15 +4,15 @@ module Aicoo
     CALIBRATION_VERSION = "2026-07-19".freeze
     SNAPSHOT_SOURCE_TYPE = "article_analytics".freeze
     INITIAL_COEFFICIENTS = {
-      "ctr_gain_rate" => 0.025,
-      "rank_gain_positions" => 1.2,
-      "click_value_yen" => 35,
-      "shop_visit_rate" => 0.12,
-      "conversion_rate" => 0.02,
-      "profit_per_conversion_yen" => 3_000,
-      "internal_link_pageview_lift_rate" => 0.05,
-      "content_ctr_gain_rate" => 0.01,
-      "owner_hourly_cost_yen" => 6_000,
+      "ctr_gain_rate" => 0.035,
+      "rank_gain_positions" => 2.0,
+      "click_value_yen" => 500,
+      "shop_visit_rate" => 0.18,
+      "conversion_rate" => 0.04,
+      "profit_per_conversion_yen" => 12_000,
+      "internal_link_pageview_lift_rate" => 0.10,
+      "content_ctr_gain_rate" => 0.02,
+      "owner_hourly_cost_yen" => 1_500,
       "fallback_impressions" => 5_000,
       "fallback_pageviews" => 5_000
     }.freeze
