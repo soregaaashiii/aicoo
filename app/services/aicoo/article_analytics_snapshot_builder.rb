@@ -31,7 +31,8 @@ module Aicoo
       :unavailable_counts,
       :sample_payloads,
       :gsc_snapshot_quality,
-      :ga4_snapshot_quality
+      :ga4_snapshot_quality,
+      :article_content_diagnostics
     )
 
     Snapshot = Data.define(:article, :payload)
@@ -93,7 +94,8 @@ module Aicoo
         unavailable_counts: unavailable_counts(payloads),
         sample_payloads: payloads.first(5),
         gsc_snapshot_quality: snapshot_quality_for("gsc"),
-        ga4_snapshot_quality: snapshot_quality_for("ga4")
+        ga4_snapshot_quality: snapshot_quality_for("ga4"),
+        article_content_diagnostics: article_content_diagnostics(payloads)
       )
     end
 
@@ -214,7 +216,8 @@ module Aicoo
         unavailable_counts: unavailable_counts(payloads),
         sample_payloads: payloads.first(5),
         gsc_snapshot_quality: snapshot_quality_for("gsc"),
-        ga4_snapshot_quality: snapshot_quality_for("ga4")
+        ga4_snapshot_quality: snapshot_quality_for("ga4"),
+        article_content_diagnostics: article_content_diagnostics(payloads)
       )
     end
 
@@ -281,10 +284,17 @@ module Aicoo
     end
 
     def snapshot_quality_for(source_type)
-      source_snapshots = snapshots_for(source_type)
+      total_snapshots = metric_snapshots_for(source_type, include_inactive: true)
+      source_snapshots = total_snapshots.reject { |snapshot| inactive_metric_snapshot?(snapshot) }
+      archived_snapshots = total_snapshots.select { |snapshot| snapshot_status(snapshot) == "archived" }
+      ignored_snapshots = total_snapshots.select { |snapshot| snapshot_status(snapshot) == "ignored" }
       fingerprint_groups = source_snapshots.group_by { |snapshot| snapshot.payload.to_h["snapshot_fingerprint"].presence || legacy_snapshot_fingerprint(snapshot) }
       duplicate_groups = fingerprint_groups.values.select { |grouped| grouped.size > 1 }
       {
+        "total_snapshot_count" => total_snapshots.size,
+        "active_snapshot_count" => source_snapshots.size,
+        "archived_snapshot_count" => archived_snapshots.size,
+        "ignored_snapshot_count" => ignored_snapshots.size,
         "snapshot_count" => source_snapshots.size,
         "duplicate_snapshot_count" => duplicate_groups.sum { |grouped| grouped.size },
         "duplicate_group_count" => duplicate_groups.size,
@@ -296,6 +306,32 @@ module Aicoo
             "source_models" => grouped.map { |snapshot| snapshot.payload.to_h["source_model"].presence || "AicooDataSnapshot" }.uniq,
             "data_import_ids" => grouped.map { |snapshot| snapshot.payload.to_h["data_import_id"] }.compact.uniq,
             "imported_at" => grouped.map { |snapshot| snapshot.payload.to_h["imported_at"] }.compact.uniq
+          }
+        end
+      }
+    end
+
+    def article_content_diagnostics(payloads)
+      total = payloads.size
+      source_counts = payloads.filter_map { |payload| payload.dig("article", "content_source") }.tally
+      present_content = payloads.count { |payload| payload.dig("article", "content_source").present? && !payload.dig("article", "word_count").nil? }
+      internal_links = payloads.count { |payload| !payload.dig("article", "internal_link_count").nil? }
+      {
+        "article_columns" => suelog_available? ? ::Suelog::Article.column_names : [],
+        "article_associations" => suelog_available? ? ::Suelog::Article.reflect_on_all_associations.map(&:name).map(&:to_s) : [],
+        "content_tables" => content_table_candidates,
+        "content_source_counts" => source_counts,
+        "content_present_count" => present_content,
+        "internal_link_present_count" => internal_links,
+        "content_present_rate" => total.positive? ? ((present_content.to_d / total) * 100).round(1).to_f : 0.0,
+        "internal_link_present_rate" => total.positive? ? ((internal_links.to_d / total) * 100).round(1).to_f : 0.0,
+        "missing_content_articles" => payloads.filter_map do |payload|
+          next if payload.dig("article", "content_source").present?
+
+          {
+            "article_id" => payload["article_id"],
+            "path" => payload["normalized_path"],
+            "title" => payload.dig("article", "title")
           }
         end
       }
@@ -547,13 +583,27 @@ module Aicoo
     end
 
     def snapshots_for(source_type)
+      metric_snapshots_for(source_type)
+    end
+
+    def metric_snapshots_for(source_type, include_inactive: false)
       import_ids = data_imports_for(source_type).map(&:id)
       AicooDataSnapshot.where(source_type:).recent.limit(100).select do |snapshot|
         payload = snapshot.payload.to_h.deep_stringify_keys
+        next false if !include_inactive && inactive_metric_snapshot?(snapshot)
+
         payload["business_id"].to_i == business.id ||
           analytics_site_ids.map(&:to_s).include?(payload["analytics_site_id"].to_s) ||
           import_ids.include?(snapshot.source_id.to_i)
       end
+    end
+
+    def inactive_metric_snapshot?(snapshot)
+      snapshot_status(snapshot).in?(%w[archived ignored])
+    end
+
+    def snapshot_status(snapshot)
+      snapshot.payload.to_h.deep_stringify_keys["snapshot_status"].presence || "active"
     end
 
     def analytics_site_ids
@@ -720,15 +770,113 @@ module Aicoo
     end
 
     def article_content_with_source(article)
-      %w[
-        body content markdown html text article_body main_text rendered_body
-        published_body rich_text_content
-      ].each do |column|
+      article_content_columns.each do |column|
         value = safe_attr(article, column)
         return [ value, column ] if value.present?
       end
 
+      action_text_content = action_text_content_for(article)
+      return action_text_content if action_text_content.first.present?
+
+      table_content = content_from_related_tables(article)
+      return table_content if table_content.first.present?
+
+      association_content = content_from_associations(article)
+      return association_content if association_content.first.present?
+
       [ nil, nil ]
+    end
+
+    def article_content_columns
+      return [] unless suelog_available?
+
+      forbidden = /\A(summary|meta|description|title|excerpt|lead|abstract|og_|seo_)/i
+      ::Suelog::Article.column_names.select do |column|
+        column.match?(/body|content|markdown|html|text|article_body|main_text|rendered_body|published_body|rich_text/i) &&
+          !column.match?(forbidden)
+      end
+    end
+
+    def action_text_content_for(article)
+      return [ nil, nil ] unless table_exists?("action_text_rich_texts")
+
+      connection = ::Suelog::Article.connection
+      record_types = [ article.class.name, "::#{article.class.name}", "Article", "Suelog::Article" ].uniq
+      sql = ::Suelog::Article.sanitize_sql_array([
+        "SELECT name, body FROM action_text_rich_texts WHERE record_id = ? AND record_type IN (?) ORDER BY updated_at DESC, id DESC LIMIT 1",
+        article.id,
+        record_types
+      ])
+      row = connection.exec_query(sql).first
+      body = row && row["body"]
+      return [ body, "action_text:#{row['name']}" ] if body.present?
+
+      [ nil, nil ]
+    rescue StandardError
+      [ nil, nil ]
+    end
+
+    def content_from_related_tables(article)
+      connection = ::Suelog::Article.connection
+      content_table_candidates.each do |table|
+        columns = connection.columns(table).map(&:name)
+        article_id_column = columns.find { |column| column == "article_id" || column == "record_id" || column.match?(/article.*id/) }
+        content_column = columns.find { |column| content_column_name?(column) }
+        next unless article_id_column && content_column
+
+        order_clause = columns.include?("id") ? " ORDER BY id DESC" : ""
+        sql = ::Suelog::Article.sanitize_sql_array([
+          "SELECT #{connection.quote_column_name(content_column)} AS content_value FROM #{connection.quote_table_name(table)} WHERE #{connection.quote_column_name(article_id_column)} = ?#{order_clause} LIMIT 1",
+          article.id
+        ])
+        row = connection.exec_query(sql).first
+        value = row && row["content_value"]
+        return [ value, "#{table}.#{content_column}" ] if value.present?
+      end
+      [ nil, nil ]
+    rescue StandardError
+      [ nil, nil ]
+    end
+
+    def content_from_associations(article)
+      article.class.reflect_on_all_associations.each do |reflection|
+        next unless reflection.name.to_s.match?(/content|body|rich_text|block|section/i)
+        next unless article.respond_to?(reflection.name)
+
+        associated = article.public_send(reflection.name)
+        records = associated.respond_to?(:to_a) && !associated.is_a?(String) ? associated.to_a : [ associated ]
+        records.compact.each do |record|
+          content_column = record.class.column_names.find { |column| content_column_name?(column) } if record.class.respond_to?(:column_names)
+          next unless content_column
+
+          value = safe_attr(record, content_column)
+          return [ value, "#{reflection.name}.#{content_column}" ] if value.present?
+        end
+      end
+      [ nil, nil ]
+    rescue StandardError
+      [ nil, nil ]
+    end
+
+    def content_table_candidates
+      return [] unless suelog_available?
+
+      @content_table_candidates ||= ::Suelog::Article.connection.tables.select do |table|
+        table.match?(/article.*(content|body|block|section)|(?:content|body|block|section).*article|action_text_rich_texts/i)
+      end
+    rescue StandardError
+      []
+    end
+
+    def content_column_name?(column)
+      column.match?(/body|content|markdown|html|text|rich_text/i) &&
+        !column.match?(/\A(summary|meta|description|title|excerpt|lead|abstract|og_|seo_)/i)
+    end
+
+    def table_exists?(table)
+      suelog_available? && ::Suelog::Article.connection.table_exists?(table)
+    rescue StandardError
+      false
     end
 
     def article_join_table

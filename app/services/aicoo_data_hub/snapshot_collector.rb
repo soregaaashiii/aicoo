@@ -124,6 +124,7 @@ module AicooDataHub
       AicooDataSnapshot
         .where(source_type:, source_id:)
         .where(captured_at: Time.current.all_day)
+        .where("COALESCE(payload ->> 'snapshot_status', 'active') NOT IN (?)", %w[archived ignored])
         .exists?
     end
 
@@ -137,6 +138,7 @@ module AicooDataHub
         .where(source_type:)
         .where(captured_at: Time.current.all_day)
         .where("payload ->> 'snapshot_fingerprint' = ?", fingerprint)
+        .where("COALESCE(payload ->> 'snapshot_status', 'active') NOT IN (?)", %w[archived ignored])
 
       business_id = payload["business_id"].presence
       analytics_site_id = payload["analytics_site_id"].presence
@@ -150,6 +152,7 @@ module AicooDataHub
 
       normalized_payload = payload.deep_stringify_keys
       normalized_payload.merge(
+        "snapshot_status" => normalized_payload["snapshot_status"].presence || "active",
         "snapshot_fingerprint" => snapshot_fingerprint(normalized_payload),
         "snapshot_fingerprint_version" => "metric_rows_v1"
       )

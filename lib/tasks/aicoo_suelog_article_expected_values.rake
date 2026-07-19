@@ -297,6 +297,12 @@ namespace :aicoo do
     AicooArticleAnalyticsSnapshotRake.print_result(result)
   end
 
+  desc "Archive duplicate GSC/GA4 metric snapshots. Dry-run by default; use APPLY=1 to archive duplicates."
+  task cleanup_metric_snapshots: :environment do
+    result = Aicoo::SnapshotCleanup.call(apply: ENV["APPLY"] == "1")
+    AicooArticleAnalyticsSnapshotRake.print_cleanup_result(result)
+  end
+
   desc "Diagnose saved per-article analytics snapshots for Suelog"
   task diagnose_article_analytics_snapshot: :environment do
     business = AicooSuelogArticleExpectedValueRake.suelog_business_scope.first
@@ -334,10 +340,13 @@ module AicooArticleAnalyticsSnapshotRake
     puts "ga4_snapshot_quality=#{AicooArticleAnalyticsSnapshotRake.snapshot_quality_line(result.ga4_snapshot_quality)}"
     puts "gsc_duplicate_sources:"
     print_duplicate_sources(result.gsc_snapshot_quality)
+    puts "ga4_duplicate_sources:"
+    print_duplicate_sources(result.ga4_snapshot_quality)
     puts "article_info_rates:"
     result.article_info_rates.each do |field, stats|
       puts "#{field}=#{stats['present']}/#{stats['total']} #{stats['rate']}%"
     end
+    print_article_content_diagnostics(result.article_content_diagnostics)
     puts "gsc_duplicate_candidates:"
     print_duplicate_candidates(result.gsc_duplicate_candidates)
     puts "ga4_duplicate_candidates:"
@@ -386,7 +395,10 @@ module AicooArticleAnalyticsSnapshotRake
     return "-" if quality.blank?
 
     [
-      "snapshot_count=#{quality['snapshot_count']}",
+      "total_snapshot_count=#{quality['total_snapshot_count'] || quality['snapshot_count']}",
+      "active_snapshot_count=#{quality['active_snapshot_count'] || quality['snapshot_count']}",
+      "archived_snapshot_count=#{quality['archived_snapshot_count'].to_i}",
+      "ignored_snapshot_count=#{quality['ignored_snapshot_count'].to_i}",
       "duplicate_snapshot_count=#{quality['duplicate_snapshot_count']}",
       "duplicate_group_count=#{quality['duplicate_group_count']}",
       "duplicate_rate=#{quality['duplicate_rate']}%"
@@ -407,6 +419,59 @@ module AicooArticleAnalyticsSnapshotRake
         "data_import_ids=#{Array(row['data_import_ids']).join('|')}",
         "source_models=#{Array(row['source_models']).join('|')}",
         "imported_at=#{Array(row['imported_at']).join('|')}"
+      ].join(" ")
+    end
+  end
+
+  def print_article_content_diagnostics(diagnostics)
+    diagnostics ||= {}
+    puts "article_content_diagnostics:"
+    puts "article_columns=#{Array(diagnostics['article_columns']).join(',').presence || '-'}"
+    puts "article_associations=#{Array(diagnostics['article_associations']).join(',').presence || '-'}"
+    puts "content_tables=#{Array(diagnostics['content_tables']).join(',').presence || '-'}"
+    puts "content_source_counts=#{diagnostics.fetch('content_source_counts', {}).map { |source, count| "#{source}:#{count}" }.join(',').presence || '-'}"
+    puts "content_present_count=#{diagnostics['content_present_count'].to_i}"
+    puts "content_present_rate=#{diagnostics['content_present_rate'].to_f}%"
+    puts "internal_link_present_count=#{diagnostics['internal_link_present_count'].to_i}"
+    puts "internal_link_present_rate=#{diagnostics['internal_link_present_rate'].to_f}%"
+    puts "missing_content_articles:"
+    rows = Array(diagnostics["missing_content_articles"])
+    if rows.empty?
+      puts "-"
+    else
+      rows.each do |row|
+        puts [
+          "article_id=#{row['article_id']}",
+          "path=#{row['path'] || '-'}",
+          "title=#{row['title'].to_s.squish.presence || '-'}"
+        ].join(" ")
+      end
+    end
+  end
+
+  def print_cleanup_result(result)
+    puts "mode=#{result.mode}"
+    puts "checked=#{result.checked_count}"
+    puts "active=#{result.active_count}"
+    puts "already_archived=#{result.already_archived_count}"
+    puts "archived=#{result.archived_count}"
+    puts "duplicate_groups=#{result.duplicate_group_count}"
+    puts "duplicate_snapshots=#{result.duplicate_snapshot_count}"
+    puts "before_duplicate_rate=#{result.before_duplicate_rate}%"
+    puts "after_duplicate_rate=#{result.after_duplicate_rate}%"
+    puts "failed=#{result.failed_count}"
+    puts "archived_snapshot_ids=#{result.archived_snapshot_ids.join(',').presence || '-'}"
+    puts "source_type_summaries:"
+    result.source_type_summaries.each do |source_type, summary|
+      puts [
+        "source_type=#{source_type}",
+        "total=#{summary[:total_count] || summary['total_count']}",
+        "active=#{summary[:active_count] || summary['active_count']}",
+        "archived=#{summary[:archived_count] || summary['archived_count']}",
+        "ignored=#{summary[:ignored_count] || summary['ignored_count']}",
+        "duplicate_groups=#{summary[:duplicate_group_count] || summary['duplicate_group_count']}",
+        "duplicate_snapshots=#{summary[:duplicate_snapshot_count] || summary['duplicate_snapshot_count']}",
+        "duplicate_rate=#{summary[:duplicate_rate] || summary['duplicate_rate']}%"
       ].join(" ")
     end
   end

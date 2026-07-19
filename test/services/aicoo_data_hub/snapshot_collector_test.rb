@@ -167,6 +167,33 @@ module AicooDataHub
       assert snapshot.payload["snapshot_fingerprint"].present?
     end
 
+    test "archived metric snapshots do not block a fresh active snapshot" do
+      business = Business.create!(name: "DataHub archived gsc")
+      raw_text = JSON.generate(
+        rows: [
+          { "date" => "2026-07-18", "page" => "/articles/sample", "query" => "sample", "clicks" => 2, "impressions" => 10, "position" => 4.2 }
+        ]
+      )
+      data_import = create_data_import(source_type: "gsc", raw_text:, business:)
+      AicooDataSnapshot.create!(
+        source_type: "gsc",
+        source_id: data_import.id,
+        captured_at: Time.current,
+        payload: {
+          "source_type" => "gsc",
+          "business_id" => business.id,
+          "rows" => JSON.parse(raw_text)["rows"],
+          "snapshot_fingerprint" => Digest::SHA256.hexdigest("same"),
+          "snapshot_status" => "archived"
+        }
+      )
+
+      assert_difference("AicooDataSnapshot.where(source_type: 'gsc').count", 1) do
+        result = SnapshotCollector.new.collect_gsc
+        assert_equal 1, result.count
+      end
+    end
+
     private
 
     def create_data_import(source_type:, raw_text:, business: nil)
