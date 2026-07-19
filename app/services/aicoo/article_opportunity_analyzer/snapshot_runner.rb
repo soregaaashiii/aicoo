@@ -337,25 +337,34 @@ module Aicoo
       end
 
       def candidate_draft(snapshot, payload, opportunity, score, breakdown)
-        title = "#{article_title(payload)}の#{opportunity['label']}を行う"
+        brief = ArticleOpportunityExecutionBriefBuilder.call(
+          business:,
+          snapshot:,
+          payload:,
+          opportunity:,
+          score:,
+          breakdown:
+        )
+        metadata = analysis_metadata(snapshot, payload, score, opportunity["search_demand_score"], opportunity["improvement_potential_score"], opportunity["expected_improvement_score"], breakdown, [ opportunity ]).merge(
+          "opportunity_type" => opportunity["opportunity_type"],
+          "opportunity_label" => opportunity["label"],
+          "next_action" => opportunity["next_action"],
+          "opportunity_score_component" => opportunity["score"],
+          "search_demand_score" => opportunity["search_demand_score"],
+          "improvement_potential_score" => opportunity["improvement_potential_score"],
+          "expected_improvement_score" => opportunity["expected_improvement_score"],
+          "success_probability" => opportunity["success_probability"],
+          "estimated_work_hours" => opportunity["estimated_work_hours"],
+          "business_value" => opportunity["business_value"],
+          "ranking_reason" => opportunity["ranking_reason"]
+        ).merge(brief.metadata)
+
         CandidateDraft.new(
-          title:,
+          title: brief.title,
           action_type: action_type_for(opportunity),
-          description: "#{payload['normalized_path']} のArticleAnalyticsSnapshotから #{opportunity['label']} Opportunity を検出しました。",
-          execution_prompt: opportunity["next_action"],
-          metadata: analysis_metadata(snapshot, payload, score, opportunity["search_demand_score"], opportunity["improvement_potential_score"], opportunity["expected_improvement_score"], breakdown, [ opportunity ]).merge(
-            "opportunity_type" => opportunity["opportunity_type"],
-            "opportunity_label" => opportunity["label"],
-            "next_action" => opportunity["next_action"],
-            "opportunity_score_component" => opportunity["score"],
-            "search_demand_score" => opportunity["search_demand_score"],
-            "improvement_potential_score" => opportunity["improvement_potential_score"],
-            "expected_improvement_score" => opportunity["expected_improvement_score"],
-            "success_probability" => opportunity["success_probability"],
-            "estimated_work_hours" => opportunity["estimated_work_hours"],
-            "business_value" => opportunity["business_value"],
-            "ranking_reason" => opportunity["ranking_reason"]
-          )
+          description: brief.description,
+          execution_prompt: brief.execution_prompt,
+          metadata:
         )
       end
 

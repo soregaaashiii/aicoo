@@ -37,6 +37,15 @@ module Aicoo
       assert article_result.metadata.key?("estimated_work_hours")
       assert article_result.metadata.key?("business_value")
       assert article_result.candidate_drafts.any?
+      article_result.candidate_drafts.each do |draft|
+        brief = draft.metadata["execution_brief"]
+        assert brief.present?, "#{draft.metadata['opportunity_type']} should have execution_brief"
+        assert brief.dig("target", "target_type").present?
+        assert brief.dig("evidence", "analyzer").present?
+        assert Array(brief["recommended_changes"]).any?
+        assert Array(brief["completion_conditions"]).any?
+        assert_not_match(/Opportunity を検出しました/, draft.description)
+      end
       assert_nil article_result.metadata["expected_profit_yen"]
       assert_equal false, article_result.metadata["expected_profit_calculated"]
     end
@@ -326,6 +335,169 @@ module Aicoo
       assert_includes rank_42_reason, "順位帯=31〜50位"
       assert_not_includes rank_42_reason, "順位11〜20"
       assert_not_includes results["/articles/rank-42"].metadata["ranking_reason"], "順位11〜20"
+    end
+
+    test "execution brief makes ctr improvement concrete without inventing facts" do
+      create_article_snapshot(
+        article_id: 301,
+        path: "/articles/umeda-smoking-cafe",
+        title: "梅田 喫煙 カフェ",
+        gsc: {
+          "available" => true,
+          "impressions" => 1_200,
+          "clicks" => 6,
+          "ctr" => 0.005,
+          "average_position" => 14,
+          "query_count" => 3,
+          "top_queries" => [
+            { "query" => "梅田 喫煙 カフェ", "impressions" => 700, "clicks" => 3, "ctr" => 0.004, "average_position" => 14 }
+          ]
+        },
+        article: { "title" => "梅田 喫煙 カフェ", "word_count" => 2_400, "internal_link_count" => 3, "shop_count" => 8, "verified_shop_count" => 8 }
+      )
+      create_article_snapshot(
+        article_id: 302,
+        path: "/articles/umeda-smoking-izakaya",
+        title: "梅田 喫煙 居酒屋",
+        gsc: { "available" => true, "impressions" => 900, "clicks" => 45, "ctr" => 0.05, "average_position" => 9, "query_count" => 3 }
+      )
+
+      result = ArticleOpportunityAnalyzer.from_snapshots(business: @business).article_results.detect { |row| row.normalized_path == "/articles/umeda-smoking-cafe" }
+      draft = result.candidate_drafts.detect { |row| row.metadata["opportunity_type"] == "ctr_improvement" }
+      brief = draft.metadata["execution_brief"]
+
+      assert_includes draft.title, "title/meta"
+      assert_equal "existing_article", brief.dig("target", "target_type")
+      assert_equal "https://suelog.jp/articles/umeda-smoking-cafe", brief.dig("target", "target_url")
+      assert_equal false, brief.dig("execution", "research_required")
+      assert_equal true, brief.dig("execution", "codex_eligible")
+      assert_equal "ready", draft.metadata["execution_readiness"]
+      assert_equal "梅田 喫煙 カフェ", brief.dig("evidence", "gsc", "top_queries").first["query"]
+      assert_empty brief["missing_information"]
+      assert_not_includes brief.to_s, "it-trend.jp"
+      assert_not_includes brief.to_s, "tabelog.com"
+    end
+
+    test "execution brief uses only existing article snapshots for internal links" do
+      create_article_snapshot(
+        article_id: 303,
+        path: "/articles/higashidori-smoking-izakaya",
+        title: "東通り 居酒屋 喫煙可",
+        article: { "title" => "東通り 居酒屋 喫煙可", "word_count" => 2_500, "internal_link_count" => 0, "shop_count" => 8, "verified_shop_count" => 8 }
+      )
+      create_article_snapshot(
+        article_id: 304,
+        path: "/articles/namba-smoking-izakaya",
+        title: "難波 喫煙 居酒屋"
+      )
+
+      result = ArticleOpportunityAnalyzer.from_snapshots(business: @business).article_results.detect { |row| row.normalized_path == "/articles/higashidori-smoking-izakaya" }
+      draft = result.candidate_drafts.detect { |row| row.metadata["opportunity_type"] == "internal_link_addition" }
+      links = draft.metadata.dig("execution_brief", "recommended_changes").first.dig("evidence", "candidate_links")
+
+      assert links.any?
+      assert links.all? { |link| link["path"].start_with?("/articles/") }
+      assert links.all? { |link| link["url"].start_with?("https://suelog.jp/articles/") }
+      assert_not_includes links.to_s, "http://example.com"
+    end
+
+    test "execution brief blocks codex when query is missing" do
+      payload = {
+        "business_id" => @business.id,
+        "article_id" => 305,
+        "normalized_path" => "/articles/query-missing",
+        "gsc" => { "available" => true, "impressions" => 120, "clicks" => 2, "ctr" => 0.01, "average_position" => 14, "query_count" => 0, "top_queries" => [] },
+        "ga4" => { "available" => true, "pageviews" => 100 },
+        "shop_click" => { "available" => true, "total_clicks" => 0 },
+        "article" => { "title" => "Queryなし", "word_count" => 2_000, "internal_link_count" => 2, "shop_count" => 5, "verified_shop_count" => 5 }
+      }
+      snapshot = AicooDataSnapshot.create!(source_type: "article_analytics", source_id: 305, captured_at: Time.current, payload:)
+      result = ArticleOpportunityExecutionBriefBuilder.call(
+        business: @business,
+        snapshot:,
+        payload:,
+        opportunity: { "opportunity_type" => "ctr_improvement", "label" => "CTR改善", "estimated_work_hours" => 0.3 },
+        score: 10,
+        breakdown: { "ctr_opportunity" => 10 }
+      )
+
+      assert_equal false, result.metadata["codex_eligible"]
+      assert_equal "needs_query", result.metadata["execution_readiness"]
+      assert_includes result.metadata.dig("execution_brief", "missing_information"), "主要検索Query未取得"
+    end
+
+    test "execution brief supports article opportunity types" do
+      payload = {
+        "business_id" => @business.id,
+        "article_id" => 307,
+        "normalized_path" => "/articles/all-types",
+        "gsc" => {
+          "available" => true,
+          "impressions" => 500,
+          "clicks" => 5,
+          "ctr" => 0.01,
+          "average_position" => 14,
+          "query_count" => 2,
+          "top_queries" => [{ "query" => "全タイプ 喫煙", "impressions" => 300, "clicks" => 2 }]
+        },
+        "ga4" => { "available" => true, "pageviews" => 100 },
+        "shop_click" => { "available" => true, "total_clicks" => 1 },
+        "article" => { "title" => "全タイプ", "word_count" => 800, "internal_link_count" => 0, "shop_count" => 2, "verified_shop_count" => 1 }
+      }
+      snapshot = AicooDataSnapshot.create!(source_type: "article_analytics", source_id: 307, captured_at: Time.current, payload:)
+
+      %w[
+        ctr_improvement
+        rank_improvement
+        internal_link_addition
+        content_update
+        shop_addition
+        verified_shop_addition
+      ].each do |type|
+        result = ArticleOpportunityExecutionBriefBuilder.call(
+          business: @business,
+          snapshot:,
+          payload:,
+          opportunity: { "opportunity_type" => type, "label" => type, "estimated_work_hours" => 1.0 },
+          score: 10,
+          breakdown: { "seo_opportunity" => 10, "ctr_opportunity" => 10, "content_opportunity" => 10 }
+        )
+        brief = result.metadata["execution_brief"]
+
+        assert_equal type, brief.dig("target", "improvement_type")
+        assert brief.dig("target", "target_url").start_with?("https://suelog.jp/articles/")
+        assert Array(brief["recommended_changes"]).any?
+        assert Array(brief["completion_conditions"]).any?
+        assert brief.dig("execution", "suggested_next_action").present?
+      end
+    end
+
+    test "shop opportunity brief requires real DB candidates or research" do
+      payload = {
+        "business_id" => @business.id,
+        "article_id" => 306,
+        "normalized_path" => "/articles/shop-missing",
+        "gsc" => { "available" => false },
+        "ga4" => { "available" => true, "pageviews" => 100 },
+        "shop_click" => { "available" => true, "total_clicks" => 0 },
+        "article" => { "title" => "店舗候補なし", "word_count" => 1_500, "internal_link_count" => 2, "shop_count" => 2, "verified_shop_count" => 1 }
+      }
+      snapshot = AicooDataSnapshot.create!(source_type: "article_analytics", source_id: 306, captured_at: Time.current, payload:)
+      result = ArticleOpportunityExecutionBriefBuilder.call(
+        business: @business,
+        snapshot:,
+        payload:,
+        opportunity: { "opportunity_type" => "shop_addition", "label" => "店舗追加", "estimated_work_hours" => 1.0 },
+        score: 10,
+        breakdown: { "content_opportunity" => 10 }
+      )
+      brief = result.metadata["execution_brief"]
+
+      assert_equal false, result.metadata["codex_eligible"]
+      assert_equal "needs_owner", result.metadata["execution_readiness"]
+      assert_equal true, brief.dig("execution", "human_required")
+      assert_includes brief.dig("safety", "prohibited_actions"), "未確認店舗情報の公開"
+      assert Array(brief.dig("recommended_changes", 0, "evidence", "candidate_shops")).all? { |shop| shop["shop_id"].present? }
     end
 
     private
