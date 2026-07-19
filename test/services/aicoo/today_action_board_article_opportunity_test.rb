@@ -30,8 +30,9 @@ module Aicoo
       high_item = items.find { |item| item.record == high }
       assert_equal 9.0.to_d, high_item.expected_improvement_score
       assert_equal "CTR改善", high_item.improvement_type_label
-      assert_equal 0, high_item.action_expected_value_delta_yen
-      assert_equal "score_only", high_item.valuation_status
+      assert_operator high_item.action_expected_value_delta_yen, :>, 0
+      assert_equal "estimated", high_item.valuation_status
+      assert_operator high_item.confidence, :>, 0
       assert_equal false, high_item.codex_target
       assert_equal false, high_item.auto_execution
     end

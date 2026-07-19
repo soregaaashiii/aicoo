@@ -231,6 +231,7 @@ module Aicoo
       resolved_business = article_opportunity ? article_opportunity_business(candidate) : candidate.business
       expected_hours = article_opportunity ? positive_decimal(article_scores.fetch(:estimated_work_hours)) : positive_decimal(candidate.expected_hours)
       success_probability = article_opportunity ? article_scores.fetch(:success_probability) : candidate.success_probability.to_d
+      display_confidence = article_opportunity ? valuation.fetch(:confidence) : success_probability
       raw_concrete_task = concrete_task_for(candidate, presenter, action_plan)
       raw_target = target_for(candidate, presenter, action_plan)
       planned_url = planned_url_for(candidate)
@@ -286,7 +287,7 @@ module Aicoo
         action_expected_value_delta_yen: valuation.fetch(:action_expected_value_delta_yen),
         valuation_period_days: valuation.fetch(:valuation_period_days),
         calculation_method: valuation.fetch(:calculation_method),
-        confidence: success_probability,
+        confidence: display_confidence,
         valuation_status: valuation.fetch(:valuation_status),
         expected_hours: expected_hours.to_f,
         expected_hourly_value_yen: expected_hours.positive? ? (expected_value_yen.to_d / expected_hours).round.to_i : 0,
@@ -1048,16 +1049,16 @@ module Aicoo
     end
 
     def article_opportunity_valuation(candidate)
-      scores = article_opportunity_scores(candidate)
+      profit = Aicoo::ArticleOpportunityExpectedProfit.call(candidate)
       {
         expected_value_if_no_action_yen: 0,
-        expected_value_if_action_yen: 0,
-        execution_cost_yen: 0,
-        action_expected_value_delta_yen: 0,
+        expected_value_if_action_yen: profit.expected_revenue_yen,
+        execution_cost_yen: profit.work_cost_yen,
+        action_expected_value_delta_yen: profit.expected_profit_yen,
         valuation_period_days: 90,
-        calculation_method: "article_opportunity_expected_improvement_score",
-        confidence: scores.fetch(:success_probability),
-        valuation_status: "score_only"
+        calculation_method: profit.metadata.dig("expected_profit_model", "model_source") || Aicoo::ArticleOpportunityExpectedProfit::MODEL_NAME,
+        confidence: profit.confidence,
+        valuation_status: profit.expected_profit_yen.positive? ? "estimated" : "estimated_low"
       }
     end
 
