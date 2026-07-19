@@ -19,13 +19,18 @@ namespace :aicoo do
     diagnostics_by_mode = Aicoo::TodayActionBoard::MODES.index_with do |mode|
       Aicoo::ActionExpectedValueRanking.new(items: today_items, mode:, per_page:).diagnostic_rows
     end
+    diagnostics_by_stable_id = diagnostics_by_mode.fetch("revenue").index_by { |diagnostic| diagnostic.item.stable_id }
+    revenue_items = Aicoo::ActionExpectedValueRanking.new(items: today_items, mode: "revenue", per_page:).call.items
     ranks_by_mode = Aicoo::TodayActionBoard::MODES.index_with do |mode|
       Aicoo::ActionExpectedValueRanking.new(items: today_items, mode:, per_page:).call.items.each_with_object({}) do |item, hash|
         hash[item.stable_id] = item.rank
       end
     end
 
-    rows = diagnostics_by_mode.fetch("revenue").map.with_index(1) do |diagnostic, index|
+    rows = revenue_items.map.with_index(1).filter_map do |ranked_item, index|
+      diagnostic = diagnostics_by_stable_id[ranked_item.stable_id]
+      next unless diagnostic
+
       item = diagnostic.item
       record = item.record if item.respond_to?(:record)
       classification = diagnostic.classification
@@ -33,7 +38,9 @@ namespace :aicoo do
         candidate_id: record.is_a?(ActionCandidate) ? record.id : nil,
         candidate_type: item.source_type,
         business_id: classification.business_id,
-        current_rank: ranks_by_mode.dig("revenue", item.stable_id) || index,
+        array_index: index,
+        current_rank: index,
+        display_position: index,
         total_expected_value_yen: diagnostic.total_expected_value_yen,
         revenue_expected_value_yen: diagnostic.revenue_expected_value_yen,
         traffic_expected_value_yen: diagnostic.traffic_expected_value_yen,
@@ -64,6 +71,14 @@ namespace :aicoo do
     missing_total_count = rows.count { |row| row[:total_expected_value_yen].nil? }
     learned_count = rows.count { |row| row[:model_source].to_s.in?(%w[business_learning improvement_type_learning]) }
     initial_count = rows.count { |row| row[:model_source].to_s == "initial_coefficients" }
+    top20_descending = rows.first(20).each_cons(2).all? do |left, right|
+      left[:total_expected_value_yen].to_d >= right[:total_expected_value_yen].to_d
+    end
+    rank_position_consistent = rows.all? do |row|
+      row[:array_index] == row[:current_rank] &&
+        row[:current_rank] == row[:display_position] &&
+        row[:display_position] == row[:final_rank_revenue]
+    end
 
     summary = {
       checked: rows.size,
@@ -74,7 +89,9 @@ namespace :aicoo do
       initial_coefficient_ratio: rows.any? ? (initial_count.to_d / rows.size).round(3) : 0,
       learned_ratio: rows.any? ? (learned_count.to_d / rows.size).round(3) : 0,
       negative_expected_value_count: rows.count { |row| row[:total_expected_value_yen].to_d.negative? },
-      positive_expected_value_count: rows.count { |row| row[:total_expected_value_yen].to_d.positive? }
+      positive_expected_value_count: rows.count { |row| row[:total_expected_value_yen].to_d.positive? },
+      top20_total_expected_value_descending: top20_descending,
+      rank_position_consistent:
     }
 
     puts "summary #{summary.map { |key, value| "#{key}=#{value}" }.join(' ')}"
