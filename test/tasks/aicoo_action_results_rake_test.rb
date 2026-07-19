@@ -23,6 +23,10 @@ class AicooActionResultsRakeTest < ActiveSupport::TestCase
     assert Rake::Task.task_defined?("aicoo:diagnose_activity_learning_pipeline")
   end
 
+  test "diagnose_today_learning_reflection task exists" do
+    assert Rake::Task.task_defined?("aicoo:diagnose_today_learning_reflection")
+  end
+
   test "diagnose_activity_evaluation_builder task exists" do
     assert Rake::Task.task_defined?("aicoo:diagnose_activity_evaluation_builder")
   end

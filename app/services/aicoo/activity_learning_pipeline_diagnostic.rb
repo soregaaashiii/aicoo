@@ -136,7 +136,16 @@ module Aicoo
       return Stage.new(name: "Today", status: "WARNING", reason: "action_candidate_missing") unless candidate
       return Stage.new(name: "Today", status: "PASS", reason: nil) if today_candidate_ids.include?(candidate.id)
 
-      Stage.new(name: "Today", status: "WARNING", reason: "candidate_not_in_today_board")
+      Stage.new(name: "Today", status: "WARNING", reason: today_exclusion_reason(candidate))
+    end
+
+    def today_exclusion_reason(candidate)
+      return "already_executed" if candidate.executed?
+
+      reason = candidate.metadata.to_h["today_exclusion_reason"].to_s
+      return "already_executed" if reason == "executed"
+
+      reason.presence || "candidate_not_in_today_board"
     end
 
     def latest_evaluation(log)
