@@ -249,13 +249,52 @@ module Aicoo
         shop_click: { "total_clicks" => 3 },
         article: { "title" => "GSC別名", "word_count" => 2_400, "internal_link_count" => 3, "shop_count" => 8, "verified_shop_count" => 8 }
       )
+      create_article_snapshot(
+        article_id: 211,
+        path: "/articles/higher-ctr-peer",
+        title: "CTR比較用",
+        gsc: { "available" => true, "impressions" => 900, "clicks" => 45, "ctr" => 0.05, "average_position" => 9, "query_count" => 3 },
+        ga4: { "available" => true, "pageviews" => 150, "active_users" => 80, "sessions" => 90, "engagement_seconds" => 8_000 },
+        shop_click: { "available" => true, "total_clicks" => 1 },
+        article: { "title" => "CTR比較用", "word_count" => 2_400, "internal_link_count" => 3, "shop_count" => 8, "verified_shop_count" => 8 }
+      )
 
-      result = ArticleOpportunityAnalyzer.from_snapshots(business: @business).article_results.first
+      result = ArticleOpportunityAnalyzer.from_snapshots(business: @business).article_results.detect { |row| row.normalized_path == "/articles/alias-gsc" }
 
       assert_operator result.score_breakdown["seo_opportunity"], :>, 0
       assert_operator result.score_breakdown["ctr_opportunity"], :>, 0
-      assert_equal "順位11〜20・表示あり・CTR改善余地あり", result.metadata.dig("score_diagnostics", "seo_reason")
-      assert_equal "表示あり・CTR改善余地あり", result.metadata.dig("score_diagnostics", "ctr_reason")
+      assert_includes result.metadata.dig("score_diagnostics", "seo_reason"), "Business内表示上位"
+      assert_includes result.metadata.dig("score_diagnostics", "ctr_reason"), "Business内表示上位"
+    end
+
+    test "relative evaluation scores small but high business demand articles" do
+      create_article_snapshot(
+        article_id: 212,
+        path: "/articles/small-site-top-demand",
+        title: "小規模上位需要",
+        gsc: { "available" => true, "impressions" => 36, "clicks" => 1, "ctr" => 0.01, "average_position" => 13, "query_count" => 2 },
+        ga4: { "available" => true, "pageviews" => 60, "active_users" => 25, "sessions" => 35, "engagement_seconds" => 1_800 },
+        shop_click: { "available" => true, "total_clicks" => 0 },
+        article: { "title" => "小規模上位需要", "word_count" => 2_200, "internal_link_count" => 2, "shop_count" => 7, "verified_shop_count" => 7 }
+      )
+      create_article_snapshot(
+        article_id: 213,
+        path: "/articles/small-site-low-demand",
+        title: "小規模下位需要",
+        gsc: { "available" => true, "impressions" => 4, "clicks" => 1, "ctr" => 0.08, "average_position" => 16, "query_count" => 1 },
+        ga4: { "available" => true, "pageviews" => 10, "active_users" => 5, "sessions" => 6, "engagement_seconds" => 300 },
+        shop_click: { "available" => true, "total_clicks" => 0 },
+        article: { "title" => "小規模下位需要", "word_count" => 2_200, "internal_link_count" => 2, "shop_count" => 7, "verified_shop_count" => 7 }
+      )
+
+      results = ArticleOpportunityAnalyzer.from_snapshots(business: @business).article_results
+      high_relative = results.detect { |row| row.normalized_path == "/articles/small-site-top-demand" }
+      low_relative = results.detect { |row| row.normalized_path == "/articles/small-site-low-demand" }
+
+      assert_operator high_relative.score_breakdown["seo_opportunity"], :>, 0
+      assert_operator high_relative.score_breakdown["ctr_opportunity"], :>, 0
+      assert_equal 1, high_relative.metadata.dig("score_diagnostics", "business_relative", "impression_rank")
+      assert_operator high_relative.expected_improvement_score, :>, low_relative.expected_improvement_score
     end
 
     private

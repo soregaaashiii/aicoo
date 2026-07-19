@@ -342,11 +342,12 @@ namespace :aicoo do
       next
     end
 
-    rows = Aicoo::ArticleOpportunityAnalyzer::SnapshotRunner.new(
+    runner = Aicoo::ArticleOpportunityAnalyzer::SnapshotRunner.new(
       business:,
       limit: ENV["LIMIT"]
-    ).score_diagnostics
-    AicooArticleAnalyticsSnapshotRake.print_article_opportunity_score_diagnostics(business, rows)
+    )
+    rows = runner.score_diagnostics
+    AicooArticleAnalyticsSnapshotRake.print_article_opportunity_score_diagnostics(business, rows, runner.business_score_statistics)
   end
 end
 
@@ -543,6 +544,9 @@ module AicooArticleAnalyticsSnapshotRake
         "click=#{row.score_breakdown['click_opportunity']}",
         "content=#{row.score_breakdown['content_opportunity']}",
         "learning=#{row.score_breakdown['learning_confidence']}",
+        "business_impression_rank=#{row.metadata.dig('score_diagnostics', 'business_relative', 'impression_rank') || '-'}",
+        "business_ctr_rank=#{row.metadata.dig('score_diagnostics', 'business_relative', 'ctr_rank') || '-'}",
+        "business_search_demand_rank=#{row.metadata.dig('score_diagnostics', 'business_relative', 'search_demand_rank') || '-'}",
         "seo_reason=#{row.metadata.dig('score_diagnostics', 'seo_reason') || '-'}",
         "ctr_reason=#{row.metadata.dig('score_diagnostics', 'ctr_reason') || '-'}",
         "opportunities=#{row.opportunities.map { |opportunity| opportunity['opportunity_type'] }.join('|').presence || '-'}",
@@ -589,14 +593,27 @@ module AicooArticleAnalyticsSnapshotRake
     end
   end
 
-  def print_article_opportunity_score_diagnostics(business, rows)
+  def print_article_opportunity_score_diagnostics(business, rows, business_statistics = {})
     puts "business_id=#{business.id}"
     puts "business_name=#{business.name}"
     puts "checked=#{rows.size}"
+    puts [
+      "business_statistics",
+      "article_count=#{business_statistics['article_count'] || 0}",
+      "impressions_median=#{business_statistics['impressions_median'] || 0}",
+      "impressions_average=#{business_statistics['impressions_average'] || 0}",
+      "impressions_top_20_percent_threshold=#{business_statistics['impressions_top_20_percent_threshold'] || 0}",
+      "impressions_top_30_percent_threshold=#{business_statistics['impressions_top_30_percent_threshold'] || 0}",
+      "ctr_median=#{business_statistics['ctr_median'] || 0}",
+      "ctr_average=#{business_statistics['ctr_average'] || 0}",
+      "position_median=#{business_statistics['position_median'] || 0}",
+      "position_average=#{business_statistics['position_average'] || 0}"
+    ].join(" ")
     rows.each do |row|
       gsc = row["gsc"].to_h
       ga4 = row["ga4"].to_h
       shop_click = row["shop_click"].to_h
+      relative = row["business_relative"].to_h
       formula = row["expected_improvement_formula"].to_h
       puts [
         "article_id=#{row['article_id']}",
@@ -609,7 +626,10 @@ module AicooArticleAnalyticsSnapshotRake
         "average_position=#{gsc['average_position'] || '-'}",
         "query_count=#{gsc['query_count'] || '-'}",
         "ga4.pageviews=#{ga4['pageviews'] || '-'}",
-        "shop_click.total_clicks=#{shop_click['total_clicks'] || '-'}"
+        "shop_click.total_clicks=#{shop_click['total_clicks'] || '-'}",
+        "business_impression_rank=#{relative['impression_rank'] || '-'}",
+        "business_ctr_rank=#{relative['ctr_rank'] || '-'}",
+        "business_search_demand_rank=#{relative['search_demand_rank'] || '-'}"
       ].join(" ")
       puts [
         "  seo_opportunity=#{row['seo_opportunity']}",

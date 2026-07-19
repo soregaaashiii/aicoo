@@ -82,6 +82,7 @@ module Aicoo
           gsc = gsc_metrics(payload)
           ga4 = ga4_metrics(payload)
           shop_click = shop_click_metrics(payload)
+          relative = relative_metrics_for(payload)
 
           {
             "article_id" => payload["article_id"],
@@ -90,6 +91,7 @@ module Aicoo
             "gsc" => gsc,
             "ga4" => ga4,
             "shop_click" => shop_click,
+            "business_relative" => relative,
             "seo_opportunity" => breakdown["seo_opportunity"],
             "seo_condition_result" => breakdown["seo_opportunity"].to_d.positive? ? "eligible" : "not_eligible",
             "seo_reason" => seo_reason(payload),
@@ -120,6 +122,10 @@ module Aicoo
           Rails.logger.warn("[Aicoo::ArticleOpportunityAnalyzer::SnapshotRunner] diagnostic skipped snapshot_id=#{snapshot.id} #{e.class}: #{e.message}")
           nil
         end
+      end
+
+      def business_score_statistics
+        business_statistics
       end
 
       private
@@ -194,9 +200,10 @@ module Aicoo
         ctr = normalize_rate(gsc["ctr"])
         query_count = decimal(gsc["query_count"])
         rank_delta = decimal(first_present(gsc["rank_delta"], gsc["position_delta"], gsc["average_position_delta"]))
-        return 0 if impressions < 100 || position.zero?
+        relative = relative_metrics_for(payload)
+        return 0 if impressions.zero? || position.zero? || position > 50
 
-        demand_factor = clamp((impressions - 100) / 4_900, 0, 1)
+        demand_factor = relative["impression_percentile"].to_d
         rank_factor = if position >= 11 && position <= 20
                         1.to_d
                       elsif position > 20 && position <= 30
@@ -208,7 +215,9 @@ module Aicoo
                       else
                         0.1.to_d
                       end
-        ctr_factor = target_ctr(position).positive? ? clamp((target_ctr(position) - ctr) / target_ctr(position), 0, 1) : 0.to_d
+        relative_ctr_gap = relative["ctr_gap_to_business"].to_d
+        rank_median_boost = position >= 11 && position <= 20 && relative["impressions_at_or_above_median"] ? 0.35.to_d : 0.to_d
+        ctr_factor = [ relative_ctr_gap, rank_median_boost ].max
         rank_trend = if rank_delta.negative?
                        0.15.to_d
                      elsif rank_delta.positive?
@@ -225,16 +234,16 @@ module Aicoo
         return 0 unless gsc["available"]
 
         impressions = decimal(gsc["impressions"])
-        ctr = normalize_rate(gsc["ctr"])
         position = decimal(gsc["average_position"])
-        return 0 if impressions < 100 || position.zero?
+        relative = relative_metrics_for(payload)
+        return 0 if impressions.zero? || position.zero? || position > 50
 
-        target = target_ctr(position)
-        gap = [ target - ctr, 0.to_d ].max
-        expected_incremental_clicks = impressions * gap
-        impact = clamp(expected_incremental_clicks / 80, 0, 1)
-        rank_relevance = position.positive? && position <= 30 ? 1.to_d : 0.35.to_d
-        (25 * impact * rank_relevance).round(1)
+        ctr_gap = relative["ctr_gap_to_business"].to_d
+        return 0 unless ctr_gap.positive?
+
+        impact = relative["impression_percentile"].to_d
+        rank_relevance = position <= 30 ? 1.to_d : 0.35.to_d
+        (25 * impact * ctr_gap * rank_relevance).round(1)
       end
 
       def pv_score(payload)
@@ -401,6 +410,7 @@ module Aicoo
           "score_diagnostics" => {
             "seo_reason" => seo_reason(payload),
             "ctr_reason" => ctr_reason(payload),
+            "business_relative" => relative_metrics_for(payload),
             "search_demand_breakdown" => search_demand_breakdown(payload),
             "improvement_potential_breakdown" => {
               "seo" => breakdown["seo_opportunity"],
@@ -699,12 +709,16 @@ module Aicoo
         impressions = decimal(gsc["impressions"])
         position = decimal(gsc["average_position"])
         ctr = normalize_rate(gsc["ctr"])
-        return "表示不足" if impressions < 100
+        relative = relative_metrics_for(payload)
+        return "表示0のためSEO改善対象外" if impressions.zero?
         return "average_position nil" if position.zero?
         return "順位50位以降で改善確度が低い" if position > 50
-        return "順位11〜20・表示あり・CTR改善余地あり" if position >= 11 && position <= 20 && target_ctr(position) > ctr
+        return "Business内表示上位#{relative['impression_percentile_label']}・順位11〜20・CTR平均との差あり" if position >= 11 && position <= 20 && relative["impressions_at_or_above_median"] && relative["ctr_gap_to_business"].to_d.positive?
+        return "Business内表示上位#{relative['impression_percentile_label']}・順位11〜20のためSEO改善余地あり" if position >= 11 && position <= 20 && relative["impressions_at_or_above_median"]
+        return "Business内表示下位のため優先度低" unless relative["impressions_in_top_30_percent"] || relative["impressions_at_or_above_median"]
+        return "CTRはBusiness平均以上だが順位改善余地あり" unless relative["ctr_gap_to_business"].to_d.positive?
 
-        "SEO対象。ただし最優先条件外"
+        "Business内表示上位#{relative['impression_percentile_label']}・CTR#{(ctr * 100).round(2)}%で改善余地あり"
       end
 
       def ctr_reason(payload)
@@ -714,13 +728,14 @@ module Aicoo
         impressions = decimal(gsc["impressions"])
         position = decimal(gsc["average_position"])
         ctr = normalize_rate(gsc["ctr"])
-        target = target_ctr(position)
-        return "表示不足" if impressions < 100
+        relative = relative_metrics_for(payload)
+        return "表示0のためCTR改善対象外" if impressions.zero?
         return "average_position nil" if position.zero?
-        return "CTR十分高い" if target <= ctr
-        return "順位対象外" if position > 30
+        return "順位50位以降でCTR改善確度が低い" if position > 50
+        return "Business内表示下位のためCTR改善優先度低" unless relative["impressions_in_top_30_percent"] || relative["impressions_at_or_above_median"]
+        return "CTRはBusiness平均以上" unless relative["ctr_gap_to_business"].to_d.positive?
 
-        "表示あり・CTR改善余地あり"
+        "Business内表示上位#{relative['impression_percentile_label']}・CTR#{(ctr * 100).round(2)}%でBusiness平均との差あり"
       end
 
       def search_demand_breakdown(payload)
@@ -764,6 +779,128 @@ module Aicoo
 
       def truthy?(value)
         value == true || value.to_s == "true" || value.to_s == "1"
+      end
+
+      def business_statistics
+        @business_statistics ||= begin
+          rows = snapshots.map do |snapshot|
+            payload = snapshot.payload.to_h.deep_stringify_keys
+            gsc = gsc_metrics(payload)
+            ga4 = ga4_metrics(payload)
+            shop_click = shop_click_metrics(payload)
+            impressions = decimal(gsc["impressions"])
+            position = decimal(gsc["average_position"])
+            ctr = normalize_rate(gsc["ctr"])
+            {
+              "article_key" => article_key(payload),
+              "impressions" => impressions,
+              "ctr" => ctr,
+              "position" => position,
+              "pageviews" => decimal(ga4["pageviews"]),
+              "shop_clicks" => decimal(shop_click["total_clicks"]),
+              "search_demand_metric" => impressions * rank_demand_component(position)
+            }
+          end
+          impression_values = rows.map { |row| row["impressions"] }.select(&:positive?)
+          ctr_values = rows.map { |row| row["ctr"] }.select(&:positive?)
+          position_values = rows.map { |row| row["position"] }.select(&:positive?)
+          {
+            "article_count" => rows.size,
+            "impressions_median" => median(impression_values).to_f.round(2),
+            "impressions_average" => average(impression_values).to_f.round(2),
+            "impressions_top_20_percent_threshold" => percentile_threshold(impression_values, 0.8).to_f.round(2),
+            "impressions_top_30_percent_threshold" => percentile_threshold(impression_values, 0.7).to_f.round(2),
+            "ctr_median" => median(ctr_values).to_f.round(4),
+            "ctr_average" => average(ctr_values).to_f.round(4),
+            "position_median" => median(position_values).to_f.round(2),
+            "position_average" => average(position_values).to_f.round(2),
+            "impression_ranks" => rank_map(rows, "impressions", :desc),
+            "ctr_low_ranks" => rank_map(rows, "ctr", :asc),
+            "search_demand_ranks" => rank_map(rows, "search_demand_metric", :desc)
+          }
+        end
+      end
+
+      def relative_metrics_for(payload)
+        stats = business_statistics
+        gsc = gsc_metrics(payload)
+        key = article_key(payload)
+        total = [ stats["article_count"].to_i, 1 ].max
+        impressions = decimal(gsc["impressions"])
+        ctr = normalize_rate(gsc["ctr"])
+        impression_rank = stats.dig("impression_ranks", key).to_i
+        ctr_rank = stats.dig("ctr_low_ranks", key).to_i
+        search_demand_rank = stats.dig("search_demand_ranks", key).to_i
+        impression_percentile = rank_percentile(impression_rank, total)
+        ctr_low_percentile = rank_percentile(ctr_rank, total)
+        ctr_benchmark = [ decimal(stats["ctr_median"]), decimal(stats["ctr_average"]) ].max
+
+        {
+          "article_count" => total,
+          "business_impressions_median" => stats["impressions_median"],
+          "business_impressions_average" => stats["impressions_average"],
+          "business_ctr_median" => stats["ctr_median"],
+          "business_ctr_average" => stats["ctr_average"],
+          "business_position_median" => stats["position_median"],
+          "business_position_average" => stats["position_average"],
+          "impression_rank" => impression_rank.positive? ? impression_rank : nil,
+          "ctr_rank" => ctr_rank.positive? ? ctr_rank : nil,
+          "search_demand_rank" => search_demand_rank.positive? ? search_demand_rank : nil,
+          "impression_percentile" => impression_percentile.to_f.round(2),
+          "ctr_low_percentile" => ctr_low_percentile.to_f.round(2),
+          "impression_percentile_label" => "#{(impression_percentile * 100).round}%",
+          "impressions_in_top_20_percent" => rank_within_percent?(impression_rank, total, 0.2),
+          "impressions_in_top_30_percent" => rank_within_percent?(impression_rank, total, 0.3),
+          "impressions_at_or_above_median" => impressions.positive? && impressions >= decimal(stats["impressions_median"]),
+          "ctr_below_business_average" => ctr_benchmark.positive? && ctr < ctr_benchmark,
+          "ctr_gap_to_business" => ctr_benchmark.positive? ? clamp((ctr_benchmark - ctr) / ctr_benchmark, 0, 1).to_f.round(2) : 0
+        }
+      end
+
+      def article_key(payload)
+        first_present(payload["article_id"], payload["normalized_path"], payload["slug"]).to_s
+      end
+
+      def rank_map(rows, key, direction)
+        sorted = rows.sort_by { |row| decimal(row[key]) }
+        sorted.reverse! if direction == :desc
+        sorted.each_with_index.to_h { |row, index| [ row["article_key"], index + 1 ] }
+      end
+
+      def rank_percentile(rank, total)
+        return 0.to_d unless rank.to_i.positive?
+        return 1.to_d if total.to_i <= 1
+
+        clamp(1.to_d - ((rank.to_d - 1) / (total.to_d - 1)), 0, 1)
+      end
+
+      def rank_within_percent?(rank, total, percent)
+        return false unless rank.to_i.positive?
+
+        rank.to_i <= [(total.to_d * percent.to_d).ceil, 1].max
+      end
+
+      def median(values)
+        sorted = values.map(&:to_d).sort
+        return 0.to_d if sorted.empty?
+
+        mid = sorted.length / 2
+        sorted.length.odd? ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2
+      end
+
+      def average(values)
+        rows = values.map(&:to_d)
+        return 0.to_d if rows.empty?
+
+        rows.sum / rows.size
+      end
+
+      def percentile_threshold(values, percentile)
+        sorted = values.map(&:to_d).sort
+        return 0.to_d if sorted.empty?
+
+        index = ((sorted.size - 1) * percentile.to_d).ceil
+        sorted[index]
       end
 
       def action_type_for(opportunity)
