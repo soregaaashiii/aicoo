@@ -64,6 +64,7 @@ module Aicoo
     def mark_started(activity_logs)
       activity_logs.each do |activity_log|
         trigger_metadata = activity_log.metadata.to_h["activity_evaluation_trigger"].to_h
+        chain_metadata = activity_log.metadata.to_h["activity_evaluation_trigger_chain"].to_h
         write_trigger_metadata(
           activity_log,
           trigger_metadata.merge(
@@ -75,6 +76,21 @@ module Aicoo
             "invocation_count" => trigger_metadata["invocation_count"].to_i + 1,
             "invoked_at" => Time.current.iso8601,
             "builder_exception" => nil,
+            "skip_reason" => nil
+          ),
+          chain_metadata: chain_metadata.merge(
+            "record_created" => true,
+            "after_commit_called" => true,
+            "after_commit_skipped" => false,
+            "trigger_registered" => true,
+            "trigger_called" => true,
+            "trigger_completed" => false,
+            "builder_called" => true,
+            "builder_completed" => false,
+            "invoked_by" => invoked_by,
+            "called_at" => Time.current.iso8601,
+            "return_point" => "builder_called",
+            "exception" => nil,
             "skip_reason" => nil
           )
         )
@@ -96,6 +112,7 @@ module Aicoo
         completed_count += 1 if completed
         failed_count += 1 unless completed
         trigger_metadata = activity_log.metadata.to_h["activity_evaluation_trigger"].to_h
+        chain_metadata = activity_log.metadata.to_h["activity_evaluation_trigger_chain"].to_h
         write_trigger_metadata(
           activity_log,
           trigger_metadata.merge(
@@ -103,6 +120,15 @@ module Aicoo
             "builder_exception" => exception,
             "completed_at" => Time.current.iso8601,
             "evaluation_count" => activity_log.activity_evaluations.count,
+            "skip_reason" => completed ? nil : exception.presence || "activity_evaluation_not_generated"
+          ),
+          chain_metadata: chain_metadata.merge(
+            "trigger_completed" => true,
+            "builder_called" => true,
+            "builder_completed" => completed,
+            "completed_at" => Time.current.iso8601,
+            "return_point" => completed ? "completed" : "builder_incomplete",
+            "exception" => exception,
             "skip_reason" => completed ? nil : exception.presence || "activity_evaluation_not_generated"
           )
         )
@@ -119,12 +145,22 @@ module Aicoo
       activity_logs.each do |activity_log|
         activity_log.reload
         trigger_metadata = activity_log.metadata.to_h["activity_evaluation_trigger"].to_h
+        chain_metadata = activity_log.metadata.to_h["activity_evaluation_trigger_chain"].to_h
         write_trigger_metadata(
           activity_log,
           trigger_metadata.merge(
             "builder_completed" => false,
             "builder_exception" => "#{error.class}: #{error.message}",
             "completed_at" => Time.current.iso8601,
+            "skip_reason" => "builder_exception"
+          ),
+          chain_metadata: chain_metadata.merge(
+            "trigger_completed" => false,
+            "builder_called" => true,
+            "builder_completed" => false,
+            "completed_at" => Time.current.iso8601,
+            "return_point" => "builder_exception",
+            "exception" => "#{error.class}: #{error.message}",
             "skip_reason" => "builder_exception"
           )
         )
@@ -136,9 +172,11 @@ module Aicoo
       end
     end
 
-    def write_trigger_metadata(activity_log, trigger_metadata)
+    def write_trigger_metadata(activity_log, trigger_metadata, chain_metadata: nil)
+      metadata = activity_log.metadata.to_h.merge("activity_evaluation_trigger" => trigger_metadata)
+      metadata["activity_evaluation_trigger_chain"] = chain_metadata if chain_metadata
       activity_log.update_columns(
-        metadata: activity_log.metadata.to_h.merge("activity_evaluation_trigger" => trigger_metadata),
+        metadata:,
         updated_at: Time.current
       )
     end

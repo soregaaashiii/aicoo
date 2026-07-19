@@ -27,19 +27,15 @@ class BusinessActivityLog < ApplicationRecord
   scope :recent, -> { order(occurred_at: :desc, id: :desc) }
   scope :evaluation_due, -> { where(evaluation_status: %w[pending evaluating]) }
 
+  after_create :register_activity_evaluation_trigger
+  after_create_commit :invoke_activity_evaluation_trigger
+
   def self.record!(business:, attributes:)
     normalized = normalize_attributes(attributes)
     find_or_initialize_by(business:, idempotency_key: normalized.fetch(:idempotency_key)).tap do |activity_log|
       created = activity_log.new_record?
       activity_log.assign_attributes(normalized) if created
       activity_log.save!
-      if created
-        Aicoo::ActivityEvaluationTrigger.call(
-          business:,
-          invoked_by: "after_create",
-          trigger_event_id: activity_log.id
-        )
-      end
       Rails.logger.info(
         "[BusinessActivityLog] #{created ? 'created' : 'deduplicated'} " \
         "id=#{activity_log.id} business=#{business.name} activity_type=#{activity_log.activity_type} " \
@@ -88,5 +84,91 @@ class BusinessActivityLog < ApplicationRecord
 
   def self.build_idempotency_key(source_app, activity_type, resource_type, resource_id, occurred_at)
     Digest::SHA256.hexdigest([ source_app, activity_type, resource_type, resource_id, occurred_at.to_i ].join(":"))
+  end
+
+  private
+
+  def register_activity_evaluation_trigger
+    write_activity_evaluation_trigger_chain(
+      "record_created" => true,
+      "after_create_called" => true,
+      "after_commit_called" => false,
+      "after_commit_skipped" => false,
+      "trigger_registered" => true,
+      "trigger_called" => false,
+      "trigger_completed" => false,
+      "builder_called" => false,
+      "builder_completed" => false,
+      "registered_at" => Time.current.iso8601,
+      "return_point" => "after_create"
+    )
+  rescue StandardError => e
+    Rails.logger.warn(
+      "[ActivityEvaluationTrigger] registration metadata save failed " \
+      "activity_log_id=#{id} error=#{e.class}: #{e.message}"
+    )
+  end
+
+  def invoke_activity_evaluation_trigger
+    write_activity_evaluation_trigger_chain(
+      "after_commit_called" => true,
+      "trigger_registered" => true,
+      "trigger_called" => true,
+      "invoked_by" => "after_create_commit",
+      "called_at" => Time.current.iso8601,
+      "return_point" => "trigger_called",
+      "exception" => nil,
+      "skip_reason" => nil
+    )
+    Rails.logger.info(
+      "[ActivityEvaluationTrigger] after_create_commit start " \
+      "activity_log_id=#{id} business_id=#{business_id} activity_type=#{activity_type}"
+    )
+
+    result = Aicoo::ActivityEvaluationTrigger.call(
+      business:,
+      invoked_by: "after_create_commit",
+      trigger_event_id: id
+    )
+    reload
+    completed = result.present? && result.exception.blank? && result.builder_failed_count.to_i.zero?
+    write_activity_evaluation_trigger_chain(
+      "trigger_completed" => result.present?,
+      "builder_called" => result&.builder_invoked_count.to_i.positive?,
+      "builder_completed" => completed,
+      "completed_at" => Time.current.iso8601,
+      "return_point" => completed ? "completed" : "builder_incomplete",
+      "exception" => result&.exception,
+      "skip_reason" => completed ? nil : result&.exception.presence || "builder_incomplete"
+    )
+    Rails.logger.info(
+      "[ActivityEvaluationTrigger] after_create_commit finish " \
+      "activity_log_id=#{id} builder_invoked=#{result&.builder_invoked_count.to_i} " \
+      "builder_completed=#{result&.builder_completed_count.to_i} " \
+      "builder_failed=#{result&.builder_failed_count.to_i}"
+    )
+  rescue StandardError => e
+    reload
+    write_activity_evaluation_trigger_chain(
+      "trigger_completed" => false,
+      "builder_completed" => false,
+      "completed_at" => Time.current.iso8601,
+      "return_point" => "trigger_exception",
+      "exception" => "#{e.class}: #{e.message}",
+      "skip_reason" => "trigger_exception"
+    )
+    Rails.logger.error(
+      "[ActivityEvaluationTrigger] after_create_commit failed " \
+      "activity_log_id=#{id} error=#{e.class}: #{e.message}"
+    )
+  end
+
+  def write_activity_evaluation_trigger_chain(attributes)
+    current_metadata = metadata.to_h
+    chain = current_metadata["activity_evaluation_trigger_chain"].to_h.merge(attributes)
+    update_columns(
+      metadata: current_metadata.merge("activity_evaluation_trigger_chain" => chain),
+      updated_at: Time.current
+    )
   end
 end
