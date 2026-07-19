@@ -509,12 +509,16 @@ module AicooArticleAnalyticsSnapshotRake
     puts "match_rate=#{result.match_rate}%"
     puts "candidate_ids=#{result.candidate_ids.join(',').presence || '-'}"
     puts "new_article_results_top10:"
-    result.article_results.sort_by { |row| -row.opportunity_score.to_i }.first(10).each do |row|
+    result.article_results.sort_by { |row| [ -row.expected_improvement_score.to_d, -row.opportunity_score.to_d ] }.first(10).each do |row|
       puts [
         "snapshot_id=#{row.snapshot_id}",
         "article_id=#{row.article_id}",
         "path=#{row.normalized_path || '-'}",
-        "score=#{row.opportunity_score}",
+        "opportunity_score=#{row.opportunity_score}",
+        "expected_improvement_score=#{row.expected_improvement_score}",
+        "success_probability=#{row.metadata['success_probability'] || '-'}",
+        "estimated_work_hours=#{row.metadata['estimated_work_hours'] || '-'}",
+        "business_value=#{row.metadata['business_value'] || '-'}",
         "seo=#{row.score_breakdown['seo_opportunity']}",
         "ctr=#{row.score_breakdown['ctr_opportunity']}",
         "pv=#{row.score_breakdown['pv_opportunity']}",
@@ -530,7 +534,12 @@ module AicooArticleAnalyticsSnapshotRake
           "  improvement=#{opportunity['label'] || '-'}",
           "type=#{opportunity['opportunity_type'] || '-'}",
           "score=#{opportunity['score'] || 0}",
+          "expected_improvement_score=#{opportunity['expected_improvement_score'] || 0}",
+          "success_probability=#{opportunity['success_probability'] || '-'}",
+          "estimated_work_hours=#{opportunity['estimated_work_hours'] || '-'}",
+          "business_value=#{opportunity['business_value'] || '-'}",
           "reason=#{opportunity['reason'].to_s.squish.presence || '-'}",
+          "ranking_reason=#{opportunity['ranking_reason'].to_s.squish.presence || '-'}",
           "next=#{opportunity['next_action'].to_s.squish.presence || '-'}"
         ].join(" ")
       end
@@ -548,6 +557,7 @@ module AicooArticleAnalyticsSnapshotRake
           "new_snapshot_id=#{row['new_snapshot_id'] || '-'}",
           "new_rank=#{row['new_rank'] || '-'}",
           "new_opportunity_score=#{row['new_opportunity_score'] || '-'}",
+          "new_expected_improvement_score=#{row['new_expected_improvement_score'] || '-'}",
           "rank_delta=#{row['rank_delta'] || '-'}",
           "new_opportunities=#{Array(row['new_opportunities']).join('|').presence || '-'}"
         ].join(" ")

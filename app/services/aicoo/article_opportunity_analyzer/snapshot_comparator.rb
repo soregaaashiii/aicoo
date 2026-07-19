@@ -76,7 +76,7 @@ module Aicoo
           key = article_key_for_candidate(candidate)
           hash[key] ||= { candidate:, rank: index + 1 } if key.present?
         end
-        new_by_key = article_results.sort_by { |result| -result.opportunity_score.to_i }.each_with_index.each_with_object({}) do |(result, index), hash|
+        new_by_key = article_results.sort_by { |result| [ -result.expected_improvement_score.to_d, -result.opportunity_score.to_d ] }.each_with_index.each_with_object({}) do |(result, index), hash|
           hash[result.normalized_path] = { result:, rank: index + 1 } if result.normalized_path.present?
         end
 
@@ -94,6 +94,7 @@ module Aicoo
             "new_title" => current&.dig(:result)&.title,
             "new_rank" => current&.dig(:rank),
             "new_opportunity_score" => current&.dig(:result)&.opportunity_score,
+            "new_expected_improvement_score" => current&.dig(:result)&.expected_improvement_score,
             "rank_delta" => rank_delta(legacy&.dig(:rank), current&.dig(:rank)),
             "new_opportunities" => Array(current&.dig(:result)&.opportunities).map { |row| row["opportunity_type"] }
           }

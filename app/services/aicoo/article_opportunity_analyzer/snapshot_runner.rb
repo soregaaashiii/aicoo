@@ -24,6 +24,7 @@ module Aicoo
         :title,
         :normalized_path,
         :opportunity_score,
+        :expected_improvement_score,
         :score_breakdown,
         :opportunities,
         :candidate_drafts,
@@ -49,6 +50,7 @@ module Aicoo
 
       def call
         results = snapshots.filter_map { |snapshot| analyze_snapshot(snapshot) }
+        results = results.sort_by { |result| [ -result.expected_improvement_score.to_d, -result.opportunity_score.to_d, result.normalized_path.to_s ] }
         persist_candidates!(results) if apply
 
         Result.new(
@@ -91,6 +93,8 @@ module Aicoo
         score += breakdown["learning_confidence"]
         score = clamp(score, 0, 100).round
         opportunities = opportunities_for(payload, breakdown)
+        opportunities = opportunities.map { |opportunity| enrich_opportunity(opportunity, payload) }
+        expected_improvement_score = opportunities.map { |opportunity| decimal(opportunity["expected_improvement_score"]) }.max || 0.to_d
         drafts = opportunities.map { |opportunity| candidate_draft(snapshot, payload, opportunity, score, breakdown) }
 
         ArticleResult.new(
@@ -99,10 +103,11 @@ module Aicoo
           title: payload.dig("article", "title").presence || payload["slug"].to_s,
           normalized_path: payload["normalized_path"],
           opportunity_score: score,
+          expected_improvement_score: expected_improvement_score.to_f.round(2),
           score_breakdown: breakdown,
           opportunities:,
           candidate_drafts: drafts,
-          metadata: analysis_metadata(snapshot, payload, score, breakdown, opportunities)
+          metadata: analysis_metadata(snapshot, payload, score, expected_improvement_score, breakdown, opportunities)
         )
       rescue StandardError => e
         @failed_count += 1
@@ -268,11 +273,16 @@ module Aicoo
           action_type: action_type_for(opportunity),
           description: "#{payload['normalized_path']} のArticleAnalyticsSnapshotから #{opportunity['label']} Opportunity を検出しました。",
           execution_prompt: opportunity["next_action"],
-          metadata: analysis_metadata(snapshot, payload, score, breakdown, [ opportunity ]).merge(
+          metadata: analysis_metadata(snapshot, payload, score, opportunity["expected_improvement_score"], breakdown, [ opportunity ]).merge(
             "opportunity_type" => opportunity["opportunity_type"],
             "opportunity_label" => opportunity["label"],
             "next_action" => opportunity["next_action"],
-            "opportunity_score_component" => opportunity["score"]
+            "opportunity_score_component" => opportunity["score"],
+            "expected_improvement_score" => opportunity["expected_improvement_score"],
+            "success_probability" => opportunity["success_probability"],
+            "estimated_work_hours" => opportunity["estimated_work_hours"],
+            "business_value" => opportunity["business_value"],
+            "ranking_reason" => opportunity["ranking_reason"]
           )
         )
       end
@@ -310,7 +320,7 @@ module Aicoo
         end
       end
 
-      def analysis_metadata(snapshot, payload, score, breakdown, opportunities)
+      def analysis_metadata(snapshot, payload, score, expected_improvement_score, breakdown, opportunities)
         {
           "value_model_name" => MODEL_NAME,
           "analysis_source" => "article_analytics_snapshot",
@@ -318,11 +328,15 @@ module Aicoo
           "article_id" => payload["article_id"],
           "article_path" => payload["normalized_path"],
           "opportunity_score" => score,
+          "expected_improvement_score" => expected_improvement_score.to_f.round(2),
+          "success_probability" => primary_metric(opportunities, "success_probability"),
+          "estimated_work_hours" => primary_metric(opportunities, "estimated_work_hours"),
+          "business_value" => primary_metric(opportunities, "business_value"),
           "score_breakdown" => breakdown,
           "total_score" => score,
           "score_reasons" => score_reasons(payload),
           "opportunities" => opportunities,
-          "ranking_reason" => ranking_reason(payload, score, breakdown),
+          "ranking_reason" => ranking_reason(payload, score, expected_improvement_score, breakdown, opportunities),
           "evidence" => evidence(payload),
           "expected_profit_yen" => nil,
           "expected_profit_calculated" => false,
@@ -363,9 +377,115 @@ module Aicoo
         }
       end
 
-      def ranking_reason(payload, score, breakdown)
+      def ranking_reason(payload, score, expected_improvement_score, breakdown, opportunities)
+        primary = primary_opportunity(opportunities)
         main = breakdown.except("learning_confidence").max_by { |_key, value| value.to_d }
-        "#{main&.first || 'opportunity'} が最大要因。total_score=#{score}。#{score_reasons(payload)[main&.first].presence || 'Snapshotから改善余地を評価。'}"
+        reason = primary&.dig("ranking_reason").presence || score_reasons(payload)[main&.first].presence || "Snapshotから改善余地を評価。"
+        "#{primary&.dig('label') || main&.first || 'Opportunity'} が最優先。expected_improvement_score=#{expected_improvement_score.to_f.round(2)}、opportunity_score=#{score}。#{reason}"
+      end
+
+      def enrich_opportunity(opportunity, payload)
+        success_probability = success_probability_for(payload, opportunity)
+        estimated_work_hours = estimated_work_hours_for(opportunity)
+        business_value = business_value_for(opportunity)
+        expected_improvement_score = expected_improvement_score_for(opportunity, success_probability, business_value, estimated_work_hours)
+
+        opportunity.merge(
+          "success_probability" => success_probability.to_f.round(2),
+          "estimated_work_hours" => estimated_work_hours.to_f.round(2),
+          "business_value" => business_value.to_f.round(2),
+          "expected_improvement_score" => expected_improvement_score.to_f.round(2),
+          "ranking_reason" => expected_improvement_reason(opportunity, payload, success_probability, business_value, estimated_work_hours, expected_improvement_score)
+        )
+      end
+
+      def expected_improvement_score_for(opportunity, success_probability, business_value, estimated_work_hours)
+        work_hours = [ estimated_work_hours.to_d, 0.1.to_d ].max
+        (decimal(opportunity["score"]) * success_probability.to_d * business_value.to_d / work_hours).round(2)
+      end
+
+      def success_probability_for(payload, opportunity)
+        learning = payload["learning"].to_h
+        improvements = decimal(learning["improvement_count"])
+        successes = decimal(learning["improvement_success_count"])
+        failures = decimal(first_present(learning["improvement_failure_count"], improvements - successes))
+        last_improvement_at = parse_time(learning["last_improvement_at"])
+        similar_success_rate = normalize_rate(first_present(learning["similar_improvement_success_rate"], learning["similar_success_rate"]))
+
+        base = if similar_success_rate.positive?
+                 similar_success_rate
+               elsif improvements.positive?
+                 successes / [ improvements, 1.to_d ].max
+               else
+                 0.55.to_d
+               end
+        base = (base * 0.9) if failures.positive? && failures >= successes
+        base = (base * 0.85) if last_improvement_at && last_improvement_at > 30.days.ago
+        base = [ base, 0.45.to_d ].max if improvements.zero? && similar_success_rate.zero?
+        base = 0.25.to_d if opportunity["opportunity_type"].to_s == "monitoring"
+        clamp(base, 0.2, 0.9)
+      end
+
+      def estimated_work_hours_for(opportunity)
+        case opportunity["opportunity_type"].to_s
+        when "ctr_improvement"
+          0.3.to_d
+        when "internal_link_addition", "verified_shop_addition"
+          0.5.to_d
+        when "cta_improvement"
+          0.8.to_d
+        when "shop_addition"
+          1.0.to_d
+        when "rank_improvement", "content_update"
+          1.5.to_d
+        when "monitoring"
+          0.2.to_d
+        else
+          1.0.to_d
+        end
+      end
+
+      def business_value_for(opportunity)
+        case opportunity["opportunity_type"].to_s
+        when "cta_improvement"
+          1.45.to_d
+        when "ctr_improvement"
+          1.3.to_d
+        when "rank_improvement"
+          1.2.to_d
+        when "shop_addition"
+          1.15.to_d
+        when "verified_shop_addition"
+          1.1.to_d
+        when "internal_link_addition"
+          1.0.to_d
+        when "content_update"
+          0.9.to_d
+        when "monitoring"
+          0.1.to_d
+        else
+          1.0.to_d
+        end
+      end
+
+      def expected_improvement_reason(opportunity, payload, success_probability, business_value, estimated_work_hours, expected_improvement_score)
+        base_reason = opportunity["reason"].to_s.presence || "Snapshotから改善余地を検出。"
+        work_reason = if estimated_work_hours <= 0.5.to_d
+                        "短時間で実行できるため優先度を上げています。"
+                      elsif estimated_work_hours >= 1.5.to_d
+                        "作業時間が長いため順位を抑えています。"
+                      else
+                        "標準的な作業時間として評価しています。"
+                      end
+        "#{base_reason} 成功率#{(success_probability * 100).round}%、事業価値係数#{business_value.to_f.round(2)}、推定#{estimated_work_hours.to_f.round(1)}時間で、今やる価値#{expected_improvement_score.to_f.round(2)}。#{work_reason}"
+      end
+
+      def primary_opportunity(opportunities)
+        Array(opportunities).max_by { |opportunity| decimal(opportunity["expected_improvement_score"]) }
+      end
+
+      def primary_metric(opportunities, key)
+        primary_opportunity(opportunities)&.dig(key)
       end
 
       def action_type_for(opportunity)

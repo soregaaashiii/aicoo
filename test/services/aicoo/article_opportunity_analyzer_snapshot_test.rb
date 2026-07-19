@@ -25,8 +25,13 @@ module Aicoo
       article_result = result.article_results.first
       assert_equal snapshot.id, article_result.snapshot_id
       assert_operator article_result.opportunity_score, :>, 0
+      assert_operator article_result.expected_improvement_score, :>, 0
       assert article_result.score_breakdown.key?("seo_opportunity")
       assert article_result.score_breakdown.key?("learning_confidence")
+      assert article_result.metadata.key?("expected_improvement_score")
+      assert article_result.metadata.key?("success_probability")
+      assert article_result.metadata.key?("estimated_work_hours")
+      assert article_result.metadata.key?("business_value")
       assert article_result.candidate_drafts.any?
       assert_nil article_result.metadata["expected_profit_yen"]
       assert_equal false, article_result.metadata["expected_profit_calculated"]
@@ -58,6 +63,10 @@ module Aicoo
       assert_equal false, candidate.metadata["today_connected"]
       assert_equal false, candidate.metadata["codex_connected"]
       assert_equal "article_opportunity_analyzer_snapshot_v1", candidate.metadata["value_model_name"]
+      assert candidate.metadata["expected_improvement_score"].present?
+      assert candidate.metadata["success_probability"].present?
+      assert candidate.metadata["estimated_work_hours"].present?
+      assert candidate.metadata["business_value"].present?
     end
 
     test "compare with legacy returns rank differences" do
@@ -125,6 +134,38 @@ module Aicoo
 
       assert_operator article_result.score_breakdown["pv_opportunity"], :<, 5
       assert_operator article_result.score_breakdown["content_opportunity"], :<, 3
+    end
+
+    test "ranks by expected improvement score instead of opportunity score alone" do
+      create_article_snapshot(
+        article_id: 204,
+        path: "/articles/short-ctr-win",
+        title: "短時間CTR改善",
+        gsc: { "available" => true, "impressions" => 4_000, "clicks" => 20, "ctr" => 0.005, "average_position" => 12, "query_count" => 5 },
+        ga4: { "available" => true, "pageviews" => 400, "active_users" => 160, "sessions" => 220, "engagement_seconds" => 18_000 },
+        shop_click: { "available" => true, "total_clicks" => 20 },
+        article: { "title" => "短時間CTR改善", "word_count" => 3_000, "internal_link_count" => 4, "shop_count" => 8, "verified_shop_count" => 8 },
+        learning: { "improvement_count" => 4, "improvement_success_count" => 4 }
+      )
+      create_article_snapshot(
+        article_id: 205,
+        path: "/articles/large-content-work",
+        title: "大型本文更新",
+        gsc: { "available" => true, "impressions" => 500, "clicks" => 15, "ctr" => 0.03, "average_position" => 9, "query_count" => 2 },
+        ga4: { "available" => true, "pageviews" => 300, "active_users" => 120, "sessions" => 180, "engagement_seconds" => 8_000 },
+        shop_click: { "available" => true, "total_clicks" => 0 },
+        article: { "title" => "大型本文更新", "word_count" => 500, "internal_link_count" => 0, "shop_count" => 2, "verified_shop_count" => 1 },
+        learning: { "improvement_count" => 4, "improvement_success_count" => 2 }
+      )
+
+      results = ArticleOpportunityAnalyzer.from_snapshots(business: @business).article_results
+      first = results.first
+      large_work = results.detect { |row| row.normalized_path == "/articles/large-content-work" }
+
+      assert_equal "/articles/short-ctr-win", first.normalized_path
+      assert_operator first.expected_improvement_score, :>, large_work.expected_improvement_score
+      assert_operator large_work.opportunity_score, :>, 0
+      assert_includes first.metadata["ranking_reason"], "expected_improvement_score"
     end
 
     private
