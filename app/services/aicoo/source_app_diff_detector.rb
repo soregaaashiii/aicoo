@@ -40,7 +40,8 @@ module Aicoo
     end
 
     def scan_rule(connection, rule)
-      unless table_exists?(rule.watched_table)
+      source_connection = source_database_connection(connection)
+      unless table_exists?(source_connection, rule.watched_table)
         Rails.logger.warn(
           "[SourceAppDiffDetector] table missing rule_id=#{rule.id} table=#{rule.watched_table} " \
           "business=#{connection.business.name}"
@@ -48,7 +49,7 @@ module Aicoo
         return 0
       end
 
-      rows = changed_rows(rule)
+      rows = changed_rows(rule, source_connection)
       Rails.logger.info(
         "[SourceAppDiffDetector] rule_id=#{rule.id} table=#{rule.watched_table} " \
         "resource_type=#{rule.resource_type} rows=#{rows.size}"
@@ -62,9 +63,9 @@ module Aicoo
       created_count
     end
 
-    def changed_rows(rule)
+    def changed_rows(rule, source_connection)
       cursor = rule.cursor
-      quoted_table = ActiveRecord::Base.connection.quote_table_name(rule.watched_table)
+      quoted_table = source_connection.quote_table_name(rule.watched_table)
       conditions = []
       binds = []
       if cursor.last_checked_at
@@ -78,7 +79,7 @@ module Aicoo
 
       where_sql = conditions.any? ? "WHERE #{conditions.join(' OR ')}" : ""
       sql = ActiveRecord::Base.sanitize_sql([ "SELECT * FROM #{quoted_table} #{where_sql} ORDER BY updated_at ASC, id ASC LIMIT 200", *binds ])
-      ActiveRecord::Base.connection.exec_query(sql).to_a
+      source_connection.exec_query(sql).to_a
     end
 
     def build_activity(connection, rule, row)
@@ -140,8 +141,20 @@ module Aicoo
       )
     end
 
-    def table_exists?(table_name)
-      ActiveRecord::Base.connection.data_source_exists?(table_name)
+    def table_exists?(source_connection, table_name)
+      source_connection.data_source_exists?(table_name)
+    end
+
+    def source_database_connection(connection)
+      database_connection = connection.settings.to_h["database_connection"].presence
+      return ActiveRecord::Base.connection unless database_connection == "suelog" || connection.source_app == "suelog"
+
+      SuelogRecord.ensure_connection!
+      Rails.logger.info(
+        "[SourceAppDiffDetector] source database selected connection_id=#{connection.id} " \
+        "source_app=#{connection.source_app} database_connection=suelog"
+      )
+      SuelogRecord.connection
     end
   end
 end

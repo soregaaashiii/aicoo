@@ -12,7 +12,11 @@ services:
         value: "true"
       - key: DATABASE_URL
         sync: false
+      - key: SUELOG_DATABASE_URL
+        sync: false
       - key: SECRET_KEY_BASE
+        sync: false
+      - key: AICOO_ACTIVITY_API_TOKEN
         sync: false
       - key: AICOO_PUBLIC_BASE_URL
         sync: false
@@ -45,6 +49,8 @@ services:
       - key: AICOO_DAILY_RUN_ENABLED
         value: "true"
       - key: DATABASE_URL
+        sync: false
+      - key: SUELOG_DATABASE_URL
         sync: false
       - key: SECRET_KEY_BASE
         sync: false

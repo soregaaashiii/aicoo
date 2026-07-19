@@ -24,6 +24,10 @@ class SourceAppConnection < ApplicationRecord
       record.enabled = true
     end
 
+    unless connection.settings.to_h["database_connection"] == "suelog"
+      connection.update!(settings: connection.settings.to_h.merge("database_connection" => "suelog"))
+    end
+
     SourceAppDiffRule.ensure_suelog_defaults!(connection)
     connection
   end

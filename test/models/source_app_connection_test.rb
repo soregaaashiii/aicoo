@@ -8,6 +8,7 @@ class SourceAppConnectionTest < ActiveSupport::TestCase
 
     assert_equal businesses(:suelog), connection.business
     assert_equal "same_database", connection.connection_type
+    assert_equal "suelog", connection.settings["database_connection"]
     assert connection.source_app_diff_rules.exists?(activity_type: "shop_created")
     assert connection.source_app_diff_rules.exists?(watched_table: "articles")
   end
