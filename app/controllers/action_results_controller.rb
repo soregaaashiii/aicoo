@@ -1,6 +1,19 @@
 class ActionResultsController < ApplicationController
   before_action :set_action_result, only: %i[show edit update evaluate]
 
+  MANUAL_ACTUAL_FIELDS = %i[
+    actual_revenue_yen
+    actual_profit_yen
+    actual_proxy_score_delta
+    actual_impressions_delta
+    actual_clicks_delta
+    actual_sessions_delta
+    actual_pageviews_delta
+    actual_phone_clicks_delta
+    actual_map_clicks_delta
+    actual_affiliate_clicks_delta
+  ].freeze
+
   def index
     @action_results = ActionResult.includes(:business, :action_candidate).order(created_at: :desc)
   end
@@ -28,9 +41,10 @@ class ActionResultsController < ApplicationController
   def create
     @action_result = ActionResult.new(action_result_params)
     apply_action_expansion_learning
+    mark_manual_actuals_recorded(@action_result)
 
     if @action_result.save
-      refresh_expected_value_learning(@action_result, source: "action_result_create")
+      evaluate_or_refresh_action_result(@action_result, source: "action_result_create")
       redirect_to safe_return_to || @action_result, notice: "Action result was successfully created."
     else
       @return_to = safe_return_to
@@ -43,8 +57,9 @@ class ActionResultsController < ApplicationController
 
   def update
     apply_action_expansion_learning
+    mark_manual_actuals_recorded(@action_result)
     if @action_result.update(action_result_params)
-      refresh_expected_value_learning(@action_result, source: "action_result_update")
+      evaluate_or_refresh_action_result(@action_result, source: "action_result_update")
       redirect_to @action_result, notice: "Action result was successfully updated."
     else
       render :edit, status: :unprocessable_content
@@ -120,9 +135,29 @@ class ActionResultsController < ApplicationController
     return_to
   end
 
-  def refresh_expected_value_learning(action_result, source:)
-    Aicoo::ExpectedValueLearningRefresh.refresh_after_action_result!(action_result, source:)
+  def evaluate_or_refresh_action_result(action_result, source:)
+    if action_result.evaluation_status == "pending" && action_result.evaluated_on <= Date.current
+      ActionResultEvaluator.new(action_result).call
+    else
+      Aicoo::ExpectedValueLearningRefresh.refresh_after_action_result!(action_result, source:)
+    end
   rescue StandardError => e
-    Rails.logger.warn("[ExpectedValueLearning] refresh failed action_result_id=#{action_result.id} source=#{source} error=#{e.class}: #{e.message}")
+    Rails.logger.warn("[ExpectedValueLearning] evaluation/refresh failed action_result_id=#{action_result.id} source=#{source} error=#{e.class}: #{e.message}")
+  end
+
+  def mark_manual_actuals_recorded(result)
+    return unless manual_actual_param_present?
+
+    result.metadata = result.metadata.to_h.merge(
+      "manual_actuals_recorded" => true,
+      "manual_actuals_recorded_at" => Time.current.iso8601
+    )
+  end
+
+  def manual_actual_param_present?
+    raw_params = params[:action_result]
+    return false unless raw_params.respond_to?(:key?)
+
+    MANUAL_ACTUAL_FIELDS.any? { |field| raw_params.key?(field) || raw_params.key?(field.to_s) }
   end
 end

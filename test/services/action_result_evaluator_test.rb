@@ -47,6 +47,22 @@ class ActionResultEvaluatorTest < ActiveSupport::TestCase
     assert_match(/BusinessMetricDailyが不足/, result.note)
   end
 
+  test "evaluates recorded manual actuals when metric data is missing" do
+    result = create_result(
+      actual_revenue_yen: 8_000,
+      actual_profit_yen: 5_500,
+      metadata: { "manual_actuals_recorded" => true }
+    )
+
+    ActionResultEvaluator.new(result).call
+
+    result.reload
+    assert_equal "evaluated", result.evaluation_status
+    assert_equal 8_000, result.actual_revenue_yen
+    assert_equal 5_500, result.actual_profit_yen
+    assert_match(/登録済み実績値で評価/, result.note)
+  end
+
   test "refreshes expected value learning after evaluation" do
     create_metric_window((@executed_on - 7)...@executed_on, clicks: 10)
     create_metric_window((@executed_on + 1)..(@executed_on + 7), clicks: 20)
@@ -73,12 +89,14 @@ class ActionResultEvaluatorTest < ActiveSupport::TestCase
 
   private
 
-  def create_result
+  def create_result(**attributes)
     ActionResult.create!(
-      action_candidate: @action_candidate,
-      business: @business,
-      executed_on: @executed_on,
-      evaluated_on: @evaluated_on
+      {
+        action_candidate: @action_candidate,
+        business: @business,
+        executed_on: @executed_on,
+        evaluated_on: @evaluated_on
+      }.merge(attributes)
     )
   end
 

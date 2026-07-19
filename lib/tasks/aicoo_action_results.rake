@@ -8,4 +8,65 @@ namespace :aicoo do
     puts "skipped_count=#{results.count { |result| result.evaluation_status == 'skipped' }}"
     puts "AICOO action result evaluation finished"
   end
+
+  desc "Diagnose ActionResult evaluation state and exclusion reasons"
+  task diagnose_action_result_evaluation: :environment do
+    results = ActionResult.includes(:action_candidate, :business).order(created_at: :desc).to_a
+    evaluated = results.select { |result| result.evaluation_status == "evaluated" }
+    skipped = results.select { |result| result.evaluation_status == "skipped" }
+    pending = results.select { |result| result.evaluation_status == "pending" }
+    failed = results.select { |result| result.metadata.to_h["evaluation_error"].present? }
+    excluded = pending.select { |result| result.evaluated_on && result.evaluated_on > Date.current }
+    due_pending = pending - excluded
+    last_evaluated = evaluated.max_by { |result| result.updated_at || result.created_at }
+    last_failed = failed.max_by { |result| result.updated_at || result.created_at }
+
+    exclusion_reasons = Hash.new(0)
+    skipped.each { |result| exclusion_reasons[diagnostic_reason_for(result)] += 1 }
+    excluded.each { |_result| exclusion_reasons["evaluated_on_future"] += 1 }
+    due_pending.each { |_result| exclusion_reasons["pending_due_not_evaluated"] += 1 }
+    failed.each { |result| exclusion_reasons[result.metadata.to_h["evaluation_error"].to_s] += 1 }
+
+    puts "summary"
+    puts "action_result_total=#{results.size}"
+    puts "action_result_unevaluated=#{pending.size}"
+    puts "action_result_evaluated=#{evaluated.size}"
+    puts "action_result_evaluation_failed=#{failed.size}"
+    puts "action_result_evaluation_skipped=#{skipped.size}"
+    puts "action_result_evaluation_excluded=#{excluded.size}"
+    puts "action_result_due_pending=#{due_pending.size}"
+    puts "last_evaluated_action_result=#{diagnostic_action_result_line(last_evaluated)}"
+    puts "last_failed_action_result=#{diagnostic_action_result_line(last_failed)}"
+    puts "exclusion_reasons=#{exclusion_reasons.inspect}"
+
+    puts "recent_action_results"
+    results.first(20).each do |result|
+      puts diagnostic_action_result_line(result)
+    end
+  end
+
+  def diagnostic_reason_for(result)
+    note = result.note.to_s.lines.map(&:strip).reject(&:blank?).last
+    return note if note.present?
+
+    result.evaluation_status.to_s.presence || "unknown"
+  end
+
+  def diagnostic_action_result_line(result)
+    return "none" unless result
+
+    [
+      "id=#{result.id}",
+      "created_at=#{result.created_at&.iso8601}",
+      "status=#{result.evaluation_status}",
+      "evaluated_on=#{result.evaluated_on}",
+      "evaluated_at=#{result.evaluation_status == 'evaluated' ? result.updated_at&.iso8601 : nil}",
+      "success=#{result.evaluation_status == 'evaluated' ? result.actual_profit_yen.to_i.positive? : nil}",
+      "candidate_id=#{result.action_candidate_id}",
+      "business_id=#{result.business_id}",
+      "action_type=#{result.action_candidate&.action_type}",
+      "manual_actuals_recorded=#{result.metadata.to_h['manual_actuals_recorded']}",
+      "reason=#{diagnostic_reason_for(result)}"
+    ].join(" ")
+  end
 end

@@ -2,6 +2,19 @@ module Owner
   class AutoRevisionLoopsController < ApplicationController
     rescue_from ActiveRecord::RecordNotFound, with: :handle_missing_auto_revision_record
 
+    MANUAL_ACTUAL_FIELDS = %i[
+      actual_revenue_yen
+      actual_profit_yen
+      actual_proxy_score_delta
+      actual_impressions_delta
+      actual_clicks_delta
+      actual_sessions_delta
+      actual_pageviews_delta
+      actual_phone_clicks_delta
+      actual_map_clicks_delta
+      actual_affiliate_clicks_delta
+    ].freeze
+
     def show
       @board = Aicoo::Owner::AutoRevisionLoopBoard.new(selected_key: params[:selected]).call
     end
@@ -11,7 +24,7 @@ module Owner
       result = ActionResult.new(action_result_attributes(candidate))
 
       if result.save
-        refresh_expected_value_learning(result, source: "owner_auto_revision_action_result")
+        evaluate_or_refresh_action_result(result, source: "owner_auto_revision_action_result")
         redirect_to owner_auto_revision_loop_path(selected: "action_candidate:#{candidate.id}", anchor: "selected-task"),
                     notice: "ActionResultを登録しました。7日/14日/30日評価へ進めます。"
       else
@@ -136,8 +149,25 @@ module Owner
         business: candidate.business,
         executed_on: attrs[:executed_on].presence || Date.current,
         evaluated_on: attrs[:evaluated_on].presence || Date.current,
-        evaluation_status: attrs[:evaluation_status].presence || "pending"
+        evaluation_status: attrs[:evaluation_status].presence || "pending",
+        metadata: attrs.fetch(:metadata, {}).to_h.merge(manual_actual_metadata)
       )
+    end
+
+    def manual_actual_metadata
+      return {} unless manual_actual_param_present?
+
+      {
+        "manual_actuals_recorded" => true,
+        "manual_actuals_recorded_at" => Time.current.iso8601
+      }
+    end
+
+    def manual_actual_param_present?
+      raw_params = params[:action_result]
+      return false unless raw_params.respond_to?(:key?)
+
+      MANUAL_ACTUAL_FIELDS.any? { |field| raw_params.key?(field) || raw_params.key?(field.to_s) }
     end
 
     def task_result_params
@@ -163,10 +193,14 @@ module Owner
                   alert: "対象が見つかりません。最新の改修キューからもう一度操作してください。"
     end
 
-    def refresh_expected_value_learning(action_result, source:)
-      Aicoo::ExpectedValueLearningRefresh.refresh_after_action_result!(action_result, source:)
+    def evaluate_or_refresh_action_result(action_result, source:)
+      if action_result.evaluation_status == "pending" && action_result.evaluated_on <= Date.current
+        ActionResultEvaluator.new(action_result).call
+      else
+        Aicoo::ExpectedValueLearningRefresh.refresh_after_action_result!(action_result, source:)
+      end
     rescue StandardError => e
-      Rails.logger.warn("[ExpectedValueLearning] refresh failed action_result_id=#{action_result.id} source=#{source} error=#{e.class}: #{e.message}")
+      Rails.logger.warn("[ExpectedValueLearning] evaluation/refresh failed action_result_id=#{action_result.id} source=#{source} error=#{e.class}: #{e.message}")
     end
   end
 end

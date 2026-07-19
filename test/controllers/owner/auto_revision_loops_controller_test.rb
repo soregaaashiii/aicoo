@@ -30,7 +30,10 @@ module Owner
       end
 
       assert_redirected_to owner_auto_revision_loop_url(selected: "action_candidate:#{candidate.id}", anchor: "selected-task")
-      assert_equal candidate, ActionResult.last.action_candidate
+      result = ActionResult.last
+      assert_equal candidate, result.action_candidate
+      assert_equal "evaluated", result.evaluation_status
+      assert_equal true, result.metadata["manual_actuals_recorded"]
     end
 
     test "creates auto revision task from loop page without leaving owner flow" do

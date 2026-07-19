@@ -14,10 +14,18 @@ class ActionResultEvaluator
   end
 
   def call
-    return skip!("実行前後7日分のBusinessMetricDailyが不足しています") unless enough_metric_data?
+    if enough_metric_data?
+      action_result.assign_attributes(metric_delta_attributes)
+      action_result.assign_attributes(revenue_attributes)
+    elsif explicit_actual_result?
+      action_result.note = [
+        action_result.note.presence,
+        "BusinessMetricDaily不足のため、登録済み実績値で評価しました"
+      ].compact.join("\n")
+    else
+      return skip!("実行前後7日分のBusinessMetricDailyが不足しています")
+    end
 
-    action_result.assign_attributes(metric_delta_attributes)
-    action_result.assign_attributes(revenue_attributes)
     action_result.evaluation_status = "evaluated"
     action_result.note = [ action_result.note.presence, "ActionResultEvaluatorで評価しました" ].compact.join("\n")
     action_result.save!
@@ -31,6 +39,16 @@ class ActionResultEvaluator
 
   def enough_metric_data?
     before_metrics.any? && after_metrics.any?
+  end
+
+  def explicit_actual_result?
+    metadata = action_result.metadata.to_h
+    metadata["manual_actuals_recorded"] == true ||
+      metadata["manual_actuals_recorded"].to_s == "true" ||
+      action_result.actual_revenue_yen.to_i != 0 ||
+      action_result.actual_profit_yen.to_i != 0 ||
+      action_result.actual_proxy_score_delta.to_d != 0.to_d ||
+      ActionResult::DELTA_METRICS.any? { |metric| action_result.public_send("actual_#{metric}_delta").to_i != 0 }
   end
 
   def metric_delta_attributes

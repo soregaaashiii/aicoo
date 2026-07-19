@@ -76,6 +76,10 @@ class ActionResultsControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_redirected_to action_result_url(ActionResult.last)
+    result = ActionResult.last
+    assert_equal "evaluated", result.evaluation_status
+    assert_equal true, result.metadata["manual_actuals_recorded"]
+    assert_equal 800, result.actual_profit_yen
   end
 
   test "creates action result from action workspace and returns to today" do
