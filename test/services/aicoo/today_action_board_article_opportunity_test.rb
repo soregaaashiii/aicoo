@@ -30,6 +30,8 @@ module Aicoo
       high_item = items.find { |item| item.record == high }
       assert_equal 9.0.to_d, high_item.expected_improvement_score
       assert_equal "CTR改善", high_item.improvement_type_label
+      assert_equal 0, high_item.action_expected_value_delta_yen
+      assert_equal "score_only", high_item.valuation_status
       assert_equal false, high_item.codex_target
       assert_equal false, high_item.auto_execution
     end
@@ -68,6 +70,33 @@ module Aicoo
       assert_not_includes items.map(&:record), archived
     end
 
+    test "article opportunity resolves business from metadata without showing owner missing" do
+      candidate = create_article_opportunity_candidate!(
+        title: "metadata business article opportunity",
+        article_id: 330,
+        expected_improvement_score: 7.2
+      )
+      candidate.update_columns(
+        business_id: nil,
+        metadata: candidate.metadata.merge(
+          "business_id" => @business.id,
+          "execution_brief" => {
+            "target" => {
+              "business_id" => @business.id,
+              "path" => "/articles/article-330"
+            }
+          }
+        )
+      )
+
+      items = TodayActionBoard.new(mode: "revenue", per_page: 100).call.items
+      item = items.find { |row| row.record == candidate }
+
+      assert item
+      assert_equal @business.name, item.business_name
+      assert_not_includes item.stopped_reason.to_s, "OwnerまたはBusiness未特定"
+    end
+
     test "connector does not promote comparison-only archived candidates" do
       comparison = create_article_opportunity_candidate!(
         title: "比較用ArticleOpportunity",
@@ -92,7 +121,7 @@ module Aicoo
       assert_equal "archived", comparison.reload.status
     end
 
-    test "legacy article candidate remains fallback when no active article opportunity exists" do
+    test "legacy article candidate is excluded from normal ranking when no active article opportunity exists" do
       legacy = create_legacy_article_candidate!(
         title: "旧Analyzer fallback",
         article_id: 401,
@@ -102,7 +131,7 @@ module Aicoo
 
       items = TodayActionBoard.new(mode: "revenue", per_page: 100).call.items
 
-      assert_includes items.map(&:record), legacy
+      assert_not_includes items.map(&:record), legacy
     end
 
     private

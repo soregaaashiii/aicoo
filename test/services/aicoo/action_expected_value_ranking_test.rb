@@ -133,7 +133,7 @@ module Aicoo
       assert_equal [ "action_candidate:valid" ], result.items.map(&:stable_id)
     end
 
-    test "does not exclude missing target candidate unless it is classified invalid or external" do
+    test "excludes missing target candidate from normal ranking" do
       missing_target = action_candidate(
         title: "対象未特定だが未実行の施策",
         metadata: { "target_url" => nil }
@@ -146,7 +146,60 @@ module Aicoo
         mode: "revenue"
       ).call
 
-      assert_equal [ "action_candidate:missing_target" ], result.items.map(&:stable_id)
+      assert_empty result.items
+    end
+
+    test "ranks executable article opportunity above preparation candidate by normalized score" do
+      executable = action_candidate(
+        title: "記事のCTR改善",
+        metadata: {
+          "value_model_name" => ActionExpectedValueRanking::ARTICLE_OPPORTUNITY_MODEL_NAME,
+          "analysis_source" => "article_analytics_snapshot",
+          "snapshot_id" => 123,
+          "expected_improvement_score" => 8.5,
+          "improvement_potential_score" => 6.0,
+          "article_path" => "/articles/umeda-smoking-cafe",
+          "action_plan" => { "target" => "/articles/umeda-smoking-cafe" },
+          "ranking_reason" => "表示上位でCTR改善余地があります。"
+        }
+      )
+      executable.update!(action_type: "article_update")
+      preparation = action_candidate(
+        title: "対象ページを特定する",
+        metadata: { "execution_readiness" => "needs_target", "target_url" => nil }
+      )
+      preparation.update!(action_type: "data_preparation")
+
+      result = ActionExpectedValueRanking.new(
+        items: [
+          item(stable_id: "action_candidate:preparation", delta: 900_000, confidence: 1, record: preparation),
+          item(stable_id: "action_candidate:executable", delta: 0, confidence: 0.6, record: executable)
+        ],
+        mode: "revenue"
+      ).call
+
+      assert_equal [ "action_candidate:executable" ], result.items.map(&:stable_id)
+    end
+
+    test "uses one fallback only when normal candidate does not exist" do
+      fallback = action_candidate(
+        title: "分析データからTODOを1件具体化",
+        metadata: { "today_fallback" => true, "target_url" => "/" }
+      )
+      second_fallback = action_candidate(
+        title: "fallback action",
+        metadata: { "today_fallback" => true, "target_url" => "/" }
+      )
+
+      result = ActionExpectedValueRanking.new(
+        items: [
+          item(stable_id: "action_candidate:fallback", delta: 10_000, confidence: 1, record: fallback),
+          item(stable_id: "action_candidate:second_fallback", delta: 20_000, confidence: 1, record: second_fallback)
+        ],
+        mode: "revenue"
+      ).call
+
+      assert_equal [ "action_candidate:second_fallback" ], result.items.map(&:stable_id)
     end
 
     test "deduplicates same article action by query and planned url" do

@@ -11,6 +11,14 @@ module Aicoo
       :per_page,
       :offset
     )
+    DiagnosticRow = Data.define(
+      :item,
+      :classification,
+      :normalized_value_score,
+      :tab_score_revenue,
+      :tab_score_learning,
+      :tab_score_balanced
+    )
 
     def initialize(items:, mode:, page: nil, per_page: DEFAULT_PER_PAGE)
       @items = items
@@ -21,9 +29,7 @@ module Aicoo
 
     def call
       Aicoo::MemoryDiagnostics.measure("Aicoo::ActionExpectedValueRanking#call", context: memory_context) do
-        ranked = items.reject { |item| excluded_item?(item) }
-                      .then { |filtered| deduplicate_action_items(filtered) }
-                      .sort_by { |item| sort_key(item) }
+        ranked = ranked_items
         total_count = ranked.size
         offset = (current_page - 1) * per_page
         page_items = ranked.slice(offset, per_page).to_a
@@ -40,6 +46,21 @@ module Aicoo
       end
     end
 
+    def diagnostic_rows
+      entries = classified_entries
+      scored = score_entries(entries)
+      scored.map do |entry|
+        DiagnosticRow.new(
+          item: entry.fetch(:item),
+          classification: entry.fetch(:classification),
+          normalized_value_score: entry.fetch(:normalized_value_score),
+          tab_score_revenue: entry.fetch(:tab_score_revenue),
+          tab_score_learning: entry.fetch(:tab_score_learning),
+          tab_score_balanced: entry.fetch(:tab_score_balanced)
+        )
+      end
+    end
+
     private
 
     attr_reader :items, :mode, :current_page, :per_page
@@ -51,6 +72,101 @@ module Aicoo
         current_page:,
         per_page:
       }
+    end
+
+    def ranked_items
+      score_entries(main_ranking_entries).sort_by { |entry| entry_sort_key(entry) }.map { |entry| entry.fetch(:item).with(score: entry.fetch(tab_score_key).round(2)) }
+    end
+
+    def main_ranking_entries
+      entries = classified_entries
+      main = entries.select { |entry| entry.fetch(:classification).included_in_main_ranking }
+      return main if main.present?
+
+      entries.select { |entry| entry.fetch(:classification).candidate_category == "fallback" }
+             .sort_by { |entry| -entry.fetch(:classification).raw_value }
+             .first(1)
+    end
+
+    def classified_entries
+      @classified_entries ||= items.reject { |item| excluded_item?(item) }
+                                   .then { |filtered| deduplicate_action_items(filtered) }
+                                   .map { |item| { item:, classification: Aicoo::TodayRankingClassifier.call(item) } }
+    end
+
+    def score_entries(entries)
+      revenue_scores = normalized_scores(entries) { |entry| revenue_raw_value(entry.fetch(:item), entry.fetch(:classification)) }
+      learning_scores = normalized_scores(entries) { |entry| learning_raw_value(entry.fetch(:item), entry.fetch(:classification)) }
+
+      entries.map.with_index do |entry, index|
+        classification = entry.fetch(:classification)
+        multiplier = classification.actionability_multiplier * classification.category_multiplier
+        revenue = revenue_scores.fetch(index) * multiplier
+        learning = learning_scores.fetch(index) * multiplier
+        balanced = ((revenue_scores.fetch(index) * 0.6) + (learning_scores.fetch(index) * 0.4)) * multiplier
+        entry.merge(
+          normalized_value_score: selected_normalized_score(revenue, learning, balanced),
+          tab_score_revenue: revenue,
+          tab_score_learning: learning,
+          tab_score_balanced: balanced
+        )
+      end
+    end
+
+    def normalized_scores(entries)
+      values = entries.map { |entry| yield(entry).to_d }
+      positive_values = values.select(&:positive?)
+      max = positive_values.max
+      return values.map { 0.to_d } if max.blank? || max.zero?
+
+      values.map { |value| value.positive? ? ((value / max) * 100).round(4) : 0.to_d }
+    end
+
+    def revenue_raw_value(item, classification)
+      return classification.raw_value if classification.raw_value_type == "expected_improvement_score"
+
+      delta_value(item).to_d
+    end
+
+    def learning_raw_value(item, classification)
+      return article_opportunity_metric(item, "improvement_potential_score") if classification.raw_value_type == "expected_improvement_score"
+      return item.learning_score.to_d if item.respond_to?(:learning_score)
+
+      confidence_value(item) * 100
+    end
+
+    def selected_normalized_score(revenue, learning, balanced)
+      case mode
+      when "learning"
+        learning
+      when "balanced"
+        balanced
+      else
+        revenue
+      end
+    end
+
+    def tab_score_key
+      case mode
+      when "learning"
+        :tab_score_learning
+      when "balanced"
+        :tab_score_balanced
+      else
+        :tab_score_revenue
+      end
+    end
+
+    def entry_sort_key(entry)
+      item = entry.fetch(:item)
+      classification = entry.fetch(:classification)
+      [
+        -entry.fetch(tab_score_key),
+        -classification.raw_value,
+        -confidence_value(item),
+        -record_timestamp(item),
+        -record_id(item)
+      ]
     end
 
     def sort_key(item)

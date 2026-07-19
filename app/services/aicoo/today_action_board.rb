@@ -15,7 +15,6 @@ module Aicoo
     DAILY_RUN_OWNER_HOURLY_COST_YEN = 6_000
     DAILY_RUN_REPAIR_COST_YEN = 10_000
     ARTICLE_OPPORTUNITY_MODEL_NAME = "article_opportunity_analyzer_snapshot_v1".freeze
-    ARTICLE_OPPORTUNITY_RANKING_SCALE = 10_000
     ARTICLE_PATH_PATTERN = %r{\A/articles/([^/?#]+)}.freeze
     ABSTRACT_PATTERNS = [
       /検索需要があるテーマ/,
@@ -215,8 +214,9 @@ module Aicoo
       presenter = ActionCandidateEvidencePresenter.new(candidate)
       action_plan = presenter.action_plan
       execution_mode = presenter.execution_mode.to_s
+      article_opportunity = article_opportunity_candidate?(candidate)
       readiness = action_execution_readiness(candidate)
-      readiness_applicable = execution_readiness_display_applicable?(candidate, execution_mode)
+      readiness_applicable = !article_opportunity && execution_readiness_display_applicable?(candidate, execution_mode)
       approval_task = approval_required_task(candidate)
 
       exclusion_reason = today_exclusion_reason(candidate, execution_mode, approval_task)
@@ -228,7 +228,7 @@ module Aicoo
       valuation = action_candidate_valuation(candidate)
       expected_value_yen = valuation.fetch(:action_expected_value_delta_yen)
       article_scores = article_opportunity_scores(candidate)
-      article_opportunity = article_opportunity_candidate?(candidate)
+      resolved_business = article_opportunity ? article_opportunity_business(candidate) : candidate.business
       expected_hours = article_opportunity ? positive_decimal(article_scores.fetch(:estimated_work_hours)) : positive_decimal(candidate.expected_hours)
       success_probability = article_opportunity ? article_scores.fetch(:success_probability) : candidate.success_probability.to_d
       raw_concrete_task = concrete_task_for(candidate, presenter, action_plan)
@@ -276,7 +276,7 @@ module Aicoo
         source_type: approval_task ? "auto_revision_task" : "action_candidate",
         record: approval_task || candidate,
         priority: approval_task ? "critical" : "improvement",
-        business_name: candidate.business&.name.to_s,
+        business_name: resolved_business&.name.to_s,
         concrete_task:,
         target:,
         expected_value_yen:,
@@ -468,7 +468,8 @@ module Aicoo
 
     def today_exclusion_reason(candidate, execution_mode, approval_task)
       return "executed" if candidate.executed?
-      return "inactive_business" if candidate.business.blank? || candidate.business.deleted? || candidate.business.resource_status == "archived"
+      business = article_opportunity_candidate?(candidate) ? article_opportunity_business(candidate) : candidate.business
+      return "inactive_business" if business.blank? || business.deleted? || business.resource_status == "archived"
       return "invalid_status" if candidate.status.to_s.in?(ActionCandidate::INACTIVE_STATUSES)
       return "blocked_by_prerequisite" if candidate.metadata.to_h["blocked"] && candidate.metadata.to_h["prerequisite_action_candidate_id"].present?
       return "external_reference_target" if external_target_url_for_existing_business?(candidate)
@@ -1048,17 +1049,20 @@ module Aicoo
 
     def article_opportunity_valuation(candidate)
       scores = article_opportunity_scores(candidate)
-      scaled_value = (scores.fetch(:expected_improvement_score) * ARTICLE_OPPORTUNITY_RANKING_SCALE).round.to_i
       {
         expected_value_if_no_action_yen: 0,
-        expected_value_if_action_yen: scaled_value,
+        expected_value_if_action_yen: 0,
         execution_cost_yen: 0,
-        action_expected_value_delta_yen: scaled_value,
+        action_expected_value_delta_yen: 0,
         valuation_period_days: 90,
         calculation_method: "article_opportunity_expected_improvement_score",
         confidence: scores.fetch(:success_probability),
-        valuation_status: scaled_value.positive? ? "positive" : "neutral"
+        valuation_status: "score_only"
       }
+    end
+
+    def article_opportunity_business(candidate)
+      Aicoo::TodayRankingClassifier.business_for_candidate(candidate)
     end
 
     def article_opportunity_learning_score(candidate)

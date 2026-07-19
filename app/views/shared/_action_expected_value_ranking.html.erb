@@ -51,9 +51,14 @@
             <% end %>
           </td>
           <td class="number">
-            <% delta = item.action_expected_value_delta_yen.to_i %>
-            <strong><%= delta.positive? ? "+" : "" %><%= number_to_currency(delta, unit: "¥", precision: 0) %></strong><br>
-            <small><%= item.valuation_status %> / <%= item.valuation_period_days %>日</small>
+            <% if item.respond_to?(:expected_improvement_score) && item.expected_improvement_score.present? %>
+              <strong>未算定</strong><br>
+              <small>改善優先度 <%= number_with_precision(item.expected_improvement_score, precision: 2, strip_insignificant_zeros: true) %></small>
+            <% else %>
+              <% delta = item.action_expected_value_delta_yen.to_i %>
+              <strong><%= delta.positive? ? "+" : "" %><%= number_to_currency(delta, unit: "¥", precision: 0) %></strong><br>
+              <small><%= item.valuation_status %> / <%= item.valuation_period_days %>日</small>
+            <% end %>
           </td>
           <td>
             <small>何もしない: <%= number_to_currency(item.expected_value_if_no_action_yen, unit: "¥", precision: 0) %></small><br>
