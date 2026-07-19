@@ -87,7 +87,7 @@ module Aicoo
     end
 
     def archived_rows
-      candidate_scope.where(status: "archived").map { |candidate| build_row(candidate) }
+      candidate_scope.where(status: "archived").select { |candidate| production_candidate?(candidate) }.map { |candidate| build_row(candidate) }
     end
 
     def eligible_rows(rows)
@@ -163,6 +163,13 @@ module Aicoo
         generation_source: candidate.generation_source,
         today_exclusion_reason: metadata["today_exclusion_reason"]
       )
+    end
+
+    def production_candidate?(candidate)
+      metadata = candidate.metadata.to_h
+      metadata["production_candidate"] == true &&
+        metadata["daily_run_step"].to_s == ArticleOpportunityDailyRun::STEP_NAME &&
+        metadata["experimental_only"] != true
     end
 
     def dedupe_key(row)

@@ -91,8 +91,10 @@ class MetricActionCandidateGenerator
 
     suelog_result = suelog_site_insights_result
     return suelog_result if suelog_result&.created_count.to_i.positive?
+    skipped_reasons.concat(Array(suelog_result.skipped)) if suelog_result
 
     analyzer_result = Aicoo::BusinessAnalyzers::Runner.call(business:, today:)
+    analyzer_result = merge_suelog_skips(analyzer_result, suelog_result) if suelog_result
     return analyzer_result if analyzer_result.handled? && analyzer_result.created_count.positive?
 
     specs = filter_specs_by_business_type(candidate_specs)
@@ -112,6 +114,20 @@ class MetricActionCandidateGenerator
     return unless Aicoo::Suelog::SiteInsightsAdapter.target?(business)
 
     Aicoo::Suelog::SiteInsightsAdapter.call(business:, today:)
+  end
+
+  def merge_suelog_skips(analyzer_result, suelog_result)
+    return analyzer_result unless analyzer_result.respond_to?(:skipped)
+
+    Aicoo::BusinessAnalyzers::Result.new(
+      business: analyzer_result.business,
+      analyzer: analyzer_result.analyzer,
+      created: analyzer_result.created,
+      skipped: (Array(suelog_result.skipped) + Array(analyzer_result.skipped)).uniq,
+      issues: analyzer_result.issues,
+      opportunities: analyzer_result.opportunities,
+      handled: analyzer_result.handled
+    )
   end
 
   def candidate_specs

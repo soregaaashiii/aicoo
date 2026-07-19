@@ -108,13 +108,22 @@ module Aicoo
         new(...).call
       end
 
-      def initialize(business:, today: Date.current, limit: 200)
+      def initialize(business:, today: Date.current, limit: 200, allow_legacy: false)
         @business = business
         @today = today.to_date
         @limit = limit
+        @allow_legacy = ActiveModel::Type::Boolean.new.cast(allow_legacy)
       end
 
       def call
+        routing = Aicoo::ArticleAnalyzerRouting.call(business:)
+        if legacy_routing_enforced? && routing.legacy_article_analyzer_skipped?
+          Rails.logger.info(
+            "legacy_article_analyzer skipped business_id=#{business.id} source=suelog_site_insights reason=#{routing.routing_reason}"
+          )
+          return Result.new(created: [], skipped: [ "legacy_article_analyzer_skipped:#{routing.routing_reason}" ])
+        end
+
         items = build_items
         return Result.new(created: [], skipped: [ "suelog_site_insights:no_items" ]) if items.empty?
 
@@ -126,7 +135,11 @@ module Aicoo
 
       private
 
-      attr_reader :business, :today, :limit
+      attr_reader :business, :today, :limit, :allow_legacy
+
+      def legacy_routing_enforced?
+        !allow_legacy
+      end
 
       def serp_allowed?
         @serp_allowed ||= Aicoo::DataSourcePolicy.for(business).enabled?(:serp, context: :existing_business_improvement)

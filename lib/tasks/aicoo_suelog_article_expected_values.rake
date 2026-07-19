@@ -69,6 +69,44 @@ namespace :aicoo do
     puts "candidate_ids=#{candidate_ids.uniq.join(',')}"
   end
 
+  desc "Diagnose Article Analyzer routing for Suelog production article candidates"
+  task diagnose_article_analyzer_routing: :environment do
+    businesses = Business.real_businesses.order(:id).select do |business|
+      Aicoo::ArticleAnalyzerRouting.suelog_business?(business) ||
+        business.action_candidates.where("metadata ->> 'value_model_name' = ?", Aicoo::ArticleAnalyzerRouting::ACTIVE_ANALYZER).exists?
+    end
+    businesses = AicooSuelogArticleExpectedValueRake.suelog_business_scope if businesses.blank?
+
+    if businesses.blank?
+      puts "business=not_found"
+      next
+    end
+
+    businesses.each do |business|
+      routing = Aicoo::ArticleAnalyzerRouting.call(business:)
+      puts "business_id=#{business.id}"
+      puts "business_name=#{business.name}"
+      puts "active_analyzer=#{routing.active_analyzer}"
+      puts "new_analyzer_enabled=#{routing.new_analyzer_enabled}"
+      puts "legacy_generation_enabled=#{routing.legacy_generation_enabled}"
+      puts "routing_reason=#{routing.routing_reason}"
+      puts "latest_new_analyzer_run_at=#{routing.latest_new_analyzer_run_at || '-'}"
+      puts "latest_new_candidate_at=#{routing.latest_new_candidate_at || '-'}"
+      puts "latest_legacy_candidate_at=#{routing.latest_legacy_candidate_at || '-'}"
+      puts "legacy_candidates_created_last_24h=#{routing.legacy_candidates_created_last_24h}"
+      puts "new_candidates_created_last_24h=#{routing.new_candidates_created_last_24h}"
+      puts "today_new_candidate_count=#{routing.today_new_candidate_count}"
+      puts "today_legacy_candidate_count=#{routing.today_legacy_candidate_count}"
+      puts "fallback_source=#{routing.fallback_source}"
+      puts "last_error=#{routing.last_error || '-'}"
+      puts "next_required_action=#{routing.next_required_action}"
+      if routing.legacy_candidates_created_last_24h.to_i.positive? && !routing.legacy_generation_enabled
+        puts "warning=legacy_article_candidates_created_after_routing"
+      end
+      puts "---"
+    end
+  end
+
   desc "Diagnose Suelog GSC query rows used by SuelogArticleExpectedValue"
   task diagnose_suelog_gsc_queries: :environment do
     business = AicooSuelogArticleExpectedValueRake.suelog_business_scope.first

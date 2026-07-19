@@ -1,4 +1,5 @@
 require "test_helper"
+require "ostruct"
 
 module Aicoo
   class TodayActionBoardArticleOpportunityTest < ActiveSupport::TestCase
@@ -65,6 +66,30 @@ module Aicoo
       items = TodayActionBoard.new(mode: "revenue", per_page: 100).call.items
 
       assert_not_includes items.map(&:record), archived
+    end
+
+    test "connector does not promote comparison-only archived candidates" do
+      comparison = create_article_opportunity_candidate!(
+        title: "比較用ArticleOpportunity",
+        article_id: 350,
+        status: "archived",
+        expected_improvement_score: 99.0
+      )
+      comparison.update_columns(
+        metadata: comparison.metadata.merge(
+          "experimental_only" => true,
+          "production_candidate" => false,
+          "archived_reason" => "article_opportunity_analyzer_comparison_only"
+        )
+      )
+
+      analyzer_result = OpenStruct.new(article_results: [], action_candidate_count: 0)
+      Aicoo::ArticleOpportunityAnalyzer.stub(:from_snapshots, analyzer_result) do
+        result = ArticleOpportunityTodayConnector.new(business: @business, apply: true).call
+
+        assert_equal 0, result.activated_count
+      end
+      assert_equal "archived", comparison.reload.status
     end
 
     test "legacy article candidate remains fallback when no active article opportunity exists" do

@@ -529,6 +529,7 @@ class AicooDailyRunner
 
     generation_step = start_step!(run, "suelog_candidate_generation")
     record_step_progress!(generation_step, batch: 0, processed: 0)
+    article_routing = Aicoo::ArticleAnalyzerRouting.call(business:)
     result = Aicoo::CandidateGenerators::SuelogGenerator.call(business:)
     if result.health&.success?
       finish_step!(
@@ -536,7 +537,7 @@ class AicooDailyRunner
         metadata: result.diagnostics.merge(
           "business_id" => business.id,
           "action_type_counts" => result.created.group_by(&:action_type).transform_values(&:size)
-        )
+        ).merge(article_routing.daily_run_metadata)
       )
       log!("Suelog candidates created=#{result.created_count} skipped=#{result.skipped_count}")
     else
@@ -547,7 +548,7 @@ class AicooDailyRunner
           warning: true,
           reason: result.health&.code || "suelog_candidate_generation_skipped",
           message: "吸えログ専用候補生成はスキップされました。"
-        )
+        ).merge(article_routing.daily_run_metadata)
       )
       log!("Suelog candidates skipped reason=#{result.health&.code || result.skipped.first}")
     end

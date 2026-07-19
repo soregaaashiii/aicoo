@@ -305,6 +305,14 @@ module AicooInsight
       return Result.new(created:, skipped: include_empty_reason ? [ no_insight_reason ] : []) if specs.empty?
 
       specs.each do |spec|
+        if legacy_article_generation_disabled?(spec)
+          skipped << "#{business.name}: legacy_article_analyzer_skipped #{spec.title}"
+          Rails.logger.info(
+            "legacy_article_analyzer skipped business_id=#{business.id} source=ai_insight reason=new_analyzer_active"
+          )
+          next
+        end
+
         decision = measured("InsightGeneration::BusinessPlaybookDecision", spec:) do
           spec.business.business_type_playbook.call(spec_attributes(spec))
         end
@@ -325,6 +333,13 @@ module AicooInsight
     private
 
     attr_reader :business, :memory_context
+
+    def legacy_article_generation_disabled?(spec)
+      return false unless Aicoo::ArticleAnalyzerRouting.article_action_type?(spec.action_type)
+
+      routing = Aicoo::ArticleAnalyzerRouting.call(business:)
+      routing.legacy_article_analyzer_skipped?
+    end
 
     def measured(name, spec: nil, &block)
       Aicoo::MemoryDiagnostics.measure(name, context: diagnostic_context(spec:), &block)

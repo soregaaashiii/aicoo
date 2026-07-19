@@ -82,12 +82,27 @@ module Aicoo
 
       def create_candidate(opportunity)
         issue = opportunity.source_issue
+        if legacy_article_generation_disabled?(issue)
+          skipped << "#{issue.key}: legacy_article_analyzer_skipped"
+          Rails.logger.info(
+            "legacy_article_analyzer skipped business_id=#{business.id} source=business_analyzer reason=new_analyzer_active"
+          )
+          return
+        end
+
         if recent_duplicate?(issue)
           skipped << "#{issue.key}: duplicate"
           return
         end
 
         Aicoo::OpportunityEngine::ActionCandidateConverter.new(opportunity, analyzer: self).call
+      end
+
+      def legacy_article_generation_disabled?(issue)
+        return false unless Aicoo::ArticleAnalyzerRouting.article_action_type?(issue.action_type)
+
+        routing = Aicoo::ArticleAnalyzerRouting.call(business:)
+        routing.legacy_article_analyzer_skipped?
       end
 
       def candidate_metadata(issue, opportunity: nil)

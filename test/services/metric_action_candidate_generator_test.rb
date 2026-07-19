@@ -112,18 +112,9 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
 
     result = MetricActionCandidateGenerator.new(business: @business, today: @today).call
 
-    assert_operator result.created.size, :>=, 10
-    assert result.created.all? { |candidate| candidate.metadata["suelog_site_insights"] }
-    assert result.created.all? { |candidate| candidate.metadata["query"].present? }
-    assert result.created.none? { |candidate| candidate.metadata["query"] == "SERPだけの参考キーワード" }
-    assert result.created.none? { |candidate| Array(candidate.metadata.dig("evidence", "source")).include?("serp") }
-    assert result.created.all? { |candidate| candidate.metadata["expected_score"].present? }
-    assert result.created.all? { |candidate| candidate.metadata["roi_score"].present? }
-    assert result.created.all? { |candidate| candidate.metadata["work_cost"].present? }
-    assert result.created.all? { |candidate| candidate.metadata["recommended_action"].present? }
-    assert result.created.all? { |candidate| candidate.metadata["action_plan"].to_h["execution_steps"].present? }
-    assert result.created.all? { |candidate| candidate.metadata["concrete_task"].present? }
-    assert result.created.none? { |candidate| candidate.title.match?(/検索需要があるテーマ|SEO改善|CV改善|導線改善|要具体化/) }
+    assert result.skipped.any? { |reason| reason.include?("legacy_article_analyzer_skipped:new_analyzer_active") }
+    assert result.created.none? { |candidate| candidate.metadata["suelog_site_insights"] }
+    assert result.created.none? { |candidate| candidate.action_type.in?(%w[new_article_candidate seo_article seo_improvement article_create article_update]) }
   end
 
   test "suelog site insights adapter does not generate from serp alone" do
@@ -158,7 +149,7 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
       imported_at: @today.to_time
     )
 
-    result = Aicoo::Suelog::SiteInsightsAdapter.new(business: @business, today: @today).call
+    result = Aicoo::Suelog::SiteInsightsAdapter.new(business: @business, today: @today, allow_legacy: true).call
 
     assert_empty result.created
   end
@@ -185,7 +176,7 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
       imported_at: @today.to_time
     )
 
-    result = Aicoo::Suelog::SiteInsightsAdapter.new(business: @business, today: @today).call
+    result = Aicoo::Suelog::SiteInsightsAdapter.new(business: @business, today: @today, allow_legacy: true).call
     candidate = result.created.first
 
     assert candidate
@@ -233,7 +224,7 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
       imported_at: @today.to_time
     )
 
-    result = Aicoo::Suelog::SiteInsightsAdapter.new(business: @business, today: @today).call
+    result = Aicoo::Suelog::SiteInsightsAdapter.new(business: @business, today: @today, allow_legacy: true).call
     candidate = result.created.first
 
     assert candidate

@@ -73,6 +73,18 @@ module AicooInsight
       assert_includes candidate.evaluation_reason, "成長記事拡張"
     end
 
+    test "suelog skips legacy article insight generation when article opportunity analyzer is active" do
+      business = businesses(:suelog)
+      business.update!(project_key: "suelog", repository_name: "suelog")
+      business.business_metric_dailies.create!(recorded_on: 10.days.ago.to_date, clicks: 2, pageviews: 5)
+      business.business_metric_dailies.create!(recorded_on: Date.current, clicks: 20, pageviews: 40)
+
+      result = Generator.new(business:).call
+
+      assert result.created.none? { |candidate| candidate.action_type.in?(%w[seo_article seo_improvement]) }
+      assert result.skipped.any? { |reason| reason.include?("legacy_article_analyzer_skipped") }
+    end
+
     test "generates withdrawal candidate for long running low response business" do
       business = create_business("Withdraw insight")
       14.times do |index|

@@ -31,6 +31,16 @@ module Aicoo
         assert_includes result.skipped, "not_suelog_business"
       end
 
+      test "skips legacy article candidates when article opportunity analyzer is active" do
+        generator = SuelogGenerator.new(business: @business)
+        skipped = []
+
+        created = generator.send(:create_article_candidates, skipped:)
+
+        assert_empty created
+        assert_includes skipped, "legacy_article_analyzer_skipped:new_analyzer_active"
+      end
+
       test "detects duplicate candidates by external source record and query" do
         ActionCandidate.create!(
           business: @business,

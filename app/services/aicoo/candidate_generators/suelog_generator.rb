@@ -183,6 +183,15 @@ module Aicoo
       end
 
       def create_article_candidates(skipped:)
+        routing = Aicoo::ArticleAnalyzerRouting.call(business:)
+        if routing.legacy_article_analyzer_skipped?
+          skipped << "legacy_article_analyzer_skipped:#{routing.routing_reason}"
+          Rails.logger.info(
+            "legacy_article_analyzer skipped business_id=#{business.id} source=suelog_db reason=#{routing.routing_reason}"
+          )
+          return []
+        end
+
         articles = ::Suelog::Article.published.limit(500).to_a
         gsc_rows.first(ARTICLE_LIMIT).filter_map do |row|
           query = row.fetch(:query).to_s.squish
