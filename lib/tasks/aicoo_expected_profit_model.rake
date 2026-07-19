@@ -14,7 +14,7 @@ namespace :aicoo do
       model = result.metadata.fetch("expected_profit_model")
       rows << result
 
-      puts [
+      output = [
         "candidate_id=#{candidate.id}",
         "improvement_type=#{result.improvement_type}",
         "expected_profit=#{result.expected_profit_yen}",
@@ -30,7 +30,21 @@ namespace :aicoo do
         "learning_source=#{result.learning_source}",
         "calibration_version=#{result.calibration_version}",
         "assumed_fields=#{Array(model['assumed_fields']).join(',')}"
-      ].join(" ")
+      ]
+      if result.improvement_type == "rank_improvement"
+        rank = model["rank_improvement_diagnostics"].to_h
+        output += [
+          "current_impressions=#{rank['current_impressions']}",
+          "expected_impressions_after_rank_gain=#{rank['expected_impressions_after_rank_gain']}",
+          "impression_gain_rate=#{rank['impression_gain_rate']}",
+          "current_ctr=#{rank['current_ctr']}",
+          "expected_ctr_after_rank_gain=#{rank['expected_ctr_after_rank_gain']}",
+          "click_gain_from_ctr=#{rank['click_gain_from_ctr']}",
+          "click_gain_from_impressions=#{rank['click_gain_from_impressions']}",
+          "total_expected_click_gain=#{rank['total_expected_click_gain']}"
+        ]
+      end
+      puts output.join(" ")
     rescue StandardError => e
       puts "candidate_id=#{candidate.id} failed=#{e.class} message=#{e.message}"
     end

@@ -179,11 +179,30 @@ module Aicoo
     def estimate_rank_improvement(metrics, coefficients)
       impressions = metric_value(metrics, "gsc", "impressions", fallback: INITIAL_COEFFICIENTS.fetch("fallback_impressions"))
       position = metric_value(metrics, "gsc", "average_position", fallback: 20)
+      current_ctr = normalize_rate(metric_value(metrics, "gsc", "ctr", fallback: rank_improvement_ctr_for(position)))
       improved_position = [ position - coefficients.fetch("rank_gain_positions"), 1.to_d ].max
       rank_ctr_gain = [ rank_improvement_ctr_for(improved_position) - rank_improvement_ctr_for(position), 0.to_d ].max
       expected_ctr_gain = coefficients.fetch("content_ctr_gain_rate") + rank_ctr_gain
-      expected_click_gain = impressions * expected_ctr_gain
-      conversion_estimate(expected_click_gain, expected_ctr_gain, coefficients)
+      impression_gain_rate = rank_impression_gain_rate(metrics, position, improved_position)
+      expected_impressions_after = impressions * (1 + impression_gain_rate)
+      expected_ctr_after = current_ctr + expected_ctr_gain
+      click_gain_from_ctr = impressions * expected_ctr_gain
+      click_gain_from_impressions = [ expected_impressions_after - impressions, 0.to_d ].max * expected_ctr_after
+      expected_click_gain = click_gain_from_ctr + click_gain_from_impressions
+      conversion_estimate(expected_click_gain, expected_ctr_gain, coefficients).merge(
+        rank_diagnostics: {
+          current_position: position.to_f.round(2),
+          expected_position_after_rank_gain: improved_position.to_f.round(2),
+          current_impressions: impressions.to_f.round(2),
+          expected_impressions_after_rank_gain: expected_impressions_after.to_f.round(2),
+          impression_gain_rate: impression_gain_rate.to_f.round(4),
+          current_ctr: current_ctr.to_f.round(4),
+          expected_ctr_after_rank_gain: expected_ctr_after.to_f.round(4),
+          click_gain_from_ctr: click_gain_from_ctr.to_f.round(2),
+          click_gain_from_impressions: click_gain_from_impressions.to_f.round(2),
+          total_expected_click_gain: expected_click_gain.to_f.round(2)
+        }
+      )
     end
 
     def estimate_content_update(metrics, coefficients)
@@ -310,8 +329,9 @@ module Aicoo
           "used_ga4" => metrics["ga4"],
           "used_shop_click" => metrics["shop_click"],
           "used_learning" => metrics["learning"],
+          "rank_improvement_diagnostics" => estimate[:rank_diagnostics],
           "calculation_reason" => calculation_reason(improvement_type, estimate, success_probability, work_cost, source)
-        }
+        }.compact
       }
     end
 
@@ -352,6 +372,45 @@ module Aicoo
       ]
       lower, upper = curve.each_cons(2).find { |left, right| pos >= left.first && pos <= right.first }
       return 0.005.to_d unless lower && upper
+
+      progress = (pos - lower.first) / (upper.first - lower.first)
+      lower.last + ((upper.last - lower.last) * progress)
+    end
+
+    def rank_impression_gain_rate(metrics, position, improved_position)
+      learning_rate = first_present(
+        metrics.dig("learning", "rank_impression_gain_rate"),
+        metrics.dig("learning", "average_rank_impression_gain_rate"),
+        metrics.dig("learning", "rank_improvement_impression_gain_rate")
+      )
+      return normalize_rate(learning_rate) if learning_rate.present?
+
+      business_rate = first_present(
+        business_metadata["rank_impression_gain_rate"],
+        business_metadata["article_rank_impression_gain_rate"],
+        business_metadata["rank_improvement_impression_gain_rate"]
+      )
+      return normalize_rate(business_rate) if business_rate.present?
+
+      current_visibility = rank_visibility_for(position)
+      improved_visibility = rank_visibility_for(improved_position)
+      [ (improved_visibility / current_visibility) - 1, 0.to_d ].max
+    end
+
+    def rank_visibility_for(position)
+      pos = decimal(position)
+      return 1.to_d if pos <= 1
+
+      curve = [
+        [ 1.to_d, 1.to_d ],
+        [ 3.to_d, 0.75.to_d ],
+        [ 5.to_d, 0.55.to_d ],
+        [ 10.to_d, 0.35.to_d ],
+        [ 20.to_d, 0.16.to_d ],
+        [ 50.to_d, 0.06.to_d ]
+      ]
+      lower, upper = curve.each_cons(2).find { |left, right| pos >= left.first && pos <= right.first }
+      return 0.02.to_d unless lower && upper
 
       progress = (pos - lower.first) / (upper.first - lower.first)
       lower.last + ((upper.last - lower.last) * progress)

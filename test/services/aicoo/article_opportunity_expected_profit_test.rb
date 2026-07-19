@@ -55,15 +55,20 @@ module Aicoo
     test "rank improvement converts rank gain into additional ctr gain" do
       rank = ArticleOpportunityExpectedProfit.call(create_candidate!("rank_improvement"))
       content = ArticleOpportunityExpectedProfit.call(create_candidate!("content_update"))
+      diagnostics = rank.metadata.dig("expected_profit_model", "rank_improvement_diagnostics")
 
       assert_operator rank.expected_ctr_gain, :>, content.expected_ctr_gain
       assert_operator rank.expected_click_gain, :>, content.expected_click_gain
+      assert_operator diagnostics["expected_impressions_after_rank_gain"].to_d, :>, diagnostics["current_impressions"].to_d
+      assert_operator diagnostics["click_gain_from_impressions"].to_d, :>, 0
+      assert_equal diagnostics["total_expected_click_gain"].to_d, rank.expected_click_gain.to_d
     end
 
     test "rank improvement change does not alter ctr improvement estimate" do
       ctr = ArticleOpportunityExpectedProfit.call(create_candidate!("ctr_improvement"))
 
       assert_equal 0.035, ctr.expected_ctr_gain
+      assert_nil ctr.metadata.dig("expected_profit_model", "rank_improvement_diagnostics")
     end
 
     test "missing metrics still estimate with initial coefficients and low confidence" do
