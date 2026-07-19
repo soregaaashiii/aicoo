@@ -1,5 +1,5 @@
 class AicooDataSnapshot < ApplicationRecord
-  SOURCE_TYPES = %w[ga4 gsc landing_page revenue_execution].freeze
+  SOURCE_TYPES = %w[ga4 gsc landing_page revenue_execution article_analytics].freeze
 
   validates :source_type, inclusion: { in: SOURCE_TYPES }
   validates :source_id, presence: true
@@ -18,7 +18,11 @@ class AicooDataSnapshot < ApplicationRecord
       AicooLabLandingPage.find_by(id: source_id)
     when "revenue_execution"
       AicooRevenueExecution.find_by(id: source_id)
+    when "article_analytics"
+      ::Suelog::Article.find_by(id: source_id) if defined?(::Suelog::Article)
     end
+  rescue StandardError
+    nil
   end
 
   private

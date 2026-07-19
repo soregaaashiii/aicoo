@@ -283,6 +283,66 @@ namespace :aicoo do
     puts "integrity_status=#{result.integrity_status}"
     puts "blocking_reasons=#{result.blocking_reasons.join(' / ').presence || '-'}"
   end
+
+  desc "Build per-article analytics snapshots for Suelog. Dry-run by default; use APPLY=1 to save."
+  task build_article_analytics_snapshot: :environment do
+    business = AicooSuelogArticleExpectedValueRake.suelog_business_scope.first
+
+    if business.blank?
+      puts "Business=not_found"
+      next
+    end
+
+    result = Aicoo::ArticleAnalyticsSnapshotBuilder.call(business:, apply: ENV["APPLY"] == "1")
+    AicooArticleAnalyticsSnapshotRake.print_result(result)
+  end
+
+  desc "Diagnose saved per-article analytics snapshots for Suelog"
+  task diagnose_article_analytics_snapshot: :environment do
+    business = AicooSuelogArticleExpectedValueRake.suelog_business_scope.first
+
+    if business.blank?
+      puts "Business=not_found"
+      next
+    end
+
+    result = Aicoo::ArticleAnalyticsSnapshotBuilder.new(business:).diagnostic_result
+    AicooArticleAnalyticsSnapshotRake.print_result(result)
+  end
+end
+
+module AicooArticleAnalyticsSnapshotRake
+  module_function
+
+  def print_result(result)
+    puts "mode=#{result.mode}"
+    puts "business_id=#{result.business&.id || '-'}"
+    puts "business_name=#{result.business&.name || '-'}"
+    puts "snapshot_storage=AicooDataSnapshot source_type=article_analytics source_id=suelog_article_id"
+    puts "published_article_count=#{result.published_article_count}"
+    puts "snapshot_count=#{result.snapshot_count}"
+    puts "created_count=#{result.created_count}"
+    puts "updated_count=#{result.updated_count}"
+    puts "gsc_joined_count=#{result.gsc_joined_count}"
+    puts "ga4_joined_count=#{result.ga4_joined_count}"
+    puts "shop_click_joined_count=#{result.shop_click_joined_count}"
+    puts "three_source_joined_count=#{result.three_source_joined_count}"
+    puts "failed_count=#{result.failed_count}"
+    puts "snapshot_ids=#{result.snapshot_ids.join(',').presence || '-'}"
+    puts "missing_articles:"
+    if result.missing_articles.empty?
+      puts "-"
+    else
+      result.missing_articles.each do |row|
+        puts [
+          "article_id=#{row['article_id']}",
+          "path=#{row['path'] || '-'}",
+          "title=#{row['title'].to_s.squish.presence || '-'}",
+          "missing=#{Array(row['missing']).join(',')}"
+        ].join(" ")
+      end
+    end
+  end
 end
 
 module AicooSuelogArticleExpectedValueRake
