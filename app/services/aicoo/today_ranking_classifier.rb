@@ -5,6 +5,36 @@ module Aicoo
     MAIN_RANKING_CATEGORIES = %w[executable_improvement manual_action].freeze
     PREPARATION_READINESS = %w[needs_target needs_query needs_metric needs_completion_criteria needs_file_changes needs_before_after blocked needs_owner].freeze
     BLANK_TARGET_VALUES = [ "", "-", "未特定", "対象未特定", "未作成", "unspecified", "unknown" ].freeze
+    ARTICLE_EXECUTABLE_TYPES = %w[
+      ctr_improvement
+      rank_improvement
+      content_update
+      internal_link_addition
+      seo_improvement
+      title_meta_update
+      meta_update
+      heading_update
+      structure_update
+      internal_link_update
+    ].freeze
+    ARTICLE_PREPARATION_TYPES = %w[
+      shop_addition
+      target_research
+      data_preparation
+      analytics_setup
+      repository_setup
+      execution_profile_setup
+      measurement_setup
+      new_article_planning
+      article_planning
+    ].freeze
+    ARTICLE_MANUAL_TYPES = %w[
+      verified_shop_addition
+      smoking_condition_confirmation
+      shop_information_confirmation
+      phone_confirmation
+      publication_review
+    ].freeze
 
     Result = Data.define(
       :candidate_category,
@@ -19,7 +49,20 @@ module Aicoo
       :actionability_multiplier,
       :category_multiplier,
       :included_in_main_ranking,
-      :exclusion_reason
+      :exclusion_reason,
+      :article_opportunity_detected,
+      :opportunity_type,
+      :improvement_type,
+      :human_required,
+      :research_required,
+      :approved,
+      :repository_configured,
+      :execution_profile_configured,
+      :executable_rule_result,
+      :manual_rule_result,
+      :preparation_rule_result,
+      :matched_classification_rule,
+      :classification_reason
     )
 
     class << self
@@ -70,7 +113,20 @@ module Aicoo
         actionability_multiplier: actionability_multiplier(category),
         category_multiplier: category_multiplier(category),
         included_in_main_ranking: MAIN_RANKING_CATEGORIES.include?(category),
-        exclusion_reason: exclusion_reason_for(category)
+        exclusion_reason: exclusion_reason_for(category),
+        article_opportunity_detected: article_opportunity?,
+        opportunity_type: opportunity_type,
+        improvement_type: improvement_type,
+        human_required: human_required?,
+        research_required: research_required?,
+        approved: approved?,
+        repository_configured: repository_configured?,
+        execution_profile_configured: execution_profile_configured?,
+        executable_rule_result: executable_rule_result,
+        manual_rule_result: manual_rule_result,
+        preparation_rule_result: preparation_rule_result,
+        matched_classification_rule: matched_classification_rule(category),
+        classification_reason: classification_reason(category)
       )
     end
 
@@ -80,12 +136,13 @@ module Aicoo
 
     def candidate_category
       return "legacy" if legacy?
-      return "fallback" if fallback?
       return "unspecified" if unspecified?
-      return "preparation" if preparation?
+      return "fallback" if fallback?
       return "executable_improvement" if executable_improvement?
+      return "manual_action" if manual_action?
+      return "preparation" if preparation?
 
-      "manual_action"
+      candidate ? "unspecified" : non_candidate_category
     end
 
     def legacy?
@@ -122,9 +179,10 @@ module Aicoo
     end
 
     def preparation?
-      return false unless candidate
+      return non_candidate_preparation? unless candidate
+      return article_opportunity_preparation? if article_opportunity?
+
       return true if candidate.action_type.to_s == "data_preparation"
-      return true if item_value(:execution_mode).to_s.in?(PREPARATION_READINESS)
       return true if metadata["execution_readiness"].to_s.in?(PREPARATION_READINESS)
 
       false
@@ -143,16 +201,47 @@ module Aicoo
         target_valid? &&
         execution_brief_present? &&
         evidence_complete? &&
+        !human_required? &&
+        !research_required? &&
+        ARTICLE_EXECUTABLE_TYPES.include?(improvement_type) &&
         metadata["production_candidate"] != false &&
         metadata["experimental_only"] != true
+    end
+
+    def manual_action?
+      return non_candidate_manual? unless candidate
+      return article_opportunity_manual? if article_opportunity?
+
+      target_valid? && human_required?
+    end
+
+    def article_opportunity_manual?
+      human_required? &&
+        target_valid? &&
+        concrete_manual_target_present? &&
+        ARTICLE_MANUAL_TYPES.include?(improvement_type)
+    end
+
+    def article_opportunity_preparation?
+      return true if research_required?
+      return true if ARTICLE_PREPARATION_TYPES.include?(improvement_type)
+      return true if human_required? && !concrete_manual_target_present?
+      return true if new_article_candidate? && target_value.to_s == "未作成"
+
+      false
     end
 
     def article_opportunity?
       return false unless candidate
 
-      metadata["value_model_name"].to_s == ARTICLE_OPPORTUNITY_MODEL_NAME &&
+      return true if metadata["article_opportunity"].present?
+      return true if metadata["value_model_name"].to_s == ARTICLE_OPPORTUNITY_MODEL_NAME &&
         metadata["analysis_source"].to_s == "article_analytics_snapshot" &&
         metadata["snapshot_id"].present? &&
+        metadata["expected_improvement_score"].present?
+
+      metadata["snapshot_id"].present? &&
+        metadata["analysis_source"].to_s == "article_analytics_snapshot" &&
         metadata["expected_improvement_score"].present?
     end
 
@@ -189,7 +278,8 @@ module Aicoo
       metadata["article_path"].presence ||
         metadata.dig("execution_brief", "target", "url").presence ||
         metadata.dig("execution_brief", "target", "path").presence ||
-        metadata.dig("action_plan", "target").presence
+        metadata.dig("action_plan", "target").presence ||
+        item_value(:target).presence
     end
 
     def planned_target
@@ -215,6 +305,164 @@ module Aicoo
         metadata["ranking_reason"].present? ||
         metadata["score_reasons"].present? ||
         item_value(:reason).present?
+    end
+
+    def improvement_type
+      @improvement_type ||= begin
+        raw = metadata&.dig("improvement_type").presence ||
+          metadata&.dig("opportunity_type").presence ||
+          metadata&.dig("execution_brief", "opportunity_type").presence ||
+          metadata&.dig("execution_brief", "improvement_type").presence ||
+          metadata&.dig("article_opportunity", "opportunity_type").presence ||
+          metadata&.dig("article_opportunity", "improvement_type").presence ||
+          opportunity_type
+
+        raw.to_s
+      end
+    end
+
+    def opportunity_type
+      @opportunity_type ||= begin
+        raw = metadata&.dig("opportunity_type").presence ||
+          metadata&.dig("improvement_type").presence ||
+          metadata&.dig("execution_brief", "opportunity_type").presence ||
+          metadata&.dig("article_opportunity", "opportunity_type").presence
+
+        raw.to_s
+      end
+    end
+
+    def human_required?
+      boolean_metadata?("human_required") ||
+        boolean_metadata?("requires_human") ||
+        boolean_metadata?("manual_required")
+    end
+
+    def research_required?
+      boolean_metadata?("research_required") ||
+        boolean_metadata?("target_research_required") ||
+        boolean_metadata?("needs_research")
+    end
+
+    def approved?
+      candidate&.approved_at.present? ||
+        metadata&.dig("approved") == true ||
+        metadata&.dig("approval_status").to_s == "approved"
+    end
+
+    def repository_configured?
+      !boolean_metadata?("repository_missing") &&
+        !Array(metadata&.dig("codex_gate", "missing")).include?("repository") &&
+        metadata&.dig("repository_configured") != false
+    end
+
+    def execution_profile_configured?
+      !boolean_metadata?("execution_profile_missing") &&
+        !Array(metadata&.dig("codex_gate", "missing")).include?("execution_profile") &&
+        metadata&.dig("execution_profile_configured") != false
+    end
+
+    def concrete_manual_target_present?
+      return true if metadata&.dig("target_record_id").present?
+      return true if metadata&.dig("shop_id").present?
+      return true if metadata&.dig("execution_brief", "target", "record_id").present?
+      return true if Array(metadata&.dig("execution_brief", "target", "shops")).present?
+      return true if Array(metadata&.dig("execution_brief", "target", "records")).present?
+
+      target_valid?
+    end
+
+    def non_candidate_category
+      return "manual_action" if non_candidate_manual?
+      return "preparation" if non_candidate_preparation?
+
+      "unspecified"
+    end
+
+    def non_candidate_manual?
+      return false if item_value(:source_type).to_s == "auto_revision_task" && target_blank?
+
+      target_valid? || item_value(:source_type).blank?
+    end
+
+    def non_candidate_preparation?
+      return false if item_value(:source_type).to_s == "daily_run_issue"
+
+      item_value(:source_type).to_s == "auto_revision_task" && target_blank?
+    end
+
+    def executable_rule_result
+      return "not_article_opportunity" unless article_opportunity?
+      return "business_missing" if resolved_business.blank?
+      return "target_invalid" unless target_valid?
+      return "execution_brief_missing" unless execution_brief_present?
+      return "evidence_missing" unless evidence_complete?
+      return "human_required" if human_required?
+      return "research_required" if research_required?
+      return "unsupported_improvement_type:#{improvement_type}" unless ARTICLE_EXECUTABLE_TYPES.include?(improvement_type)
+      return "not_production_candidate" if metadata["production_candidate"] == false || metadata["experimental_only"] == true
+
+      "matched"
+    end
+
+    def manual_rule_result
+      return "daily_run_issue" if non_candidate_manual?
+      return "not_article_opportunity" unless article_opportunity?
+      return "human_not_required" unless human_required?
+      return "target_invalid" unless target_valid?
+      return "manual_target_missing" unless concrete_manual_target_present?
+      return "unsupported_manual_type:#{improvement_type}" unless ARTICLE_MANUAL_TYPES.include?(improvement_type)
+
+      "matched"
+    end
+
+    def preparation_rule_result
+      return "non_candidate_target_missing" if non_candidate_preparation?
+      return "not_article_opportunity" unless article_opportunity?
+      return "research_required" if research_required?
+      return "preparation_type:#{improvement_type}" if ARTICLE_PREPARATION_TYPES.include?(improvement_type)
+      return "human_target_missing" if human_required? && !concrete_manual_target_present?
+      return "new_article_planning" if new_article_candidate? && target_value.to_s == "未作成"
+
+      "not_matched"
+    end
+
+    def matched_classification_rule(category)
+      case category
+      when "legacy"
+        "legacy"
+      when "fallback"
+        "fallback"
+      when "unspecified"
+        "unspecified"
+      when "executable_improvement"
+        article_opportunity? ? "article_opportunity_executable" : "target_valid_executable"
+      when "manual_action"
+        article_opportunity? ? "article_opportunity_manual" : "manual_action"
+      when "preparation"
+        article_opportunity? ? "article_opportunity_preparation" : "preparation"
+      else
+        "unknown"
+      end
+    end
+
+    def classification_reason(category)
+      case category
+      when "executable_improvement"
+        article_opportunity? ? "ArticleOpportunityの#{improvement_type}で、Business・対象・根拠・実行Briefが揃っています" : "対象が特定済みの実行候補です"
+      when "manual_action"
+        article_opportunity? ? "人手確認が必要で対象が特定済みです" : "人手で実行する具体的な候補です"
+      when "preparation"
+        preparation_rule_result
+      when "unspecified"
+        "Businessまたは対象が未特定です"
+      when "fallback"
+        "fallback候補です"
+      when "legacy"
+        "旧候補または非アクティブ候補です"
+      else
+        "分類未確定"
+      end
     end
 
     def raw_value_type
@@ -291,6 +539,11 @@ module Aicoo
 
     def decimal(value)
       value.to_s.delete(",").to_d
+    end
+
+    def boolean_metadata?(key)
+      value = metadata&.dig(key)
+      value == true || value.to_s == "true"
     end
   end
 end

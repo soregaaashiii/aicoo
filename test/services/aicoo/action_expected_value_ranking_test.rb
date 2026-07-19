@@ -158,6 +158,7 @@ module Aicoo
           "snapshot_id" => 123,
           "expected_improvement_score" => 8.5,
           "improvement_potential_score" => 6.0,
+          "opportunity_type" => "ctr_improvement",
           "article_path" => "/articles/umeda-smoking-cafe",
           "action_plan" => { "target" => "/articles/umeda-smoking-cafe" },
           "ranking_reason" => "表示上位でCTR改善余地があります。"
@@ -179,6 +180,71 @@ module Aicoo
       ).call
 
       assert_equal [ "action_candidate:executable" ], result.items.map(&:stable_id)
+    end
+
+    test "classifies executable article opportunity types as executable even when codex gate is blocked" do
+      %w[
+        ctr_improvement
+        rank_improvement
+        content_update
+        internal_link_addition
+        seo_improvement
+        title_meta_update
+        meta_update
+        heading_update
+        structure_update
+        internal_link_update
+      ].each do |opportunity_type|
+        candidate = action_candidate(
+          title: "#{opportunity_type} article opportunity",
+          metadata: {
+            "value_model_name" => ActionExpectedValueRanking::ARTICLE_OPPORTUNITY_MODEL_NAME,
+            "analysis_source" => "article_analytics_snapshot",
+            "snapshot_id" => 456,
+            "expected_improvement_score" => 5.0,
+            "improvement_potential_score" => 4.0,
+            "opportunity_type" => opportunity_type,
+            "article_path" => "/articles/#{opportunity_type}",
+            "action_plan" => { "target" => "/articles/#{opportunity_type}" },
+            "ranking_reason" => "具体的な記事改善です。",
+            "approved" => false,
+            "repository_missing" => true,
+            "execution_profile_missing" => true,
+            "execution_readiness" => "needs_owner",
+            "codex_eligible" => true
+          }
+        )
+        candidate.update!(action_type: "article_update")
+
+        classification = Aicoo::TodayRankingClassifier.call(
+          item(stable_id: "action_candidate:#{opportunity_type}", delta: 0, confidence: 0.6, record: candidate)
+        )
+
+        assert_equal "executable_improvement", classification.candidate_category
+        assert_equal "matched", classification.executable_rule_result
+      end
+    end
+
+    test "classifies article opportunity preparation and manual actions separately" do
+      research = article_opportunity_candidate(opportunity_type: "shop_addition", metadata: { "research_required" => true })
+      manual = article_opportunity_candidate(
+        opportunity_type: "verified_shop_addition",
+        metadata: {
+          "human_required" => true,
+          "execution_brief" => {
+            "target" => {
+              "path" => "/articles/verified-shop",
+              "shops" => [ { "id" => 1, "name" => "確認対象店舗" } ]
+            }
+          }
+        }
+      )
+
+      research_classification = Aicoo::TodayRankingClassifier.call(item(stable_id: "action_candidate:research", delta: 0, confidence: 0.5, record: research))
+      manual_classification = Aicoo::TodayRankingClassifier.call(item(stable_id: "action_candidate:manual", delta: 0, confidence: 0.5, record: manual))
+
+      assert_equal "preparation", research_classification.candidate_category
+      assert_equal "manual_action", manual_classification.candidate_category
     end
 
     test "uses one fallback only when normal candidate does not exist" do
@@ -274,6 +340,24 @@ module Aicoo
         expected_hours: 1,
         metadata:
       )
+    end
+
+    def article_opportunity_candidate(opportunity_type:, metadata: {})
+      base = {
+        "value_model_name" => ActionExpectedValueRanking::ARTICLE_OPPORTUNITY_MODEL_NAME,
+        "analysis_source" => "article_analytics_snapshot",
+        "snapshot_id" => 789,
+        "expected_improvement_score" => 4.0,
+        "improvement_potential_score" => 3.0,
+        "opportunity_type" => opportunity_type,
+        "article_path" => "/articles/#{opportunity_type}",
+        "action_plan" => { "target" => "/articles/#{opportunity_type}" },
+        "ranking_reason" => "ArticleOpportunityAnalyzerで評価しました。"
+      }.deep_merge(metadata)
+
+      candidate = action_candidate(title: "#{opportunity_type} article opportunity", metadata: base)
+      candidate.update!(action_type: "article_update")
+      candidate
     end
   end
 end

@@ -43,6 +43,19 @@ namespace :aicoo do
         evidence_complete: classification.evidence_complete,
         raw_value_type: classification.raw_value_type,
         raw_value: classification.raw_value,
+        article_opportunity_detected: classification.article_opportunity_detected,
+        opportunity_type: classification.opportunity_type,
+        improvement_type: classification.improvement_type,
+        human_required: classification.human_required,
+        research_required: classification.research_required,
+        approved: classification.approved,
+        repository_configured: classification.repository_configured,
+        execution_profile_configured: classification.execution_profile_configured,
+        executable_rule_result: classification.executable_rule_result,
+        manual_rule_result: classification.manual_rule_result,
+        preparation_rule_result: classification.preparation_rule_result,
+        matched_classification_rule: classification.matched_classification_rule,
+        classification_reason: classification.classification_reason,
         normalized_value_score: diagnostic.normalized_value_score,
         actionability_multiplier: classification.actionability_multiplier,
         category_multiplier: classification.category_multiplier,
@@ -74,7 +87,13 @@ namespace :aicoo do
       article_opportunity_top10: rows.count { |row| row[:raw_value_type] == "expected_improvement_score" && row[:final_rank_revenue].to_i.between?(1, 10) },
       target_missing_top10: rows.count { |row| row[:target_valid] == false && row[:final_rank_revenue].to_i.between?(1, 10) },
       legacy_top10: rows.count { |row| row[:candidate_category] == "legacy" && row[:final_rank_revenue].to_i.between?(1, 10) },
-      fallback_top10: rows.count { |row| row[:candidate_category] == "fallback" && row[:final_rank_revenue].to_i.between?(1, 10) }
+      fallback_top10: rows.count { |row| row[:candidate_category] == "fallback" && row[:final_rank_revenue].to_i.between?(1, 10) },
+      article_opportunity_executable_count: rows.count { |row| row[:article_opportunity_detected] && row[:candidate_category] == "executable_improvement" },
+      article_opportunity_manual_count: rows.count { |row| row[:article_opportunity_detected] && row[:candidate_category] == "manual_action" },
+      article_opportunity_preparation_count: rows.count { |row| row[:article_opportunity_detected] && row[:candidate_category] == "preparation" },
+      article_opportunity_unspecified_count: rows.count { |row| row[:article_opportunity_detected] && row[:candidate_category] == "unspecified" },
+      article_opportunity_main_ranking_count: rows.count { |row| row[:article_opportunity_detected] && row[:included_in_main_ranking] },
+      target_missing_main_ranking_count: rows.count { |row| row[:target_valid] == false && row[:included_in_main_ranking] }
     }
 
     puts "summary #{summary.map { |key, value| "#{key}=#{value}" }.join(' ')}"
