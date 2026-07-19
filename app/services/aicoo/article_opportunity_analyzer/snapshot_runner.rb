@@ -127,27 +127,33 @@ module Aicoo
 
         impressions = decimal(gsc["impressions"])
         position = decimal(gsc["average_position"])
+        ctr = normalize_rate(gsc["ctr"])
         query_count = decimal(gsc["query_count"])
         rank_delta = decimal(first_present(gsc["rank_delta"], gsc["position_delta"], gsc["average_position_delta"]))
-        demand = clamp(impressions / 5_000, 0, 1) * 10
-        rank_gap = if position > 20
-                     12
-                   elsif position > 10
-                     9
-                   elsif position > 5
-                     5
-                   else
-                     1
-                   end
+        return 0 if impressions < 100 || position.zero?
+
+        demand_factor = clamp((impressions - 100) / 4_900, 0, 1)
+        rank_factor = if position >= 11 && position <= 20
+                        1.to_d
+                      elsif position > 20 && position <= 30
+                        0.55.to_d
+                      elsif position > 5 && position <= 10
+                        0.45.to_d
+                      elsif position > 30 && impressions >= 1_000
+                        0.25.to_d
+                      else
+                        0.1.to_d
+                      end
+        ctr_factor = target_ctr(position).positive? ? clamp((target_ctr(position) - ctr) / target_ctr(position), 0, 1) : 0.to_d
         rank_trend = if rank_delta.negative?
-                       3
+                       0.15.to_d
                      elsif rank_delta.positive?
-                       1
+                       0.05.to_d
                      else
-                       0
+                       0.to_d
                      end
-        query_depth = clamp(query_count / 10, 0, 1) * 3
-        (demand + rank_gap + query_depth + rank_trend).round(1)
+        query_depth = clamp(query_count / 10, 0, 1) * 0.1
+        (25 * demand_factor * (rank_factor + ctr_factor + rank_trend + query_depth).clamp(0, 1)).round(1)
       end
 
       def ctr_score(payload)
@@ -155,12 +161,16 @@ module Aicoo
         return 0 unless gsc["available"]
 
         impressions = decimal(gsc["impressions"])
-        ctr = decimal(gsc["ctr"])
-        return 0 if impressions < 100
+        ctr = normalize_rate(gsc["ctr"])
+        position = decimal(gsc["average_position"])
+        return 0 if impressions < 100 || position.zero?
 
-        target = target_ctr(decimal(gsc["average_position"]))
+        target = target_ctr(position)
         gap = [ target - ctr, 0.to_d ].max
-        (clamp(gap / 0.03, 0, 1) * 20).round(1)
+        expected_incremental_clicks = impressions * gap
+        impact = clamp(expected_incremental_clicks / 80, 0, 1)
+        rank_relevance = position.positive? && position <= 30 ? 1.to_d : 0.35.to_d
+        (25 * impact * rank_relevance).round(1)
       end
 
       def pv_score(payload)
@@ -172,12 +182,18 @@ module Aicoo
         sessions = decimal(ga4["sessions"])
         engagement = decimal(ga4["engagement_seconds"])
         pv_delta = decimal(first_present(ga4["pageviews_delta"], ga4["pv_delta"], ga4["pageviews_change"]))
-        traffic = clamp(pageviews / 1_000, 0, 1) * 7
-        user_depth = pageviews.positive? ? clamp(active_users / pageviews, 0, 1) * 4 : 0
-        session_depth = sessions.positive? ? clamp(pageviews / sessions, 0, 2) / 2 * 3 : 0
-        engagement_depth = pageviews.positive? ? clamp((engagement / pageviews) / 90, 0, 1) * 6 : 0
-        pv_trend = pv_delta.negative? ? 3 : 0
-        (traffic + user_depth + session_depth + engagement_depth + pv_trend).round(1)
+        return 0 if pageviews < 50
+
+        traffic_impact = clamp(pageviews / 1_500, 0, 1)
+        active_rate = pageviews.positive? ? active_users / pageviews : 0.to_d
+        engagement_per_view = pageviews.positive? ? engagement / pageviews : 0.to_d
+        session_depth = sessions.positive? ? pageviews / sessions : 0.to_d
+        engagement_gap = clamp((45.to_d - engagement_per_view) / 45, 0, 1)
+        active_gap = clamp((0.35.to_d - active_rate) / 0.35, 0, 1)
+        session_gap = clamp((1.2.to_d - session_depth) / 1.2, 0, 1)
+        decline_gap = pv_delta.negative? ? clamp(pv_delta.abs / [ pageviews, 1.to_d ].max, 0, 1) : 0.to_d
+        improvement_gap = [ engagement_gap, active_gap, session_gap, decline_gap ].max
+        (15 * traffic_impact * improvement_gap).round(1)
       end
 
       def click_score(payload)
@@ -187,55 +203,61 @@ module Aicoo
 
         pageviews = decimal(ga4["pageviews"])
         total_clicks = decimal(shop_click["total_clicks"])
+        return 0 if pageviews < 50
+
         rate = pageviews.positive? ? total_clicks / pageviews : 0.to_d
         gap = clamp(0.04.to_d - rate, 0, 0.04)
-        traffic_basis = clamp(pageviews / 1_000, 0, 1)
-        (gap / 0.04 * 15 * [ traffic_basis, 0.25 ].max).round(1)
+        recoverable_clicks = pageviews * gap
+        traffic_basis = clamp(recoverable_clicks / 40, 0, 1)
+        (20 * traffic_basis).round(1)
       end
 
       def content_score(payload)
         article = payload["article"].to_h
-        score = 0.to_d
         word_count = decimal(article["word_count"])
         internal_links = decimal(article["internal_link_count"])
         shop_count = decimal(article["shop_count"])
         verified_shop_count = decimal(article["verified_shop_count"])
+        word_gap = word_count.positive? ? clamp((2_500 - word_count) / 2_500, 0, 1) : 0.to_d
+        link_gap = clamp((3 - internal_links) / 3, 0, 1)
+        shop_gap = shop_count.positive? ? clamp((8 - shop_count) / 8, 0, 1) : 0.to_d
+        verified_gap = shop_count.positive? ? clamp((shop_count - verified_shop_count) / shop_count, 0, 1) : 0.to_d
 
-        score += 7 if word_count.positive? && word_count < 1_500
-        score += 5 if internal_links.zero?
-        score += 5 if shop_count.positive? && shop_count < 5
-        score += 5 if shop_count.positive? && verified_shop_count < shop_count
-        score.round(1)
+        ((word_gap * 6) + (link_gap * 5) + (shop_gap * 5) + (verified_gap * 4)).round(1)
       end
 
       def learning_score(payload)
         learning = payload["learning"].to_h
         improvements = decimal(learning["improvement_count"])
         successes = decimal(learning["improvement_success_count"])
-        return 2 if improvements.zero?
+        last_improvement_at = parse_time(learning["last_improvement_at"])
+        return 1 if improvements.zero?
 
         success_rate = successes / improvements
-        (2 + clamp(success_rate, 0, 1) * 8).round(1)
+        recency_penalty = last_improvement_at && last_improvement_at > 30.days.ago ? 3 : 0
+        (2 + clamp(success_rate, 0, 1) * 8 - recency_penalty).clamp(0, 10).round(1)
       end
 
       def opportunities_for(payload, breakdown)
         rows = []
-        rows << opportunity("ctr_improvement", "CTR改善", "タイトル・metaを見直す", breakdown["ctr_opportunity"]) if breakdown["ctr_opportunity"] >= 8
-        rows << opportunity("rank_improvement", "順位改善", "検索意図に合わせて本文を更新する", breakdown["seo_opportunity"]) if breakdown["seo_opportunity"] >= 12
-        rows << opportunity("internal_link_addition", "内部リンク追加", "関連記事・店舗ページへの内部リンクを追加する", breakdown["content_opportunity"]) if internal_link_gap?(payload)
-        rows << opportunity("shop_addition", "店舗追加", "記事テーマに合う掲載店舗を追加する", breakdown["content_opportunity"]) if shop_gap?(payload)
-        rows << opportunity("verified_shop_addition", "確認済店舗追加", "未確認店舗の喫煙情報を確認する", breakdown["content_opportunity"]) if verified_shop_gap?(payload)
-        rows << opportunity("content_update", "本文更新", "本文量と最新性を補強する", breakdown["content_opportunity"]) if content_gap?(payload)
-        rows << opportunity("cta_improvement", "送客CTA改善", "店舗送客CTAを見直す", breakdown["click_opportunity"]) if breakdown["click_opportunity"] >= 6
+        reasons = score_reasons(payload)
+        rows << opportunity("ctr_improvement", "CTR改善", "タイトル・metaを見直す", breakdown["ctr_opportunity"], reasons["ctr_opportunity"]) if breakdown["ctr_opportunity"] >= 8
+        rows << opportunity("rank_improvement", "順位改善", "検索意図に合わせて本文を更新する", breakdown["seo_opportunity"], reasons["seo_opportunity"]) if breakdown["seo_opportunity"] >= 10
+        rows << opportunity("internal_link_addition", "内部リンク追加", "関連記事・店舗ページへの内部リンクを追加する", breakdown["content_opportunity"], reasons["content_opportunity"]) if internal_link_gap?(payload)
+        rows << opportunity("shop_addition", "店舗追加", "記事テーマに合う掲載店舗を追加する", breakdown["content_opportunity"], reasons["content_opportunity"]) if shop_gap?(payload)
+        rows << opportunity("verified_shop_addition", "確認済店舗追加", "未確認店舗の喫煙情報を確認する", breakdown["content_opportunity"], reasons["content_opportunity"]) if verified_shop_gap?(payload)
+        rows << opportunity("content_update", "本文更新", "本文量と最新性を補強する", breakdown["content_opportunity"], reasons["content_opportunity"]) if content_gap?(payload)
+        rows << opportunity("cta_improvement", "送客CTA改善", "店舗送客CTAを見直す", breakdown["click_opportunity"], reasons["click_opportunity"]) if breakdown["click_opportunity"] >= 6
         rows.presence || [ opportunity("monitoring", "継続観測", "現状の実績を継続観測する", 0) ]
       end
 
-      def opportunity(type, label, next_action, score)
+      def opportunity(type, label, next_action, score, reason = nil)
         {
           "opportunity_type" => type,
           "label" => label,
           "next_action" => next_action,
-          "score" => score.to_f.round(1)
+          "score" => score.to_f.round(1),
+          "reason" => reason
         }
       end
 
@@ -297,7 +319,10 @@ module Aicoo
           "article_path" => payload["normalized_path"],
           "opportunity_score" => score,
           "score_breakdown" => breakdown,
+          "total_score" => score,
+          "score_reasons" => score_reasons(payload),
           "opportunities" => opportunities,
+          "ranking_reason" => ranking_reason(payload, score, breakdown),
           "evidence" => evidence(payload),
           "expected_profit_yen" => nil,
           "expected_profit_calculated" => false,
@@ -313,6 +338,34 @@ module Aicoo
           "article" => payload["article"].to_h.slice("title", "word_count", "internal_link_count", "shop_count", "verified_shop_count", "content_source"),
           "learning" => payload["learning"].to_h.slice("improvement_count", "improvement_success_count", "last_improvement_at")
         }
+      end
+
+      def score_reasons(payload)
+        gsc = payload["gsc"].to_h
+        ga4 = payload["ga4"].to_h
+        shop_click = payload["shop_click"].to_h
+        article = payload["article"].to_h
+        learning = payload["learning"].to_h
+        impressions = decimal(gsc["impressions"])
+        ctr = normalize_rate(gsc["ctr"])
+        position = decimal(gsc["average_position"])
+        pageviews = decimal(ga4["pageviews"])
+        total_clicks = decimal(shop_click["total_clicks"])
+        click_rate = pageviews.positive? ? total_clicks / pageviews : 0.to_d
+        engagement_per_view = pageviews.positive? ? decimal(ga4["engagement_seconds"]) / pageviews : 0.to_d
+        {
+          "seo_opportunity" => "順位#{position.to_f.round(1)}位、表示#{impressions.to_i}、CTR#{(ctr * 100).round(2)}%。11〜20位かつ表示が多い記事ほどSEO改善余地を高く評価。",
+          "ctr_opportunity" => "CTR改善見込みクリック=#{(impressions * [ target_ctr(position) - ctr, 0.to_d ].max).round(1)}。表示が少ない記事はCTRが低くても加点を抑制。",
+          "pv_opportunity" => "PV=#{pageviews.to_i}、1PVあたりengagement=#{engagement_per_view.round(1)}秒。PVがあり、滞在や推移に改善余地がある場合のみ加点。",
+          "click_opportunity" => "ShopClick率=#{(click_rate * 100).round(2)}%。PVに対して送客率が低いほど改善余地を評価。",
+          "content_opportunity" => "文字数=#{article['word_count'] || '-'}、内部リンク=#{article['internal_link_count'] || '-'}、店舗数=#{article['shop_count'] || '-'}、確認済=#{article['verified_shop_count'] || '-'}。",
+          "learning_confidence" => "改善回数=#{learning['improvement_count'].to_i}、成功回数=#{learning['improvement_success_count'].to_i}、直近改善=#{learning['last_improvement_at'].presence || '-'}。"
+        }
+      end
+
+      def ranking_reason(payload, score, breakdown)
+        main = breakdown.except("learning_confidence").max_by { |_key, value| value.to_d }
+        "#{main&.first || 'opportunity'} が最大要因。total_score=#{score}。#{score_reasons(payload)[main&.first].presence || 'Snapshotから改善余地を評価。'}"
       end
 
       def action_type_for(opportunity)
@@ -364,8 +417,19 @@ module Aicoo
         value.to_s.delete(",").to_d
       end
 
+      def normalize_rate(value)
+        rate = decimal(value)
+        rate > 1 ? rate / 100 : rate
+      end
+
       def first_present(*values)
         values.find { |value| value.present? }
+      end
+
+      def parse_time(value)
+        Time.zone.parse(value.to_s) if value.present?
+      rescue ArgumentError
+        nil
       end
 
       def clamp(value, min, max)

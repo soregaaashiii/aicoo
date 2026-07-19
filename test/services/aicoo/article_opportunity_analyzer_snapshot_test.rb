@@ -84,6 +84,49 @@ module Aicoo
       assert result.rank_differences.any?
     end
 
+    test "prioritizes improvement headroom over current popularity" do
+      create_article_snapshot(
+        article_id: 201,
+        path: "/articles/umeda-private-smoking",
+        title: "梅田 個室 喫煙",
+        gsc: { "available" => true, "impressions" => 2_500, "clicks" => 15, "ctr" => 0.006, "average_position" => 13, "query_count" => 6 },
+        ga4: { "available" => true, "pageviews" => 600, "active_users" => 160, "sessions" => 260, "engagement_seconds" => 20_000 },
+        shop_click: { "available" => true, "total_clicks" => 2 },
+        article: { "title" => "梅田 個室 喫煙", "word_count" => 1_100, "internal_link_count" => 0, "shop_count" => 4, "verified_shop_count" => 2 }
+      )
+      create_article_snapshot(
+        article_id: 202,
+        path: "/articles/vape",
+        title: "VAPE",
+        gsc: { "available" => true, "impressions" => 20, "clicks" => 1, "ctr" => 0.05, "average_position" => 8, "query_count" => 1 },
+        ga4: { "available" => true, "pageviews" => 1_800, "active_users" => 1_000, "sessions" => 1_100, "engagement_seconds" => 180_000 },
+        shop_click: { "available" => true, "total_clicks" => 120 },
+        article: { "title" => "VAPE", "word_count" => 4_000, "internal_link_count" => 6, "shop_count" => 10, "verified_shop_count" => 10 }
+      )
+
+      results = ArticleOpportunityAnalyzer.from_snapshots(business: @business).article_results
+      by_path = results.index_by(&:normalized_path)
+
+      assert_operator by_path["/articles/umeda-private-smoking"].opportunity_score, :>, by_path["/articles/vape"].opportunity_score
+      assert_operator by_path["/articles/umeda-private-smoking"].score_breakdown["ctr_opportunity"], :>, 0
+      assert_equal 0, by_path["/articles/vape"].score_breakdown["seo_opportunity"]
+    end
+
+    test "high pv alone does not create pv opportunity without weakness" do
+      create_article_snapshot(
+        article_id: 203,
+        path: "/articles/popular-complete",
+        ga4: { "available" => true, "pageviews" => 2_000, "active_users" => 1_000, "sessions" => 1_200, "engagement_seconds" => 200_000 },
+        shop_click: { "available" => true, "total_clicks" => 120 },
+        article: { "title" => "完成記事", "word_count" => 4_000, "internal_link_count" => 5, "shop_count" => 10, "verified_shop_count" => 10 }
+      )
+
+      article_result = ArticleOpportunityAnalyzer.from_snapshots(business: @business).article_results.first
+
+      assert_operator article_result.score_breakdown["pv_opportunity"], :<, 5
+      assert_operator article_result.score_breakdown["content_opportunity"], :<, 3
+    end
+
     private
 
     def create_article_snapshot(article_id:, path:, title: "記事", gsc: nil, ga4: nil, shop_click: nil, article: nil, learning: nil)

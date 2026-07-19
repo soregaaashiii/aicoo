@@ -508,8 +508,8 @@ module AicooArticleAnalyticsSnapshotRake
     puts "match_count=#{result.match_count}"
     puts "match_rate=#{result.match_rate}%"
     puts "candidate_ids=#{result.candidate_ids.join(',').presence || '-'}"
-    puts "new_article_results:"
-    result.article_results.each do |row|
+    puts "new_article_results_top10:"
+    result.article_results.sort_by { |row| -row.opportunity_score.to_i }.first(10).each do |row|
       puts [
         "snapshot_id=#{row.snapshot_id}",
         "article_id=#{row.article_id}",
@@ -522,8 +522,18 @@ module AicooArticleAnalyticsSnapshotRake
         "content=#{row.score_breakdown['content_opportunity']}",
         "learning=#{row.score_breakdown['learning_confidence']}",
         "opportunities=#{row.opportunities.map { |opportunity| opportunity['opportunity_type'] }.join('|').presence || '-'}",
+        "ranking_reason=#{row.metadata['ranking_reason'].to_s.squish.presence || '-'}",
         "title=#{row.title.to_s.squish.presence || '-'}"
       ].join(" ")
+      Array(row.opportunities).each do |opportunity|
+        puts [
+          "  improvement=#{opportunity['label'] || '-'}",
+          "type=#{opportunity['opportunity_type'] || '-'}",
+          "score=#{opportunity['score'] || 0}",
+          "reason=#{opportunity['reason'].to_s.squish.presence || '-'}",
+          "next=#{opportunity['next_action'].to_s.squish.presence || '-'}"
+        ].join(" ")
+      end
     end
     puts "rank_differences:"
     if result.rank_differences.empty?
