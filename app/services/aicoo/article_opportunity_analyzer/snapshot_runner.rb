@@ -41,10 +41,11 @@ module Aicoo
         :metadata
       )
 
-      def initialize(business:, apply: false, limit: nil)
+      def initialize(business:, apply: false, limit: nil, snapshot_ids: nil)
         @business = business
         @apply = ActiveModel::Type::Boolean.new.cast(apply)
         @limit = limit&.to_i
+        @snapshot_ids = Array(snapshot_ids).compact_blank.map(&:to_i).uniq
         @created_count = 0
         @failed_count = 0
         @candidate_ids = []
@@ -130,11 +131,12 @@ module Aicoo
 
       private
 
-      attr_reader :business, :apply, :limit, :created_count, :failed_count, :candidate_ids
+      attr_reader :business, :apply, :limit, :snapshot_ids, :created_count, :failed_count, :candidate_ids
 
       def snapshots
         @snapshots ||= begin
           scope = AicooDataSnapshot.where(source_type: SOURCE_TYPE).recent
+          scope = scope.where(id: snapshot_ids) if snapshot_ids.any?
           rows = scope.select do |snapshot|
             payload = snapshot.payload.to_h.deep_stringify_keys
             next false unless payload["business_id"].to_i == business.id

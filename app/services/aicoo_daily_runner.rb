@@ -184,6 +184,17 @@ class AicooDailyRunner
 
     run_suelog_database_steps!(run)
 
+    article_opportunity_result = run_article_opportunity_analysis!(run)
+    log!(
+      "ArticleOpportunityAnalysis status=#{article_opportunity_result.status} " \
+      "snapshots_created=#{article_opportunity_result.snapshot_result&.created_count.to_i} " \
+      "analyzed=#{article_opportunity_result.analyzer_result&.analyzed_count.to_i} " \
+      "candidates_created=#{article_opportunity_result.candidate_created_count} " \
+      "promoted=#{article_opportunity_result.proposal_promoted_count} " \
+      "today_eligible=#{article_opportunity_result.today_eligible_count}"
+    )
+    article_opportunity_result = nil
+
     run_source_app_diff_detection!(run)
 
     adjustment_logs = record_step!(run, "proxy_weight_adjustment") do
@@ -554,6 +565,98 @@ class AicooDailyRunner
 
   def safe_suelog_error(error)
     error.message.to_s.gsub(ENV["SUELOG_DATABASE_URL"].to_s, "[FILTERED]")
+  end
+
+  def run_article_opportunity_analysis!(run)
+    step = start_step!(run, Aicoo::ArticleOpportunityDailyRun::STEP_NAME)
+    started_at = Time.current
+    Aicoo::MemoryDiagnostics.measure("AicooDailyRunner.step.article_opportunity_analysis", context: daily_run_memory_context(run, step_name: Aicoo::ArticleOpportunityDailyRun::STEP_NAME, step_id: step.id)) do
+      record_step_progress!(step, batch: 0, processed: 0)
+      business = suelog_business
+      unless business
+        result = Aicoo::ArticleOpportunityDailyRun::Result.new(
+          "skipped",
+          nil,
+          nil,
+          nil,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          nil,
+          nil,
+          [ "suelog_business_not_found" ]
+        )
+        skip_step!(
+          step,
+          metadata: Aicoo::ArticleOpportunityDailyRun.metadata_for(result).merge(
+            "started_at" => started_at.iso8601,
+            "finished_at" => Time.current.iso8601,
+            warning: true,
+            reason: "suelog_business_not_found",
+            message: "吸えログBusinessが見つからないため、ArticleOpportunityAnalysisをスキップしました。"
+          )
+        )
+        return result
+      end
+
+      result = Aicoo::ArticleOpportunityDailyRun.call(daily_run: run, business:)
+      metadata = Aicoo::ArticleOpportunityDailyRun.metadata_for(result).merge(
+        "started_at" => started_at.iso8601,
+        "finished_at" => Time.current.iso8601
+      )
+      case result.status
+      when "skipped"
+        skip_step!(
+          step,
+          metadata: metadata.merge(
+            warning: true,
+            reason: result.errors.first.presence || "article_opportunity_analysis_skipped",
+            message: "ArticleOpportunityAnalysisは対象外または必要データ不足のためスキップされました。"
+          )
+        )
+      when "failed"
+        partial_failures << "article_opportunity_analysis_failed"
+        fail_step!(
+          step,
+          result.errors.first.presence || "article_opportunity_analysis_failed",
+          metadata: metadata.merge(
+            reason: "article_opportunity_analysis_failed",
+            message: "ArticleOpportunityAnalysisに失敗しました。Daily Runは可能な後続処理を継続します。"
+          )
+        )
+      when "warning"
+        finish_step!(
+          step,
+          metadata: metadata.merge(
+            warning: true,
+            reason: "article_opportunity_analysis_partial",
+            message: "ArticleOpportunityAnalysisは完了しましたが、一部欠損・重複抑制・Today候補0件があります。"
+          )
+        )
+      else
+        finish_step!(step, metadata:)
+      end
+      result
+    end
+  rescue StandardError => e
+    error_message = "#{e.class}: #{e.message}"
+    partial_failures << "article_opportunity_analysis_failed"
+    fail_step!(
+      step,
+      error_message,
+      metadata: {
+        error_class: e.class.name,
+        backtrace: e.backtrace.to_a.first(5),
+        message: "ArticleOpportunityAnalysis failed and Daily Run continues as partial_failed."
+      }
+    ) if step
+    log!("ArticleOpportunityAnalysis failed: #{error_message}")
+    Aicoo::ArticleOpportunityDailyRun::Result.new("failed", nil, nil, nil, 0, 0, 0, 0, 0, 0, 1, 0, nil, nil, [ error_message ])
   end
 
   def run_calibration!(run)

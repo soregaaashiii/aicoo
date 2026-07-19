@@ -366,6 +366,19 @@ namespace :aicoo do
     ).call
     AicooArticleAnalyticsSnapshotRake.print_article_opportunity_today_result(result)
   end
+
+  desc "Diagnose ArticleOpportunityAnalyzer Daily Run integration for Suelog. Usage: bin/rails aicoo:diagnose_article_opportunity_daily_run"
+  task diagnose_article_opportunity_daily_run: :environment do
+    business = AicooSuelogArticleExpectedValueRake.suelog_business_scope.first
+
+    if business.blank?
+      puts "Business=not_found"
+      next
+    end
+
+    result = Aicoo::ArticleOpportunityDailyRun.latest_diagnostic_result(business:)
+    AicooArticleAnalyticsSnapshotRake.print_article_opportunity_daily_run_result(result)
+  end
 end
 
 module AicooArticleAnalyticsSnapshotRake
@@ -702,6 +715,27 @@ module AicooArticleAnalyticsSnapshotRake
         ].join(" ")
       end
     end
+  end
+
+  def print_article_opportunity_daily_run_result(result)
+    business = result.fetch(:business)
+    puts "business_id=#{business.id}"
+    puts "business_name=#{business.name}"
+    puts "latest_daily_run_id=#{result[:latest_daily_run_id] || '-'}"
+    puts "latest_step_status=#{result[:latest_step_status] || '-'}"
+    puts "latest_step_started_at=#{result[:latest_step_started_at] || '-'}"
+    puts "latest_step_finished_at=#{result[:latest_step_finished_at] || '-'}"
+    puts "snapshot_created_count=#{result[:snapshot_created_count]}"
+    puts "analyzer_success_count=#{result[:analyzer_success_count]}"
+    puts "analyzer_failed_count=#{result[:analyzer_failed_count]}"
+    puts "candidate_created_count=#{result[:candidate_created_count]}"
+    puts "proposal_promoted_count=#{result[:proposal_promoted_count]}"
+    puts "today_eligible_count=#{result[:today_eligible_count]}"
+    puts "duplicate_suppressed_count=#{result[:duplicate_suppressed_count]}"
+    puts "latest_snapshot_at=#{result[:latest_snapshot_at] || '-'}"
+    puts "latest_candidate_at=#{result[:latest_candidate_at] || '-'}"
+    puts "last_error=#{result[:last_error] || '-'}"
+    puts "next_required_action=#{result[:next_required_action]}"
   end
 end
 

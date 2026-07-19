@@ -65,6 +65,8 @@ module Aicoo
       case step_name
       when "calibration"
         recover_calibration
+      when "article_opportunity_analysis"
+        recover_article_opportunity_analysis
       when "business_metrics_import"
         recover_business_metrics_import
       when "owner_task_digest"
@@ -125,6 +127,18 @@ module Aicoo
       results = BusinessMetricDailyImporter.import_all!(date: daily_run.target_date)
       daily_run.update!(business_metrics_imported_count: results.size)
       "BusinessMetricDaily import step recovery completed successfully count=#{results.size}"
+    end
+
+    def recover_article_opportunity_analysis
+      business = Aicoo::ArticleOpportunityDailyRun.target_businesses.first
+      return "Article opportunity analysis recovery skipped reason=target_business_not_found" unless business
+
+      result = Aicoo::ArticleOpportunityDailyRun.call(daily_run:, business:)
+      raise(result.errors.first.presence || "Article opportunity analysis failed") if result.status == "failed"
+
+      metadata = recovery_step.metadata.to_h.merge(Aicoo::ArticleOpportunityDailyRun.metadata_for(result))
+      recovery_step.update!(metadata:)
+      "Article opportunity analysis step recovery completed status=#{result.status} candidates_created=#{result.candidate_created_count} promoted=#{result.proposal_promoted_count} today_eligible=#{result.today_eligible_count}"
     end
 
     def skipped_result(started_at, message)
