@@ -179,9 +179,9 @@ module Aicoo
     def estimate_rank_improvement(metrics, coefficients)
       impressions = metric_value(metrics, "gsc", "impressions", fallback: INITIAL_COEFFICIENTS.fetch("fallback_impressions"))
       position = metric_value(metrics, "gsc", "average_position", fallback: 20)
-      current_ctr = normalize_rate(metric_value(metrics, "gsc", "ctr", fallback: target_ctr_for(position)))
       improved_position = [ position - coefficients.fetch("rank_gain_positions"), 1.to_d ].max
-      expected_ctr_gain = [ target_ctr_for(improved_position) - current_ctr, coefficients.fetch("content_ctr_gain_rate") ].max
+      rank_ctr_gain = [ rank_improvement_ctr_for(improved_position) - rank_improvement_ctr_for(position), 0.to_d ].max
+      expected_ctr_gain = coefficients.fetch("content_ctr_gain_rate") + rank_ctr_gain
       expected_click_gain = impressions * expected_ctr_gain
       conversion_estimate(expected_click_gain, expected_ctr_gain, coefficients)
     end
@@ -336,6 +336,25 @@ module Aicoo
       return 0.012.to_d if pos <= 50
 
       0.005.to_d
+    end
+
+    def rank_improvement_ctr_for(position)
+      pos = decimal(position)
+      return 0.28.to_d if pos <= 1
+
+      curve = [
+        [ 1.to_d, 0.28.to_d ],
+        [ 3.to_d, 0.15.to_d ],
+        [ 5.to_d, 0.08.to_d ],
+        [ 10.to_d, 0.04.to_d ],
+        [ 20.to_d, 0.018.to_d ],
+        [ 50.to_d, 0.006.to_d ]
+      ]
+      lower, upper = curve.each_cons(2).find { |left, right| pos >= left.first && pos <= right.first }
+      return 0.005.to_d unless lower && upper
+
+      progress = (pos - lower.first) / (upper.first - lower.first)
+      lower.last + ((upper.last - lower.last) * progress)
     end
 
     BusinessLearningStats = Data.define(:sample_count, :profit_factor, :success_rate) do

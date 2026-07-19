@@ -52,6 +52,20 @@ module Aicoo
       end
     end
 
+    test "rank improvement converts rank gain into additional ctr gain" do
+      rank = ArticleOpportunityExpectedProfit.call(create_candidate!("rank_improvement"))
+      content = ArticleOpportunityExpectedProfit.call(create_candidate!("content_update"))
+
+      assert_operator rank.expected_ctr_gain, :>, content.expected_ctr_gain
+      assert_operator rank.expected_click_gain, :>, content.expected_click_gain
+    end
+
+    test "rank improvement change does not alter ctr improvement estimate" do
+      ctr = ArticleOpportunityExpectedProfit.call(create_candidate!("ctr_improvement"))
+
+      assert_equal 0.035, ctr.expected_ctr_gain
+    end
+
     test "missing metrics still estimate with initial coefficients and low confidence" do
       candidate = create_candidate!("ctr_improvement", snapshot_id: nil)
 
