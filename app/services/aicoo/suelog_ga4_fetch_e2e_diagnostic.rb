@@ -557,12 +557,18 @@ module Aicoo
 
     def property_matches_suelog(setting)
       return "unknown" unless setting
-      site = setting.aicoo_analytics_site
-      text = [ site&.domain, site&.public_url, site&.name, setting.name ].compact.join(" ").downcase
-      return "true" if text.include?("suelog")
-      return "false" if text.include?("aicoo") || text.include?("/lp")
+      configured = configured_ga4_property_id
+      return "unknown" if configured.blank?
+      return "true" if setting.property_id.to_s == configured.to_s
 
-      "unknown"
+      "false"
+    end
+
+    def configured_ga4_property_id
+      @configured_ga4_property_id ||= business_source_setting&.connection_field_value("property_id").presence ||
+                                      business_source_setting&.property_identifier.presence ||
+                                      analytics_sites.find { |site| site.ga4_property_id.present? }&.ga4_property_id ||
+                                      named_ga4_setting&.property_id.presence
     end
 
     def mixed_business_data?

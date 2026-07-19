@@ -4,7 +4,6 @@ require "set"
 module Aicoo
   class SuelogGa4DataIntegrityCheck
     EXPECTED_BUSINESS_ID = Aicoo::SuelogGa4Resync::EXPECTED_BUSINESS_ID
-    EXPECTED_PROPERTY_ID = Aicoo::SuelogGa4Resync::EXPECTED_PROPERTY_ID
     ALLOWED_HOSTS = Aicoo::SuelogGa4Resync::ALLOWED_HOSTS
 
     Result = Data.define(
@@ -78,7 +77,7 @@ module Aicoo
       blocking_reasons << "business_id_mismatch" if business && business.id != expected_business_id
       blocking_reasons << "ga4_setting_not_found" if setting.blank?
       blocking_reasons << "oauth_expired_or_unusable" unless oauth_usable?
-      blocking_reasons << "property_id_mismatch" if setting && setting.property_id.to_s != EXPECTED_PROPERTY_ID
+      blocking_reasons << "property_id_mismatch" if setting && !property_matches_business_setting?
       blocking_reasons << "latest_ga4_fetch_not_success" unless latest_fetch_status == "success"
       blocking_reasons << "article_row_count_zero" if path_counts[:articles].zero?
       blocking_reasons << "ga4_matched_articles_zero" if article_match_summary[:matched_article_ids].empty?
@@ -145,9 +144,35 @@ module Aicoo
 
     def setting
       @setting ||= begin
-        AnalyticsSourceSetting.where(source_type: "ga4", property_id: EXPECTED_PROPERTY_ID, enabled: true).find do |row|
+        scope = AnalyticsSourceSetting.where(source_type: "ga4", enabled: true)
+        configured_property_id.present? ? scope.find_by(property_id: configured_property_id) : nil
+      end || begin
+        AnalyticsSourceSetting.where(source_type: "ga4", enabled: true).find do |row|
           row.aicoo_analytics_site&.business_id == business&.id || row.name.to_s.include?("吸えログ")
-        end || AicooAnalyticsSite.where(business:, ga4_property_id: EXPECTED_PROPERTY_ID).recent.first&.ga4_setting
+        end || AicooAnalyticsSite.where(business:).recent.first&.ga4_setting
+      end
+    end
+
+    def property_matches_business_setting?
+      configured_property_id.present? && setting&.property_id.to_s == configured_property_id.to_s
+    end
+
+    def configured_property_id
+      @configured_property_id ||= business_source_setting&.connection_field_value("property_id").presence ||
+                                  business_source_setting&.property_identifier.presence ||
+                                  AicooAnalyticsSite.where(business:).where.not(ga4_property_id: [ nil, "" ]).recent.first&.ga4_property_id ||
+                                  named_ga4_setting&.property_id.presence
+    end
+
+    def business_source_setting
+      @business_source_setting ||= BusinessDataSourceSetting.find_by(business:, source_key: "ga4")
+    end
+
+    def named_ga4_setting
+      return if business.blank?
+
+      @named_ga4_setting ||= AnalyticsSourceSetting.where(source_type: "ga4", enabled: true).to_a.find do |row|
+        row.name.to_s.match?(/\A#{Regexp.escape(business.name)}\b/i)
       end
     end
 
@@ -215,7 +240,7 @@ module Aicoo
           "normalized_page" => Aicoo::UrlNormalizer.call(page),
           "hostName" => row["hostName"].presence || row["host_name"].presence,
           "business_id" => row["business_id"],
-          "property_id" => row["property_id"].presence || EXPECTED_PROPERTY_ID
+          "property_id" => row["property_id"].presence || configured_property_id
         )
       end
     end

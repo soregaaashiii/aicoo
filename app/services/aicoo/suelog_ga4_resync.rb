@@ -3,7 +3,6 @@ require "csv"
 module Aicoo
   class SuelogGa4Resync
     EXPECTED_BUSINESS_ID = 2
-    EXPECTED_PROPERTY_ID = "543499803"
     ALLOWED_HOSTS = %w[suelog.jp www.suelog.jp].freeze
     DIMENSIONS = %w[date pagePath hostName pageLocation].freeze
     METRICS = %w[
@@ -145,17 +144,17 @@ module Aicoo
 
     def setting
       @setting ||= begin
-        identifier = business_source_setting&.connection_field_value("property_id").presence ||
-                     business_source_setting&.property_identifier.presence ||
-                     EXPECTED_PROPERTY_ID
+        identifier = configured_property_id
         scope = AnalyticsSourceSetting.where(source_type: "ga4")
-        scope.find_by(property_id: identifier, enabled: true) || analytics_site&.ga4_setting
+        (identifier.present? ? scope.find_by(property_id: identifier, enabled: true) : nil) || analytics_site&.ga4_setting
       end
     end
 
     def analytics_site
-      @analytics_site ||= AicooAnalyticsSite.where(business:).where(ga4_property_id: EXPECTED_PROPERTY_ID).recent.first ||
-                          AicooAnalyticsSite.where(business:).recent.first
+      @analytics_site ||= begin
+        scope = AicooAnalyticsSite.where(business:)
+        configured_property_id.present? ? scope.where(ga4_property_id: configured_property_id).recent.first || scope.recent.first : scope.recent.first
+      end
     end
 
     def business_source_setting
@@ -167,7 +166,26 @@ module Aicoo
     end
 
     def property_matches_suelog?
-      setting&.property_id.to_s == EXPECTED_PROPERTY_ID
+      configured_property_id.present? && setting&.property_id.to_s == configured_property_id.to_s
+    end
+
+    def configured_property_id
+      @configured_property_id ||= business_source_setting&.connection_field_value("property_id").presence ||
+                                  business_source_setting&.property_identifier.presence ||
+                                  analytics_site_property_id.presence ||
+                                  named_ga4_setting&.property_id.presence
+    end
+
+    def analytics_site_property_id
+      AicooAnalyticsSite.where(business:).where.not(ga4_property_id: [ nil, "" ]).recent.first&.ga4_property_id
+    end
+
+    def named_ga4_setting
+      return if business.blank?
+
+      @named_ga4_setting ||= AnalyticsSourceSetting.where(source_type: "ga4", enabled: true).to_a.find do |row|
+        row.name.to_s.match?(/\A#{Regexp.escape(business.name)}\b/i)
+      end
     end
 
     def setting_host_matches_suelog?

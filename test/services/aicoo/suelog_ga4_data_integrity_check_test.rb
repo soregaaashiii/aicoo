@@ -3,13 +3,22 @@ require "set"
 
 module Aicoo
   class SuelogGa4DataIntegrityCheckTest < ActiveSupport::TestCase
+    SUELOG_PROPERTY_ID = "536889590"
+
     setup do
       @business = businesses(:suelog)
       @setting = AnalyticsSourceSetting.create!(
         source_type: "ga4",
         name: "吸えログ GA4",
-        property_id: SuelogGa4DataIntegrityCheck::EXPECTED_PROPERTY_ID,
+        property_id: SUELOG_PROPERTY_ID,
         enabled: true
+      )
+      BusinessDataSourceSetting.create!(
+        business: @business,
+        source_key: "ga4",
+        enabled: true,
+        connection_status: "linked",
+        metadata: { "connection_fields" => { "property_id" => SUELOG_PROPERTY_ID } }
       )
     end
 
@@ -82,7 +91,7 @@ module Aicoo
     def article_row
       {
         "business_id" => @business.id,
-        "property_id" => SuelogGa4DataIntegrityCheck::EXPECTED_PROPERTY_ID,
+        "property_id" => SUELOG_PROPERTY_ID,
         "hostName" => "suelog.jp",
         "normalized_page" => "/articles/umeda-smoking-cafe",
         "imported_at" => Time.current.iso8601

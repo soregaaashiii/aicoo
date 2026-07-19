@@ -2,6 +2,8 @@ require "test_helper"
 
 module Aicoo
   class SuelogGa4ResyncTest < ActiveSupport::TestCase
+    SUELOG_PROPERTY_ID = "536889590"
+
     setup do
       @business = businesses(:suelog)
       @business.update!(metadata: @business.metadata.merge("public_url" => "https://suelog.jp"))
@@ -18,7 +20,7 @@ module Aicoo
         name: "吸えログ",
         domain: "suelog.jp",
         public_url: "https://suelog.jp",
-        ga4_property_id: SuelogGa4Resync::EXPECTED_PROPERTY_ID,
+        ga4_property_id: SUELOG_PROPERTY_ID,
         authentication_mode: "shared"
       )
       @setting = @site.ga4_setting
@@ -30,7 +32,7 @@ module Aicoo
         connection_status: "linked",
         metadata: {
           "connection_fields" => {
-            "property_id" => SuelogGa4Resync::EXPECTED_PROPERTY_ID,
+            "property_id" => SUELOG_PROPERTY_ID,
             "host" => "suelog.jp"
           }
         }
