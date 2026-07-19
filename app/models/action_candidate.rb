@@ -471,6 +471,7 @@ class ActionCandidate < ApplicationRecord
     self.metadata = metadata.to_h.merge(result.metadata)
     return if result.ready?
     return if department.to_s == "new_business" || action_type.to_s.in?(%w[new_business build_lp build_mvp lp_experiment market_test])
+    return if Aicoo::ArticleOpportunityCodexGate.article_opportunity_candidate?(self)
     return unless unsafe_codex_execution_candidate?
 
     self.action_type = "data_preparation" if code_revision_execution_mode? && status.to_s.in?(%w[idea proposal planning pending approved executor_queued in_progress])

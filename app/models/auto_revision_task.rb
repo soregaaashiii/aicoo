@@ -48,6 +48,10 @@ class AutoRevisionTask < ApplicationRecord
   after_commit :prepare_codex_submission, on: :create
 
   def self.from_action_candidate(action_candidate, generated_by: "owner")
+    if Aicoo::ArticleOpportunityCodexGate.article_opportunity_candidate?(action_candidate)
+      return from_article_opportunity_candidate(action_candidate, generated_by:)
+    end
+
     return nil unless action_candidate.code_revision_execution_mode?
 
     where.not(status: "canceled").find_by(action_candidate:) ||
@@ -67,6 +71,60 @@ class AutoRevisionTask < ApplicationRecord
           "final_score" => action_candidate.final_score.to_s
         }
       )
+  end
+
+  def self.from_article_opportunity_candidate(action_candidate, generated_by: "owner")
+    gate = Aicoo::ArticleOpportunityCodexGate.call(action_candidate)
+    unless gate.eligible?
+      action_candidate.update_columns(
+        metadata: action_candidate.metadata.to_h.merge(
+          "codex_block_reason" => gate.reasons,
+          "article_opportunity_codex_gate" => gate.metadata["article_opportunity_codex_gate"]
+        ),
+        updated_at: Time.current
+      )
+      return nil
+    end
+
+    existing = where(status: ACTIVE_STATUSES).find_by(action_candidate:)
+    return existing if existing
+
+    execution_prompt = Aicoo::ArticleOpportunityCodexPromptBuilder.call(action_candidate:, gate:)
+    brief = action_candidate.metadata.to_h["execution_brief"].to_h
+    create!(
+      action_candidate:,
+      business: action_candidate.business,
+      title: action_candidate.title,
+      execution_prompt:,
+      priority_score: action_candidate.final_score.to_d,
+      generated_by:,
+      risk_level: gate.risk_level,
+      status: "waiting_approval",
+      metadata: {
+        "action_type" => action_candidate.action_type,
+        "generation_source" => action_candidate.generation_source,
+        "value_model_name" => action_candidate.metadata.to_h["value_model_name"],
+        "analysis_source" => action_candidate.metadata.to_h["analysis_source"],
+        "opportunity_type" => action_candidate.metadata.to_h["opportunity_type"],
+        "article_id" => action_candidate.metadata.to_h["article_id"],
+        "article_path" => action_candidate.metadata.to_h["article_path"],
+        "target_url" => brief.dig("target", "target_url"),
+        "snapshot_id" => action_candidate.metadata.to_h["snapshot_id"],
+        "execution_brief" => brief,
+        "completion_conditions" => brief["completion_conditions"],
+        "risk_level" => gate.risk_level,
+        "codex_eligible" => true,
+        "expected_improvement_score" => action_candidate.metadata.to_h["expected_improvement_score"],
+        "rollback_conditions" => {
+          "rollback_possible" => brief.dig("execution", "rollback_possible"),
+          "prohibited_actions" => brief.dig("safety", "prohibited_actions")
+        },
+        "article_opportunity_codex_gate" => gate.metadata["article_opportunity_codex_gate"],
+        "auto_merge_enabled" => false,
+        "auto_deploy_enabled" => false,
+        "deploy_disabled_reason" => "article_opportunity_codex_connection_only"
+      }
+    )
   end
 
   def self.risk_level_for(action_candidate)
@@ -680,10 +738,14 @@ class AutoRevisionTask < ApplicationRecord
   end
 
   def auto_deploy_allowed?
+    return false if article_opportunity_codex_connection_only?
+
     execution_profile&.auto_deploy_allowed_for?(self) || false
   end
 
   def auto_merge_allowed?
+    return false if article_opportunity_codex_connection_only?
+
     execution_profile&.auto_merge_allowed_for?(self) || false
   end
 
@@ -693,6 +755,7 @@ class AutoRevisionTask < ApplicationRecord
 
   def execution_metadata(operator:)
     profile = execution_profile
+    article_opportunity_connection = article_opportunity_codex_connection_only?
     {
       operator:,
       business_id: business_id,
@@ -704,8 +767,8 @@ class AutoRevisionTask < ApplicationRecord
       render_service_name: profile&.render_service_name,
       deploy_url: profile&.production_url,
       health_check_url: profile&.health_check_url,
-      auto_deploy_enabled: profile&.auto_deploy_enabled? || false,
-      auto_merge_enabled: profile&.auto_merge_enabled? || false,
+      auto_deploy_enabled: article_opportunity_connection ? false : (profile&.auto_deploy_enabled? || false),
+      auto_merge_enabled: article_opportunity_connection ? false : (profile&.auto_merge_enabled? || false),
       codex_submission_id: codex_submission&.id,
       codex_workspace_name: profile&.codex_workspace_name,
       codex_project_folder: profile&.codex_project_folder,
@@ -714,8 +777,8 @@ class AutoRevisionTask < ApplicationRecord
       codex_working_branch: codex_working_branch_name,
       codex_auto_submit_enabled: profile&.codex_auto_submit_enabled? || false,
       codex_auto_pr_enabled: profile&.codex_auto_pr_enabled? || false,
-      codex_auto_merge_enabled: profile&.codex_auto_merge_enabled? || false,
-      codex_auto_deploy_enabled: profile&.codex_auto_deploy_enabled? || false,
+      codex_auto_merge_enabled: article_opportunity_connection ? false : (profile&.codex_auto_merge_enabled? || false),
+      codex_auto_deploy_enabled: article_opportunity_connection ? false : (profile&.codex_auto_deploy_enabled? || false),
       codex_risk_limit: profile&.codex_risk_limit,
       auto_deploy_allowed: auto_deploy_allowed?,
       auto_merge_allowed: auto_merge_allowed?,
@@ -725,6 +788,10 @@ class AutoRevisionTask < ApplicationRecord
       commit_message: suggested_commit_message,
       rollback_policy: "変更前commitを控え、異常時はRollback依頼をAICOOに記録する"
     }
+  end
+
+  def article_opportunity_codex_connection_only?
+    metadata.to_h["deploy_disabled_reason"].to_s == "article_opportunity_codex_connection_only"
   end
 
   def record_execution_result!(attributes)

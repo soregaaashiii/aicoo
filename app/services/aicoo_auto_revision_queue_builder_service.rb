@@ -75,6 +75,11 @@ class AicooAutoRevisionQueueBuilderService
   attr_reader :minimum_final_score
 
   def skip_candidate_reason(candidate)
+    if Aicoo::ArticleOpportunityCodexGate.article_opportunity_candidate?(candidate)
+      gate = Aicoo::ArticleOpportunityCodexGate.call(candidate)
+      return "article_opportunity_gate:#{gate.reasons.join('|')}" unless gate.eligible?
+    end
+
     return "below_minimum_final_score" if candidate.final_score.to_d < minimum_final_score
     return "active_auto_revision_task_exists" if candidate.auto_revision_tasks.any? { |task| AutoRevisionTask::ACTIVE_STATUSES.include?(task.status) }
     return "non_code_revision:#{candidate.execution_mode}" unless candidate.code_revision_execution_mode?

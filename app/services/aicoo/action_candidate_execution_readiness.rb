@@ -44,6 +44,10 @@ module Aicoo
     attr_reader :action_candidate, :metadata, :missing_items, :warnings
 
     def determine_readiness
+      if Aicoo::ArticleOpportunityCodexGate.article_opportunity_candidate?(action_candidate)
+        return article_opportunity_readiness
+      end
+
       if action_candidate.action_type.to_s == "data_preparation"
         missing_items << "execution_phase_2_target"
         return NEEDS_TARGET
@@ -62,6 +66,18 @@ module Aicoo
       return BLOCKED if practicality_warning?
 
       READY
+    end
+
+    def article_opportunity_readiness
+      gate = Aicoo::ArticleOpportunityCodexGate.call(action_candidate, require_approval: false, ignore_existing_task: true)
+      return READY if gate.eligible?
+
+      missing_items.concat(gate.reasons)
+      return NEEDS_TARGET if gate.reasons.any? { |reason| reason.to_s.match?(/target|snapshot|internal_link/) }
+      return NEEDS_QUERY if gate.reasons.include?("missing_information_present")
+      return NEEDS_OWNER if gate.reasons.any? { |reason| reason.to_s.match?(/human|required|approval|profile|repository/) }
+
+      BLOCKED
     end
 
     def target_ready?
