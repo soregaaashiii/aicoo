@@ -101,26 +101,29 @@ module Aicoo
     end
 
     def record_timeline!(summary, auto_revision_task)
-      business.business_activity_logs.create!(
-        activity_type: "production_promoted",
-        source_app: "aicoo",
-        source_method: "logger",
-        resource_type: "BusinessService",
-        resource_id: business_service.id.to_s,
-        title: "本番運用へ昇格",
-        occurred_at: Time.current,
-        detected_at: Time.current,
-        diff_summary: "#{business_service.name} のMVP評価が #{summary.verdict} のためproductionへ昇格しました。",
-        idempotency_key: "production_promotion:business:#{business.id}:service:#{business_service.id}",
-        metadata: {
-          "operator" => operator,
-          "business_service_id" => business_service.id,
-          "auto_revision_task_id" => auto_revision_task.id,
-          "mvp_verdict" => summary.verdict,
-          "registrations" => summary.registrations,
-          "active_users" => summary.active_users,
-          "paid_users" => summary.paid_users,
-          "revenue_yen" => summary.revenue_yen
+      BusinessActivityLog.record!(
+        business:,
+        attributes: {
+          activity_type: "production_promoted",
+          source_app: "aicoo",
+          source_method: "logger",
+          resource_type: "BusinessService",
+          resource_id: business_service.id.to_s,
+          title: "本番運用へ昇格",
+          occurred_at: Time.current,
+          detected_at: Time.current,
+          diff_summary: "#{business_service.name} のMVP評価が #{summary.verdict} のためproductionへ昇格しました。",
+          idempotency_key: "production_promotion:business:#{business.id}:service:#{business_service.id}",
+          metadata: {
+            "operator" => operator,
+            "business_service_id" => business_service.id,
+            "auto_revision_task_id" => auto_revision_task.id,
+            "mvp_verdict" => summary.verdict,
+            "registrations" => summary.registrations,
+            "active_users" => summary.active_users,
+            "paid_users" => summary.paid_users,
+            "revenue_yen" => summary.revenue_yen
+          }
         }
       )
     rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid

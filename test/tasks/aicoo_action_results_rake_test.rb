@@ -35,6 +35,10 @@ class AicooActionResultsRakeTest < ActiveSupport::TestCase
     assert Rake::Task.task_defined?("aicoo:diagnose_activity_trigger_chain")
   end
 
+  test "diagnose_business_activity_log_creation task exists" do
+    assert Rake::Task.task_defined?("aicoo:diagnose_business_activity_log_creation")
+  end
+
   test "runs action result evaluation" do
     ActionResult.create!(
       action_candidate: action_candidates(:nagazakicho_article),

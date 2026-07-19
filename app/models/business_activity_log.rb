@@ -32,6 +32,12 @@ class BusinessActivityLog < ApplicationRecord
 
   def self.record!(business:, attributes:)
     normalized = normalize_attributes(attributes)
+    normalized[:metadata] = normalized[:metadata].to_h.merge(
+      "business_activity_log_creation" => creation_provenance(
+        caller_locations(1, 40),
+        persistence_method: "BusinessActivityLog.record!"
+      )
+    )
     find_or_initialize_by(business:, idempotency_key: normalized.fetch(:idempotency_key)).tap do |activity_log|
       created = activity_log.new_record?
       activity_log.assign_attributes(normalized) if created
@@ -85,6 +91,34 @@ class BusinessActivityLog < ApplicationRecord
   def self.build_idempotency_key(source_app, activity_type, resource_type, resource_id, occurred_at)
     Digest::SHA256.hexdigest([ source_app, activity_type, resource_type, resource_id, occurred_at.to_i ].join(":"))
   end
+
+  def self.creation_provenance(locations, persistence_method:)
+    source_location = Array(locations).find do |location|
+      path = location.absolute_path.to_s
+      path.start_with?(Rails.root.to_s) && path != __FILE__
+    end
+    {
+      "created_by_method" => source_location&.base_label || "unknown",
+      "created_by_file" => relative_source_path(source_location&.absolute_path),
+      "created_by_line" => source_location&.lineno,
+      "persistence_method" => persistence_method,
+      "active_record_callbacks_enabled" => callbacks_registered?,
+      "recorded_at" => Time.current.iso8601
+    }
+  end
+
+  def self.callbacks_registered?
+    _create_callbacks.map(&:filter).include?(:register_activity_evaluation_trigger) &&
+      _commit_callbacks.map(&:filter).include?(:invoke_activity_evaluation_trigger)
+  end
+
+  def self.relative_source_path(path)
+    return if path.blank?
+
+    path.to_s.delete_prefix("#{Rails.root}/")
+  end
+
+  private_class_method :creation_provenance, :relative_source_path
 
   private
 
@@ -165,6 +199,11 @@ class BusinessActivityLog < ApplicationRecord
 
   def write_activity_evaluation_trigger_chain(attributes)
     current_metadata = metadata.to_h
+    current_metadata["business_activity_log_creation"] ||= self.class.send(
+      :creation_provenance,
+      caller_locations(2, 40),
+      persistence_method: "ActiveRecord#create"
+    )
     chain = current_metadata["activity_evaluation_trigger_chain"].to_h.merge(attributes)
     update_columns(
       metadata: current_metadata.merge("activity_evaluation_trigger_chain" => chain),

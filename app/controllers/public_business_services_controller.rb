@@ -71,22 +71,26 @@ class PublicBusinessServicesController < ApplicationController
   end
 
   def record_activity!(activity_type, title:, metadata: {})
-    @business.business_activity_logs.create!(
-      source_app: "aicoo",
-      source_method: "public_business_service",
-      activity_type:,
-      resource_type: "BusinessService",
-      resource_id: @business_service.id.to_s,
-      title:,
-      occurred_at: Time.current,
-      detected_at: Time.current,
-      diff_summary: "#{@business_service.name}: #{title}",
-      idempotency_key: idempotency_key_for(activity_type, metadata),
-      metadata: {
-        "business_service_id" => @business_service.id,
-        "service_name" => @business_service.name,
-        "service_url" => @business_service.url
-      }.merge(metadata)
+    BusinessActivityLog.record!(
+      business: @business,
+      attributes: {
+        source_app: "aicoo",
+        source_method: "logger",
+        activity_type:,
+        resource_type: "BusinessService",
+        resource_id: @business_service.id.to_s,
+        title:,
+        occurred_at: Time.current,
+        detected_at: Time.current,
+        diff_summary: "#{@business_service.name}: #{title}",
+        idempotency_key: idempotency_key_for(activity_type, metadata),
+        metadata: {
+          "business_service_id" => @business_service.id,
+          "service_name" => @business_service.name,
+          "service_url" => @business_service.url,
+          "activity_source" => "public_business_service"
+        }.merge(metadata)
+      }
     )
   rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid
     nil

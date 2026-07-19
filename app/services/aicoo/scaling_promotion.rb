@@ -86,24 +86,27 @@ module Aicoo
     end
 
     def record_timeline!(summary, auto_revision_task)
-      business.business_activity_logs.create!(
-        activity_type: "scaling_promoted",
-        source_app: "aicoo",
-        source_method: "logger",
-        resource_type: "Business",
-        resource_id: business.id.to_s,
-        title: "Scalingへ昇格",
-        occurred_at: Time.current,
-        detected_at: Time.current,
-        diff_summary: "production評価が #{summary.verdict} のためScalingへ昇格しました。",
-        idempotency_key: "scaling_promotion:business:#{business.id}",
-        metadata: {
-          "operator" => operator,
-          "auto_revision_task_id" => auto_revision_task.id,
-          "scaling_verdict" => summary.verdict,
-          "monthly_revenue_yen" => summary.monthly_revenue_yen,
-          "paid_users" => summary.paid_users,
-          "recommended_investment" => summary.recommended_investment
+      BusinessActivityLog.record!(
+        business:,
+        attributes: {
+          activity_type: "scaling_promoted",
+          source_app: "aicoo",
+          source_method: "logger",
+          resource_type: "Business",
+          resource_id: business.id.to_s,
+          title: "Scalingへ昇格",
+          occurred_at: Time.current,
+          detected_at: Time.current,
+          diff_summary: "production評価が #{summary.verdict} のためScalingへ昇格しました。",
+          idempotency_key: "scaling_promotion:business:#{business.id}",
+          metadata: {
+            "operator" => operator,
+            "auto_revision_task_id" => auto_revision_task.id,
+            "scaling_verdict" => summary.verdict,
+            "monthly_revenue_yen" => summary.monthly_revenue_yen,
+            "paid_users" => summary.paid_users,
+            "recommended_investment" => summary.recommended_investment
+          }
         }
       )
     rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid

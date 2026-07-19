@@ -35,6 +35,11 @@ class BusinessActivityLogTest < ActiveSupport::TestCase
       assert_equal 1, trigger_calls.size
       assert_equal "after_create_commit", trigger_calls.first[:invoked_by]
       assert_equal log.id, trigger_calls.first[:trigger_event_id]
+      creation = log.reload.metadata.fetch("business_activity_log_creation")
+      assert_equal "BusinessActivityLog.record!", creation["persistence_method"]
+      assert_includes creation["created_by_method"], "BusinessActivityLogTest"
+      assert_equal "test/models/business_activity_log_test.rb", creation["created_by_file"]
+      assert_equal true, creation["active_record_callbacks_enabled"]
     end
   end
 
@@ -65,6 +70,10 @@ class BusinessActivityLogTest < ActiveSupport::TestCase
       assert_equal true, chain["trigger_completed"]
       assert_equal true, chain["builder_called"]
       assert_equal true, chain["builder_completed"]
+      creation = activity_log.metadata.fetch("business_activity_log_creation")
+      assert_equal "ActiveRecord#create", creation["persistence_method"]
+      assert_equal "test/models/business_activity_log_test.rb", creation["created_by_file"]
+      assert_equal true, creation["active_record_callbacks_enabled"]
     end
   end
 

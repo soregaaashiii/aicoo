@@ -111,26 +111,29 @@ module Aicoo
     end
 
     def record_timeline!(summary, business_service, auto_revision_task)
-      business.business_activity_logs.create!(
-        activity_type: "mvp_promoted",
-        source_app: "aicoo",
-        source_method: "logger",
-        resource_type: "Business",
-        resource_id: business.id.to_s,
-        title: "MVP開発へ昇格",
-        occurred_at: Time.current,
-        detected_at: Time.current,
-        diff_summary: "#{landing_page.public_headline} のLP評価が #{summary.verdict} のためMVPへ昇格しました。",
-        idempotency_key: "mvp_promotion:business:#{business.id}:lp:#{landing_page.id}",
-        metadata: {
-          "operator" => operator,
-          "landing_page_id" => landing_page.id,
-          "business_service_id" => business_service.id,
-          "auto_revision_task_id" => auto_revision_task.id,
-          "lp_verdict" => summary.verdict,
-          "pv" => summary.pv,
-          "cta_clicks" => summary.cta_clicks,
-          "cv" => summary.cv
+      BusinessActivityLog.record!(
+        business:,
+        attributes: {
+          activity_type: "mvp_promoted",
+          source_app: "aicoo",
+          source_method: "logger",
+          resource_type: "Business",
+          resource_id: business.id.to_s,
+          title: "MVP開発へ昇格",
+          occurred_at: Time.current,
+          detected_at: Time.current,
+          diff_summary: "#{landing_page.public_headline} のLP評価が #{summary.verdict} のためMVPへ昇格しました。",
+          idempotency_key: "mvp_promotion:business:#{business.id}:lp:#{landing_page.id}",
+          metadata: {
+            "operator" => operator,
+            "landing_page_id" => landing_page.id,
+            "business_service_id" => business_service.id,
+            "auto_revision_task_id" => auto_revision_task.id,
+            "lp_verdict" => summary.verdict,
+            "pv" => summary.pv,
+            "cta_clicks" => summary.cta_clicks,
+            "cv" => summary.cv
+          }
         }
       )
     rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid

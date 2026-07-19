@@ -490,23 +490,26 @@ class Business < ApplicationRecord
   end
 
   def record_resource_status_activity!(previous_status:, operator:)
-    business_activity_logs.create!(
-      activity_type: "resource_status_changed",
-      source_app: "aicoo",
-      source_method: "logger",
-      resource_type: "Business",
-      resource_id: id.to_s,
-      title: "運用状態を#{resource_status}へ変更",
-      occurred_at: Time.current,
-      detected_at: Time.current,
-      diff_summary: "#{previous_status} から #{resource_status} へ変更しました。",
-      idempotency_key: "resource_status:business:#{id}:#{resource_status}:#{resource_status_changed_at.to_i}",
-      before_snapshot: { "resource_status" => previous_status },
-      after_snapshot: { "resource_status" => resource_status },
-      metadata: {
-        "operator" => operator,
-        "reason" => resource_status_reason,
-        "next_review_on" => next_review_on&.iso8601
+    BusinessActivityLog.record!(
+      business: self,
+      attributes: {
+        activity_type: "resource_status_changed",
+        source_app: "aicoo",
+        source_method: "logger",
+        resource_type: "Business",
+        resource_id: id.to_s,
+        title: "運用状態を#{resource_status}へ変更",
+        occurred_at: Time.current,
+        detected_at: Time.current,
+        diff_summary: "#{previous_status} から #{resource_status} へ変更しました。",
+        idempotency_key: "resource_status:business:#{id}:#{resource_status}:#{resource_status_changed_at.to_i}",
+        before_snapshot: { "resource_status" => previous_status },
+        after_snapshot: { "resource_status" => resource_status },
+        metadata: {
+          "operator" => operator,
+          "reason" => resource_status_reason,
+          "next_review_on" => next_review_on&.iso8601
+        }
       }
     )
   rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique
@@ -514,30 +517,34 @@ class Business < ApplicationRecord
   end
 
   def record_deletion_audit!(action, previous_status:, previous_resource_status:, actor:, reason:)
-    business_activity_logs.create!(
-      activity_type: "business_#{action}",
-      source_app: "aicoo",
-      source_method: "businesses_controller",
-      resource_type: "Business",
-      resource_id: id.to_s,
-      title: action == "restore" ? "Businessを復元しました" : "Businessを削除しました",
-      occurred_at: Time.current,
-      detected_at: Time.current,
-      diff_summary: "#{previous_status} / #{previous_resource_status} -> #{status} / #{resource_status}",
-      idempotency_key: "business:#{action}:#{id}:#{Time.current.to_i}",
-      before_snapshot: {
-        "status" => previous_status,
-        "resource_status" => previous_resource_status
-      },
-      after_snapshot: {
-        "status" => status,
-        "resource_status" => resource_status,
-        "deleted_at" => deleted_at&.iso8601
-      },
-      metadata: {
-        "actor" => actor,
-        "reason" => reason,
-        "deletion_source" => deletion_source
+    BusinessActivityLog.record!(
+      business: self,
+      attributes: {
+        activity_type: "business_#{action}",
+        source_app: "aicoo",
+        source_method: "logger",
+        resource_type: "Business",
+        resource_id: id.to_s,
+        title: action == "restore" ? "Businessを復元しました" : "Businessを削除しました",
+        occurred_at: Time.current,
+        detected_at: Time.current,
+        diff_summary: "#{previous_status} / #{previous_resource_status} -> #{status} / #{resource_status}",
+        idempotency_key: "business:#{action}:#{id}:#{Time.current.to_i}",
+        before_snapshot: {
+          "status" => previous_status,
+          "resource_status" => previous_resource_status
+        },
+        after_snapshot: {
+          "status" => status,
+          "resource_status" => resource_status,
+          "deleted_at" => deleted_at&.iso8601
+        },
+        metadata: {
+          "actor" => actor,
+          "reason" => reason,
+          "deletion_source" => deletion_source,
+          "activity_source" => "businesses_controller"
+        }
       }
     )
     ApprovalLog.create!(
