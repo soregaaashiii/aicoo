@@ -45,6 +45,36 @@ namespace :aicoo do
     end
   end
 
+  desc "Diagnose ActionResult manual actual fields and metadata"
+  task diagnose_action_result_manual_actuals: :environment do
+    results = ActionResult.includes(:action_candidate, :business).order(created_at: :desc).to_a
+    recorded = results.select(&:manual_actuals_recorded?)
+    not_recorded = results - recorded
+
+    puts "summary"
+    puts "action_result_total=#{results.size}"
+    puts "manual_actuals_recorded_true=#{recorded.size}"
+    puts "manual_actuals_recorded_false=#{not_recorded.size}"
+
+    puts "action_results"
+    results.first(50).each do |result|
+      saved_fields = result.saved_manual_actual_fields
+      blank_fields = manual_actual_blank_fields_for(result)
+      failure_reason = manual_actual_failure_reason_for(result, saved_fields)
+      puts [
+        "id=#{result.id}",
+        "manual_actuals_recorded=#{result.manual_actuals_recorded?}",
+        "saved_actual_fields=#{saved_fields.join(',')}",
+        "blank_actual_fields=#{blank_fields.join(',')}",
+        "save_failure_reason=#{failure_reason}",
+        "status=#{result.evaluation_status}",
+        "candidate_id=#{result.action_candidate_id}",
+        "business_id=#{result.business_id}",
+        "action_type=#{result.action_candidate&.action_type}"
+      ].join(" ")
+    end
+  end
+
   def diagnostic_reason_for(result)
     note = result.note.to_s.lines.map(&:strip).reject(&:blank?).last
     return note if note.present?
@@ -68,5 +98,24 @@ namespace :aicoo do
       "manual_actuals_recorded=#{result.metadata.to_h['manual_actuals_recorded']}",
       "reason=#{diagnostic_reason_for(result)}"
     ].join(" ")
+  end
+
+  def manual_actual_blank_fields_for(result)
+    column_fields = ActionResult::MANUAL_ACTUAL_FIELDS.reject do |field|
+      value = result.public_send(field)
+      value.respond_to?(:zero?) ? !value.zero? : value.present?
+    end.map(&:to_s)
+    metadata_fields = ActionResult::MANUAL_ACTUAL_METADATA_FIELDS.reject do |field|
+      result.metadata.to_h.dig("manual_actuals", field).present?
+    end
+    column_fields + metadata_fields
+  end
+
+  def manual_actual_failure_reason_for(result, saved_fields)
+    return "none" if result.manual_actuals_recorded? && saved_fields.any?
+    return "manual_actuals_recorded_true_but_no_saved_actual_fields" if result.manual_actuals_recorded?
+    return "saved_actual_fields_present_but_marker_false" if saved_fields.any?
+
+    "no_manual_actual_fields_saved"
   end
 end

@@ -1,18 +1,7 @@
 class ActionResultsController < ApplicationController
   before_action :set_action_result, only: %i[show edit update evaluate]
 
-  MANUAL_ACTUAL_FIELDS = %i[
-    actual_revenue_yen
-    actual_profit_yen
-    actual_proxy_score_delta
-    actual_impressions_delta
-    actual_clicks_delta
-    actual_sessions_delta
-    actual_pageviews_delta
-    actual_phone_clicks_delta
-    actual_map_clicks_delta
-    actual_affiliate_clicks_delta
-  ].freeze
+  MANUAL_ACTUAL_FIELDS = ActionResult::MANUAL_ACTUAL_FIELDS
 
   def index
     @action_results = ActionResult.includes(:business, :action_candidate).order(created_at: :desc)
@@ -39,9 +28,8 @@ class ActionResultsController < ApplicationController
   end
 
   def create
-    @action_result = ActionResult.new(action_result_params)
+    @action_result = ActionResult.new(action_result_attributes(source: "action_result_create"))
     apply_action_expansion_learning
-    mark_manual_actuals_recorded(@action_result)
 
     if @action_result.save
       evaluate_or_refresh_action_result(@action_result, source: "action_result_create")
@@ -57,8 +45,7 @@ class ActionResultsController < ApplicationController
 
   def update
     apply_action_expansion_learning
-    mark_manual_actuals_recorded(@action_result)
-    if @action_result.update(action_result_params)
+    if @action_result.update(action_result_attributes(source: "action_result_update"))
       evaluate_or_refresh_action_result(@action_result, source: "action_result_update")
       redirect_to @action_result, notice: "Action result was successfully updated."
     else
@@ -100,6 +87,15 @@ class ActionResultsController < ApplicationController
         metadata: {}
       ]
     )
+  end
+
+  def action_result_attributes(source:)
+    attrs = action_result_params.to_h
+    return attrs unless manual_actual_param_present?
+
+    attrs["evaluation_status"] = "pending" unless attrs["evaluation_status"].to_s == "evaluated"
+    attrs["metadata"] = attrs.fetch("metadata", {}).to_h.merge(manual_actual_metadata(source:))
+    attrs
   end
 
   def apply_action_expansion_learning
@@ -145,19 +141,29 @@ class ActionResultsController < ApplicationController
     Rails.logger.warn("[ExpectedValueLearning] evaluation/refresh failed action_result_id=#{action_result.id} source=#{source} error=#{e.class}: #{e.message}")
   end
 
-  def mark_manual_actuals_recorded(result)
-    return unless manual_actual_param_present?
-
-    result.metadata = result.metadata.to_h.merge(
+  def manual_actual_metadata(source:)
+    {
       "manual_actuals_recorded" => true,
+      "manual_actuals_recorded_source" => source,
       "manual_actuals_recorded_at" => Time.current.iso8601
-    )
+    }
   end
 
   def manual_actual_param_present?
     raw_params = params[:action_result]
     return false unless raw_params.respond_to?(:key?)
 
-    MANUAL_ACTUAL_FIELDS.any? { |field| raw_params.key?(field) || raw_params.key?(field.to_s) }
+    MANUAL_ACTUAL_FIELDS.any? { |field| actual_param_value_present?(raw_params, field) } ||
+      manual_actual_metadata_values(raw_params).any? { |_key, value| value.present? }
+  end
+
+  def actual_param_value_present?(raw_params, field)
+    value = raw_params[field] || raw_params[field.to_s]
+    value.present?
+  end
+
+  def manual_actual_metadata_values(raw_params)
+    values = raw_params.dig(:metadata, :manual_actuals) || raw_params.dig("metadata", "manual_actuals")
+    values.respond_to?(:to_h) ? values.to_h : {}
   end
 end

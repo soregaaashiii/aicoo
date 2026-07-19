@@ -31,6 +31,37 @@ class ActionResultTest < ActiveSupport::TestCase
     assert_in_delta BigDecimal("0.666"), result.prediction_error_rate, BigDecimal("0.001")
   end
 
+  test "marks manual actuals when actual fields are saved directly" do
+    action_candidate = action_candidates(:nagazakicho_article)
+
+    result = ActionResult.create!(
+      action_candidate:,
+      business: action_candidate.business,
+      executed_on: Date.current,
+      evaluated_on: Date.current,
+      actual_clicks_delta: 12
+    )
+
+    assert_equal true, result.metadata["manual_actuals_recorded"]
+    assert_includes result.saved_manual_actual_fields, "actual_clicks_delta"
+  end
+
+  test "marks manual actuals when metadata actual fields are saved directly" do
+    action_candidate = action_candidates(:nagazakicho_article)
+
+    result = ActionResult.create!(
+      action_candidate:,
+      business: action_candidate.business,
+      executed_on: Date.current,
+      evaluated_on: Date.current,
+      metadata: { "manual_actuals" => { "ctr" => "0.12", "average_position" => "8.4" } }
+    )
+
+    assert_equal true, result.metadata["manual_actuals_recorded"]
+    assert_includes result.saved_manual_actual_fields, "ctr"
+    assert_includes result.saved_manual_actual_fields, "average_position"
+  end
+
   test "auto links to an unlinked action execution log after save" do
     action_candidate = action_candidates(:nagazakicho_article)
     log = ActionExecutionLog.create!(

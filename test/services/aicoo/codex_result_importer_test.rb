@@ -60,7 +60,8 @@ module Aicoo
 
       assert_equal "completed", @task.status
       assert_equal "completed", @submission.status
-      assert_equal "pending", result.evaluation_status
+      assert_equal "evaluated", result.evaluation_status
+      assert_equal true, result.metadata["manual_actuals_recorded"]
       assert_includes result.note, "CTAと比較表を追加しました。"
       assert_equal "done", @task.action_candidate.reload.status
       assert_equal "https://github.com/example/suelog/pull/44", @submission.pr_url

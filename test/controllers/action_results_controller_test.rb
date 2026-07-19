@@ -70,6 +70,14 @@ class ActionResultsControllerTest < ActionDispatch::IntegrationTest
           evaluated_on: Date.current,
           actual_revenue_yen: 1_000,
           actual_profit_yen: 800,
+          actual_clicks_delta: 12,
+          metadata: {
+            manual_actuals: {
+              ctr: "0.045",
+              average_position: "12.3",
+              conversions: "2"
+            }
+          },
           note: "Manual result"
         }
       }
@@ -80,6 +88,10 @@ class ActionResultsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "evaluated", result.evaluation_status
     assert_equal true, result.metadata["manual_actuals_recorded"]
     assert_equal 800, result.actual_profit_yen
+    assert_equal 12, result.actual_clicks_delta
+    assert_equal "0.045", result.metadata.dig("manual_actuals", "ctr")
+    assert_equal "12.3", result.metadata.dig("manual_actuals", "average_position")
+    assert_equal "2", result.metadata.dig("manual_actuals", "conversions")
   end
 
   test "creates action result from action workspace and returns to today" do

@@ -63,6 +63,18 @@ class ActionResultEvaluatorTest < ActiveSupport::TestCase
     assert_match(/登録済み実績値で評価/, result.note)
   end
 
+  test "evaluate pending retries skipped results with saved manual actuals" do
+    result = create_result(
+      evaluation_status: "skipped",
+      actual_profit_yen: 4_000,
+      metadata: { "manual_actuals_recorded" => true }
+    )
+
+    ActionResultEvaluator.evaluate_pending!
+
+    assert_equal "evaluated", result.reload.evaluation_status
+  end
+
   test "refreshes expected value learning after evaluation" do
     create_metric_window((@executed_on - 7)...@executed_on, clicks: 10)
     create_metric_window((@executed_on + 1)..(@executed_on + 7), clicks: 20)

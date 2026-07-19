@@ -2,18 +2,7 @@ module Owner
   class AutoRevisionLoopsController < ApplicationController
     rescue_from ActiveRecord::RecordNotFound, with: :handle_missing_auto_revision_record
 
-    MANUAL_ACTUAL_FIELDS = %i[
-      actual_revenue_yen
-      actual_profit_yen
-      actual_proxy_score_delta
-      actual_impressions_delta
-      actual_clicks_delta
-      actual_sessions_delta
-      actual_pageviews_delta
-      actual_phone_clicks_delta
-      actual_map_clicks_delta
-      actual_affiliate_clicks_delta
-    ].freeze
+    MANUAL_ACTUAL_FIELDS = ActionResult::MANUAL_ACTUAL_FIELDS
 
     def show
       @board = Aicoo::Owner::AutoRevisionLoopBoard.new(selected_key: params[:selected]).call
@@ -149,7 +138,7 @@ module Owner
         business: candidate.business,
         executed_on: attrs[:executed_on].presence || Date.current,
         evaluated_on: attrs[:evaluated_on].presence || Date.current,
-        evaluation_status: attrs[:evaluation_status].presence || "pending",
+        evaluation_status: manual_actual_param_present? ? "pending" : attrs[:evaluation_status].presence || "pending",
         metadata: attrs.fetch(:metadata, {}).to_h.merge(manual_actual_metadata)
       )
     end
@@ -159,6 +148,7 @@ module Owner
 
       {
         "manual_actuals_recorded" => true,
+        "manual_actuals_recorded_source" => "owner_auto_revision_action_result",
         "manual_actuals_recorded_at" => Time.current.iso8601
       }
     end
@@ -167,7 +157,18 @@ module Owner
       raw_params = params[:action_result]
       return false unless raw_params.respond_to?(:key?)
 
-      MANUAL_ACTUAL_FIELDS.any? { |field| raw_params.key?(field) || raw_params.key?(field.to_s) }
+      MANUAL_ACTUAL_FIELDS.any? { |field| actual_param_value_present?(raw_params, field) } ||
+        manual_actual_metadata_values(raw_params).any? { |_key, value| value.present? }
+    end
+
+    def actual_param_value_present?(raw_params, field)
+      value = raw_params[field] || raw_params[field.to_s]
+      value.present?
+    end
+
+    def manual_actual_metadata_values(raw_params)
+      values = raw_params.dig(:metadata, :manual_actuals) || raw_params.dig("metadata", "manual_actuals")
+      values.respond_to?(:to_h) ? values.to_h : {}
     end
 
     def task_result_params

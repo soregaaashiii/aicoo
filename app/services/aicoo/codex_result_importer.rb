@@ -106,6 +106,7 @@ module Aicoo
         evaluation_status: params[:evaluation_status].presence || "pending",
         note: result_note(result),
         metadata: result.metadata.to_h.deep_merge(
+          manual_actual_metadata,
           "codex_result_import" => {
             "codex_submission_id" => codex_submission.id,
             "auto_revision_task_id" => task.id,
@@ -118,8 +119,19 @@ module Aicoo
         )
       )
       result.save!
+      ActionResultEvaluator.new(result).call if result.evaluation_status == "pending" && result.evaluated_on <= Date.current
       execution_log.update!(action_result: result)
       result
+    end
+
+    def manual_actual_metadata
+      return {} unless params.key?(:actual_revenue_yen) || params.key?(:actual_profit_yen)
+
+      {
+        "manual_actuals_recorded" => true,
+        "manual_actuals_recorded_source" => "codex_result_import",
+        "manual_actuals_recorded_at" => Time.current.iso8601
+      }
     end
 
     def record_activity_log!(execution_log, action_result)

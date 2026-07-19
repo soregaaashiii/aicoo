@@ -11,6 +11,20 @@ class ActionResult < ApplicationRecord
     map_clicks
     affiliate_clicks
   ].freeze
+  MANUAL_ACTUAL_FIELDS = ([
+    :actual_revenue_yen,
+    :actual_profit_yen,
+    :actual_proxy_score_delta
+  ] + DELTA_METRICS.map { |metric| :"actual_#{metric}_delta" }).freeze
+  MANUAL_ACTUAL_METADATA_FIELDS = %w[
+    ctr
+    average_position
+    conversions
+    conversion_rate
+    cv
+    cvr
+    rank
+  ].freeze
 
   belongs_to :action_candidate
   belongs_to :business
@@ -20,6 +34,7 @@ class ActionResult < ApplicationRecord
 
   before_validation :copy_prediction_snapshot, on: :create
   before_validation :set_default_status
+  before_validation :normalize_manual_actual_metadata
   before_save :calculate_prediction_error
   after_commit :auto_link_action_execution_log, on: %i[create update]
 
@@ -32,6 +47,27 @@ class ActionResult < ApplicationRecord
   scope :pending, -> { where(evaluation_status: "pending") }
   scope :evaluated, -> { where(evaluation_status: "evaluated") }
   scope :skipped, -> { where(evaluation_status: "skipped") }
+
+  def mark_manual_actuals_recorded!(source:)
+    self.metadata = metadata.to_h.merge(
+      "manual_actuals_recorded" => true,
+      "manual_actuals_recorded_source" => source,
+      "manual_actuals_recorded_at" => Time.current.iso8601
+    )
+  end
+
+  def saved_manual_actual_fields
+    fields = MANUAL_ACTUAL_FIELDS.select do |field|
+      value = public_send(field)
+      value.respond_to?(:zero?) ? !value.zero? : value.present?
+    end.map(&:to_s)
+    manual_actuals = metadata.to_h["manual_actuals"].to_h
+    fields + manual_actuals.select { |_key, value| value.present? }.keys
+  end
+
+  def manual_actuals_recorded?
+    metadata.to_h["manual_actuals_recorded"] == true || metadata.to_h["manual_actuals_recorded"].to_s == "true"
+  end
 
   private
 
@@ -56,6 +92,13 @@ class ActionResult < ApplicationRecord
 
   def set_default_status
     self.evaluation_status = "pending" if evaluation_status.blank?
+  end
+
+  def normalize_manual_actual_metadata
+    return if manual_actuals_recorded?
+    return unless saved_manual_actual_fields.any?
+
+    mark_manual_actuals_recorded!(source: "action_result_model")
   end
 
   def calculate_prediction_error

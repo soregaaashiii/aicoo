@@ -81,6 +81,7 @@ module Aicoo
         evaluated_on: Date.current,
         note: merged_note(result),
         metadata: result.metadata.to_h.deep_merge(
+          manual_actual_metadata,
           "external_commit_import" => {
             "commit_sha" => commit_sha,
             "repository" => repository,
@@ -92,8 +93,19 @@ module Aicoo
         )
       )
       result.save!
+      ActionResultEvaluator.new(result).call if result.evaluation_status == "pending" && result.evaluated_on <= Date.current
       execution_log.update!(action_result: result)
       result
+    end
+
+    def manual_actual_metadata
+      return {} unless params.key?(:actual_revenue_yen) || params.key?(:actual_profit_yen)
+
+      {
+        "manual_actuals_recorded" => true,
+        "manual_actuals_recorded_source" => "external_commit_import",
+        "manual_actuals_recorded_at" => Time.current.iso8601
+      }
     end
 
     def record_activity_log!(task, execution_log, action_result)

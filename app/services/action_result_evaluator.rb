@@ -1,6 +1,12 @@
 class ActionResultEvaluator
   def self.evaluate_pending!
-    results = ActionResult.where(evaluation_status: "pending").where(evaluated_on: ..Date.current).find_each.map do |action_result|
+    due_results = ActionResult.where(evaluation_status: "pending").where(evaluated_on: ..Date.current).to_a
+    retryable_skipped_results = ActionResult
+      .where(evaluation_status: "skipped")
+      .where(evaluated_on: ..Date.current)
+      .select { |action_result| action_result.manual_actuals_recorded? || action_result.saved_manual_actual_fields.any? }
+
+    results = (due_results + retryable_skipped_results).uniq.map do |action_result|
       new(action_result, refresh_learning: false).call
     end
     Aicoo::ExpectedValueLearningRefresh.refresh_after_action_result!(results.find { |result| result.evaluation_status == "evaluated" }, source: "action_result_evaluator") if results.any? { |result| result.evaluation_status == "evaluated" }
@@ -48,7 +54,8 @@ class ActionResultEvaluator
       action_result.actual_revenue_yen.to_i != 0 ||
       action_result.actual_profit_yen.to_i != 0 ||
       action_result.actual_proxy_score_delta.to_d != 0.to_d ||
-      ActionResult::DELTA_METRICS.any? { |metric| action_result.public_send("actual_#{metric}_delta").to_i != 0 }
+      ActionResult::DELTA_METRICS.any? { |metric| action_result.public_send("actual_#{metric}_delta").to_i != 0 } ||
+      metadata["manual_actuals"].to_h.any? { |_key, value| value.present? }
   end
 
   def metric_delta_attributes

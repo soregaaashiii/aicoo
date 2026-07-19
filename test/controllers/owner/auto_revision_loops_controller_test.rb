@@ -22,7 +22,15 @@ module Owner
             evaluated_on: Date.current,
             actual_revenue_yen: 1000,
             actual_profit_yen: 800,
+            actual_clicks_delta: 7,
             actual_proxy_score_delta: 1.2,
+            metadata: {
+              manual_actuals: {
+                ctr: "0.03",
+                average_position: "9.8",
+                conversions: "1"
+              }
+            },
             evaluation_status: "pending",
             note: "Owner loop test"
           }
@@ -34,6 +42,8 @@ module Owner
       assert_equal candidate, result.action_candidate
       assert_equal "evaluated", result.evaluation_status
       assert_equal true, result.metadata["manual_actuals_recorded"]
+      assert_equal 7, result.actual_clicks_delta
+      assert_equal "0.03", result.metadata.dig("manual_actuals", "ctr")
     end
 
     test "creates auto revision task from loop page without leaving owner flow" do

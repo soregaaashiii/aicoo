@@ -68,6 +68,55 @@
       <%= form.number_field :actual_profit_yen, step: 1 %>
     </div>
     <div class="field">
+      <%= form.label :actual_impressions_delta, "表示回数差分" %>
+      <%= form.number_field :actual_impressions_delta, step: 1 %>
+    </div>
+    <div class="field">
+      <%= form.label :actual_clicks_delta, "クリック数差分" %>
+      <%= form.number_field :actual_clicks_delta, step: 1 %>
+    </div>
+    <div class="field">
+      <%= form.label :actual_pageviews_delta, "PV差分" %>
+      <%= form.number_field :actual_pageviews_delta, step: 1 %>
+    </div>
+    <div class="field">
+      <%= form.label :actual_sessions_delta, "セッション差分" %>
+      <%= form.number_field :actual_sessions_delta, step: 1 %>
+    </div>
+    <div class="field">
+      <%= form.label :actual_phone_clicks_delta, "電話クリック差分" %>
+      <%= form.number_field :actual_phone_clicks_delta, step: 1 %>
+    </div>
+    <div class="field">
+      <%= form.label :actual_map_clicks_delta, "地図クリック差分" %>
+      <%= form.number_field :actual_map_clicks_delta, step: 1 %>
+    </div>
+    <div class="field">
+      <%= form.label :actual_affiliate_clicks_delta, "アフィリエイトクリック差分" %>
+      <%= form.number_field :actual_affiliate_clicks_delta, step: 1 %>
+    </div>
+    <div class="field">
+      <%= form.label :actual_proxy_score_delta, "代理スコア差分" %>
+      <%= form.number_field :actual_proxy_score_delta, step: 0.01 %>
+    </div>
+    <% manual_actuals = action_result.metadata.to_h.fetch("manual_actuals", {}) %>
+    <div class="field">
+      <%= label_tag "action_result_metadata_manual_actuals_ctr", "CTR" %>
+      <%= number_field_tag "action_result[metadata][manual_actuals][ctr]", manual_actuals["ctr"], step: 0.0001 %>
+    </div>
+    <div class="field">
+      <%= label_tag "action_result_metadata_manual_actuals_average_position", "順位" %>
+      <%= number_field_tag "action_result[metadata][manual_actuals][average_position]", manual_actuals["average_position"], step: 0.1 %>
+    </div>
+    <div class="field">
+      <%= label_tag "action_result_metadata_manual_actuals_conversions", "CV" %>
+      <%= number_field_tag "action_result[metadata][manual_actuals][conversions]", manual_actuals["conversions"], step: 1 %>
+    </div>
+    <div class="field">
+      <%= label_tag "action_result_metadata_manual_actuals_conversion_rate", "CV率" %>
+      <%= number_field_tag "action_result[metadata][manual_actuals][conversion_rate]", manual_actuals["conversion_rate"], step: 0.0001 %>
+    </div>
+    <div class="field">
       <%= form.label :evaluation_status, "評価状態" %>
       <%= form.select :evaluation_status, ActionResult::EVALUATION_STATUSES %>
     </div>
