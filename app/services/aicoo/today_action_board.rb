@@ -2,7 +2,7 @@ module Aicoo
   class TodayActionBoard
     include Rails.application.routes.url_helpers
 
-    DESCRIPTION = "Todayは、未実行の有効な施策を、施策期待値が高い順に処理する画面です。".freeze
+    DESCRIPTION = "Todayは、未実行の有効な施策を、最終期待値が高い順に処理する画面です。".freeze
     MODES = %w[revenue learning balanced].freeze
     APPROVAL_REQUIRED_STATUSES = %w[draft waiting_approval approved].freeze
     CODEX_QUEUE_STATUSES = %w[queued ready_for_codex sent_to_codex running].freeze
@@ -253,7 +253,7 @@ module Aicoo
       )
 
       revenue_score = if article_opportunity
-        article_scores.fetch(:expected_improvement_score)
+        expected_value_yen.to_d
       else
         valuation_adjusted_revenue_score(
           candidate,

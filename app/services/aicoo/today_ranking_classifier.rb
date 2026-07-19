@@ -466,13 +466,11 @@ module Aicoo
     end
 
     def raw_value_type
-      article_opportunity? ? "expected_improvement_score" : "yen"
+      "yen"
     end
 
     def raw_value
-      if article_opportunity?
-        decimal(metadata["expected_improvement_score"])
-      elsif item.respond_to?(:action_expected_value_delta_yen)
+      if item.respond_to?(:action_expected_value_delta_yen)
         decimal(item.action_expected_value_delta_yen)
       elsif item.respond_to?(:expected_value_yen)
         decimal(item.expected_value_yen)

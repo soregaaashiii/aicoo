@@ -14,6 +14,19 @@ module Aicoo
     DiagnosticRow = Data.define(
       :item,
       :classification,
+      :total_expected_value_yen,
+      :revenue_expected_value_yen,
+      :traffic_expected_value_yen,
+      :conversion_expected_value_yen,
+      :learning_expected_value_yen,
+      :future_expected_value_yen,
+      :strategic_expected_value_yen,
+      :execution_cost_yen,
+      :risk_cost_yen,
+      :opportunity_cost_yen,
+      :ranking_source,
+      :expected_improvement,
+      :non_yen_metric_used_for_ranking,
       :normalized_value_score,
       :tab_score_revenue,
       :tab_score_learning,
@@ -50,9 +63,23 @@ module Aicoo
       entries = classified_entries
       scored = score_entries(entries)
       scored.map do |entry|
+        breakdown = entry.fetch(:expected_value_breakdown)
         DiagnosticRow.new(
           item: entry.fetch(:item),
           classification: entry.fetch(:classification),
+          total_expected_value_yen: breakdown.fetch(:total_expected_value_yen),
+          revenue_expected_value_yen: breakdown.fetch(:revenue_expected_value_yen),
+          traffic_expected_value_yen: breakdown.fetch(:traffic_expected_value_yen),
+          conversion_expected_value_yen: breakdown.fetch(:conversion_expected_value_yen),
+          learning_expected_value_yen: breakdown.fetch(:learning_expected_value_yen),
+          future_expected_value_yen: breakdown.fetch(:future_expected_value_yen),
+          strategic_expected_value_yen: breakdown.fetch(:strategic_expected_value_yen),
+          execution_cost_yen: breakdown.fetch(:execution_cost_yen),
+          risk_cost_yen: breakdown.fetch(:risk_cost_yen),
+          opportunity_cost_yen: breakdown.fetch(:opportunity_cost_yen),
+          ranking_source: breakdown.fetch(:ranking_source),
+          expected_improvement: breakdown.fetch(:expected_improvement),
+          non_yen_metric_used_for_ranking: false,
           normalized_value_score: entry.fetch(:normalized_value_score),
           tab_score_revenue: entry.fetch(:tab_score_revenue),
           tab_score_learning: entry.fetch(:tab_score_learning),
@@ -75,7 +102,9 @@ module Aicoo
     end
 
     def ranked_items
-      score_entries(main_ranking_entries).sort_by { |entry| entry_sort_key(entry) }.map { |entry| entry.fetch(:item).with(score: entry.fetch(tab_score_key).round(2)) }
+      score_entries(main_ranking_entries).sort_by { |entry| entry_sort_key(entry) }.map do |entry|
+        entry.fetch(:item).with(score: entry.fetch(:expected_value_breakdown).fetch(:total_expected_value_yen).round(2))
+      end
     end
 
     def main_ranking_entries
@@ -95,97 +124,27 @@ module Aicoo
     end
 
     def score_entries(entries)
-      revenue_scores = normalized_scores(entries) { |entry| revenue_raw_value(entry.fetch(:item), entry.fetch(:classification)) }
-      learning_scores = normalized_scores(entries) { |entry| learning_raw_value(entry.fetch(:item), entry.fetch(:classification)) }
-
-      entries.map.with_index do |entry, index|
-        classification = entry.fetch(:classification)
-        multiplier = classification.actionability_multiplier * classification.category_multiplier
-        revenue = revenue_scores.fetch(index) * multiplier
-        learning = learning_scores.fetch(index) * multiplier
-        balanced = ((revenue_scores.fetch(index) * 0.6) + (learning_scores.fetch(index) * 0.4)) * multiplier
+      entries.map do |entry|
+        breakdown = expected_value_breakdown(entry.fetch(:item))
+        total = breakdown.fetch(:total_expected_value_yen)
         entry.merge(
-          normalized_value_score: selected_normalized_score(revenue, learning, balanced),
-          tab_score_revenue: revenue,
-          tab_score_learning: learning,
-          tab_score_balanced: balanced
+          expected_value_breakdown: breakdown,
+          normalized_value_score: total,
+          tab_score_revenue: total,
+          tab_score_learning: total,
+          tab_score_balanced: total
         )
-      end
-    end
-
-    def normalized_scores(entries)
-      values = entries.map { |entry| yield(entry).to_d }
-      positive_values = values.select(&:positive?)
-      max = positive_values.max
-      return values.map { 0.to_d } if max.blank? || max.zero?
-
-      values.map { |value| value.positive? ? ((value / max) * 100).round(4) : 0.to_d }
-    end
-
-    def revenue_raw_value(item, classification)
-      return classification.raw_value if classification.raw_value_type == "expected_improvement_score"
-
-      delta_value(item).to_d
-    end
-
-    def learning_raw_value(item, classification)
-      return article_opportunity_metric(item, "improvement_potential_score") if classification.raw_value_type == "expected_improvement_score"
-      return item.learning_score.to_d if item.respond_to?(:learning_score)
-
-      confidence_value(item) * 100
-    end
-
-    def selected_normalized_score(revenue, learning, balanced)
-      case mode
-      when "learning"
-        learning
-      when "balanced"
-        balanced
-      else
-        revenue
-      end
-    end
-
-    def tab_score_key
-      case mode
-      when "learning"
-        :tab_score_learning
-      when "balanced"
-        :tab_score_balanced
-      else
-        :tab_score_revenue
       end
     end
 
     def entry_sort_key(entry)
       item = entry.fetch(:item)
-      classification = entry.fetch(:classification)
+      breakdown = entry.fetch(:expected_value_breakdown)
       [
-        -entry.fetch(tab_score_key),
-        -classification.raw_value,
+        -breakdown.fetch(:total_expected_value_yen),
         -confidence_value(item),
-        -record_timestamp(item),
-        -record_id(item)
-      ]
-    end
-
-    def sort_key(item)
-      if article_opportunity_item?(item)
-        return [
-          -article_opportunity_metric(item, "expected_improvement_score"),
-          -article_opportunity_metric(item, "search_demand_score"),
-          -article_opportunity_metric(item, "improvement_potential_score"),
-          -article_opportunity_metric(item, "success_probability"),
-          article_opportunity_metric(item, "estimated_work_hours"),
-          -record_timestamp(item),
-          -record_id(item)
-        ]
-      end
-
-      [
-        -delta_value(item),
-        -confidence_value(item),
-        -record_timestamp(item),
+        estimated_work_hours(item),
+        record_created_timestamp(item),
         -record_id(item)
       ]
     end
@@ -228,7 +187,7 @@ module Aicoo
       group.max_by do |item|
         [
           article_opportunity_item?(item) ? 1 : 0,
-          delta_value(item),
+          total_expected_value_yen(item),
           confidence_value(item),
           record_timestamp(item),
           record_id(item)
@@ -277,10 +236,49 @@ module Aicoo
       item.expected_value_yen.to_i
     end
 
+    def expected_value_breakdown(item)
+      record = item.respond_to?(:record) ? item.record : nil
+      metadata = record.is_a?(ActionCandidate) ? record.metadata.to_h.deep_stringify_keys : {}
+      total = total_expected_value_yen(item)
+      execution_cost = item.respond_to?(:execution_cost_yen) ? item.execution_cost_yen.to_d : 0.to_d
+      learning = record.is_a?(ActionCandidate) ? record.expected_learning_value_yen.to_d : 0.to_d
+      expected_profit_model = metadata["expected_profit_model"].to_h
+      ranking_source = article_opportunity_item?(item) ? Aicoo::ArticleOpportunityExpectedProfit::MODEL_NAME : "total_expected_value_yen"
+
+      {
+        total_expected_value_yen: total,
+        revenue_expected_value_yen: total,
+        traffic_expected_value_yen: decimal_metadata(metadata, "traffic_expected_value_yen"),
+        conversion_expected_value_yen: decimal_metadata(metadata, "conversion_expected_value_yen"),
+        learning_expected_value_yen: learning,
+        future_expected_value_yen: decimal_metadata(metadata, "future_expected_value_yen"),
+        strategic_expected_value_yen: decimal_metadata(metadata, "strategic_expected_value_yen"),
+        execution_cost_yen: execution_cost,
+        risk_cost_yen: decimal_metadata(metadata, "risk_cost_yen"),
+        opportunity_cost_yen: decimal_metadata(metadata, "opportunity_cost_yen"),
+        ranking_source:,
+        expected_improvement: expected_profit_model["expected_improvement_score"].presence || article_opportunity_metric(item, "expected_improvement_score")
+      }
+    end
+
+    def total_expected_value_yen(item)
+      delta_value(item).to_d
+    end
+
+    def decimal_metadata(metadata, key)
+      metadata[key].to_s.delete(",").to_d
+    end
+
     def confidence_value(item)
       return item.confidence.to_d if item.respond_to?(:confidence)
 
       item.respond_to?(:success_probability) ? item.success_probability.to_d : 0.to_d
+    end
+
+    def estimated_work_hours(item)
+      return item.expected_hours.to_d if item.respond_to?(:expected_hours)
+
+      0.to_d
     end
 
     def article_opportunity_item?(item)
@@ -302,6 +300,12 @@ module Aicoo
     def record_timestamp(item)
       record = item.respond_to?(:record) ? item.record : nil
       timestamp = record&.try(:updated_at) || record&.try(:created_at) || Time.zone.at(0)
+      timestamp.to_i
+    end
+
+    def record_created_timestamp(item)
+      record = item.respond_to?(:record) ? item.record : nil
+      timestamp = record&.try(:created_at) || Time.zone.at(0)
       timestamp.to_i
     end
 

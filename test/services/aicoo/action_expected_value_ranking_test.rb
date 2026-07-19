@@ -12,7 +12,8 @@ module Aicoo
       :record,
       :action_expected_value_delta_yen,
       :confidence,
-      :valuation_status
+      :valuation_status,
+      :expected_hours
     )
 
     test "paginates twenty items and keeps global rank" do
@@ -64,6 +65,46 @@ module Aicoo
 
       assert_equal [ "daily_run_issue:stuck", "action_candidate:neutral", "new_business:negative" ], result.items.map(&:stable_id)
       assert_equal 700_000, result.items.first.action_expected_value_delta_yen
+    end
+
+    test "all tabs rank by total expected yen instead of expected improvement" do
+      high_improvement_low_yen = action_candidate(
+        title: "ExpectedImprovementだけ高い候補",
+        metadata: {
+          "target_url_type" => "own_existing",
+          "target_url" => "/articles/low-yen",
+          "expected_improvement_score" => 99
+        }
+      )
+      low_improvement_high_yen = action_candidate(
+        title: "円期待値が高い候補",
+        metadata: {
+          "target_url_type" => "own_existing",
+          "target_url" => "/articles/high-yen",
+          "expected_improvement_score" => 1
+        }
+      )
+
+      items = [
+        item(stable_id: "action_candidate:high_improvement_low_yen", delta: -740, confidence: 0.8, record: high_improvement_low_yen),
+        item(stable_id: "action_candidate:low_improvement_high_yen", delta: 25_250, confidence: 0.8, record: low_improvement_high_yen)
+      ]
+
+      %w[revenue learning balanced].each do |mode|
+        result = ActionExpectedValueRanking.new(items:, mode:).call
+
+        assert_equal [ "action_candidate:low_improvement_high_yen", "action_candidate:high_improvement_low_yen" ], result.items.map(&:stable_id), "#{mode} should sort by yen"
+      end
+    end
+
+    test "expected improvement is not used as tie breaker" do
+      high_improvement = item(stable_id: "action_candidate:high_improvement", delta: 10_000, confidence: 0.7, expected_hours: 3)
+      low_improvement = item(stable_id: "action_candidate:low_improvement", delta: 10_000, confidence: 0.8, expected_hours: 3)
+      short_work = item(stable_id: "action_candidate:short_work", delta: 10_000, confidence: 0.7, expected_hours: 1)
+
+      result = ActionExpectedValueRanking.new(items: [ high_improvement, short_work, low_improvement ], mode: "revenue").call
+
+      assert_equal [ "action_candidate:low_improvement", "action_candidate:short_work", "action_candidate:high_improvement" ], result.items.map(&:stable_id)
     end
 
     test "excludes unvalued items from ranking instead of treating them as zero" do
@@ -314,7 +355,7 @@ module Aicoo
 
     private
 
-    def item(stable_id:, delta:, confidence:, valuation_status: nil, no_action: 0, action: nil, cost: 0, record: nil)
+    def item(stable_id:, delta:, confidence:, valuation_status: nil, no_action: 0, action: nil, cost: 0, record: nil, expected_hours: 1)
       Item.new(
         stable_id:,
         rank: nil,
@@ -325,7 +366,8 @@ module Aicoo
         record:,
         action_expected_value_delta_yen: delta,
         confidence:,
-        valuation_status: valuation_status || (delta.positive? ? "positive" : (delta.negative? ? "negative" : "neutral"))
+        valuation_status: valuation_status || (delta.positive? ? "positive" : (delta.negative? ? "negative" : "neutral")),
+        expected_hours:
       )
     end
 
