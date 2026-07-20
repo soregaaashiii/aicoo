@@ -13,29 +13,43 @@ class LovableLandingPagesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "AICOO要件"
     assert_includes response.body, "Lovable Preview"
     assert_includes response.body, "Codex公開"
-    assert_includes response.body, "LP作成を開始"
+    assert_includes response.body, "Lovableで作成"
+    assert_includes response.body, "Promptを見る"
   end
 
-  test "creates a Build URL version when MCP is not configured" do
-    original_token = ENV.delete("LOVABLE_MCP_ACCESS_TOKEN")
-    original_access_token = ENV.delete("LOVABLE_ACCESS_TOKEN")
-
+  test "creates an official Build URL version regardless of MCP configuration" do
     assert_difference("AicooLabGenerationRun.count", 1) do
       post business_lovable_landing_page_url(@business)
     end
 
-    assert_redirected_to business_lovable_landing_page_path(@business)
-    assert_equal "lovable_handoff_required", AicooLabGenerationRun.last.metadata["pipeline_status"]
-  ensure
-    ENV["LOVABLE_MCP_ACCESS_TOKEN"] = original_token if original_token
-    ENV["LOVABLE_ACCESS_TOKEN"] = original_access_token if original_access_token
+    run = AicooLabGenerationRun.last
+    assert_redirected_to run.metadata["build_url"]
+    assert_equal "lovable_handoff_required", run.metadata["pipeline_status"]
+    assert_equal "build_with_url", run.metadata["launcher"]
+  end
+
+  test "prepares an editable prompt without generating a Build URL" do
+    assert_difference("AicooLabGenerationRun.count", 1) do
+      post prepare_business_lovable_landing_page_url(@business)
+    end
+
+    run = AicooLabGenerationRun.last
+    assert_redirected_to business_lovable_landing_page_path(@business, anchor: "lovable-prompt")
+    assert_equal "draft", run.status
+    assert_equal "prompt_ready", run.metadata["pipeline_status"]
+    assert_nil run.metadata["build_url"]
+
+    patch update_prompt_version_business_lovable_landing_page_url(@business, generation_run_id: run.id), params: { prompt: "Edited prompt" }
+    assert_redirected_to business_lovable_landing_page_path(@business, anchor: "lovable-prompt")
+    assert_equal "Edited prompt", run.reload.prompt
   end
 
   test "business detail exposes Lovable LP actions" do
     get business_url(@business)
 
     assert_response :success
-    assert_includes response.body, "LP作成"
+    assert_includes response.body, "Lovableで作成"
+    assert_includes response.body, "Promptを見る"
     assert_includes response.body, business_lovable_landing_page_path(@business)
   end
 end

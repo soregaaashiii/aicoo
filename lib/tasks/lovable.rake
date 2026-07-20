@@ -52,4 +52,25 @@ namespace :aicoo do
     end
     result.summary.each { |key, value| puts "#{key}=#{value}" }
   end
+
+  desc "Diagnose Lovable official Build with URL prompt and version handoff"
+  task diagnose_lovable_build_url: :environment do
+    result = Aicoo::Lovable::BuildUrlDiagnostic.new(business_id: ENV["BUSINESS_ID"]).call
+    result.rows.each do |row|
+      puts [
+        "business_id=#{row.business_id}",
+        "business=#{row.business_name}",
+        "prompt_generated=#{row.prompt_generated}",
+        "build_url_generated=#{row.build_url_generated}",
+        "prompt_version=#{row.prompt_version}",
+        "version=#{row.version}",
+        "preview_saved=#{row.preview_saved}",
+        "learning=#{row.learning_status}",
+        "action_candidate_count=#{row.action_candidate_count}",
+        "launcher=#{row.launcher}",
+        "last_error=#{row.last_error}"
+      ].join(" ")
+    end
+    result.summary.each { |key, value| puts "#{key}=#{value}" }
+  end
 end

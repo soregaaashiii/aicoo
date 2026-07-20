@@ -52,6 +52,7 @@ module Aicoo
           - SEOキーワード: #{seo_keywords.join("、").presence || "未設定"}
           - 競合・比較対象: #{list_value("competitors", "competitor_names")}
           - ブランドカラー: #{list_value("brand_colors", "colors")}
+          - トーン: #{value("tone", "brand_tone", "writing_tone")}
           - ロゴ: #{value("logo_url", "logo")}
           - 使用可能な画像: #{list_value("image_urls", "images")}
         PROMPT
@@ -101,7 +102,7 @@ module Aicoo
           ## Version修正
           - 前Version: #{previous_version&.metadata.to_h&.dig("version_label") || "なし"}
           - 前Preview: #{previous_version&.metadata.to_h&.dig("preview_url") || "なし"}
-          - 修正依頼: #{change_request.presence || "前Versionへ戻す"}
+          - 修正依頼: #{change_request.presence || "既存Versionを参照して新しい案を作成する"}
           - 修正対象以外の動作、計測、レスポンシブ対応を壊さないこと。
           #{best_version_context}
 

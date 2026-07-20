@@ -288,9 +288,17 @@ end %>
   </div>
   <div class="actions compact-actions">
     <% if lp_action && @action_candidate.business %>
-      <%= link_to "LovableでLP作成・修正",
-                  business_lovable_landing_page_path(@action_candidate.business, action_candidate_id: @action_candidate.id),
-                  class: "button" %>
+      <%= button_to(@action_candidate.generation_source == "lp_learning" ? "Lovableで改善" : "Lovableで作成",
+                    business_lovable_landing_page_path(@action_candidate.business),
+                    method: :post,
+                    params: { action_candidate_id: @action_candidate.id },
+                    class: "button",
+                    form: { target: "_blank" }) %>
+      <%= button_to "Promptを見る",
+                    prepare_business_lovable_landing_page_path(@action_candidate.business),
+                    method: :post,
+                    params: { action_candidate_id: @action_candidate.id },
+                    class: "button secondary" %>
     <% end %>
     <% if @action_candidate.executed? %>
       <span class="pill">実行済み</span>

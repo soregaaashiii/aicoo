@@ -39,7 +39,7 @@ module Aicoo
       end
 
       def connection_mode
-        configured? ? "mcp" : "build_url"
+        "build_url"
       end
 
       def diagnostic_snapshot
@@ -49,7 +49,7 @@ module Aicoo
           "workspace_id_configured" => workspace_id.present?,
           "access_token_configured" => access_token.present?,
           "build_url" => build_url,
-          "research_preview" => true
+          "official_launch_route" => "build_with_url"
         }
       end
 

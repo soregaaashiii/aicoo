@@ -6,12 +6,18 @@ module Aicoo
     class LandingPagePipeline
       Result = Data.define(:landing_page, :generation_run, :mode, :message)
 
-      def initialize(client: McpClient.new, configuration: Configuration.new)
+      def initialize(client: McpClient.new, configuration: Configuration.new, launch_service: nil)
         @client = client
         @configuration = configuration
+        @launch_service = launch_service || LaunchService.new(launcher: BuildWithUrlLauncher.new(configuration:))
       end
 
       def enqueue_create!(business:, action_candidate: nil)
+        prepared = prepare_create!(business:, action_candidate:)
+        launch!(business:, generation_run: prepared.generation_run)
+      end
+
+      def prepare_create!(business:, action_candidate: nil)
         landing_page = ensure_landing_page!(business)
         repository = VersionRepository.new(business:, landing_page:)
         refresh_learning!(business, repository.published)
@@ -31,10 +37,15 @@ module Aicoo
           prompt:,
           action_candidate:
         )
-        dispatch!(run)
+        Result.new(landing_page:, generation_run: run, mode: "prompt_review", message: "Lovable Promptを生成しました。")
       end
 
       def enqueue_revision!(business:, change_request:, action_candidate: nil)
+        prepared = prepare_revision!(business:, change_request:, action_candidate:)
+        launch!(business:, generation_run: prepared.generation_run)
+      end
+
+      def prepare_revision!(business:, change_request:, action_candidate: nil)
         raise ArgumentError, "修正内容を入力してください。" if change_request.blank?
 
         landing_page = lovable_landing_page!(business)
@@ -60,7 +71,7 @@ module Aicoo
           change_request:,
           action_candidate:
         )
-        dispatch!(run)
+        Result.new(landing_page:, generation_run: run, mode: "prompt_review", message: "Lovable改善Promptを生成しました。")
       end
 
       def enqueue_retry!(business:, generation_run:)
@@ -78,7 +89,85 @@ module Aicoo
           change_request: generation_run.metadata.to_h["change_request"],
           retry_of: generation_run
         )
-        dispatch!(run)
+        launch!(business:, generation_run: run)
+      end
+
+      def update_prompt!(business:, generation_run:, prompt:)
+        validate_run_business!(generation_run, business)
+        validate_prompt_editable!(generation_run)
+        raise ArgumentError, "Lovable Promptが空です。" if prompt.blank?
+
+        metadata = generation_run.metadata.to_h.deep_stringify_keys
+        revision = metadata.fetch("prompt_revision", 1).to_i + 1
+        generation_run.update!(
+          prompt: prompt.to_s.first(BuildUrl::MAX_PROMPT_LENGTH),
+          status: "draft",
+          error_message: nil,
+          metadata: metadata.merge(
+            "pipeline_status" => "prompt_ready",
+            "prompt_revision" => revision,
+            "prompt_version" => prompt_version(metadata["version"], revision),
+            "prompt_updated_at" => Time.current.iso8601,
+            "build_url" => nil,
+            "build_url_generated_at" => nil
+          )
+        )
+        Result.new(
+          landing_page: AicooLabLandingPage.find(metadata.fetch("landing_page_id")),
+          generation_run:,
+          mode: "prompt_review",
+          message: "Lovable Promptを保存しました。"
+        )
+      end
+
+      def regenerate_prompt!(business:, generation_run:)
+        validate_run_business!(generation_run, business)
+        validate_prompt_editable!(generation_run)
+        metadata = generation_run.metadata.to_h.deep_stringify_keys
+        landing_page = AicooLabLandingPage.find(metadata.fetch("landing_page_id"))
+        repository = VersionRepository.new(business:, landing_page:)
+        previous = AicooLabGenerationRun.find_by(id: metadata["previous_run_id"])
+        refresh_learning!(business, repository.published)
+        comparison = LandingPageLearningComparison.new(business:, repository:).call
+        prompt = PromptBuilder.new(
+          business:,
+          landing_page:,
+          previous_version: previous,
+          learning_version: repository.published,
+          best_version: comparison.best&.run,
+          change_request: metadata["change_request"]
+        ).call
+        update_prompt!(business:, generation_run:, prompt:)
+      end
+
+      def launch!(business:, generation_run:)
+        validate_run_business!(generation_run, business)
+        metadata = generation_run.metadata.to_h.deep_stringify_keys
+        launch = launch_service.call(prompt: generation_run.prompt, image_urls: reference_image_urls(business))
+        launched_at = Time.current
+        generation_run.update!(
+          status: "succeeded",
+          started_at: generation_run.started_at || launched_at,
+          finished_at: launched_at,
+          error_message: nil,
+          metadata: metadata.merge(
+            "pipeline_status" => "lovable_handoff_required",
+            "connection_mode" => "build_url",
+            "launcher" => launch.launcher_name,
+            "build_url" => launch.url,
+            "build_url_generated_at" => launched_at.iso8601,
+            "launched_at" => launched_at.iso8601,
+            "prompt_length" => launch.prompt_length,
+            "reference_image_count" => launch.image_count,
+            "handoff_reason" => "official_build_with_url"
+          )
+        )
+        Result.new(
+          landing_page: AicooLabLandingPage.find(metadata.fetch("landing_page_id")),
+          generation_run:,
+          mode: "build_url",
+          message: "Lovable Build with URLを作成しました。"
+        )
       end
 
       def execute!(run)
@@ -165,6 +254,9 @@ module Aicoo
             "pipeline_status" => "preview_ready",
             "version" => repository.next_version,
             "version_label" => "v#{repository.next_version}",
+            "prompt_revision" => 1,
+            "prompt_version" => prompt_version(repository.next_version, 1),
+            "prompt_generated_at" => Time.current.iso8601,
             "request_type" => "restore",
             "restored_from_run_id" => generation_run.id,
             "previous_run_id" => repository.current&.id,
@@ -178,37 +270,7 @@ module Aicoo
 
       private
 
-      attr_reader :client, :configuration
-
-      def dispatch!(run)
-        if client.configured?
-          Aicoo::LovableLandingPageGenerationJob.perform_later(run.id)
-          Result.new(
-            landing_page: AicooLabLandingPage.find(run.metadata.to_h["landing_page_id"]),
-            generation_run: run,
-            mode: "mcp",
-            message: "Lovableへ生成依頼を送信しました。"
-          )
-        else
-          build_url = BuildUrl.call(run.prompt, base_url: configuration.build_url)
-          run.update!(
-            status: "succeeded",
-            finished_at: Time.current,
-            metadata: run.metadata.to_h.merge(
-              "pipeline_status" => "lovable_handoff_required",
-              "connection_mode" => "build_url",
-              "build_url" => build_url,
-              "handoff_reason" => "lovable_mcp_oauth_not_configured"
-            )
-          )
-          Result.new(
-            landing_page: AicooLabLandingPage.find(run.metadata.to_h["landing_page_id"]),
-            generation_run: run,
-            mode: "build_url",
-            message: "Lovable Build URLを作成しました。生成後にPreview URLを登録してください。"
-          )
-        end
-      end
+      attr_reader :client, :configuration, :launch_service
 
       def execute_remote!(run, metadata, business)
         project_id = inherited_project_id(metadata)
@@ -238,7 +300,7 @@ module Aicoo
           started_at: Time.current,
           metadata: {
             "pipeline" => "lovable",
-            "pipeline_status" => "queued",
+            "pipeline_status" => "prompt_ready",
             "business_id" => business.id,
             "business_name" => business.name,
             "landing_page_id" => landing_page.id,
@@ -250,7 +312,11 @@ module Aicoo
             "change_request" => change_request,
             "previous_run_id" => previous_run&.id,
             "retry_of_run_id" => retry_of&.id,
-            "connection_mode" => configuration.connection_mode,
+            "connection_mode" => "build_url",
+            "launcher" => "build_with_url",
+            "prompt_revision" => 1,
+            "prompt_version" => prompt_version(version, 1),
+            "prompt_generated_at" => Time.current.iso8601,
             "publication" => {},
             "created_by" => "owner"
           }.compact
@@ -336,6 +402,13 @@ module Aicoo
         raise ActiveRecord::RecordNotFound, "Lovable Versionが見つかりません。"
       end
 
+      def validate_prompt_editable!(run)
+        metadata = run.metadata.to_h
+        return if metadata["preview_url"].blank? && metadata.dig("publication", "published") != true
+
+        raise ArgumentError, "Preview登録済みVersionのPromptは変更できません。新しいVersionを作成してください。"
+      end
+
       def inherited_project_id(metadata)
         return metadata["project_id"] if metadata["project_id"].present?
 
@@ -389,6 +462,16 @@ module Aicoo
         return unless published_version
 
         LearningSummary.new(business:, generation_run: published_version).call(persist: true)
+      end
+
+      def prompt_version(version, revision)
+        "v#{version}.p#{revision}"
+      end
+
+      def reference_image_urls(business)
+        metadata = business.metadata.to_h.deep_stringify_keys
+        values = Array(metadata["image_urls"]) + Array(metadata["images"]) + [ metadata["logo_url"], metadata["logo"] ]
+        values.compact_blank.uniq.first(10)
       end
     end
   end

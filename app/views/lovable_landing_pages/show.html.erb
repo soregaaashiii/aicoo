@@ -3,7 +3,7 @@
 <div class="aicoo-page lovable-workspace">
   <%= render "shared/aicoo_header",
              title: "#{@business.name} / LP Studio",
-             description: "AICOOが要件を決め、LovableがPreviewを作り、CodexがGitと公開を担当します。",
+             description: "AICOOがPromptを作り、公式Build with URLでLovableを開き、CodexがGitと公開を担当します。",
              active_main: :businesses,
              actions: link_to("Businessへ戻る", business_path(@business, anchor: "business-lp"), class: "button secondary") %>
 
@@ -21,9 +21,9 @@
       </div>
     <% end %>
     <div class="lovable-toolbar">
-      <%= button_to(@source_action_candidate&.generation_source == "lp_learning" ? "Learning改善をLovableへ送信" : "LP作成", business_lovable_landing_page_path(@business), method: :post, params: { action_candidate_id: @source_action_candidate&.id }, class: "button") %>
+      <%= button_to(@source_action_candidate&.generation_source == "lp_learning" ? "Lovableで改善" : "Lovableで作成", business_lovable_landing_page_path(@business), method: :post, params: { action_candidate_id: @source_action_candidate&.id }, class: "button", form: { target: "_blank" }) %>
+      <%= button_to "Promptを見る", prepare_business_lovable_landing_page_path(@business), method: :post, params: { action_candidate_id: @source_action_candidate&.id }, class: "button secondary" %>
       <% if @current_version %>
-        <%= link_to "LP修正", "#lovable-revision", class: "button secondary" %>
         <%= link_to "Version比較", compare_business_lovable_landing_page_path(@business), class: "button secondary" %>
         <% if @current_version.metadata.to_h["preview_url"].present? && @current_version.metadata.to_h.dig("publication", "published") != true %>
           <%= button_to "公開", publish_version_business_lovable_landing_page_path(@business, generation_run_id: @current_version.id), method: :post, class: "button", data: { turbo_confirm: "このLovable VersionをCodexへ渡し、Git・PR・merge・Render公開を開始します。よろしいですか？" } %>
@@ -32,6 +32,39 @@
       <% end %>
     </div>
   </section>
+
+  <% if @prompt_version %>
+    <section class="dashboard-section" id="lovable-prompt">
+      <div class="section-heading">
+        <div>
+          <h2>Lovable Prompt</h2>
+          <p><%= @prompt_version.metadata.to_h["prompt_version"] || @prompt_version.metadata.to_h["version_label"] %> / <%= @prompt_version.metadata.to_h["request_type"] %></p>
+        </div>
+        <span class="pill"><%= @prompt_version.metadata.to_h["pipeline_status"] %></span>
+      </div>
+      <% if @prompt_editable %>
+        <%= form_with url: update_prompt_version_business_lovable_landing_page_path(@business, generation_run_id: @prompt_version.id), method: :patch, class: "form" do |form| %>
+          <%= form.label :prompt, "生成Prompt" %>
+          <%= form.text_area :prompt, value: @prompt_version.prompt, id: "lovable-prompt-text", rows: 22, required: true %>
+          <div class="compact-actions">
+            <%= form.submit "保存", class: "button secondary" %>
+            <button type="button" class="button secondary" onclick="navigator.clipboard.writeText(document.getElementById('lovable-prompt-text').value)">コピー</button>
+          </div>
+        <% end %>
+      <% else %>
+        <label for="lovable-prompt-text">保存済みPrompt</label>
+        <textarea id="lovable-prompt-text" rows="22" readonly><%= @prompt_version.prompt %></textarea>
+        <button type="button" class="button secondary" onclick="navigator.clipboard.writeText(document.getElementById('lovable-prompt-text').value)">コピー</button>
+      <% end %>
+      <div class="compact-actions">
+        <% if @prompt_editable %>
+          <%= button_to "再生成", regenerate_prompt_version_business_lovable_landing_page_path(@business, generation_run_id: @prompt_version.id), method: :post, class: "button secondary", form: { data: { turbo_confirm: "Business情報からPromptを再生成します。現在の編集内容は置き換わります。" } } %>
+        <% end %>
+        <%= button_to(@prompt_version.metadata.to_h["request_type"] == "revision" ? "Lovableで改善" : "Lovableで作成", launch_version_business_lovable_landing_page_path(@business, generation_run_id: @prompt_version.id), method: :post, class: "button", form: { target: "_blank" }) %>
+      </div>
+      <p class="muted">Build URL生成: <%= @prompt_version.metadata.to_h["build_url_generated_at"].presence || "未生成" %> / Prompt作成: <%= @prompt_version.metadata.to_h["prompt_generated_at"].presence || "-" %></p>
+    </section>
+  <% end %>
 
   <section class="dashboard-section">
     <div class="section-heading">
@@ -64,9 +97,9 @@
       </div>
     <% elsif @current_version&.metadata.to_h&.dig("build_url").present? %>
       <div class="aicoo-notice status-warning">
-        <strong>Lovable MCP接続待ち</strong>
-        <p>公式Build URLで生成し、完成後のPreview URLを下のフォームへ登録してください。</p>
-        <%= link_to "Lovableで生成を開始", @current_version.metadata.to_h["build_url"], class: "button", target: "_blank", rel: "noopener" %>
+        <strong>Lovableで生成後、Previewを登録してください</strong>
+        <p>公式Build with URLでPromptを入力済みのLovableが開きます。</p>
+        <%= link_to "Lovableをもう一度開く", @current_version.metadata.to_h["build_url"], class: "button", target: "_blank", rel: "noopener" %>
       </div>
       <%= form_with url: register_preview_version_business_lovable_landing_page_path(@business, generation_run_id: @current_version.id), method: :patch, class: "form lovable-register-form" do |form| %>
         <div class="form-grid">
@@ -85,8 +118,11 @@
       </div>
     <% else %>
       <div class="aicoo-empty-state">
-        <p>Business情報からLovable用Promptを生成し、最初のPreviewを作成します。</p>
-        <%= button_to "LP作成を開始", business_lovable_landing_page_path(@business), method: :post, params: { action_candidate_id: @source_action_candidate&.id }, class: "button" %>
+        <p>Business情報からPromptを生成し、公式Build with URLでLovableを開きます。</p>
+        <div class="compact-actions">
+          <%= button_to "Lovableで作成", business_lovable_landing_page_path(@business), method: :post, params: { action_candidate_id: @source_action_candidate&.id }, class: "button", form: { target: "_blank" } %>
+          <%= button_to "Promptを見る", prepare_business_lovable_landing_page_path(@business), method: :post, params: { action_candidate_id: @source_action_candidate&.id }, class: "button secondary" %>
+        </div>
       </div>
     <% end %>
   </section>
@@ -100,7 +136,10 @@
         <%= form.hidden_field :action_candidate_id, value: @source_action_candidate&.id %>
         <%= form.label :change_request, "修正内容" %>
         <%= form.text_area :change_request, value: @source_action_candidate&.metadata.to_h&.dig("lovable_change_request"), rows: 4, required: true, placeholder: "例: CTAを目立たせ、ファーストビューの余白を増やす" %>
-        <%= form.submit "次のVersionを生成", class: "button" %>
+        <div class="compact-actions">
+          <%= form.submit "Lovableで改善", class: "button", formtarget: "_blank" %>
+          <%= form.submit "Promptを見る", class: "button secondary", formaction: prepare_business_lovable_landing_page_path(@business) %>
+        </div>
       <% end %>
     </section>
   <% end %>
@@ -115,7 +154,7 @@
             <% publication = run.metadata.to_h["publication"].to_h %>
             <% learning = @version_learning.fetch(run.id, {}) %>
             <tr>
-              <td><strong><%= run.metadata.to_h["version_label"] %></strong><br><small>#<%= run.id %></small><% if @learning_comparison.best&.run&.id == run.id %><br><span class="pill">Best</span><% elsif @learning_comparison.worst&.run&.id == run.id %><br><span class="pill">Worst</span><% end %></td>
+              <td><strong><%= run.metadata.to_h["version_label"] %></strong><br><small><%= run.metadata.to_h["prompt_version"] || "##{run.id}" %></small><% if @learning_comparison.best&.run&.id == run.id %><br><span class="pill">Best</span><% elsif @learning_comparison.worst&.run&.id == run.id %><br><span class="pill">Worst</span><% end %></td>
               <td><span class="pill"><%= run.status %></span><br><small><%= run.metadata.to_h["request_type"] %> / <%= l(run.created_at, format: :short) %></small></td>
               <td><%= run.metadata.to_h["change_request"].presence || "初回生成" %></td>
               <td>CVR <%= learning["cvr"] ? number_to_percentage(learning["cvr"] * 100, precision: 1) : "-" %><br><small>CV <%= learning["conversions"] || "-" %> / CTA <%= learning["cta_clicks"] || "-" %> / ROI <%= learning["roi"] || "-" %></small></td>

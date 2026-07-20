@@ -173,8 +173,12 @@ Rails.application.routes.draw do
     patch :update_data_source_settings, on: :member
     resources :data_imports, only: :create
     resource :lovable_landing_page, only: %i[show create], controller: "lovable_landing_pages" do
+      post :prepare
       post :revise
       get :compare
+      patch "versions/:generation_run_id/prompt", action: :update_prompt, as: :update_prompt_version
+      post "versions/:generation_run_id/regenerate_prompt", action: :regenerate_prompt, as: :regenerate_prompt_version
+      post "versions/:generation_run_id/launch", action: :launch, as: :launch_version
       post "versions/:generation_run_id/retry", action: :retry, as: :retry_version
       patch "versions/:generation_run_id/register_preview", action: :register_preview, as: :register_preview_version
       post "versions/:generation_run_id/restore", action: :restore, as: :restore_version

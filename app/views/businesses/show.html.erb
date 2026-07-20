@@ -1093,9 +1093,10 @@
       <p>公開LPの作成と公開停止をこのBusinessの運用導線として扱います。</p>
     </div>
     <div class="actions compact-actions">
-      <%= link_to "LP作成", business_lovable_landing_page_path(@business), class: "button" %>
+      <%= button_to "Lovableで作成", business_lovable_landing_page_path(@business), method: :post, class: "button", form: { target: "_blank" } %>
+      <%= button_to "Promptを見る", prepare_business_lovable_landing_page_path(@business), method: :post, class: "button secondary" %>
+      <%= link_to "LP Studio", business_lovable_landing_page_path(@business), class: "button secondary" %>
       <% if @lovable_current_version %>
-        <%= link_to "LP修正", business_lovable_landing_page_path(@business, anchor: "lovable-revision"), class: "button secondary" %>
         <%= link_to "Version比較", compare_business_lovable_landing_page_path(@business), class: "button secondary" %>
         <% if @lovable_current_version.metadata.to_h["preview_url"].present? && @lovable_current_version.metadata.to_h.dig("publication", "published") != true %>
           <%= button_to "公開", publish_version_business_lovable_landing_page_path(@business, generation_run_id: @lovable_current_version.id), method: :post, class: "button", data: { turbo_confirm: "このVersionをCodexへ渡して公開を開始します。よろしいですか？" } %>
@@ -1112,6 +1113,7 @@
     <div><span>最終更新</span><strong><%= @lovable_current_version ? l(@lovable_current_version.updated_at, format: :short) : "-" %></strong></div>
     <div><span>CVR</span><strong><%= @lovable_published_learning&.dig("cvr") ? number_to_percentage(@lovable_published_learning["cvr"] * 100, precision: 1) : "-" %></strong></div>
     <div><span>CV</span><strong><%= @lovable_published_learning&.dig("conversions") || "-" %></strong></div>
+    <div><span>ROI</span><strong><%= @lovable_published_learning&.dig("roi") || "-" %></strong></div>
     <div><span>公開URL</span><strong><%= @lovable_published_version&.metadata.to_h&.dig("publication", "production_url") || "-" %></strong></div>
   </div>
   <div class="metric-grid">

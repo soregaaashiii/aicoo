@@ -51,11 +51,10 @@ module Aicoo
       attr_reader :probe, :client, :configuration
 
       def probe_connection
-        return [ configuration.configured? ? "configured_not_probed" : "build_url_fallback", nil ] unless probe
-        return [ "build_url_fallback", "Lovable MCP OAuth tokenが未設定です。" ] unless client.configured?
+        return [ "build_url_ready", nil ] unless probe
 
-        client.probe
-        [ "connected", nil ]
+        result = BuildWithUrlLauncher.new(configuration:).call(prompt: "AICOO Lovable Build URL diagnostic")
+        [ result.url.start_with?(configuration.build_url) ? "build_url_ready" : "failed", nil ]
       rescue StandardError => e
         [ "failed", e.message ]
       end
@@ -78,10 +77,10 @@ module Aicoo
         Row.new(
           business_id: business.id,
           business_name: business.name,
-          connected: configuration.configured?,
+          connected: true,
           connection_mode: latest&.metadata.to_h&.dig("connection_mode") || configuration.connection_mode,
           prompt_generated: latest&.prompt.present?,
-          send_success: latest&.status == "succeeded",
+          send_success: latest&.metadata.to_h&.dig("build_url").present?,
           preview_acquired: current&.metadata.to_h&.dig("preview_url").present?,
           version_saved: versions.any?,
           last_sent_at: latest&.started_at,

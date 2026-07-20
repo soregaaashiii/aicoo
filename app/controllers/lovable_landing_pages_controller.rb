@@ -1,6 +1,6 @@
 class LovableLandingPagesController < ApplicationController
   before_action :set_business
-  before_action :set_generation_run, only: %i[retry register_preview restore publish]
+  before_action :set_generation_run, only: %i[update_prompt regenerate_prompt launch retry register_preview restore publish]
 
   def show
     load_page_context
@@ -18,9 +18,32 @@ class LovableLandingPagesController < ApplicationController
     else
       pipeline.enqueue_create!(business: @business, action_candidate: candidate)
     end
-    redirect_to business_lovable_landing_page_path(@business), notice: result.message
+    redirect_to result.generation_run.metadata.to_h.fetch("build_url"), allow_other_host: true
   rescue StandardError => e
     redirect_to business_lovable_landing_page_path(@business), alert: "Lovable LP作成を開始できませんでした: #{e.message}"
+  end
+
+  def prepare
+    candidate = @business.action_candidates.find_by(id: params[:action_candidate_id])
+    pipeline = Aicoo::Lovable::LandingPagePipeline.new
+    result = if params[:change_request].present?
+      pipeline.prepare_revision!(
+        business: @business,
+        action_candidate: candidate,
+        change_request: params[:change_request]
+      )
+    elsif candidate&.generation_source == "lp_learning"
+      pipeline.prepare_revision!(
+        business: @business,
+        action_candidate: candidate,
+        change_request: candidate.metadata.to_h["lovable_change_request"].presence || candidate.metadata.to_h["improvement_reason"]
+      )
+    else
+      pipeline.prepare_create!(business: @business, action_candidate: candidate)
+    end
+    redirect_to business_lovable_landing_page_path(@business, action_candidate_id: candidate&.id, anchor: "lovable-prompt"), notice: result.message
+  rescue StandardError => e
+    redirect_to business_lovable_landing_page_path(@business), alert: "Lovable Promptを生成できませんでした: #{e.message}"
   end
 
   def revise
@@ -30,9 +53,34 @@ class LovableLandingPagesController < ApplicationController
       change_request: params[:change_request],
       action_candidate: candidate
     )
-    redirect_to business_lovable_landing_page_path(@business), notice: result.message
+    redirect_to result.generation_run.metadata.to_h.fetch("build_url"), allow_other_host: true
   rescue StandardError => e
     redirect_to business_lovable_landing_page_path(@business), alert: "Lovable修正を開始できませんでした: #{e.message}"
+  end
+
+  def update_prompt
+    result = Aicoo::Lovable::LandingPagePipeline.new.update_prompt!(
+      business: @business,
+      generation_run: @generation_run,
+      prompt: params[:prompt]
+    )
+    redirect_to business_lovable_landing_page_path(@business, anchor: "lovable-prompt"), notice: result.message
+  rescue StandardError => e
+    redirect_to business_lovable_landing_page_path(@business, anchor: "lovable-prompt"), alert: "Lovable Promptを保存できませんでした: #{e.message}"
+  end
+
+  def regenerate_prompt
+    result = Aicoo::Lovable::LandingPagePipeline.new.regenerate_prompt!(business: @business, generation_run: @generation_run)
+    redirect_to business_lovable_landing_page_path(@business, anchor: "lovable-prompt"), notice: result.message
+  rescue StandardError => e
+    redirect_to business_lovable_landing_page_path(@business, anchor: "lovable-prompt"), alert: "Lovable Promptを再生成できませんでした: #{e.message}"
+  end
+
+  def launch
+    result = Aicoo::Lovable::LandingPagePipeline.new.launch!(business: @business, generation_run: @generation_run)
+    redirect_to result.generation_run.metadata.to_h.fetch("build_url"), allow_other_host: true
+  rescue StandardError => e
+    redirect_to business_lovable_landing_page_path(@business, anchor: "lovable-prompt"), alert: "Lovableを起動できませんでした: #{e.message}"
   end
 
   def retry
@@ -90,6 +138,8 @@ class LovableLandingPagesController < ApplicationController
     @repository = Aicoo::Lovable::VersionRepository.new(business: @business)
     @versions = @repository.all.sort_by { |run| [ @repository.version(run), run.created_at ] }.reverse
     @current_version = @repository.current
+    @prompt_version = @repository.latest if @repository.latest&.prompt.present?
+    @prompt_editable = @prompt_version && @prompt_version.metadata.to_h["preview_url"].blank? && @prompt_version.metadata.to_h.dig("publication", "published") != true
     @published_version = @repository.published
     @landing_page = @current_version&.metadata.to_h&.dig("landing_page_id")&.then { |id| AicooLabLandingPage.find_by(id:) }
     @configuration = Aicoo::Lovable::Configuration.new

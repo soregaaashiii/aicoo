@@ -5,55 +5,10 @@ module Aicoo
     class LandingPagePipelineTest < ActiveSupport::TestCase
       include ActiveJob::TestHelper
 
-      class FakeClient
-        attr_reader :calls
-
-        def initialize
-          @calls = []
-        end
-
-        def configured?
-          true
-        end
-
-        def create_project(description:, initial_message:)
-          calls << [ :create_project, description, initial_message ]
-          {
-            "project_id" => "lovable-project-1",
-            "preview_url" => "https://lovable-project-1.lovable.app",
-            "editor_url" => "https://lovable.dev/projects/lovable-project-1"
-          }
-        end
-
-        def get_project(project_id:)
-          calls << [ :get_project, project_id ]
-          {
-            "project_id" => project_id,
-            "preview_url" => "https://#{project_id}.lovable.app",
-            "editor_url" => "https://lovable.dev/projects/#{project_id}",
-            "latest_commit_sha" => "abc123"
-          }
-        end
-
-        def send_message(project_id:, message:)
-          calls << [ :send_message, project_id, message ]
-          { "message_id" => "message-2" }
-        end
-
-        def get_diff(project_id:, message_id:)
-          calls << [ :get_diff, project_id, message_id ]
-          { "diff" => "+ revised CTA" }
-        end
-      end
-
       setup do
         @business = businesses(:suelog)
-        @client = FakeClient.new
-        @configuration = Configuration.new(env: {
-          "LOVABLE_MCP_ACCESS_TOKEN" => "test-token",
-          "LOVABLE_WORKSPACE_ID" => "test-workspace"
-        })
-        @pipeline = LandingPagePipeline.new(client: @client, configuration: @configuration)
+        @configuration = Configuration.new(env: { "LOVABLE_MCP_ACCESS_TOKEN" => "unused-token" })
+        @pipeline = LandingPagePipeline.new(configuration: @configuration)
         clear_enqueued_jobs
       end
 
@@ -61,42 +16,66 @@ module Aicoo
         clear_enqueued_jobs
       end
 
-      test "creates and stores a Lovable LP version without a migration" do
+      test "prepares and stores an editable prompt version without launching Lovable" do
         assert_difference([ "AicooLabLandingPage.count", "AicooLabGenerationRun.count" ], 1) do
-          result = @pipeline.enqueue_create!(business: @business)
-          assert_equal "mcp", result.mode
-          assert_equal "draft", result.generation_run.status
-          assert_enqueued_with(job: Aicoo::LovableLandingPageGenerationJob, args: [ result.generation_run.id ])
-          @pipeline.execute!(result.generation_run)
-        end
+          result = @pipeline.prepare_create!(business: @business)
 
-        run = VersionRepository.new(business: @business).current
-        assert_equal "succeeded", run.status
-        assert_equal 1, run.metadata["version"]
-        assert_equal "preview_ready", run.metadata["pipeline_status"]
-        assert_equal "https://lovable-project-1.lovable.app", run.metadata["preview_url"]
-        assert_equal "lovable", AicooLabLandingPage.find(run.metadata["landing_page_id"]).generation_source
-        assert_includes run.prompt, @business.name
-        assert_includes run.prompt, "Lovable側から本番公開は行わない"
+          assert_equal "prompt_review", result.mode
+          assert_equal "draft", result.generation_run.status
+          assert_equal "prompt_ready", result.generation_run.metadata["pipeline_status"]
+          assert_equal "v1.p1", result.generation_run.metadata["prompt_version"]
+          assert_nil result.generation_run.metadata["build_url"]
+          assert_no_enqueued_jobs only: Aicoo::LovableLandingPageGenerationJob
+        end
       end
 
-      test "revision keeps the same project and creates a new version with diff" do
-        first = @pipeline.enqueue_create!(business: @business).generation_run
-        @pipeline.execute!(first)
+      test "launches every prompt through official Build with URL even when MCP token exists" do
+        run = @pipeline.prepare_create!(business: @business).generation_run
+        result = @pipeline.launch!(business: @business, generation_run: run)
 
-        second = @pipeline.enqueue_revision!(business: @business, change_request: "CTAを目立たせる").generation_run
-        @pipeline.execute!(second)
+        assert_equal "build_url", result.mode
+        assert_equal "succeeded", run.reload.status
+        assert_equal "lovable_handoff_required", run.metadata["pipeline_status"]
+        assert_equal "build_with_url", run.metadata["launcher"]
+        assert_equal "official_build_with_url", run.metadata["handoff_reason"]
+        assert_includes run.metadata["build_url"], "https://lovable.dev/?autosubmit=true#prompt="
+        assert_no_enqueued_jobs only: Aicoo::LovableLandingPageGenerationJob
+      end
+
+      test "updates and regenerates the saved prompt version" do
+        run = @pipeline.prepare_create!(business: @business).generation_run
+
+        @pipeline.update_prompt!(business: @business, generation_run: run, prompt: "Owner edited prompt")
+        assert_equal "Owner edited prompt", run.reload.prompt
+        assert_equal "v1.p2", run.metadata["prompt_version"]
+
+        @pipeline.regenerate_prompt!(business: @business, generation_run: run)
+        assert_includes run.reload.prompt, @business.name
+        assert_equal "v1.p3", run.metadata["prompt_version"]
+      end
+
+      test "revision keeps the previous version and records the requested difference" do
+        first = @pipeline.enqueue_create!(business: @business).generation_run
+        @pipeline.register_preview!(
+          business: @business,
+          generation_run: first,
+          preview_url: "https://first-preview.lovable.app",
+          project_id: "lovable-project-1"
+        )
+
+        second = @pipeline.prepare_revision!(business: @business, change_request: "CTAを目立たせる").generation_run
+        @pipeline.launch!(business: @business, generation_run: second)
 
         assert_equal 2, second.reload.metadata["version"]
         assert_equal first.id, second.metadata["previous_run_id"]
-        assert_equal "lovable-project-1", second.metadata["project_id"]
-        assert_equal "+ revised CTA", second.metadata.dig("diff", "diff")
-        assert @client.calls.any? { |call| call.first == :send_message && call.second == "lovable-project-1" }
+        assert_equal "CTAを目立たせる", second.metadata["change_request"]
+        assert_includes second.prompt, "CTAを目立たせる"
+        assert_includes second.prompt, "修正対象以外"
       end
 
       test "LP learning candidate is preserved in a Lovable revision prompt" do
         first = @pipeline.enqueue_create!(business: @business).generation_run
-        @pipeline.execute!(first)
+        @pipeline.register_preview!(business: @business, generation_run: first, preview_url: "https://first-preview.lovable.app")
         candidate = @business.action_candidates.create!(
           title: "吸えログ LPのCTAを改善する",
           action_type: "ui_improvement",
@@ -111,7 +90,7 @@ module Aicoo
           }
         )
 
-        second = @pipeline.enqueue_revision!(
+        second = @pipeline.prepare_revision!(
           business: @business,
           action_candidate: candidate,
           change_request: candidate.metadata["lovable_change_request"]
@@ -122,47 +101,25 @@ module Aicoo
         assert_includes second.prompt, "修正対象以外"
       end
 
-      test "failed generation preserves the previous successful version" do
-        first = @pipeline.enqueue_create!(business: @business).generation_run
-        @pipeline.execute!(first)
-        broken_client = Object.new
-        broken_client.define_singleton_method(:configured?) { true }
-        broken_client.define_singleton_method(:send_message) { |**| raise McpClient::Error, "Lovable unavailable" }
-        broken_pipeline = LandingPagePipeline.new(client: broken_client, configuration: @configuration)
-        second = broken_pipeline.enqueue_revision!(business: @business, change_request: "背景を暗くする").generation_run
+      test "supports manual preview registration after Build with URL handoff" do
+        result = @pipeline.enqueue_create!(business: @business)
 
-        assert_raises(McpClient::Error) { broken_pipeline.execute!(second) }
-
-        assert_equal "failed", second.reload.status
-        assert_equal first.id, VersionRepository.new(business: @business).current.id
-        assert_equal "Lovable unavailable", second.error_message
-      end
-
-      test "falls back to Build URL and supports manual preview registration" do
-        configuration = Configuration.new(env: {})
-        pipeline = LandingPagePipeline.new(client: McpClient.new(configuration:), configuration:)
-
-        result = pipeline.enqueue_create!(business: @business)
-
-        assert_equal "build_url", result.mode
-        assert_equal "lovable_handoff_required", result.generation_run.metadata["pipeline_status"]
-        assert_includes result.generation_run.metadata["build_url"], "autosubmit=true"
-
-        pipeline.register_preview!(
+        @pipeline.register_preview!(
           business: @business,
           generation_run: result.generation_run,
           preview_url: "https://manual-preview.lovable.app",
           project_id: "manual-project"
         )
+
         assert_equal "preview_ready", result.generation_run.reload.metadata["pipeline_status"]
         assert_equal "manual-project", result.generation_run.metadata["project_id"]
       end
 
       test "restores a successful version as a new current version" do
         first = @pipeline.enqueue_create!(business: @business).generation_run
-        @pipeline.execute!(first)
+        @pipeline.register_preview!(business: @business, generation_run: first, preview_url: "https://first-preview.lovable.app")
         second = @pipeline.enqueue_revision!(business: @business, change_request: "CTAを目立たせる").generation_run
-        @pipeline.execute!(second)
+        @pipeline.register_preview!(business: @business, generation_run: second, preview_url: "https://second-preview.lovable.app")
 
         restored = @pipeline.restore!(business: @business, generation_run: first).generation_run
 
