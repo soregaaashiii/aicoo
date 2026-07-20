@@ -151,6 +151,63 @@
   </div>
 </section>
 
+<section class="dashboard-section" id="business-prototypes">
+  <div class="section-heading">
+    <div>
+      <h2>Prototypes</h2>
+      <p>この事業に紐づくRepository、デザイン、公開URLを管理します。</p>
+    </div>
+    <span class="pill"><%= @business_prototypes.size %>件</span>
+  </div>
+
+  <% if @business_prototypes.any? %>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>種別</th>
+            <th>名前</th>
+            <th>URL / 保存場所</th>
+            <th>解析</th>
+            <th>完成度</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @business_prototypes.each do |prototype| %>
+            <tr>
+              <td><span class="pill"><%= prototype.prototype_type_label %></span></td>
+              <td><%= prototype.display_name %></td>
+              <td class="prototype-location">
+                <% if prototype.prototype_type.in?(BusinessPrototype::URL_TYPES) %>
+                  <%= link_to truncate(prototype.location, length: 72), prototype.location, target: "_blank", rel: "noopener" %>
+                <% else %>
+                  <%= prototype.location %>
+                <% end %>
+              </td>
+              <td><span class="pill status-<%= prototype.analysis_status == "failed" ? "critical" : "healthy" %>"><%= prototype.analysis_status %></span></td>
+              <td><%= prototype.analysis.to_h["completion_percentage"].presence || "-" %><%= "%" if prototype.analysis.to_h["completion_percentage"].present? %></td>
+              <td>
+                <div class="actions compact-actions">
+                  <%= link_to "編集", edit_business_business_prototype_path(@business, prototype), class: "button secondary" %>
+                  <%= button_to "削除", business_business_prototype_path(@business, prototype), method: :delete, class: "button danger", data: { turbo_confirm: "このPrototypeを削除します。Business本体は削除されません。" } %>
+                </div>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% else %>
+    <div class="empty-state">Prototypeはまだ登録されていません。</div>
+  <% end %>
+
+  <details class="prototype-add-panel">
+    <summary class="button secondary">Prototypeを追加</summary>
+    <%= render "business_prototypes/form", business: @business, prototype: @business.business_prototypes.new %>
+  </details>
+</section>
+
 <section class="dashboard-section" id="business-resource">
   <div class="section-heading">
     <div>

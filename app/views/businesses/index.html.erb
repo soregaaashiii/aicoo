@@ -1,7 +1,7 @@
 <% content_for :title, "事業フォルダ" %>
 
 <% header_actions = capture do %>
-  <%= link_to "事業を追加", new_business_path, class: "button" %>
+  <%= link_to "＋ 新しい事業", new_business_path, class: "button" %>
   <%= link_to "削除済み", deleted_businesses_path, class: "button secondary" %>
   <%= link_to "収益記録", revenue_events_path, class: "button secondary" %>
   <%= link_to "代理指標", business_metric_dailies_path, class: "button secondary" %>

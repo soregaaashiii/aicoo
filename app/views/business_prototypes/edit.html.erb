@@ -1,0 +1,16 @@
+<% content_for :title, "Prototype編集" %>
+
+<% header_actions = capture do %>
+  <%= link_to "Businessへ戻る", business_path(@business, anchor: "business-prototypes"), class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "Prototype編集",
+             description: @business.name,
+             active_main: :revenue,
+             actions: header_actions %>
+  <section class="dashboard-section">
+    <%= render "form", business: @business, prototype: @prototype %>
+  </section>
+</div>

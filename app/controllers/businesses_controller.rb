@@ -50,6 +50,7 @@ class BusinessesController < ApplicationController
 
   # GET /businesses/1 or /businesses/1.json
   def show
+    @business_prototypes = @business.business_prototypes.recent
     @action_candidates = @business.action_candidates.by_recommendation
     @ai_improvement_action_candidates = @business.action_candidates
                                                    .active_for_ranking
@@ -117,6 +118,8 @@ class BusinessesController < ApplicationController
   # GET /businesses/new
   def new
     @business = Business.new(status: "idea")
+    @registration_mode = params[:registration_mode].presence_in(Aicoo::BusinessRegistration::MODES)
+    @registration_values = {}
   end
 
   # GET /businesses/1/edit
@@ -133,6 +136,8 @@ class BusinessesController < ApplicationController
 
   # POST /businesses or /businesses.json
   def create
+    return create_registration_v2 if params[:registration_mode].present?
+
     @business = Business.new(business_params)
 
     respond_to do |format|
@@ -386,6 +391,34 @@ class BusinessesController < ApplicationController
   end
 
   private
+
+    def create_registration_v2
+      values = business_registration_params
+      result = Aicoo::BusinessRegistration.new(
+        mode: params[:registration_mode],
+        name: values[:name],
+        description: values[:description],
+        prototype_type: values[:prototype_type],
+        prototype_location: values[:prototype_location]
+      ).call
+
+      redirect_to result.business,
+                  notice: "#{result.business.name}を登録しました。初期解析と今日やることの準備を開始しています。"
+    rescue Aicoo::BusinessRegistration::InvalidRegistration, ActiveRecord::RecordInvalid => e
+      @business = Business.new(name: values&.dig(:name), description: values&.dig(:description), status: "idea")
+      @registration_mode = params[:registration_mode].to_s
+      @registration_values = values.to_h
+      @registration_errors = if e.respond_to?(:record)
+        e.record.errors.full_messages
+      else
+        [ e.message ]
+      end
+      render :new, status: :unprocessable_content
+    end
+
+    def business_registration_params
+      params.fetch(:registration, {}).permit(:name, :description, :prototype_type, :prototype_location)
+    end
 
   def selected_business_ids
     Array(params[:business_ids]).filter_map { |id| Integer(id, exception: false) }.uniq

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_13_093000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_20_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1234,6 +1234,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_13_093000) do
     t.index ["business_id"], name: "index_business_playbooks_on_business_id", unique: true
   end
 
+  create_table "business_prototypes", force: :cascade do |t|
+    t.jsonb "analysis", default: {}, null: false
+    t.string "analysis_status", default: "pending", null: false
+    t.datetime "analyzed_at"
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.text "location", null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.string "name"
+    t.string "prototype_type", null: false
+    t.string "status", default: "active", null: false
+    t.datetime "updated_at", null: false
+    t.index ["analysis_status"], name: "index_business_prototypes_on_analysis_status"
+    t.index ["business_id", "prototype_type"], name: "index_business_prototypes_on_business_id_and_prototype_type"
+    t.index ["business_id", "status"], name: "index_business_prototypes_on_business_id_and_status"
+    t.index ["business_id"], name: "index_business_prototypes_on_business_id"
+  end
+
   create_table "business_serp_keywords", force: :cascade do |t|
     t.bigint "business_id", null: false
     t.integer "check_count", default: 0, null: false
@@ -2061,6 +2079,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_13_093000) do
   add_foreign_key "business_execution_profiles", "businesses"
   add_foreign_key "business_metric_dailies", "businesses"
   add_foreign_key "business_playbooks", "businesses"
+  add_foreign_key "business_prototypes", "businesses"
   add_foreign_key "business_serp_keywords", "businesses"
   add_foreign_key "business_services", "businesses"
   add_foreign_key "codex_prompt_drafts", "action_candidates"

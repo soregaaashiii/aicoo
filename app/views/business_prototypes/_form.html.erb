@@ -1,0 +1,27 @@
+<%= form_with model: [business, prototype], class: "form prototype-form" do |form| %>
+  <% if prototype.errors.any? %>
+    <div class="errors" role="alert">
+      <ul>
+        <% prototype.errors.full_messages.each do |message| %>
+          <li><%= message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div class="aicoo-grid aicoo-grid-3 prototype-form-grid">
+    <div class="field">
+      <%= form.label :prototype_type, "種別" %>
+      <%= form.select :prototype_type, BusinessPrototype::PROTOTYPE_TYPES.map { |type| [BusinessPrototype.new(prototype_type: type).prototype_type_label, type] } %>
+    </div>
+    <div class="field">
+      <%= form.label :name, "名前" %>
+      <%= form.text_field :name, placeholder: "例: Production" %>
+    </div>
+    <div class="field">
+      <%= form.label :location, "URLまたは保存場所" %>
+      <%= form.text_field :location, placeholder: "https://..." %>
+    </div>
+  </div>
+  <%= form.submit prototype.persisted? ? "更新" : "追加", class: "button" %>
+<% end %>

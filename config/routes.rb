@@ -164,6 +164,7 @@ Rails.application.routes.draw do
     post :promote_to_scaling, on: :member
     patch :update_resource_status, on: :member
     resources :business_services, only: %i[create update]
+    resources :business_prototypes, path: "prototypes", only: %i[create edit update destroy]
     post :generate_ai_candidates, on: :member
     post :import_google_api, on: :member
     post :import_gsc, on: :member

@@ -1800,6 +1800,145 @@ textarea {
   padding: 12px 14px;
 }
 
+.business-registration {
+  margin-inline: auto;
+  max-width: 920px;
+}
+
+.business-registration-form {
+  display: grid;
+  gap: 24px;
+}
+
+.registration-methods,
+.prototype-type-fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.registration-methods > legend {
+  font-size: 1.35rem;
+  font-weight: 800;
+  margin-bottom: 16px;
+}
+
+.registration-method-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.registration-method {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  display: grid;
+  gap: 6px;
+  min-height: 118px;
+  padding: 18px;
+}
+
+.registration-method:hover,
+.registration-method.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgb(15 118 110 / 10%);
+}
+
+.registration-method input {
+  accent-color: var(--accent);
+  height: 18px;
+  margin: 0;
+  width: 18px;
+}
+
+.registration-method-title {
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.registration-method small {
+  color: var(--muted);
+}
+
+.registration-details {
+  border-top: 1px solid var(--border);
+  display: none;
+  padding-top: 22px;
+}
+
+.registration-details.is-visible {
+  display: block;
+}
+
+.registration-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.registration-panel[hidden] {
+  display: none;
+}
+
+.prototype-type-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.prototype-type-options label {
+  align-items: center;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  display: inline-flex;
+  gap: 7px;
+  padding: 8px 10px;
+}
+
+.registration-submit {
+  margin-top: 20px;
+}
+
+.registration-submit .button {
+  min-width: 180px;
+}
+
+.prototype-add-panel {
+  margin-top: 16px;
+}
+
+.prototype-add-panel > summary {
+  list-style: none;
+  width: fit-content;
+}
+
+.prototype-add-panel > summary::-webkit-details-marker {
+  display: none;
+}
+
+.prototype-form {
+  margin-top: 16px;
+}
+
+.prototype-location {
+  max-width: 420px;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 760px) {
+  .registration-method-grid,
+  .prototype-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .registration-method {
+    min-height: auto;
+  }
+}
+
 .aicoo-decision-hero {
   background: transparent;
   border: 0;

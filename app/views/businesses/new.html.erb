@@ -1,14 +1,126 @@
-<% content_for :title, "事業を追加" %>
+<% content_for :title, "新しい事業" %>
 
 <% header_actions = capture do %>
   <%= link_to "事業一覧に戻る", businesses_path, class: "button secondary" %>
 <% end %>
 
-<div class="aicoo-page">
+<div class="aicoo-page business-registration-page">
   <%= render "shared/aicoo_header",
-             title: "事業を追加",
-             description: "行動候補を分類するための事業フォルダを作成します。",
+             title: "新しい事業",
+             description: "管理を始める入口を選びます。",
              active_main: :revenue,
              actions: header_actions %>
-  <%= render "form", business: @business %>
+
+  <section class="dashboard-section business-registration" data-business-registration>
+    <%= form_with url: businesses_path, method: :post, class: "form business-registration-form", data: { turbo: false } do %>
+      <% if @registration_errors.present? %>
+        <div class="errors" role="alert">
+          <h2>登録内容を確認してください</h2>
+          <ul>
+            <% @registration_errors.each do |error| %>
+              <li><%= error %></li>
+            <% end %>
+          </ul>
+        </div>
+      <% end %>
+
+      <fieldset class="registration-methods">
+        <legend>何から事業を作りますか？</legend>
+        <div class="registration-method-grid">
+          <label class="registration-method" data-registration-choice="idea">
+            <%= radio_button_tag :registration_mode, "idea", @registration_mode == "idea" %>
+            <span class="registration-method-title">アイデアから作る</span>
+            <small>概要から事業仮説を生成</small>
+          </label>
+          <label class="registration-method" data-registration-choice="prototype">
+            <%= radio_button_tag :registration_mode, "prototype", @registration_mode == "prototype" %>
+            <span class="registration-method-title">プロトタイプを登録する</span>
+            <small>Repositoryや制作物から開始</small>
+          </label>
+          <label class="registration-method" data-registration-choice="published_service">
+            <%= radio_button_tag :registration_mode, "published_service", @registration_mode == "published_service" %>
+            <span class="registration-method-title">公開済みサービスを登録する</span>
+            <small>公開URLから管理を開始</small>
+          </label>
+        </div>
+      </fieldset>
+
+      <div class="registration-details <%= "is-visible" if @registration_mode.present? %>" data-registration-details>
+        <div class="registration-panel" data-registration-panel="idea" <%= "hidden" unless @registration_mode == "idea" %>>
+          <div class="field">
+            <%= label_tag "registration_idea_name", "事業名" %>
+            <%= text_field_tag "registration[name]", @registration_values.to_h["name"], id: "registration_idea_name", placeholder: "例: AI電話受付", autocomplete: "organization" %>
+          </div>
+          <div class="field">
+            <%= label_tag "registration_description", "事業概要" %>
+            <%= text_area_tag "registration[description]", @registration_values.to_h["description"], id: "registration_description", rows: 4, placeholder: "例: 営業代行が売りやすいAI電話受付" %>
+          </div>
+        </div>
+
+        <div class="registration-panel" data-registration-panel="prototype" <%= "hidden" unless @registration_mode == "prototype" %>>
+          <div class="field">
+            <%= label_tag "registration_prototype_name", "事業名" %>
+            <%= text_field_tag "registration[name]", @registration_values.to_h["name"], id: "registration_prototype_name", placeholder: "例: AI電話受付", autocomplete: "organization" %>
+          </div>
+          <fieldset class="prototype-type-fieldset">
+            <legend>プロトタイプ</legend>
+            <div class="prototype-type-options">
+              <% BusinessPrototype::PROTOTYPE_TYPES.each do |prototype_type| %>
+                <% prototype_label = BusinessPrototype.new(prototype_type:).prototype_type_label %>
+                <label>
+                  <%= radio_button_tag "registration[prototype_type]", prototype_type, @registration_values.to_h["prototype_type"] == prototype_type %>
+                  <span><%= prototype_label %></span>
+                </label>
+              <% end %>
+            </div>
+          </fieldset>
+          <div class="field">
+            <%= label_tag "registration_prototype_location", "URLまたは保存場所" %>
+            <%= text_field_tag "registration[prototype_location]", @registration_values.to_h["prototype_location"], id: "registration_prototype_location", placeholder: "https://github.com/owner/repository", inputmode: "url" %>
+          </div>
+        </div>
+
+        <div class="registration-panel" data-registration-panel="published_service" <%= "hidden" unless @registration_mode == "published_service" %>>
+          <div class="field">
+            <%= label_tag "registration_published_url", "公開URL" %>
+            <%= url_field_tag "registration[prototype_location]", @registration_values.to_h["prototype_location"], id: "registration_published_url", placeholder: "https://example.com", inputmode: "url" %>
+          </div>
+        </div>
+
+        <div class="registration-submit">
+          <%= submit_tag "事業を登録", class: "button", data: { registration_submit: true, loading_text: "事業を登録しています..." } %>
+        </div>
+      </div>
+    <% end %>
+  </section>
 </div>
+
+<script>
+  (() => {
+    const root = document.querySelector("[data-business-registration]");
+    if (!root || root.dataset.initialized === "true") return;
+    root.dataset.initialized = "true";
+
+    const modeInputs = Array.from(root.querySelectorAll('input[name="registration_mode"]'));
+    const details = root.querySelector("[data-registration-details]");
+    const panels = Array.from(root.querySelectorAll("[data-registration-panel]"));
+
+    const refresh = () => {
+      const mode = modeInputs.find((input) => input.checked)?.value;
+      details?.classList.toggle("is-visible", Boolean(mode));
+      panels.forEach((panel) => {
+        const active = panel.dataset.registrationPanel === mode;
+        panel.hidden = !active;
+        panel.querySelectorAll("input, textarea, select").forEach((input) => {
+          input.disabled = !active;
+        });
+      });
+      root.querySelectorAll("[data-registration-choice]").forEach((choice) => {
+        choice.classList.toggle("is-selected", choice.dataset.registrationChoice === mode);
+      });
+    };
+
+    modeInputs.forEach((input) => input.addEventListener("change", refresh));
+    refresh();
+  })();
+</script>

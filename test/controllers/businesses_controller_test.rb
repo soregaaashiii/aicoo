@@ -41,6 +41,7 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Auto Revision"
     assert_includes response.body, "Lifecycle"
     assert_includes response.body, "missing"
+    assert_includes response.body, "＋ 新しい事業"
     assert_includes response.body, "Profile作成"
     assert_includes response.body, "CODEX"
     assert_not_includes response.body, "AICOO Analytics Import"
@@ -223,6 +224,58 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
   test "should get new" do
     get new_business_url
     assert_response :success
+    assert_includes response.body, "アイデアから作る"
+    assert_includes response.body, "プロトタイプを登録する"
+    assert_includes response.body, "公開済みサービスを登録する"
+    assert_not_includes response.body, "SERP新規事業候補"
+  end
+
+  test "registers an idea through business registration v2" do
+    assert_difference("Business.count", 1) do
+      post businesses_url, params: {
+        registration_mode: "idea",
+        registration: {
+          name: "AI電話受付",
+          description: "営業代行会社向けのAI電話受付"
+        }
+      }
+    end
+
+    business = Business.order(:id).last
+    assert_redirected_to business_url(business)
+    assert_equal "business_registration_v2", business.source
+    assert business.action_candidates.exists?(generation_source: "business_registration")
+  end
+
+  test "registers a github prototype through business registration v2" do
+    assert_difference([ "Business.count", "BusinessPrototype.count" ], 1) do
+      post businesses_url, params: {
+        registration_mode: "prototype",
+        registration: {
+          name: "GitHub Prototype",
+          prototype_type: "github",
+          prototype_location: "https://github.com/example/prototype"
+        }
+      }
+    end
+
+    business = Business.order(:id).last
+    assert_redirected_to business_url(business)
+    assert_equal "github", business.business_prototypes.first.prototype_type
+  end
+
+  test "registers a published service from its url" do
+    assert_difference([ "Business.count", "BusinessPrototype.count" ], 1) do
+      post businesses_url, params: {
+        registration_mode: "published_service",
+        registration: { prototype_location: "https://published.example.com" }
+      }
+    end
+
+    business = Business.order(:id).last
+    assert_redirected_to business_url(business)
+    assert_equal "published.example.com", business.name
+    assert_equal "production", business.lifecycle_stage
   end
 
   test "should create business" do
