@@ -26,8 +26,12 @@ module Aicoo
       end
 
       def published
+        published_versions.max_by { |run| run.metadata.to_h.dig("publication", "published_at").to_s }
+      end
+
+      def published_versions
         all.select { |run| run.metadata.to_h.dig("publication", "published") == true }
-           .max_by { |run| run.metadata.to_h.dig("publication", "published_at").to_s }
+           .sort_by { |run| run.metadata.to_h.dig("publication", "published_at").to_s }
       end
 
       def latest

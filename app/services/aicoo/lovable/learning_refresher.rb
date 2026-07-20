@@ -8,7 +8,11 @@ module Aicoo
         published = repository.published
         return unless published
 
-        LearningSummary.new(business: landing_page.business, generation_run: published).call(persist: true)
+        LandingPageImprovementAnalyzer.new(
+          business: landing_page.business,
+          generation_run: published,
+          persist: true
+        ).call
       rescue StandardError => e
         Rails.logger.warn("[Lovable] LP learning refresh failed landing_page_id=#{landing_page&.id}: #{e.class}: #{e.message}")
       end

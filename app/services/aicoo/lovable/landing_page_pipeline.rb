@@ -15,11 +15,13 @@ module Aicoo
         landing_page = ensure_landing_page!(business)
         repository = VersionRepository.new(business:, landing_page:)
         refresh_learning!(business, repository.published)
+        comparison = LandingPageLearningComparison.new(business:, repository:).call
         prompt = PromptBuilder.new(
           business:,
           landing_page:,
           previous_version: repository.current,
-          learning_version: repository.published
+          learning_version: repository.published,
+          best_version: comparison.best&.run
         ).call
         run = create_run!(
           business:,
@@ -32,18 +34,20 @@ module Aicoo
         dispatch!(run)
       end
 
-      def enqueue_revision!(business:, change_request:)
+      def enqueue_revision!(business:, change_request:, action_candidate: nil)
         raise ArgumentError, "修正内容を入力してください。" if change_request.blank?
 
         landing_page = lovable_landing_page!(business)
         repository = VersionRepository.new(business:, landing_page:)
         previous = repository.current || raise(ArgumentError, "修正元のLovable Versionがありません。")
         refresh_learning!(business, repository.published)
+        comparison = LandingPageLearningComparison.new(business:, repository:).call
         prompt = PromptBuilder.new(
           business:,
           landing_page:,
           previous_version: previous,
           learning_version: repository.published,
+          best_version: comparison.best&.run,
           change_request:
         ).call
         run = create_run!(
@@ -53,7 +57,8 @@ module Aicoo
           request_type: "revision",
           prompt:,
           previous_run: previous,
-          change_request:
+          change_request:,
+          action_candidate:
         )
         dispatch!(run)
       end

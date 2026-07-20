@@ -36,8 +36,8 @@ module Aicoo
         ).compact
         generation_run.update!(metadata: generation_run.metadata.to_h.merge("publication" => updated))
         if deployed
-          sync_experiment!(updated)
-          LearningSummary.new(business: submission.business, generation_run:).call(persist: true)
+          landing_page = sync_experiment!(updated)
+          LearningRefresher.call(landing_page)
         end
         updated
       end
@@ -56,6 +56,7 @@ module Aicoo
           public_url: publication["production_url"],
           published_at: Time.zone.parse(publication["published_at"].to_s)
         )
+        landing_page
       end
     end
   end

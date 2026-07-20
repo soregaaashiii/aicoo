@@ -10,7 +10,9 @@ module Aicoo
       "reddit" => "Reddit",
       "news" => "News",
       "activity_log" => "Activity Log",
-      "independent_learning" => "Independent Learning"
+      "independent_learning" => "Independent Learning",
+      "lp_learning" => "LP Learning",
+      "landing_page_events" => "LP Events"
     }.freeze
     SEO_ACTION_TYPE_LABELS = {
       "add_listings" => "掲載店舗追加",
@@ -28,7 +30,8 @@ module Aicoo
       "code_revision" => "Codex改修",
       "manual_operation" => "手作業",
       "content_creation" => "記事作成",
-      "data_operation" => "データ作業"
+      "data_operation" => "データ作業",
+      "lovable_revision" => "Lovable修正"
     }.freeze
 
     def initialize(action_candidate)

@@ -6,6 +6,7 @@ class AicooDataSnapshot < ApplicationRecord
   validates :captured_at, presence: true
 
   before_validation :set_defaults
+  after_commit :refresh_lovable_landing_page_learning, on: :create, if: :google_metric_snapshot?
 
   scope :today, -> { where(captured_at: Time.current.all_day) }
   scope :recent, -> { order(captured_at: :desc, created_at: :desc) }
@@ -26,6 +27,21 @@ class AicooDataSnapshot < ApplicationRecord
   end
 
   private
+
+  def google_metric_snapshot?
+    source_type.in?(%w[ga4 gsc])
+  end
+
+  def refresh_lovable_landing_page_learning
+    business = source_record&.business
+    return unless business
+
+    business.aicoo_lab_landing_pages.where(generation_source: "lovable").find_each do |landing_page|
+      Aicoo::Lovable::LearningRefresher.call(landing_page)
+    end
+  rescue StandardError => e
+    Rails.logger.warn("[Lovable] metric snapshot learning refresh failed snapshot_id=#{id}: #{e.class}: #{e.message}")
+  end
 
   def set_defaults
     self.captured_at ||= Time.current

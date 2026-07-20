@@ -11,7 +11,11 @@ class AicooLabLandingPageEvent < ApplicationRecord
   private
 
   def learning_signal?
-    event_type.in?(%w[cta_click signup scroll])
+    return true if event_type.in?(%w[cta_click signup scroll])
+    return false unless event_type == "view"
+
+    view_count = aicoo_lab_landing_page.aicoo_lab_landing_page_events.where(event_type: "view").count
+    view_count == Aicoo::Lovable::LandingPageLearningComparison::MIN_PAGEVIEWS || (view_count > 0 && (view_count % 50).zero?)
   end
 
   def refresh_lovable_learning

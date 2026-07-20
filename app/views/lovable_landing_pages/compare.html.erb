@@ -12,12 +12,18 @@
   </section>
   <section class="dashboard-section lovable-version-comparison">
     <% [ ["Before", @before_version], ["After", @after_version] ].each do |label, run| %>
+      <% learning = run ? @version_learning.fetch(run.id, {}) : {} %>
       <article>
         <h2><%= label %> <%= run&.metadata.to_h&.dig("version_label") || "-" %></h2>
         <% if run&.metadata.to_h&.dig("preview_url").present? %>
           <iframe src="<%= run.metadata.to_h['preview_url'] %>" title="<%= label %> preview" loading="lazy"></iframe>
         <% end %>
         <dl class="detail-list">
+          <dt>CVR / CV</dt><dd><%= learning["cvr"] ? number_to_percentage(learning["cvr"] * 100, precision: 1) : "-" %> / <%= learning["conversions"] || "-" %></dd>
+          <dt>CTA率</dt><dd><%= learning["cta_rate"] ? number_to_percentage(learning["cta_rate"] * 100, precision: 1) : "-" %></dd>
+          <dt>滞在 / 離脱</dt><dd><%= learning.dig("ga4", "engagement_seconds") || "-" %>秒 / <%= learning.dig("ga4", "bounce_rate") ? number_to_percentage(learning.dig("ga4", "bounce_rate") * 100, precision: 1) : "-" %></dd>
+          <dt>ROI / 信頼度</dt><dd><%= learning["roi"] || "-" %> / <%= learning["confidence"] ? number_to_percentage(learning["confidence"] * 100, precision: 0) : "-" %></dd>
+          <dt>Learning根拠</dt><dd><%= run&.metadata.to_h&.dig("landing_page_improvement_analysis", "improvements")&.map { |item| item["reason"] }&.join(" / ").presence || "改善判定なし" %></dd>
           <dt>変更理由</dt><dd><%= run&.metadata.to_h&.dig("change_request").presence || "初回生成" %></dd>
           <dt>Lovable Prompt</dt><dd><pre><%= run&.prompt || "-" %></pre></dd>
           <dt>Diff</dt><dd><pre><%= JSON.pretty_generate(run&.metadata.to_h&.dig("diff") || {}) %></pre></dd>

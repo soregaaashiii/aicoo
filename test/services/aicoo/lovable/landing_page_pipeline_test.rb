@@ -94,6 +94,34 @@ module Aicoo
         assert @client.calls.any? { |call| call.first == :send_message && call.second == "lovable-project-1" }
       end
 
+      test "LP learning candidate is preserved in a Lovable revision prompt" do
+        first = @pipeline.enqueue_create!(business: @business).generation_run
+        @pipeline.execute!(first)
+        candidate = @business.action_candidates.create!(
+          title: "吸えログ LPのCTAを改善する",
+          action_type: "ui_improvement",
+          status: "proposal",
+          generation_source: "lp_learning",
+          department: "revenue",
+          immediate_value_yen: 0,
+          success_probability: 0.6,
+          metadata: {
+            "execution_mode" => "lovable_revision",
+            "lovable_change_request" => "CTAだけを改善し、その他は維持してください。"
+          }
+        )
+
+        second = @pipeline.enqueue_revision!(
+          business: @business,
+          action_candidate: candidate,
+          change_request: candidate.metadata["lovable_change_request"]
+        ).generation_run
+
+        assert_equal candidate.id, second.metadata["action_candidate_id"]
+        assert_includes second.prompt, "CTAだけを改善"
+        assert_includes second.prompt, "修正対象以外"
+      end
+
       test "failed generation preserves the previous successful version" do
         first = @pipeline.enqueue_create!(business: @business).generation_run
         @pipeline.execute!(first)

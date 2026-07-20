@@ -21,23 +21,54 @@ module Aicoo
       def build_summary
         views = landing_page_events.where(event_type: "view").count
         cta_clicks = landing_page_events.where(event_type: "cta_click").count
+        scrolls = landing_page_events.where(event_type: "scroll").count
         conversions = signups.count
         revenue = revenue_events.sum(:amount)
         cost = publication_candidate&.cost_yen.to_i
+        page_analytics = landing_page_analytics
+        ga4 = page_analytics.ga4["available"] ? page_analytics.ga4 : metric_totals
+        gsc = page_analytics.gsc["available"] ? page_analytics.gsc : gsc_totals
+        effective_views = views.positive? ? views : ga4["pageviews"].to_i
+        confidence = measurement_confidence(effective_views)
         {
           "version" => generation_run.metadata.to_h["version"],
-          "measurement_status" => published_at ? "collecting" : "not_published",
+          "measurement_status" => measurement_status(effective_views),
           "measurement_started_at" => published_at&.iso8601,
-          "pageviews" => views,
+          "measurement_ended_at" => next_published_at&.iso8601,
+          "measurement_days" => measurement_days,
+          "pageviews" => effective_views,
+          "direct_pageviews" => views,
+          "pageview_source" => views.positive? ? "landing_page_events" : (ga4["available"] ? "ga4" : "unavailable"),
+          "landing_page_events_available" => views.positive?,
           "cta_clicks" => cta_clicks,
+          "scrolls" => scrolls,
           "conversions" => conversions,
           "cta_rate" => ratio(cta_clicks, views),
           "cvr" => ratio(conversions, views),
+          "form_submit_rate" => ratio(conversions, cta_clicks),
+          "scroll_rate" => ratio(scrolls, views),
           "revenue_yen" => revenue,
           "cost_yen" => cost,
           "roi" => cost.positive? ? ((revenue - cost).to_d / cost.to_d).round(4).to_f : nil,
-          "ga4" => metric_totals,
-          "gsc" => gsc_totals,
+          "expected_profit_yen" => publication_candidate&.final_expected_value_yen || publication_candidate&.expected_profit_yen,
+          "confidence" => confidence,
+          "analysis_ready" => effective_views >= LandingPageLearningComparison::MIN_PAGEVIEWS,
+          "ga4" => ga4,
+          "gsc" => gsc,
+          "metrics" => {
+            "cv" => conversions,
+            "cvr" => ratio(conversions, views),
+            "cta_clicks" => cta_clicks,
+            "cta_click_rate" => ratio(cta_clicks, views),
+            "form_submit_rate" => ratio(conversions, cta_clicks),
+            "bounce_rate" => ga4["bounce_rate"],
+            "engagement_seconds" => ga4["engagement_seconds"],
+            "scroll_rate" => ratio(scrolls, views),
+            "gsc_clicks_per_day" => per_day(gsc["clicks"]),
+            "gsc_impressions_per_day" => per_day(gsc["impressions"]),
+            "roi" => cost.positive? ? ((revenue - cost).to_d / cost.to_d).round(4).to_f : nil,
+            "expected_profit_yen" => publication_candidate&.final_expected_value_yen || publication_candidate&.expected_profit_yen
+          },
           "prompt" => generation_run.prompt,
           "change_request" => generation_run.metadata.to_h["change_request"],
           "refreshed_at" => Time.current.iso8601
@@ -95,11 +126,19 @@ module Aicoo
       end
 
       def metric_totals
+        sessions = metric_scope.sum(:sessions)
+        engagement_total = metric_scope.sum(Arel.sql("average_engagement_time_seconds * sessions"))
         {
           "pageviews" => metric_scope.sum(:pageviews),
-          "sessions" => metric_scope.sum(:sessions),
-          "engagement_seconds" => metric_scope.sum(:average_engagement_time_seconds),
-          "bounce_rate" => metric_scope.average(:bounce_rate)&.to_f
+          "active_users" => metric_scope.sum(:users),
+          "sessions" => sessions,
+          "engagement_seconds" => sessions.positive? ? (engagement_total.to_d / sessions).round(2).to_f : nil,
+          "event_count" => metric_scope.sum(:event_count),
+          "landing_page_views" => metric_scope.sum(:pageviews),
+          "bounce_rate" => weighted_average(:bounce_rate, :sessions),
+          "source" => "business_metric_daily",
+          "scope" => "business_fallback",
+          "missing_reason" => page_analytics.ga4["missing_reason"]
         }
       end
 
@@ -107,8 +146,21 @@ module Aicoo
         {
           "impressions" => metric_scope.sum(:impressions),
           "clicks" => metric_scope.sum(:clicks),
-          "average_position" => metric_scope.average(:average_position)&.to_f
+          "average_position" => weighted_average(:average_position, :impressions),
+          "source" => "business_metric_daily",
+          "scope" => "business_fallback",
+          "missing_reason" => page_analytics.gsc["missing_reason"]
         }
+      end
+
+      def landing_page_analytics
+        @landing_page_analytics ||= LandingPageAnalyticsReader.new(
+          business:,
+          generation_run:,
+          landing_page:,
+          started_at: published_at,
+          ended_at: next_published_at || Time.current
+        ).call
       end
 
       def publication_candidate
@@ -120,6 +172,43 @@ module Aicoo
         return if denominator.to_i.zero?
 
         (numerator.to_d / denominator.to_d).round(4).to_f
+      end
+
+      def measurement_days
+        return 0 unless published_at
+
+        [ ((next_published_at || Time.current).to_date - published_at.to_date).to_i + 1, 1 ].max
+      end
+
+      def per_day(value)
+        return if measurement_days.zero?
+
+        (value.to_d / measurement_days).round(4).to_f
+      end
+
+      def weighted_average(value_column, weight_column)
+        weight = metric_scope.sum(weight_column)
+        return if weight.to_i.zero?
+
+        total = metric_scope.sum(Arel.sql("#{value_column} * #{weight_column}"))
+        (total.to_d / weight.to_d).round(4).to_f
+      end
+
+      def measurement_status(views)
+        return "not_published" unless published_at
+        return "ready" if views >= LandingPageLearningComparison::MIN_PAGEVIEWS
+
+        "collecting"
+      end
+
+      def measurement_confidence(views)
+        return 0.0 unless published_at
+        return 0.9 if views >= 500
+        return 0.75 if views >= 200
+        return 0.6 if views >= 50
+        return 0.45 if views >= LandingPageLearningComparison::MIN_PAGEVIEWS
+
+        (views.to_f / LandingPageLearningComparison::MIN_PAGEVIEWS * 0.4).round(2)
       end
     end
   end

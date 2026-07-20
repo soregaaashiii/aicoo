@@ -28,4 +28,28 @@ namespace :aicoo do
     end
     result.summary.each { |key, value| puts "#{key}=#{value}" }
   end
+
+  desc "Diagnose Lovable landing page version learning and improvement candidates"
+  task diagnose_landing_page_learning: :environment do
+    result = Aicoo::Lovable::LandingPageLearningDiagnostic.new(business_id: ENV["BUSINESS_ID"]).call
+    result.rows.each do |row|
+      puts [
+        "business_id=#{row.business_id}",
+        "business=#{row.business_name}",
+        "current_version=#{row.current_version}",
+        "best_version=#{row.best_version}",
+        "cvr=#{row.cvr}",
+        "roi=#{row.roi}",
+        "confidence=#{row.confidence}",
+        "learning_status=#{row.learning_status}",
+        "action_candidate_count=#{row.candidate_count}",
+        "improvements=#{row.improvements.to_json}",
+        "lovable_sent=#{row.lovable_sent_count}",
+        "published_versions=#{row.published_version_count}",
+        "benchmark_source=#{row.benchmark_source}",
+        "skip_reason=#{row.skip_reason}"
+      ].join(" ")
+    end
+    result.summary.each { |key, value| puts "#{key}=#{value}" }
+  end
 end

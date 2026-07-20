@@ -11,11 +11,12 @@ module Aicoo
         "最終CTA"
       ].freeze
 
-      def initialize(business:, landing_page:, previous_version: nil, learning_version: nil, change_request: nil)
+      def initialize(business:, landing_page:, previous_version: nil, learning_version: nil, best_version: nil, change_request: nil)
         @business = business
         @landing_page = landing_page
         @previous_version = previous_version
         @learning_version = learning_version
+        @best_version = best_version
         @change_request = change_request
         @metadata = business.metadata.to_h.deep_stringify_keys
       end
@@ -26,7 +27,7 @@ module Aicoo
 
       private
 
-      attr_reader :business, :landing_page, :previous_version, :learning_version, :change_request, :metadata
+      attr_reader :business, :landing_page, :previous_version, :learning_version, :best_version, :change_request, :metadata
 
       def role_and_goal
         <<~PROMPT.strip
@@ -102,6 +103,7 @@ module Aicoo
           - 前Preview: #{previous_version&.metadata.to_h&.dig("preview_url") || "なし"}
           - 修正依頼: #{change_request.presence || "前Versionへ戻す"}
           - 修正対象以外の動作、計測、レスポンシブ対応を壊さないこと。
+          #{best_version_context}
 
           #{learning_context}
         PROMPT
@@ -119,6 +121,20 @@ module Aicoo
           - 滞在・離脱: #{learning.slice("engagement_seconds", "bounce_rate").to_json}
           - ROI: #{learning["roi"] || "未計測"}
           実測がある項目だけを次のデザイン判断へ反映してください。
+        PROMPT
+      end
+
+      def best_version_context
+        return "" unless best_version
+        return "" if previous_version && best_version.id == previous_version.id
+
+        learning = best_version.metadata.to_h["learning"].to_h
+        <<~PROMPT.strip
+          - 実績Best Version: #{best_version.metadata.to_h['version_label']}
+          - Best Version CVR: #{learning['cvr'] || '未計測'}
+          - Best Version ROI: #{learning['roi'] || '未計測'}
+          - Best Versionの変更内容: #{best_version.metadata.to_h['change_request'].presence || '初回生成'}
+          Best Versionの成果要因は参照してよいですが、今回指定された修正対象以外を無断で置き換えないでください。
         PROMPT
       end
 

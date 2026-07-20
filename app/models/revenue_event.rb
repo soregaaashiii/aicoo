@@ -14,11 +14,20 @@ class RevenueEvent < ApplicationRecord
   }, validate: true
 
   before_validation :complete_learning_loop_links
+  after_commit :refresh_lovable_landing_page_learning, on: %i[create update]
 
   validates :occurred_on, presence: true
   validates :amount, numericality: { only_integer: true, greater_than: 0 }
 
   private
+
+  def refresh_lovable_landing_page_learning
+    business&.aicoo_lab_landing_pages&.where(generation_source: "lovable")&.find_each do |landing_page|
+      Aicoo::Lovable::LearningRefresher.call(landing_page)
+    end
+  rescue StandardError => e
+    Rails.logger.warn("[Lovable] revenue learning refresh failed revenue_event_id=#{id}: #{e.class}: #{e.message}")
+  end
 
   def complete_learning_loop_links
     complete_from_action_result if action_result

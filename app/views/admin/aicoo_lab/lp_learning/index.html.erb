@@ -5,22 +5,35 @@
              description: "Lovable VersionごとのCVR、ROI、Prompt、変更内容と実績を比較します。",
              active_main: :lab,
              actions: link_to("Lovable接続", admin_lovable_path, class: "button secondary") %>
+  <% @business_summaries.each do |business_id, comparison| %>
+    <% business = comparison.current&.business %>
+    <% next unless business %>
+    <section class="dashboard-section">
+      <div class="section-heading"><div><h2><%= business.name %></h2><p>Version推移: <%= comparison.version_trend %> / 比較基準: <%= comparison.benchmark_source %></p></div></div>
+      <div class="metric-grid">
+        <div class="metric-card"><span>Best</span><strong><%= comparison.best&.run&.metadata.to_h&.dig("version_label") || "-" %></strong></div>
+        <div class="metric-card"><span>Worst</span><strong><%= comparison.worst&.run&.metadata.to_h&.dig("version_label") || "-" %></strong></div>
+        <div class="metric-card"><span>改善成功率</span><strong><%= comparison.improvement_success_rate ? number_to_percentage(comparison.improvement_success_rate * 100, precision: 1) : "-" %></strong></div>
+        <div class="metric-card"><span>公開Version</span><strong><%= comparison.rows.length %></strong></div>
+      </div>
+    </section>
+  <% end %>
   <section class="dashboard-section">
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Business</th><th>Version</th><th>公開</th><th>CVR</th><th>CV</th><th>CTA</th><th>PV</th><th>ROI</th><th>変更内容</th><th>Learning</th></tr></thead>
+        <thead><tr><th>Business</th><th>Version</th><th>公開期間</th><th>CVR</th><th>CV</th><th>CTA率</th><th>滞在 / 離脱</th><th>ROI</th><th>改善理由</th><th>Learning</th></tr></thead>
         <tbody>
           <% @rows.each do |row| %>
             <tr>
               <td><%= link_to row[:business].name, business_lovable_landing_page_path(row[:business]) %></td>
-              <td><%= row[:run].metadata.to_h["version_label"] %></td>
-              <td><%= row[:publication]["published_at"].presence || "-" %></td>
+              <td><%= row[:run].metadata.to_h["version_label"] %><% if row[:best] %><br><span class="pill">Best</span><% elsif row[:worst] %><br><span class="pill">Worst</span><% end %></td>
+              <td><%= row[:publication]["published_at"].presence || "-" %><br><small><%= row[:learning]["measurement_days"] %>日</small></td>
               <td><%= row[:learning]["cvr"] ? number_to_percentage(row[:learning]["cvr"] * 100, precision: 1) : "-" %></td>
               <td><%= row[:learning]["conversions"] %></td>
-              <td><%= row[:learning]["cta_clicks"] %></td>
-              <td><%= row[:learning]["pageviews"] %></td>
+              <td><%= row[:learning]["cta_rate"] ? number_to_percentage(row[:learning]["cta_rate"] * 100, precision: 1) : "-" %><br><small><%= row[:learning]["cta_clicks"] %> clicks</small></td>
+              <td><%= row[:learning].dig("ga4", "engagement_seconds") || "-" %>秒<br><small><%= row[:learning].dig("ga4", "bounce_rate") ? number_to_percentage(row[:learning].dig("ga4", "bounce_rate") * 100, precision: 1) : "-" %></small></td>
               <td><%= row[:learning]["roi"] || "-" %></td>
-              <td><%= row[:run].metadata.to_h["change_request"].presence || "初回生成" %></td>
+              <td><%= row[:analysis].fetch("improvements", []).map { |item| item["reason"] }.join(" / ").presence || row[:run].metadata.to_h["change_request"].presence || "初回生成" %></td>
               <td><details><summary>表示</summary><pre><%= JSON.pretty_generate(row[:learning]) %></pre></details></td>
             </tr>
           <% end %>

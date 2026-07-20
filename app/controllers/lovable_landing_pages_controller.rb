@@ -8,16 +8,27 @@ class LovableLandingPagesController < ApplicationController
 
   def create
     candidate = @business.action_candidates.find_by(id: params[:action_candidate_id])
-    result = Aicoo::Lovable::LandingPagePipeline.new.enqueue_create!(business: @business, action_candidate: candidate)
+    pipeline = Aicoo::Lovable::LandingPagePipeline.new
+    result = if candidate&.generation_source == "lp_learning"
+      pipeline.enqueue_revision!(
+        business: @business,
+        action_candidate: candidate,
+        change_request: candidate.metadata.to_h["lovable_change_request"].presence || candidate.metadata.to_h["improvement_reason"]
+      )
+    else
+      pipeline.enqueue_create!(business: @business, action_candidate: candidate)
+    end
     redirect_to business_lovable_landing_page_path(@business), notice: result.message
   rescue StandardError => e
     redirect_to business_lovable_landing_page_path(@business), alert: "Lovable LP作成を開始できませんでした: #{e.message}"
   end
 
   def revise
+    candidate = @business.action_candidates.find_by(id: params[:action_candidate_id])
     result = Aicoo::Lovable::LandingPagePipeline.new.enqueue_revision!(
       business: @business,
-      change_request: params[:change_request]
+      change_request: params[:change_request],
+      action_candidate: candidate
     )
     redirect_to business_lovable_landing_page_path(@business), notice: result.message
   rescue StandardError => e
@@ -84,5 +95,9 @@ class LovableLandingPagesController < ApplicationController
     @configuration = Aicoo::Lovable::Configuration.new
     @source_action_candidate = @business.action_candidates.active_for_ranking.find_by(id: params[:action_candidate_id])
     @current_learning = @published_version && Aicoo::Lovable::LearningSummary.new(business: @business, generation_run: @published_version).call
+    @learning_comparison = Aicoo::Lovable::LandingPageLearningComparison.new(business: @business, repository: @repository).call
+    @version_learning = @versions.to_h do |run|
+      [ run.id, run.metadata.to_h["learning"].presence || (run.metadata.to_h.dig("publication", "published") == true ? Aicoo::Lovable::LearningSummary.new(business: @business, generation_run: run).call : {}) ]
+    end
   end
 end

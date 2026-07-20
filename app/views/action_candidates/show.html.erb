@@ -43,7 +43,7 @@
 <% reference_urls = (Array(metadata["reference_urls"]) + Array(metadata["external_reference_urls"]) + Array(metadata["competitor_urls"]) + Array(metadata["source_urls"]) + Array(metadata["serp_urls"])).compact_blank.uniq %>
 <% article_metadata = metadata["article_candidate"].to_h %>
 <% article_action = @action_candidate.execution_mode == "content_creation" || @action_candidate.action_type.in?(%w[new_article_candidate article_create article_update seo_article]) || article_metadata.present? %>
-<% lp_action = @action_candidate.action_type.in?(%w[build_lp lp_experiment market_test]) || metadata["lp_name"].present? || metadata["landing_page"].present? %>
+<% lp_action = @action_candidate.generation_source == "lp_learning" || @action_candidate.action_type.in?(%w[build_lp lp_experiment market_test]) || metadata["lp_name"].present? || metadata["landing_page"].present? %>
 <% issue_sentence = if source_query.present?
   "「#{source_query}」に関連する需要があります。#{reason_text}"
 else
