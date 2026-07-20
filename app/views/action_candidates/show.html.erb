@@ -287,6 +287,11 @@ end %>
     </div>
   </div>
   <div class="actions compact-actions">
+    <% if lp_action && @action_candidate.business %>
+      <%= link_to "LovableでLP作成・修正",
+                  business_lovable_landing_page_path(@action_candidate.business, action_candidate_id: @action_candidate.id),
+                  class: "button" %>
+    <% end %>
     <% if @action_candidate.executed? %>
       <span class="pill">実行済み</span>
       <% if executed_at.present? %>

@@ -1,0 +1,28 @@
+<% content_for :title, "#{@business.name} LP Version比較" %>
+<div class="aicoo-page lovable-workspace">
+  <%= render "shared/aicoo_header", title: "LP Version比較", description: "Prompt、変更理由、Preview、diffを並べて確認します。", active_main: :businesses, actions: link_to("LP Studioへ戻る", business_lovable_landing_page_path(@business), class: "button secondary") %>
+  <section class="dashboard-section">
+    <%= form_with url: compare_business_lovable_landing_page_path(@business), method: :get, class: "inline-form", data: { turbo: false } do |form| %>
+      <%= form.label :before_id, "Before" %>
+      <%= form.select :before_id, @versions.map { |run| [ run.metadata.to_h["version_label"], run.id ] }, selected: @before_version&.id %>
+      <%= form.label :after_id, "After" %>
+      <%= form.select :after_id, @versions.map { |run| [ run.metadata.to_h["version_label"], run.id ] }, selected: @after_version&.id %>
+      <%= form.submit "比較", class: "button" %>
+    <% end %>
+  </section>
+  <section class="dashboard-section lovable-version-comparison">
+    <% [ ["Before", @before_version], ["After", @after_version] ].each do |label, run| %>
+      <article>
+        <h2><%= label %> <%= run&.metadata.to_h&.dig("version_label") || "-" %></h2>
+        <% if run&.metadata.to_h&.dig("preview_url").present? %>
+          <iframe src="<%= run.metadata.to_h['preview_url'] %>" title="<%= label %> preview" loading="lazy"></iframe>
+        <% end %>
+        <dl class="detail-list">
+          <dt>変更理由</dt><dd><%= run&.metadata.to_h&.dig("change_request").presence || "初回生成" %></dd>
+          <dt>Lovable Prompt</dt><dd><pre><%= run&.prompt || "-" %></pre></dd>
+          <dt>Diff</dt><dd><pre><%= JSON.pretty_generate(run&.metadata.to_h&.dig("diff") || {}) %></pre></dd>
+        </dl>
+      </article>
+    <% end %>
+  </section>
+</div>

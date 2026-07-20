@@ -67,6 +67,15 @@ class BusinessesController < ApplicationController
     @latest_daily_run = AicooDailyRun.recent.first
     @business_landing_pages = @business.aicoo_lab_landing_pages.order(updated_at: :desc)
     @landing_page_counts = @business.aicoo_lab_landing_pages.group(:public_status).count
+    @lovable_version_repository = Aicoo::Lovable::VersionRepository.new(business: @business)
+    @lovable_current_version = @lovable_version_repository.current
+    @lovable_published_version = @lovable_version_repository.published
+    @lovable_published_learning = if @lovable_published_version
+      Aicoo::Lovable::LearningSummary.new(
+        business: @business,
+        generation_run: @lovable_published_version
+      ).call
+    end
     @lp_evaluations = Aicoo::LpEvaluationSummary.for_business(@business)
     @lp_evaluations_by_id = @lp_evaluations.index_by { |row| row.landing_page.id }
     @mvp_ready_check = Aicoo::MvpReadyCheck.new(@business, @lp_evaluations).call

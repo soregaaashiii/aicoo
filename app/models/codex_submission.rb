@@ -18,6 +18,8 @@ class CodexSubmission < ApplicationRecord
     where("response_payload ->> 'pull_request_url' IS NOT NULL OR response_payload ->> 'pr_url' IS NOT NULL")
   }
 
+  after_commit :sync_lovable_publication, on: :update
+
   def mark_ready!
     update!(status: "ready")
   end
@@ -158,6 +160,15 @@ class CodexSubmission < ApplicationRecord
   end
 
   private
+
+  def sync_lovable_publication
+    return unless previous_changes.key?("response_payload") || previous_changes.key?("status")
+    return unless auto_revision_task.metadata.to_h["lovable_generation_run_id"].present?
+
+    Aicoo::Lovable::PublicationTracker.sync_for_submission(self)
+  rescue StandardError => e
+    Rails.logger.warn("[Lovable] Codex publication sync failed submission_id=#{id}: #{e.class}: #{e.message}")
+  end
 
   def mark_auto_revision_task_sent!
     task = auto_revision_task

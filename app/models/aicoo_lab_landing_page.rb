@@ -3,7 +3,7 @@ class AicooLabLandingPage < ApplicationRecord
 
   STATUSES = %w[draft preview_ready approved rejected published unpublished].freeze
   PUBLIC_STATUSES = %w[draft scheduled published paused archived].freeze
-  GENERATION_SOURCES = %w[manual candidate_conversion].freeze
+  GENERATION_SOURCES = %w[manual candidate_conversion lovable].freeze
   PAUSE_REASONS = %w[
     manual ai_quality policy copyright spam low_quality conversion_low runtime_error other
   ].freeze

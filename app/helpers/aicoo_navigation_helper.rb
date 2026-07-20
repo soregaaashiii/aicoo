@@ -134,6 +134,7 @@ module AicooNavigationHelper
     return :system_resource_budget if path.start_with?("/admin/aicoo_resource_budget")
     return :system_source_app if path.start_with?("/admin/source_app_connections", "/admin/source_app_diff_rules")
     return :system_codex_connection if path.start_with?("/admin/codex_connection")
+    return :system_lovable if path.start_with?("/admin/lovable", "/admin/aicoo_lab/lp_learning")
     return :system_approval_logs if path.start_with?("/admin/approval_logs")
     return :system_execution_profiles if path.start_with?("/admin/business_execution_profiles")
     return :system_codex_rules if path.start_with?("/admin/codex_prompt_rules")
@@ -288,6 +289,7 @@ module AicooNavigationHelper
           { key: :system_resource_budget, label: "AI予算", description: "AI予算とBuild制御", path: admin_aicoo_resource_budget_path, matchers: [ %r{\A/admin/aicoo_resource_budget} ] },
           { key: :system_source_app, label: "外部DB連携", description: "外部DB差分検知", path: admin_source_app_connections_path, matchers: [ %r{\A/admin/source_app_(connections|diff_rules)} ] },
           { key: :system_codex_connection, label: "Codex連携", description: "GitHub/PR連携", path: admin_codex_connection_path, matchers: [ %r{\A/admin/codex_connection} ] },
+          { key: :system_lovable, label: "Lovable LP", description: "LP生成・公開・学習", path: admin_lovable_path, matchers: [ %r{\A/admin/lovable}, %r{\A/admin/aicoo_lab/lp_learning} ] },
           { key: :system_approval_logs, label: "操作履歴", description: "承認・操作ログ", path: admin_approval_logs_path, matchers: [ %r{\A/admin/approval_logs} ] },
           { key: :system_settings, label: "全体設定", description: "AICOO設定", path: aicoo_setting_path, matchers: [ %r{\A/aicoo_setting}, %r{\A/admin/(aicoo_daily_run_settings|aicoo_auto_revision_settings)} ] },
           { key: :system_execution_profiles, label: "実行先設定", description: "実行環境の設定", path: admin_business_execution_profiles_path, matchers: [ %r{\A/admin/business_execution_profiles} ] },

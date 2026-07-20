@@ -1,0 +1,144 @@
+<% content_for :title, "#{@business.name} Lovable LP" %>
+
+<div class="aicoo-page lovable-workspace">
+  <%= render "shared/aicoo_header",
+             title: "#{@business.name} / LP Studio",
+             description: "AICOOが要件を決め、LovableがPreviewを作り、CodexがGitと公開を担当します。",
+             active_main: :businesses,
+             actions: link_to("Businessへ戻る", business_path(@business, anchor: "business-lp"), class: "button secondary") %>
+
+  <section class="dashboard-section">
+    <div class="lovable-phase-strip" aria-label="LP workflow">
+      <% [ ["1", "AICOO要件"], ["2", "Lovable Preview"], ["3", "Owner確認"], ["4", "Codex公開"], ["5", "Learning"] ].each do |number, label| %>
+        <div><span><%= number %></span><strong><%= label %></strong></div>
+      <% end %>
+    </div>
+    <div class="lovable-toolbar">
+      <%= button_to "LP作成", business_lovable_landing_page_path(@business), method: :post, params: { action_candidate_id: @source_action_candidate&.id }, class: "button" %>
+      <% if @current_version %>
+        <%= link_to "LP修正", "#lovable-revision", class: "button secondary" %>
+        <%= link_to "Version比較", compare_business_lovable_landing_page_path(@business), class: "button secondary" %>
+        <% if @current_version.metadata.to_h["preview_url"].present? && @current_version.metadata.to_h.dig("publication", "published") != true %>
+          <%= button_to "公開", publish_version_business_lovable_landing_page_path(@business, generation_run_id: @current_version.id), method: :post, class: "button", data: { turbo_confirm: "このLovable VersionをCodexへ渡し、Git・PR・merge・Render公開を開始します。よろしいですか？" } %>
+        <% end %>
+        <%= link_to "履歴", "#lovable-versions", class: "button secondary" %>
+      <% end %>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <div>
+        <h2>Current Preview</h2>
+        <p><%= @current_version ? "#{@current_version.metadata.to_h['version_label']} / #{@current_version.metadata.to_h['pipeline_status']}" : "まだVersionがありません。" %></p>
+      </div>
+      <% if @current_version %>
+        <span class="pill"><%= @current_version.status %></span>
+      <% end %>
+    </div>
+
+    <% if @current_version&.metadata.to_h&.dig("preview_url").present? %>
+      <div class="lovable-preview-controls" role="group" aria-label="Preview viewport">
+        <input type="radio" name="lovable_viewport" id="lovable-desktop" checked>
+        <label for="lovable-desktop">Desktop</label>
+        <input type="radio" name="lovable_viewport" id="lovable-tablet">
+        <label for="lovable-tablet">Tablet</label>
+        <input type="radio" name="lovable_viewport" id="lovable-mobile">
+        <label for="lovable-mobile">Mobile</label>
+        <div class="lovable-preview-stage">
+          <iframe src="<%= @current_version.metadata.to_h['preview_url'] %>" title="Lovable <%= @current_version.metadata.to_h['version_label'] %> preview" loading="lazy"></iframe>
+        </div>
+      </div>
+      <div class="compact-actions">
+        <%= link_to "Previewを別画面で開く", @current_version.metadata.to_h["preview_url"], class: "button secondary", target: "_blank", rel: "noopener" %>
+        <% if @current_version.metadata.to_h["editor_url"].present? %>
+          <%= link_to "Lovableで編集", @current_version.metadata.to_h["editor_url"], class: "button secondary", target: "_blank", rel: "noopener" %>
+        <% end %>
+      </div>
+    <% elsif @current_version&.metadata.to_h&.dig("build_url").present? %>
+      <div class="aicoo-notice status-warning">
+        <strong>Lovable MCP接続待ち</strong>
+        <p>公式Build URLで生成し、完成後のPreview URLを下のフォームへ登録してください。</p>
+        <%= link_to "Lovableで生成を開始", @current_version.metadata.to_h["build_url"], class: "button", target: "_blank", rel: "noopener" %>
+      </div>
+      <%= form_with url: register_preview_version_business_lovable_landing_page_path(@business, generation_run_id: @current_version.id), method: :patch, class: "form lovable-register-form" do |form| %>
+        <div class="form-grid">
+          <div><%= form.label :preview_url, "Preview URL" %><%= form.url_field :preview_url, required: true, placeholder: "https://...lovable.app" %></div>
+          <div><%= form.label :editor_url, "Editor URL" %><%= form.url_field :editor_url, placeholder: "https://lovable.dev/projects/..." %></div>
+          <div><%= form.label :project_id, "Project ID" %><%= form.text_field :project_id %></div>
+        </div>
+        <%= form.submit "Previewを取り込む", class: "button" %>
+      <% end %>
+    <% elsif @current_version %>
+      <div class="aicoo-empty-state">
+        <p><%= @current_version.status == "failed" ? @current_version.error_message : "LovableがPreviewを生成中です。" %></p>
+        <% if @current_version.status == "failed" %>
+          <%= button_to "再送", retry_version_business_lovable_landing_page_path(@business, generation_run_id: @current_version.id), method: :post, class: "button" %>
+        <% end %>
+      </div>
+    <% else %>
+      <div class="aicoo-empty-state">
+        <p>Business情報からLovable用Promptを生成し、最初のPreviewを作成します。</p>
+        <%= button_to "LP作成を開始", business_lovable_landing_page_path(@business), method: :post, params: { action_candidate_id: @source_action_candidate&.id }, class: "button" %>
+      </div>
+    <% end %>
+  </section>
+
+  <% if @current_version %>
+    <section class="dashboard-section" id="lovable-revision">
+      <div class="section-heading">
+        <div><h2>修正依頼</h2><p>Current VersionとBusiness情報を維持したまま、Lovableへ差分を依頼します。</p></div>
+      </div>
+      <%= form_with url: revise_business_lovable_landing_page_path(@business), method: :post, class: "form" do |form| %>
+        <%= form.label :change_request, "修正内容" %>
+        <%= form.text_area :change_request, rows: 4, required: true, placeholder: "例: CTAを目立たせ、ファーストビューの余白を増やす" %>
+        <%= form.submit "次のVersionを生成", class: "button" %>
+      <% end %>
+    </section>
+  <% end %>
+
+  <section class="dashboard-section" id="lovable-versions">
+    <div class="section-heading"><div><h2>Version履歴</h2><p>Prompt、変更理由、Preview、Codex公開状態をVersion単位で保持します。</p></div></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Version</th><th>生成</th><th>変更理由</th><th>Preview</th><th>公開</th><th>Commit / Deploy</th><th>操作</th></tr></thead>
+        <tbody>
+          <% @versions.each do |run| %>
+            <% publication = run.metadata.to_h["publication"].to_h %>
+            <tr>
+              <td><strong><%= run.metadata.to_h["version_label"] %></strong><br><small>#<%= run.id %></small></td>
+              <td><span class="pill"><%= run.status %></span><br><small><%= run.metadata.to_h["request_type"] %> / <%= l(run.created_at, format: :short) %></small></td>
+              <td><%= run.metadata.to_h["change_request"].presence || "初回生成" %></td>
+              <td><%= run.metadata.to_h["preview_url"].present? ? link_to("開く", run.metadata.to_h["preview_url"], target: "_blank", rel: "noopener") : "-" %></td>
+              <td><%= publication["status"].presence || "未依頼" %><br><small><%= publication["production_url"] %></small></td>
+              <td><%= publication["commit_sha"].presence || "-" %><br><small><%= publication["deploy_id"] %></small></td>
+              <td>
+                <div class="compact-actions">
+                  <% if run.status == "failed" %>
+                    <%= button_to "再送", retry_version_business_lovable_landing_page_path(@business, generation_run_id: run.id), method: :post, class: "button secondary" %>
+                  <% elsif run.metadata.to_h["preview_url"].present? && run != @current_version %>
+                    <%= button_to "戻す", restore_version_business_lovable_landing_page_path(@business, generation_run_id: run.id), method: :post, class: "button secondary", data: { turbo_confirm: "このVersionをCurrentへ戻しますか？" } %>
+                  <% end %>
+                  <%= link_to "比較", compare_business_lovable_landing_page_path(@business, after_id: run.id), class: "button secondary" %>
+                </div>
+              </td>
+            </tr>
+          <% end %>
+          <% if @versions.empty? %><tr><td colspan="7">Versionはまだありません。</td></tr><% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <% if @published_version %>
+    <section class="dashboard-section">
+      <div class="section-heading"><div><h2>公開後Learning</h2><p>Version単位のCVR、CV、CTA、GA4/GSC、ROIを次回Promptへ引き継ぎます。</p></div></div>
+      <div class="metric-grid">
+        <div class="metric-card"><span>CVR</span><strong><%= @current_learning["cvr"] ? number_to_percentage(@current_learning["cvr"] * 100, precision: 1) : "-" %></strong></div>
+        <div class="metric-card"><span>CV</span><strong><%= @current_learning["conversions"] %></strong></div>
+        <div class="metric-card"><span>CTA</span><strong><%= @current_learning["cta_clicks"] %></strong></div>
+        <div class="metric-card"><span>ROI</span><strong><%= @current_learning["roi"] || "-" %></strong></div>
+      </div>
+    </section>
+  <% end %>
+</div>

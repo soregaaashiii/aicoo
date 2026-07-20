@@ -172,6 +172,14 @@ Rails.application.routes.draw do
     patch :google_settings, action: :update_google_settings, on: :member
     patch :update_data_source_settings, on: :member
     resources :data_imports, only: :create
+    resource :lovable_landing_page, only: %i[show create], controller: "lovable_landing_pages" do
+      post :revise
+      get :compare
+      post "versions/:generation_run_id/retry", action: :retry, as: :retry_version
+      patch "versions/:generation_run_id/register_preview", action: :register_preview, as: :register_preview_version
+      post "versions/:generation_run_id/restore", action: :restore, as: :restore_version
+      post "versions/:generation_run_id/publish", action: :publish, as: :publish_version
+    end
   end
 
   namespace :aicoo_lab do
@@ -186,6 +194,7 @@ Rails.application.routes.draw do
   end
 
   namespace :admin do
+    get "lovable", to: "lovable#show", as: :lovable
     get "explore", to: "explore#index", as: :explore
     get "explore/import", to: "explore_imports#new", as: :explore_import
     post "explore/import", to: "explore_imports#create"
@@ -324,6 +333,7 @@ Rails.application.routes.draw do
     namespace :aicoo_lab do
       root "experiments#index"
       get "independent_learning", to: "independent_learning#index", as: :independent_learning
+      get "lp_learning", to: "lp_learning#index", as: :lp_learning
       get "approvals", to: "experiments#approvals", as: :approvals
       get "approved", to: "approved_experiments#index", as: :approved_experiments
       post "approved/bulk_running", to: "approved_experiments#bulk_running", as: :approved_experiments_bulk_running

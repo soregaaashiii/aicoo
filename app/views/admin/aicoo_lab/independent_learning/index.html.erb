@@ -5,7 +5,10 @@
              title: "Independent Learning",
              description: "ActionCandidateに紐付かない自然な活動の成果だけを確認します。",
              active_main: :lab,
-             actions: link_to("新規事業へ戻る", admin_aicoo_lab_root_path, class: "button secondary") %>
+             actions: safe_join([
+               link_to("LP Learning", admin_aicoo_lab_lp_learning_path, class: "button secondary"),
+               link_to("新規事業へ戻る", admin_aicoo_lab_root_path, class: "button secondary")
+             ]) %>
 
   <section class="dashboard-section">
     <div class="metric-grid">

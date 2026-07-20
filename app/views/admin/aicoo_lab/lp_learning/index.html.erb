@@ -1,0 +1,32 @@
+<% content_for :title, "LP Learning" %>
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "LP Learning",
+             description: "Lovable VersionごとのCVR、ROI、Prompt、変更内容と実績を比較します。",
+             active_main: :lab,
+             actions: link_to("Lovable接続", admin_lovable_path, class: "button secondary") %>
+  <section class="dashboard-section">
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Business</th><th>Version</th><th>公開</th><th>CVR</th><th>CV</th><th>CTA</th><th>PV</th><th>ROI</th><th>変更内容</th><th>Learning</th></tr></thead>
+        <tbody>
+          <% @rows.each do |row| %>
+            <tr>
+              <td><%= link_to row[:business].name, business_lovable_landing_page_path(row[:business]) %></td>
+              <td><%= row[:run].metadata.to_h["version_label"] %></td>
+              <td><%= row[:publication]["published_at"].presence || "-" %></td>
+              <td><%= row[:learning]["cvr"] ? number_to_percentage(row[:learning]["cvr"] * 100, precision: 1) : "-" %></td>
+              <td><%= row[:learning]["conversions"] %></td>
+              <td><%= row[:learning]["cta_clicks"] %></td>
+              <td><%= row[:learning]["pageviews"] %></td>
+              <td><%= row[:learning]["roi"] || "-" %></td>
+              <td><%= row[:run].metadata.to_h["change_request"].presence || "初回生成" %></td>
+              <td><details><summary>表示</summary><pre><%= JSON.pretty_generate(row[:learning]) %></pre></details></td>
+            </tr>
+          <% end %>
+          <% if @rows.empty? %><tr><td colspan="10">公開済みLovable Versionはまだありません。</td></tr><% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>

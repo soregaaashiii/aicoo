@@ -1093,9 +1093,26 @@
       <p>公開LPの作成と公開停止をこのBusinessの運用導線として扱います。</p>
     </div>
     <div class="actions compact-actions">
+      <%= link_to "LP作成", business_lovable_landing_page_path(@business), class: "button" %>
+      <% if @lovable_current_version %>
+        <%= link_to "LP修正", business_lovable_landing_page_path(@business, anchor: "lovable-revision"), class: "button secondary" %>
+        <%= link_to "Version比較", compare_business_lovable_landing_page_path(@business), class: "button secondary" %>
+        <% if @lovable_current_version.metadata.to_h["preview_url"].present? && @lovable_current_version.metadata.to_h.dig("publication", "published") != true %>
+          <%= button_to "公開", publish_version_business_lovable_landing_page_path(@business, generation_run_id: @lovable_current_version.id), method: :post, class: "button", data: { turbo_confirm: "このVersionをCodexへ渡して公開を開始します。よろしいですか？" } %>
+        <% end %>
+        <%= link_to "履歴", business_lovable_landing_page_path(@business, anchor: "lovable-versions"), class: "button secondary" %>
+      <% end %>
       <%= link_to "公開LP管理", admin_aicoo_lab_public_landing_pages_path, class: "button secondary" %>
       <%= link_to "LPを新規作成", admin_aicoo_lab_new_public_landing_page_path, class: "button" %>
     </div>
+  </div>
+  <div class="lovable-business-summary">
+    <div><span>現在Version</span><strong><%= @lovable_current_version&.metadata.to_h&.dig("version_label") || "未作成" %></strong></div>
+    <div><span>公開Version</span><strong><%= @lovable_published_version&.metadata.to_h&.dig("version_label") || "未公開" %></strong></div>
+    <div><span>最終更新</span><strong><%= @lovable_current_version ? l(@lovable_current_version.updated_at, format: :short) : "-" %></strong></div>
+    <div><span>CVR</span><strong><%= @lovable_published_learning&.dig("cvr") ? number_to_percentage(@lovable_published_learning["cvr"] * 100, precision: 1) : "-" %></strong></div>
+    <div><span>CV</span><strong><%= @lovable_published_learning&.dig("conversions") || "-" %></strong></div>
+    <div><span>公開URL</span><strong><%= @lovable_published_version&.metadata.to_h&.dig("publication", "production_url") || "-" %></strong></div>
   </div>
   <div class="metric-grid">
     <% AicooLabLandingPage::PUBLIC_STATUSES.each do |public_status| %>

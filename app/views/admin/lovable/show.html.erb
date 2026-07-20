@@ -1,0 +1,78 @@
+<% content_for :title, "Lovable接続" %>
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "Lovable Pipeline",
+             description: "Lovableの接続、Prompt、Preview、Version、Codex公開、Learningを確認します。",
+             active_main: :lab,
+             actions: safe_join([
+               link_to("API接続確認", admin_lovable_path(probe: 1), class: "button"),
+               link_to("LP Learning", admin_aicoo_lab_lp_learning_path, class: "button secondary")
+             ]) %>
+
+  <section class="dashboard-section">
+    <div class="metric-grid">
+      <div class="metric-card"><span>接続方式</span><strong><%= @result.configuration["connection_mode"] %></strong><small>MCP / Build URL</small></div>
+      <div class="metric-card"><span>API接続</span><strong><%= @result.probe_status %></strong><small><%= @result.probe_error.presence || "read-only確認" %></small></div>
+      <div class="metric-card"><span>MCP token</span><strong><%= @result.configuration["access_token_configured"] ? "設定済み" : "未設定" %></strong><small>値は表示しません</small></div>
+      <div class="metric-card"><span>Version</span><strong><%= @result.summary["version_count"] %></strong><small>保存済み</small></div>
+      <div class="metric-card"><span>Preview</span><strong><%= @result.summary["preview_ready_count"] %></strong><small>確認可能</small></div>
+      <div class="metric-card"><span>公開</span><strong><%= @result.summary["published_count"] %></strong><small>Codex deploy済み</small></div>
+      <div class="metric-card"><span>失敗</span><strong><%= @result.summary["failed_count"] %></strong><small>最終Version</small></div>
+    </div>
+    <dl class="detail-list">
+      <dt>MCP endpoint</dt><dd><%= @result.configuration["mcp_url"] %></dd>
+      <dt>Workspace</dt><dd><%= @result.configuration["workspace_id_configured"] ? "LOVABLE_WORKSPACE_ID設定済み" : "MCPから自動取得" %></dd>
+      <dt>Fallback</dt><dd><%= @result.configuration["build_url"] %></dd>
+      <dt>必要なENV</dt><dd><code>LOVABLE_MCP_ACCESS_TOKEN</code> / <code>LOVABLE_WORKSPACE_ID</code>（任意） / <code>LOVABLE_MCP_URL</code>（任意）</dd>
+    </dl>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading"><div><h2>Business別状態</h2><p>最後の送信、Preview、Version、公開・Deploy・Learningを確認します。</p></div></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Business</th><th>接続</th><th>Prompt / 送信</th><th>Preview</th><th>Version</th><th>修正</th><th>公開</th><th>Deploy</th><th>Learning</th><th>最終エラー</th></tr></thead>
+        <tbody>
+          <% @result.rows.each do |row| %>
+            <tr>
+              <td><%= link_to row.business_name, business_lovable_landing_page_path(row.business_id) %></td>
+              <td><%= row.connection_mode %></td>
+              <td><%= row.prompt_generated ? "生成済み" : "-" %> / <%= row.send_success ? "成功" : "未完了" %></td>
+              <td><%= row.preview_url.present? ? link_to("開く", row.preview_url, target: "_blank", rel: "noopener") : "-" %></td>
+              <td><%= row.version_count %></td>
+              <td><%= row.revision_count %></td>
+              <td><%= row.publication_status %></td>
+              <td><%= row.deploy_status %></td>
+              <td><%= row.learning_status %></td>
+              <td><%= row.last_error.presence || "-" %></td>
+            </tr>
+          <% end %>
+          <% if @result.rows.empty? %><tr><td colspan="10">Lovable Versionはまだありません。</td></tr><% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading"><div><h2>送信履歴</h2><p>失敗時も既存Versionを維持し、理由と再送履歴を残します。</p></div></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Run</th><th>Business</th><th>Version</th><th>種類</th><th>状態</th><th>Preview</th><th>最終送信</th><th>エラー</th></tr></thead>
+        <tbody>
+          <% @latest_runs.each do |run| %>
+            <tr>
+              <td><%= link_to "##{run.id}", admin_aicoo_lab_generation_run_path(run) %></td>
+              <td><%= run.metadata.to_h["business_name"] %></td>
+              <td><%= run.metadata.to_h["version_label"] %></td>
+              <td><%= run.metadata.to_h["request_type"] %></td>
+              <td><span class="pill"><%= run.status %></span></td>
+              <td><%= run.metadata.to_h["preview_url"].present? ? link_to("開く", run.metadata.to_h["preview_url"], target: "_blank", rel: "noopener") : "-" %></td>
+              <td><%= run.started_at ? l(run.started_at, format: :short) : "-" %></td>
+              <td><%= run.error_message.presence || "-" %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
