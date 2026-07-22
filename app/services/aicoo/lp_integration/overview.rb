@@ -85,6 +85,10 @@ module Aicoo
         execution_profile&.render_service_name
       end
 
+      def health_check_url
+        execution_profile&.health_check_url
+      end
+
       def ga4_property_id
         analytics_site&.ga4_property_id
       end
@@ -111,6 +115,41 @@ module Aicoo
 
       def manual_approval_required?
         execution_profile.nil? || execution_profile.require_manual_approval?
+      end
+
+      def setup_statuses
+        [
+          { key: "github", label: "Service", connected: app_repository_url.present? },
+          { key: "lp_source", label: "LP", connected: source_reference_present? },
+          { key: "production", label: "Production", connected: production_url.present? && render_service_name.present? && health_check_url.present? },
+          { key: "ga4", label: "GA4", connected: ga4_property_id.present? && ga4_measurement_id.present? },
+          { key: "gsc", label: "GSC", connected: gsc_site_url.present? },
+          { key: "activity_api", label: "Activity API", connected: activity_api_enabled? }
+        ]
+      end
+
+      def setup_percentage
+        (setup_statuses.count { |status| status[:connected] }.fdiv(setup_statuses.size) * 100).round
+      end
+
+      def setup_complete?
+        setup_statuses.all? { |status| status[:connected] }
+      end
+
+      def next_setup_key
+        setup_statuses.find { |status| !status[:connected] }&.fetch(:key)
+      end
+
+      def next_action_key
+        return "github" unless app_repository_url.present?
+        return "lp_source" unless source_reference_present?
+        return "lp_sync" unless latest_successful_task
+        return "production" unless production_url.present? && render_service_name.present? && health_check_url.present?
+        return "ga4" unless ga4_property_id.present? && ga4_measurement_id.present?
+        return "gsc" unless gsc_site_url.present?
+        return "activity_api" unless activity_api_enabled?
+
+        "complete"
       end
 
       def latest_task

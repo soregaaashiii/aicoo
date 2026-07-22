@@ -58,6 +58,7 @@ class BusinessLpIntegrationsController < ApplicationController
       :marketing_root_path,
       :production_url,
       :render_service_name,
+      :health_check_url,
       :ga4_property_id,
       :ga4_measurement_id,
       :gsc_site_url,

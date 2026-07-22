@@ -1,77 +1,142 @@
-<% content_for :title, "#{@business.name} LP・計測連携" %>
+<% content_for :title, "#{@business.name} LP・公開・計測セットアップ" %>
 <% content_for :body_class, "lp-integration-body" %>
 
 <% header_actions = capture do %>
   <%= link_to "Businessへ戻る", business_path(@business), class: "button secondary" %>
-  <%= link_to "同期履歴を見る", business_lp_integration_path(@business, anchor: "lp-sync-history"), class: "button secondary" %>
 <% end %>
 
 <div class="aicoo-page lp-integration-page">
   <%= render "shared/aicoo_header",
-             title: "LP・計測連携",
-             description: "#{@business.name}の外部LP、独立リポジトリ、GA4・GSC・Activity APIを管理します。",
+             title: "LP・公開・計測セットアップ",
+             description: "#{@business.name}の公開と計測を、上から順に迷わず設定できます。",
              mode: :ceo,
              active_main: :revenue,
              actions: header_actions %>
 
   <%= render "businesses/navigation", business: @business, current_section: "LP・計測連携" %>
 
-  <section class="dashboard-section">
-    <div class="section-heading">
+  <% execution_profile_path = @lp_integration.execution_profile ? edit_admin_business_execution_profile_path(@lp_integration.execution_profile) : new_admin_business_execution_profile_path(business_id: @business.id) %>
+  <% activity_setup_path = @lp_integration.activity_connection ? edit_admin_source_app_connection_path(@lp_integration.activity_connection) : business_lp_integration_path(@business, anchor: "activity-api-settings") %>
+  <% setup_paths = {
+       "github" => execution_profile_path,
+       "lp_source" => business_lp_integration_path(@business, anchor: "lp-source-settings"),
+       "production" => execution_profile_path,
+       "ga4" => google_settings_business_path(@business, anchor: "business-google-settings"),
+       "gsc" => google_settings_business_path(@business, anchor: "business-google-settings"),
+       "activity_api" => activity_setup_path
+     } %>
+  <% setup_button_labels = {
+       "github" => "GitHubを登録",
+       "lp_source" => "Lovableを接続",
+       "production" => "Renderを登録",
+       "ga4" => "GA4を接続",
+       "gsc" => "GSCを接続",
+       "activity_api" => "Activity APIを接続"
+     } %>
+  <% setup_details = {
+       "github" => [@lp_integration.app_repository_url, "Branch: #{@lp_integration.app_branch}"],
+       "lp_source" => [@lp_integration.lp_source_type_label, @lp_integration.lp_source_repository_url, @lp_integration.lp_source_url],
+       "production" => [@lp_integration.production_url, @lp_integration.render_service_name.presence && "Render: #{@lp_integration.render_service_name}", @lp_integration.health_check_url.presence && "Health: #{@lp_integration.health_check_url}"],
+       "ga4" => [@lp_integration.ga4_measurement_id.presence && "Measurement ID: #{@lp_integration.ga4_measurement_id}", @lp_integration.ga4_property_id.presence && "Property ID: #{@lp_integration.ga4_property_id}"],
+       "gsc" => [@lp_integration.gsc_site_url],
+       "activity_api" => [@lp_integration.activity_connection&.name, @lp_integration.activity_connection&.source_app]
+     } %>
+
+  <section class="dashboard-section setup-wizard" aria-labelledby="setup-progress-title">
+    <div class="setup-progress-heading">
       <div>
-        <h2>連携状態</h2>
-        <p>AICOOは設定・タスク・匿名化した成果だけを保持します。LPコードと顧客データは独立事業側が正本です。</p>
+        <span class="setup-eyebrow">セットアップ</span>
+        <h2 id="setup-progress-title"><%= @lp_integration.setup_complete? ? "セットアップ完了" : "公開まであと#{6 - @lp_integration.setup_statuses.count { |status| status[:connected] }}項目" %></h2>
       </div>
-      <div class="actions compact-actions">
-        <%= button_to "LP取り込みタスクを作成",
+      <strong><%= @lp_integration.setup_percentage %>%</strong>
+    </div>
+    <div class="setup-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="<%= @lp_integration.setup_percentage %>">
+      <span style="width: <%= @lp_integration.setup_percentage %>%"></span>
+    </div>
+    <div class="setup-progress-labels" aria-label="設定項目">
+      <% @lp_integration.setup_statuses.each do |status| %>
+        <span class="<%= status[:connected] ? "is-complete" : "" %>"><%= status[:connected] ? "✓" : "○" %> <%= status[:label] %></span>
+      <% end %>
+    </div>
+
+    <% if @lp_integration.setup_complete? %>
+      <div class="setup-complete-actions">
+        <%= button_to "LP同期",
                       create_task_business_lp_integration_path(@business),
                       method: :post,
                       class: "button",
                       data: { turbo_confirm: "現在の設定から手動承認付きタスクを作成します。Codexへはまだ送信しません。" } %>
-        <%= link_to "計測設定を確認", google_settings_business_path(@business), class: "button secondary" %>
-        <% if @lp_integration.production_url.present? %>
-          <%= button_to "本番を確認", verify_production_business_lp_integration_path(@business), method: :post, class: "button secondary" %>
+        <%= button_to "本番確認", verify_production_business_lp_integration_path(@business), method: :post, class: "button secondary" %>
+        <%= button_to "分析開始", import_google_api_business_path(@business), method: :post, class: "button secondary" %>
+      </div>
+    <% else %>
+      <div class="setup-mobile-next-action">
+        <% if @lp_integration.next_action_key == "lp_sync" %>
+          <%= button_to "LP同期を始める",
+                        create_task_business_lp_integration_path(@business),
+                        method: :post,
+                        class: "button",
+                        data: { turbo_confirm: "現在の設定から手動承認付きタスクを作成します。Codexへはまだ送信しません。" } %>
+        <% else %>
+          <%= link_to setup_button_labels.fetch(@lp_integration.next_action_key), setup_paths.fetch(@lp_integration.next_action_key), class: "button" %>
         <% end %>
       </div>
-    </div>
+      <div class="setup-layout">
+        <div class="setup-status-list">
+          <% @lp_integration.setup_statuses.each do |status| %>
+            <article class="setup-status-card <%= status[:connected] ? "is-connected" : "is-missing" %> <%= "is-next" if status[:key] == @lp_integration.next_action_key %>">
+              <div class="setup-status-icon" aria-hidden="true"><%= status[:connected] ? "✓" : "×" %></div>
+              <div class="setup-status-content">
+                <h3><%= status[:label] %></h3>
+                <strong><%= status[:connected] ? "接続済み" : "未設定" %></strong>
+                <% if status[:connected] %>
+                  <% setup_details.fetch(status[:key]).compact.each do |detail| %>
+                    <p><%= detail %></p>
+                  <% end %>
+                <% else %>
+                  <%= link_to setup_button_labels.fetch(status[:key]), setup_paths.fetch(status[:key]), class: "button button-small" %>
+                <% end %>
+              </div>
+            </article>
+          <% end %>
+        </div>
 
-    <div class="metric-grid">
-      <div class="metric-card">
-        <span>事業</span>
-        <strong><%= @business.name %></strong>
-        <small>Business #<%= @business.id %></small>
+        <aside class="setup-next-panel">
+          <span class="setup-eyebrow">次にやること</span>
+          <% steps = [
+               ["github", "GitHub登録"],
+               ["lp_source", "Lovable接続"],
+               ["lp_sync", "LP同期"],
+               ["production", "Render設定"],
+               ["ga4", "GA4接続"],
+               ["gsc", "GSC接続"],
+               ["activity_api", "Activity API接続"]
+             ] %>
+          <ol class="setup-steps">
+            <% steps.each_with_index do |(key, label), index| %>
+              <% complete = key == "lp_sync" ? @lp_integration.latest_successful_task.present? : @lp_integration.setup_statuses.find { |status| status[:key] == key }&.fetch(:connected) %>
+              <li class="<%= "is-complete" if complete %> <%= "is-current" if key == @lp_integration.next_action_key %>">
+                <span><%= complete ? "✓" : index + 1 %></span>
+                <strong><%= label %></strong>
+              </li>
+            <% end %>
+          </ol>
+          <div class="setup-next-action">
+            <% if @lp_integration.next_action_key == "lp_sync" %>
+              <%= button_to "LP同期を始める",
+                            create_task_business_lp_integration_path(@business),
+                            method: :post,
+                            class: "button",
+                            data: { turbo_confirm: "現在の設定から手動承認付きタスクを作成します。Codexへはまだ送信しません。" } %>
+            <% else %>
+              <%= link_to setup_button_labels.fetch(@lp_integration.next_action_key), setup_paths.fetch(@lp_integration.next_action_key), class: "button" %>
+            <% end %>
+          </div>
+        </aside>
       </div>
-      <div class="metric-card">
-        <span>実装先</span>
-        <strong><%= @lp_integration.app_repository_url.presence || "未設定" %></strong>
-        <small><%= @lp_integration.app_branch %> / <%= @lp_integration.app_framework %></small>
-      </div>
-      <div class="metric-card">
-        <span>LP作成元</span>
-        <strong><%= @lp_integration.lp_source_type_label %></strong>
-        <small><%= @lp_integration.lp_source_repository_url.presence || @lp_integration.lp_source_url.presence || "未設定" %></small>
-      </div>
-      <div class="metric-card">
-        <span>Activity API</span>
-        <strong><%= @lp_integration.activity_api_status_label %></strong>
-        <small>個人情報は送信せず、匿名化した成果イベントだけを受信</small>
-      </div>
-      <div class="metric-card">
-        <span>最終LP同期</span>
-        <strong><%= @lp_integration.last_sync_at ? l(@lp_integration.last_sync_at, format: :short) : "未実施" %></strong>
-        <small>Commit: <%= @lp_integration.last_sync_commit_sha.presence || "未登録" %></small>
-      </div>
-      <div class="metric-card">
-        <span>最終本番確認</span>
-        <strong><%= @lp_integration.last_verified_at ? l(@lp_integration.last_verified_at, format: :short) : "未確認" %></strong>
-        <small><%= @lp_integration.production_url.presence || "本番URL未設定" %></small>
-      </div>
-      <div class="metric-card">
-        <span>最終デプロイ</span>
-        <strong><%= @lp_integration.last_deployed_at ? l(@lp_integration.last_deployed_at, format: :short) : "未実施" %></strong>
-        <small><%= @lp_integration.latest_task ? @lp_integration.task_deploy_status(@lp_integration.latest_task) : "同期履歴なし" %></small>
-      </div>
-    </div>
+    <% end %>
+
+    <p class="setup-data-policy">AICOOは設定・タスク・匿名化した成果だけを保持します。LPコードと顧客データは独立事業側が正本です。</p>
 
     <% if @lp_integration.last_error.present? %>
       <div class="alert">
@@ -83,7 +148,7 @@
   </section>
 
   <%= form_with url: business_lp_integration_path(@business), method: :patch, scope: :lp_integration, class: "form lp-integration-form" do |form| %>
-    <section class="dashboard-section">
+    <section class="dashboard-section setup-form-section" id="lp-source-settings">
       <div class="section-heading">
         <div>
           <h2>LP作成元</h2>
@@ -111,9 +176,12 @@
           <%= form.url_field :lp_source_url, value: @lp_integration.lp_source_url, placeholder: "https://example.lovable.app" %>
         </div>
       </div>
+      <div class="actions compact-actions setup-form-actions">
+        <%= form.submit "LP作成元を保存", class: "button" %>
+      </div>
     </section>
 
-    <section class="dashboard-section">
+    <section class="dashboard-section setup-form-section" id="independent-business-settings">
       <div class="section-heading">
         <div>
           <h2>独立事業</h2>
@@ -148,6 +216,13 @@
           <%= form.label :render_service_name, "Renderサービス" %>
           <%= form.text_field :render_service_name, value: @lp_integration.render_service_name, placeholder: "service-web" %>
         </div>
+        <div class="field">
+          <%= form.label :health_check_url, "Health Check URL" %>
+          <%= form.url_field :health_check_url, value: @lp_integration.health_check_url, placeholder: "https://service.example.com/up" %>
+        </div>
+      </div>
+      <div class="actions compact-actions setup-form-actions">
+        <%= form.submit "実装・公開設定を保存", class: "button" %>
       </div>
     </section>
 
@@ -191,6 +266,10 @@
           <small>CTR <%= @lp_integration.metrics_30d[:ctr] ? number_to_percentage(@lp_integration.metrics_30d[:ctr] * 100, precision: 2) : "データなし" %> / 平均順位 <%= @lp_integration.metrics_30d[:average_position]&.round(1) || "データなし" %></small>
         </div>
       </div>
+      <div class="actions compact-actions setup-form-actions">
+        <%= form.submit "計測設定を保存", class: "button" %>
+        <%= link_to "Google接続画面を開く", google_settings_business_path(@business, anchor: "business-google-settings"), class: "button secondary" %>
+      </div>
 
       <% if @lp_integration.gsc_site_url.present? && !@lp_integration.gsc_summary.connected %>
         <div class="notice">
@@ -199,7 +278,7 @@
       <% end %>
     </section>
 
-    <section class="dashboard-section">
+    <section class="dashboard-section setup-form-section" id="activity-api-settings">
       <div class="section-heading">
         <div>
           <h2>実行方針</h2>

@@ -45,6 +45,7 @@ module Aicoo
           default_branch: branch,
           production_url: attributes["production_url"].presence,
           render_service_name: attributes["render_service_name"].presence,
+          health_check_url: attributes["health_check_url"].presence,
           deploy_target: attributes["render_service_name"].present? ? "render" : profile.deploy_target,
           codex_enabled: boolean("integration_enabled"),
           codex_project_folder: profile.codex_project_folder.presence || repository_name(repository_url).presence,

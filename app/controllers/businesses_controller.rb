@@ -316,6 +316,10 @@ class BusinessesController < ApplicationController
         identifier: settings[:gsc_site_url],
         credential:
       )
+      Aicoo::LpIntegration::GoogleMeasurementUpdater.new(
+        business: @business,
+        measurement_id: settings[:ga4_measurement_id]
+      ).call
       sync_business_google_site!
       sync_business_google_analytics_credentials!(credential)
     end
@@ -548,6 +552,7 @@ class BusinessesController < ApplicationController
       params.expect(google_settings: %i[
         google_credential_id
         ga4_property_id
+        ga4_measurement_id
         gsc_site_url
         ga4_enabled
         gsc_enabled

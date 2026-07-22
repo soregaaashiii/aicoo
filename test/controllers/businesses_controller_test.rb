@@ -486,6 +486,7 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "ID: <strong>#{@business.id}</strong>"
     assert_includes response.body, "Google Credential"
     assert_includes response.body, "GA4 Property ID"
+    assert_includes response.body, "GA4 Measurement ID"
     assert_includes response.body, "GSC Site URL"
     assert_includes response.body, "536889590"
     assert_includes response.body, "sc-domain:suelog.jp"
@@ -539,6 +540,7 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
         google_credential_id: credential.id,
         ga4_enabled: "1",
         ga4_property_id: "536889590",
+        ga4_measurement_id: "G-SUELOGTEST",
         gsc_enabled: "1",
         gsc_site_url: "sc-domain:suelog.jp"
       }
@@ -561,6 +563,8 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "sc-domain:suelog.jp", site.gsc_site_url
     assert_equal credential, site.ga4_setting.google_credential
     assert_equal credential, site.gsc_setting.google_credential
+    prototype = @business.business_prototypes.find { |row| row.metadata["role"] == Aicoo::LpIntegration::Overview::ROLE }
+    assert_equal "G-SUELOGTEST", prototype.metadata["ga4_measurement_id"]
   end
 
   test "business index shows resource status" do

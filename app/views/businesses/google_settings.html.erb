@@ -72,7 +72,7 @@
     <%= render "shared/google_reauth_actions", credential: @google_credential, business: @business, compact: true %>
   </section>
 
-  <section class="dashboard-section">
+  <section class="dashboard-section" id="business-google-settings">
     <div class="section-heading">
       <div>
         <h2>Business個別Google設定</h2>
@@ -103,6 +103,13 @@
             <%= select_tag "google_settings[ga4_property_id]",
                            options_for_select([["Propertyを選択", ""]] + ga4_options, @ga4_connection_summary.identifier),
                            class: "input" %>
+          </div>
+          <div class="field compact-field">
+            <label>GA4 Measurement ID</label>
+            <%= text_field_tag "google_settings[ga4_measurement_id]",
+                               Aicoo::LpIntegration::Overview.new(@business).ga4_measurement_id,
+                               class: "input",
+                               placeholder: "G-XXXXXXXXXX" %>
           </div>
         </div>
 

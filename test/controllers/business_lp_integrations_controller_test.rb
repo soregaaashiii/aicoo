@@ -14,8 +14,17 @@ class BusinessLpIntegrationsControllerTest < ActionDispatch::IntegrationTest
     get business_lp_integration_url(@business)
 
     assert_response :success
-    assert_includes response.body, "LP・計測連携"
-    assert_includes response.body, "LP取り込みタスクを作成"
+    assert_includes response.body, "LP・公開・計測セットアップ"
+    assert_includes response.body, "aria-valuenow=\"0\""
+    assert_includes response.body, "GitHubを登録"
+    assert_includes response.body, "Lovableを接続"
+    assert_includes response.body, "Renderを登録"
+    assert_includes response.body, "GA4を接続"
+    assert_includes response.body, "GSCを接続"
+    assert_includes response.body, "Activity APIを接続"
+    assert_includes response.body, new_admin_business_execution_profile_path(business_id: @business.id).gsub("&", "&amp;")
+    assert_includes response.body, google_settings_business_path(@business, anchor: "business-google-settings")
+    assert_includes response.body, "次にやること"
     assert_includes response.body, "AICOOは設定・タスク・匿名化した成果だけを保持します"
   end
 
@@ -30,6 +39,7 @@ class BusinessLpIntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "https://github.com/soregaaashiii/ai-reception", profile.codex_repository_url
     assert_equal "main", profile.codex_base_branch
     assert_equal "https://ai-reception.example.com", profile.production_url
+    assert_equal "https://ai-reception.example.com/up", profile.health_check_url
     assert profile.require_manual_approval?
 
     prototype = @business.business_prototypes.find { |row| row.metadata["role"] == Aicoo::LpIntegration::Overview::ROLE }
@@ -100,6 +110,20 @@ class BusinessLpIntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "承認待ち"
   end
 
+  test "shows only the operational actions when setup is complete" do
+    patch business_lp_integration_url(@business), params: { lp_integration: valid_settings }
+
+    get business_lp_integration_url(@business)
+
+    assert_response :success
+    assert_includes response.body, "セットアップ完了"
+    assert_includes response.body, "aria-valuenow=\"100\""
+    assert_includes response.body, "LP同期"
+    assert_includes response.body, "本番確認"
+    assert_includes response.body, "分析開始"
+    assert_not_includes response.body, "GitHubを登録"
+  end
+
   private
 
   def valid_settings
@@ -114,6 +138,7 @@ class BusinessLpIntegrationsControllerTest < ActionDispatch::IntegrationTest
       marketing_root_path: "app/views/marketing",
       production_url: "https://ai-reception.example.com",
       render_service_name: "ai-reception-web",
+      health_check_url: "https://ai-reception.example.com/up",
       ga4_property_id: "123456789",
       ga4_measurement_id: "G-AIRECEPTION",
       gsc_site_url: "sc-domain:ai-reception.example.com",
