@@ -10,12 +10,14 @@ class BusinessPrototype < ApplicationRecord
   URL_TYPES = %w[github url lovable figma render].freeze
 
   belongs_to :business
+  belongs_to :business_campaign, optional: true, inverse_of: :landing_pages
 
   validates :prototype_type, inclusion: { in: PROTOTYPE_TYPES }
   validates :status, inclusion: { in: STATUSES }
   validates :analysis_status, inclusion: { in: ANALYSIS_STATUSES }
   validates :location, presence: true
   validate :location_matches_prototype_type
+  validate :landing_page_campaign_belongs_to_business
 
   before_validation :set_defaults
 
@@ -52,11 +54,12 @@ class BusinessPrototype < ApplicationRecord
   end
 
   def landing_page_public_status
-    metadata.to_h["lp_public_status"].presence || "draft"
+    raw_status = metadata.to_h["lp_public_status"].presence || "testing"
+    { "draft" => "testing", "paused" => "stopped" }.fetch(raw_status, raw_status)
   end
 
   def landing_page_public_status_label
-    { "draft" => "下書き", "published" => "公開", "paused" => "一時停止" }.fetch(
+    { "testing" => "テスト中", "published" => "公開中", "stopped" => "停止", "archived" => "アーカイブ" }.fetch(
       landing_page_public_status,
       landing_page_public_status
     )
@@ -88,6 +91,10 @@ class BusinessPrototype < ApplicationRecord
 
   def landing_page_conversion_rate
     metadata.to_h["current_conversion_rate"].presence&.to_d
+  end
+
+  def landing_page_ab_test
+    metadata.to_h.fetch("ab_test", {})
   end
 
   def display_name
@@ -122,5 +129,11 @@ class BusinessPrototype < ApplicationRecord
     errors.add(:location, "はhttp(s) URLを入力してください") unless uri.is_a?(URI::HTTP) && uri.host.present?
   rescue URI::InvalidURIError
     errors.add(:location, "は有効なURLを入力してください")
+  end
+
+  def landing_page_campaign_belongs_to_business
+    return if business_campaign.nil? || business_campaign.business_id == business_id
+
+    errors.add(:business_campaign, "は同じBusinessに属している必要があります")
   end
 end

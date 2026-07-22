@@ -16,19 +16,34 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
     )
   end
 
-  test "business detail shows service landing page and shared measurement cards" do
+  test "business detail shows service campaign and shared measurement cards" do
     get business_url(@business)
 
     assert_response :success
     assert_select "#business-access-urls"
     assert_select "#business-service-access-card", text: /Service/
-    assert_select "#business-lp-access-card", text: /LP/
+    assert_select "#business-campaign-access-card", text: /Campaign/
     assert_select "#business-measurement-access-card", text: /計測/
     assert_select "summary", text: "+ Service追加"
-    assert_select "summary", text: "+ LP追加"
+    assert_select "summary", text: "+ Campaign追加"
     assert_select "summary", text: "共通計測を設定"
-    assert_select "#business-lp-access-card input[name='measurement_access[ga4_property_id]']", count: 0
-    assert_select "#business-lp-access-card input[name='measurement_access[gsc_site_url]']", count: 0
+    assert_select "#business-campaign-access-card input[name='measurement_access[ga4_property_id]']", count: 0
+    assert_select "#business-campaign-access-card input[name='measurement_access[gsc_site_url]']", count: 0
+  end
+
+  test "business can store multiple campaigns and landing pages belong to a campaign" do
+    assert_difference -> { @business.business_campaigns.count }, 2 do
+      save_campaign(name: "SEO", campaign_type: "seo")
+      save_campaign(name: "Google Ads", campaign_type: "google_ads")
+    end
+
+    campaign = @business.business_campaigns.find_by!(name: "Google Ads")
+    save_landing_page(name: "広告 A", path: "/ads/a", repository: "https://github.com/example/ads-a", campaign:)
+    landing_page = @business.business_prototypes.external_landing_pages.find_by!(name: "広告 A")
+
+    assert_equal campaign, landing_page.business_campaign
+    assert_equal "published", landing_page.landing_page_public_status
+    assert_nil @other_business.business_campaigns.find_by(name: "Google Ads")
   end
 
   test "business can store multiple services and primary service configures execution profile" do
@@ -88,6 +103,9 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
         ga4_measurement_id: "G-TEST123",
         ga4_property_id: "123456789",
         gsc_site_url: "https://lp.example.com",
+        cloudflare_project_name: "all-business-lps",
+        cloudflare_production_url: "https://lp.example.com",
+        cloudflare_branch: "main",
         activity_api_enabled: "1"
       }
     }
@@ -115,7 +133,25 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, site.analytics_source_settings.where(source_type: "ga4").count
     assert_equal 1, site.analytics_source_settings.where(source_type: "gsc").count
     assert Aicoo::LpIntegration::Overview.new(@business.reload).activity_api_enabled?
+    assert_equal "all-business-lps", @business.reload.metadata.to_h["lp_cloudflare_project_name"]
     assert_equal 100, @business.business_prototypes.active.external_landing_pages.distinct.count
+    assert_equal 1, @business.business_campaigns.count
+  end
+
+  test "campaign and landing page updates stay scoped to their business" do
+    own_campaign = @business.business_campaigns.create!(name: "Own", campaign_type: "seo")
+    other_campaign = @other_business.business_campaigns.create!(name: "Other", campaign_type: "seo")
+
+    assert_raises ActiveRecord::RecordNotFound do
+      Aicoo::LpIntegration::LandingPageRegistry.new(business: @business).save!(
+        campaign_id: other_campaign.id,
+        name: "Wrong",
+        source_type: "public_url",
+        url: "https://lp.example.com/wrong"
+      )
+    end
+    assert_equal 0, own_campaign.landing_pages.count
+    assert_equal 0, other_campaign.landing_pages.count
   end
 
   test "landing page update and delete stay scoped to the selected business" do
@@ -182,9 +218,17 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to business_url(@business, anchor: "business-access-urls")
   end
 
-  def save_landing_page(name:, path:, repository:)
+  def save_campaign(name:, campaign_type:)
+    patch campaign_business_access_settings_url(@business), params: {
+      campaign_access: { name:, campaign_type:, status: "active" }
+    }
+    assert_redirected_to business_url(@business, anchor: "business-access-urls")
+  end
+
+  def save_landing_page(name:, path:, repository:, campaign: nil)
     patch landing_page_business_access_settings_url(@business), params: {
       lp_access: {
+        campaign_id: campaign&.id,
         name:,
         source_type: "lovable_github",
         repository_url: repository,

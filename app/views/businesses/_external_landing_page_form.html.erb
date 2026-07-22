@@ -3,6 +3,15 @@
 <%= form_with url: landing_page_business_access_settings_path(business), method: :patch, scope: :lp_access, class: "business-access-form" do |form| %>
   <%= form.hidden_field :landing_page_id, value: landing_page&.id %>
   <div class="field">
+    <%= form.label :campaign_id, "Campaign" %>
+    <%= form.collection_select :campaign_id,
+                               business.business_campaigns.active.order(:name),
+                               :id,
+                               :name,
+                               { selected: landing_page&.business_campaign_id || local_assigns[:campaign]&.id },
+                               { required: true } %>
+  </div>
+  <div class="field">
     <%= form.label :name, "LP名" %>
     <%= form.text_field :name, value: landing_page&.landing_page_name, placeholder: "広告LP" %>
   </div>
@@ -34,7 +43,7 @@
   <div class="field">
     <%= form.label :public_status, "公開状態" %>
     <%= form.select :public_status,
-                    options_for_select([["下書き", "draft"], ["公開", "published"], ["一時停止", "paused"]], landing_page&.landing_page_public_status || "draft") %>
+                    options_for_select([["公開中", "published"], ["テスト中", "testing"], ["停止", "stopped"], ["アーカイブ", "archived"]], landing_page&.landing_page_public_status || "testing") %>
   </div>
   <div class="field">
     <%= form.label :cta, "CTA" %>
@@ -47,6 +56,34 @@
   <div class="field">
     <%= form.label :improvement_target, "改善対象" %>
     <%= form.text_field :improvement_target, value: metadata["improvement_target"], placeholder: "CTA / SEO / 構成" %>
+  </div>
+  <div class="field">
+    <%= form.label :cloudflare_preview_url, "Cloudflare Preview URL" %>
+    <%= form.url_field :cloudflare_preview_url, value: metadata["cloudflare_preview_url"] %>
+  </div>
+  <div class="field">
+    <%= form.label :cloudflare_deploy_status, "Deploy Status" %>
+    <%= form.select :cloudflare_deploy_status, options_for_select([["未デプロイ", "not_deployed"], ["デプロイ中", "deploying"], ["公開済み", "deployed"], ["失敗", "failed"]], metadata["cloudflare_deploy_status"] || "not_deployed") %>
+  </div>
+  <div class="field">
+    <%= form.label :ab_test_name, "A/Bテスト名" %>
+    <%= form.text_field :ab_test_name, value: landing_page&.landing_page_ab_test&.dig("name"), placeholder: "CTA 2026-07" %>
+  </div>
+  <div class="field">
+    <%= form.label :ab_variant, "Variant" %>
+    <%= form.text_field :ab_variant, value: landing_page&.landing_page_ab_test&.dig("variant"), placeholder: "A / B" %>
+  </div>
+  <div class="field">
+    <%= form.label :ab_status, "A/B状態" %>
+    <%= form.select :ab_status, options_for_select([["未実施", "inactive"], ["実施中", "running"], ["完了", "completed"]], landing_page&.landing_page_ab_test&.dig("status") || "inactive") %>
+  </div>
+  <div class="field">
+    <%= form.label :ab_win_rate, "A/B勝率" %>
+    <%= form.number_field :ab_win_rate, value: landing_page&.landing_page_ab_test&.dig("win_rate"), min: 0, max: 1, step: 0.0001 %>
+  </div>
+  <div class="field checkbox-field">
+    <%= form.check_box :ab_winner, { checked: landing_page&.landing_page_ab_test&.dig("winner") }, "1", "0" %>
+    <%= form.label :ab_winner, "このVariantを勝者にする" %>
   </div>
   <div class="actions compact-actions">
     <%= form.submit "保存", class: "button" %>

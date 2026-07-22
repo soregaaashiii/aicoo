@@ -43,6 +43,33 @@ module Aicoo
       LpIntegration::LandingPageRegistry.new(business:).save!(attributes)
     end
 
+    def update_campaign!(attributes)
+      values = attributes.to_h.deep_stringify_keys
+      campaign = values["campaign_id"].present? ? business.business_campaigns.find(values["campaign_id"]) : business.business_campaigns.new
+      campaign.assign_attributes(
+        name: values["name"],
+        campaign_type: values["campaign_type"].presence_in(BusinessCampaign::CAMPAIGN_TYPES) || "other",
+        status: values["status"].presence_in(BusinessCampaign::STATUSES) || "active",
+        starts_on: values["starts_on"].presence,
+        ends_on: values["ends_on"].presence,
+        budget_yen: integer_or_nil(values["budget_yen"]),
+        target_conversions: decimal_or_nil(values["target_conversions"]),
+        target_cpa_yen: integer_or_nil(values["target_cpa_yen"]),
+        ga4_filter: values["ga4_filter"].presence,
+        gsc_filter: values["gsc_filter"].presence,
+        notes: values["notes"].presence
+      )
+      campaign.save!
+      campaign
+    end
+
+    def archive_campaign!(campaign_id)
+      campaign = business.business_campaigns.find(campaign_id)
+      raise ArgumentError, "LPが登録されているCampaignはアーカイブできません。" if campaign.landing_pages.active.exists?
+
+      campaign.update!(status: "archived")
+    end
+
     def update_production!(attributes)
       values = attributes.to_h.deep_stringify_keys
       profile = execution_profile
@@ -65,6 +92,9 @@ module Aicoo
         update_activity_connection!(values)
         business.update!(metadata: business.metadata.to_h.merge(
           "lp_ga4_measurement_id" => values["ga4_measurement_id"].presence,
+          "lp_cloudflare_project_name" => values["cloudflare_project_name"].presence,
+          "lp_cloudflare_production_url" => values["cloudflare_production_url"].presence,
+          "lp_cloudflare_branch" => values["cloudflare_branch"].presence || "main",
           "lp_measurement_updated_at" => Time.current.iso8601
         ).compact)
       end
@@ -173,6 +203,16 @@ module Aicoo
 
     def boolean(value)
       ActiveModel::Type::Boolean.new.cast(value)
+    end
+
+    def integer_or_nil(value)
+      Integer(value, exception: false) if value.present?
+    end
+
+    def decimal_or_nil(value)
+      BigDecimal(value.to_s) if value.present?
+    rescue ArgumentError
+      nil
     end
   end
 end

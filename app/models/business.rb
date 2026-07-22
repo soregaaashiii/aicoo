@@ -46,6 +46,7 @@ class Business < ApplicationRecord
   has_many :data_imports, through: :data_sources
   has_many :business_data_source_settings, dependent: :destroy
   has_many :business_prototypes, dependent: :destroy
+  has_many :business_campaigns, dependent: :destroy
   has_many :business_serp_keywords, dependent: :destroy
   has_many :serp_queries, dependent: :destroy
   has_many :traffic_channel_runs, dependent: :nullify

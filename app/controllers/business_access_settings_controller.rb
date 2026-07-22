@@ -21,6 +21,20 @@ class BusinessAccessSettingsController < ApplicationController
     redirect_to_access_section("LP設定を保存できませんでした: #{error_message(e)}", alert: true)
   end
 
+  def update_campaign
+    Aicoo::BusinessAccessSettingsUpdater.new(@business).update_campaign!(campaign_params)
+    redirect_to_access_section("Campaign設定を保存しました。")
+  rescue ActiveRecord::RecordInvalid, ArgumentError => e
+    redirect_to_access_section("Campaign設定を保存できませんでした: #{error_message(e)}", alert: true)
+  end
+
+  def destroy_campaign
+    Aicoo::BusinessAccessSettingsUpdater.new(@business).archive_campaign!(params.expect(:campaign_id))
+    redirect_to_access_section("Campaignをアーカイブしました。")
+  rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotFound, ArgumentError => e
+    redirect_to_access_section("Campaignをアーカイブできませんでした: #{error_message(e)}", alert: true)
+  end
+
   def create_landing_page_task
     landing_page = landing_page_registry.find!(params.expect(:landing_page_id))
     result = Aicoo::LpIntegration::LandingPageTaskCreator.new(business: @business, landing_page:).call
@@ -39,14 +53,25 @@ class BusinessAccessSettingsController < ApplicationController
 
   def improve_landing_page
     landing_page = landing_page_registry.find!(params.expect(:landing_page_id))
-    result = Aicoo::LpIntegration::LandingPageImprovementAnalyzer.new(
+    result = Aicoo::LpIntegration::LandingPageImprovementFlow.new(
       business: @business,
       landing_page:
     ).call
-    message = result.candidate ? "LPを分析し、改善候補を作成しました。" : "LPを分析しました。#{result.reason}"
-    redirect_to_access_section(message, alert: result.candidate.nil?)
+    if result.task
+      message = result.created ? "LPを分析し、承認待ちの改善タスクを作成しました。" : "同じ改善タスクが承認または実行待ちです。"
+      redirect_to_access_section(message)
+    else
+      redirect_to_access_section("LPを分析しました。#{result.analysis.reason}", alert: true)
+    end
   rescue ActiveRecord::RecordInvalid, ArgumentError => e
     redirect_to_access_section("LPを分析できませんでした: #{error_message(e)}", alert: true)
+  end
+
+  def update_landing_page_status
+    landing_page_registry.update_status!(params.expect(:landing_page_id), params.expect(:public_status))
+    redirect_to_access_section("LPの公開状態を更新しました。")
+  rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotFound, ArgumentError => e
+    redirect_to_access_section("LPの公開状態を更新できませんでした: #{error_message(e)}", alert: true)
   end
 
   def update_production
@@ -83,8 +108,16 @@ class BusinessAccessSettingsController < ApplicationController
 
   def landing_page_params
     params.expect(lp_access: %i[
-      landing_page_id name source_type repository_url branch lovable_project_url url public_status
-      ga4_page_path cta current_conversion_rate improvement_target
+      landing_page_id campaign_id name source_type repository_url branch lovable_project_url url public_status
+      ga4_page_path cta current_conversion_rate improvement_target cloudflare_preview_url cloudflare_deploy_status
+      ab_test_name ab_variant ab_status ab_winner ab_win_rate
+    ])
+  end
+
+  def campaign_params
+    params.expect(campaign_access: %i[
+      campaign_id name campaign_type status starts_on ends_on budget_yen target_conversions
+      target_cpa_yen ga4_filter gsc_filter notes
     ])
   end
 
@@ -97,6 +130,7 @@ class BusinessAccessSettingsController < ApplicationController
   def measurement_params
     params.expect(measurement_access: %i[
       public_url ga4_measurement_id ga4_property_id gsc_site_url activity_api_enabled
+      cloudflare_project_name cloudflare_production_url cloudflare_branch
     ])
   end
 

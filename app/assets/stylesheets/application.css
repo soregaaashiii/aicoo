@@ -900,6 +900,60 @@ details.revenue-card > summary {
   margin: 0;
 }
 
+.campaign-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+  margin: 0.8rem 0;
+}
+
+.campaign-kpi-grid span {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--border-color, #d8dee8);
+  background: #f8fafc;
+  font-size: 0.78rem;
+}
+
+.campaign-lp-list {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.8rem;
+}
+
+.campaign-lp-row {
+  border-top: 1px solid var(--border-color, #d8dee8);
+  padding-top: 0.65rem;
+}
+
+.campaign-lp-row > summary {
+  display: grid;
+  grid-template-columns: minmax(9rem, 1.4fr) repeat(4, minmax(4.5rem, auto));
+  align-items: center;
+  gap: 0.55rem;
+  cursor: pointer;
+  font-size: 0.78rem;
+  list-style-position: inside;
+}
+
+.campaign-lp-row > summary > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.lp-analysis-values,
+.lp-improvement-history {
+  margin-top: 0.75rem;
+}
+
+.lp-improvement-history p {
+  margin: 0.4rem 0;
+  font-size: 0.78rem;
+}
+
 .business-access-editor {
   width: 100%;
 }
@@ -933,7 +987,8 @@ details.revenue-card > summary {
 }
 
 .business-access-form input,
-.business-access-form select {
+.business-access-form select,
+.business-access-form textarea {
   width: 100%;
 }
 
@@ -957,6 +1012,14 @@ details.revenue-card > summary {
 }
 
 @media (max-width: 760px) {
+  .campaign-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .campaign-lp-row > summary {
+    grid-template-columns: 1fr;
+  }
+
   .business-access-values {
     grid-template-columns: 1fr;
   }

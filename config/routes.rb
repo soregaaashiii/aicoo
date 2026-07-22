@@ -167,9 +167,12 @@ Rails.application.routes.draw do
     resources :business_prototypes, path: "prototypes", only: %i[create edit update destroy]
     resource :access_settings, only: [], controller: "business_access_settings" do
       patch :service, action: :update_service
+      patch :campaign, action: :update_campaign
+      delete "campaigns/:campaign_id", action: :destroy_campaign, as: :remove_campaign
       patch :landing_page, action: :update_landing_page
       post "landing_pages/:landing_page_id/sync", action: :create_landing_page_task, as: :landing_page_task
       post "landing_pages/:landing_page_id/improve", action: :improve_landing_page, as: :improve_landing_page
+      patch "landing_pages/:landing_page_id/status", action: :update_landing_page_status, as: :landing_page_status
       delete "landing_pages/:landing_page_id", action: :destroy_landing_page, as: :remove_landing_page
       patch :production, action: :update_production
       patch :measurement, action: :update_measurement

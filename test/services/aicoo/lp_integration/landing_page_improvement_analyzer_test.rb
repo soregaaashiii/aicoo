@@ -90,6 +90,31 @@ module Aicoo
         assert_equal @business.action_candidates.where(generation_source: "lp_learning").pluck(:id), result.candidate_ids
       end
 
+      test "improvement flow creates a waiting approval task for a published landing page" do
+        result = nil
+        assert_difference [ "ActionCandidate.count", "AutoRevisionTask.count" ], 1 do
+          result = LandingPageImprovementFlow.new(business: @business, landing_page: @landing_page).call
+        end
+
+        assert result.created
+        assert_equal "waiting_approval", result.task.reload.status
+        assert_equal "external_lp_improvement", result.task.metadata.to_h["workflow_type"]
+        assert_equal "cloudflare_pages", result.task.effective_deploy_target
+        assert_equal "LP公開前にOwner確認が必要です。", result.task.metadata.to_h["approval_required_reason"]
+        assert_equal false, result.task.metadata.to_h["auto_deploy_enabled"]
+      end
+
+      test "improvement flow rejects a landing page that is not published" do
+        LandingPageRegistry.new(business: @business).update_status!(@landing_page.id, "testing")
+
+        assert_no_difference [ "ActionCandidate.count", "AutoRevisionTask.count" ] do
+          error = assert_raises(ArgumentError) do
+            LandingPageImprovementFlow.new(business: @business, landing_page: @landing_page).call
+          end
+          assert_equal "公開中のLPだけが改善対象です。", error.message
+        end
+      end
+
       private
 
       def create_metric_snapshot(source_type, row)

@@ -31,9 +31,12 @@ module Aicoo
       attr_reader :business, :landing_page, :snapshots
 
       def validate!
-        return if landing_page.business_id == business.id && landing_page.external_landing_page?
+        unless landing_page.business_id == business.id && landing_page.external_landing_page?
+          raise ArgumentError, "このBusinessのLPではありません。"
+        end
+        return if landing_page.landing_page_public_status == "published"
 
-        raise ArgumentError, "このBusinessのLPではありません。"
+        raise ArgumentError, "公開中のLPだけが分析対象です。"
       end
 
       def analytics
@@ -155,6 +158,7 @@ module Aicoo
           "execution_mode" => "code_revision",
           "generation_source" => "lp_learning",
           "landing_page_id" => landing_page.id,
+          "campaign_id" => landing_page.business_campaign_id,
           "lp_name" => landing_page.landing_page_name,
           "target_record_id" => landing_page.id,
           "target_url" => landing_page.landing_page_url,

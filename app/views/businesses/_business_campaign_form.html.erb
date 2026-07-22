@@ -1,0 +1,52 @@
+<% campaign_type_options = BusinessCampaign::CAMPAIGN_TYPES.map { |value| [BusinessCampaign.new(campaign_type: value).campaign_type_label, value] } %>
+<%= form_with url: campaign_business_access_settings_path(business), method: :patch, scope: :campaign_access, class: "business-access-form" do |form| %>
+  <%= form.hidden_field :campaign_id, value: campaign&.id %>
+  <div class="field">
+    <%= form.label :name, "Campaign名" %>
+    <%= form.text_field :name, value: campaign&.name, placeholder: "Google Ads" %>
+  </div>
+  <div class="field">
+    <%= form.label :campaign_type, "種類" %>
+    <%= form.select :campaign_type, options_for_select(campaign_type_options, campaign&.campaign_type || "other") %>
+  </div>
+  <div class="field">
+    <%= form.label :status, "状態" %>
+    <%= form.select :status, options_for_select([["下書き", "draft"], ["運用中", "active"], ["停止中", "paused"], ["完了", "completed"]], campaign&.status || "active") %>
+  </div>
+  <div class="field">
+    <%= form.label :starts_on, "開始日" %>
+    <%= form.date_field :starts_on, value: campaign&.starts_on %>
+  </div>
+  <div class="field">
+    <%= form.label :ends_on, "終了日" %>
+    <%= form.date_field :ends_on, value: campaign&.ends_on %>
+  </div>
+  <div class="field">
+    <%= form.label :budget_yen, "予算（円）" %>
+    <%= form.number_field :budget_yen, value: campaign&.budget_yen, min: 0 %>
+  </div>
+  <div class="field">
+    <%= form.label :target_conversions, "目標CV" %>
+    <%= form.number_field :target_conversions, value: campaign&.target_conversions, min: 0, step: 0.1 %>
+  </div>
+  <div class="field">
+    <%= form.label :target_cpa_yen, "目標CPA（円）" %>
+    <%= form.number_field :target_cpa_yen, value: campaign&.target_cpa_yen, min: 0 %>
+  </div>
+  <div class="field">
+    <%= form.label :ga4_filter, "GA4 Filter" %>
+    <%= form.text_field :ga4_filter, value: campaign&.ga4_filter, placeholder: "pagePath begins_with /ads/" %>
+  </div>
+  <div class="field">
+    <%= form.label :gsc_filter, "GSC Filter" %>
+    <%= form.text_field :gsc_filter, value: campaign&.gsc_filter, placeholder: "page contains /ads/" %>
+  </div>
+  <div class="field">
+    <%= form.label :notes, "備考" %>
+    <%= form.text_area :notes, value: campaign&.notes, rows: 3 %>
+  </div>
+  <div class="actions compact-actions">
+    <%= form.submit "保存", class: "button" %>
+    <%= link_to "キャンセル", business_path(business, anchor: "business-access-urls"), class: "button secondary" %>
+  </div>
+<% end %>

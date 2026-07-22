@@ -80,6 +80,7 @@ module Aicoo
             "ga4_page_path" => landing_page.landing_page_ga4_path,
             "service_repository_protected" => true,
             "manual_approval_required" => true,
+            "approval_required_reason" => "LP公開前にOwner確認が必要です。",
             "auto_submit_enabled" => false,
             "auto_merge_enabled" => false,
             "auto_deploy_enabled" => false,

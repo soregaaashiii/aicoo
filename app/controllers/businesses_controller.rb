@@ -84,6 +84,8 @@ class BusinessesController < ApplicationController
     @business_access_overview = Aicoo::LpIntegration::Overview.new(@business)
     @primary_business_service = @business_services.first
     @external_landing_pages = @business.business_prototypes.active.external_landing_pages
+    @business_campaigns = @business.business_campaigns.active.includes(:landing_pages).recent
+    @campaign_dashboard = Aicoo::LpIntegration::CampaignDashboard.new(@business).call
     @mvp_evaluations = Aicoo::MvpEvaluationSummary.for_business(@business)
     @mvp_evaluations_by_service_id = @mvp_evaluations.index_by { |row| row.business_service.id }
     @production_ready_check = Aicoo::ProductionReadyCheck.new(@business, @mvp_evaluations).call

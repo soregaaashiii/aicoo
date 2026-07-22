@@ -58,79 +58,119 @@
       </details>
     </div>
 
-    <div class="metric-card business-access-card" id="business-lp-access-card">
+    <div class="metric-card business-access-card" id="business-campaign-access-card">
       <div class="business-access-card-heading">
         <div>
-          <span>LP</span>
-          <strong><%= external_landing_pages.size %>件</strong>
+          <span>Campaign</span>
+          <strong><%= business_campaigns.size %>件</strong>
         </div>
-        <small>Cloudflare Pages標準 / Serviceと分離</small>
+        <small>CampaignごとにLPを分析・改善</small>
       </div>
 
-      <div class="business-access-item-list business-lp-list">
-        <% external_landing_pages.each do |landing_page| %>
-          <% metadata = landing_page.metadata.to_h %>
-          <article class="business-access-list-item" id="external-lp-<%= landing_page.id %>">
+      <div class="business-access-item-list business-campaign-list">
+        <% campaign_dashboard.each do |campaign_row| %>
+          <% campaign = campaign_row.fetch(:campaign) %>
+          <article class="business-access-list-item business-campaign-item" id="business-campaign-<%= campaign.id %>">
             <div class="business-access-item-heading">
               <div>
-                <strong><%= landing_page.landing_page_name %></strong>
-                <small><%= landing_page.landing_page_url.presence || "URL未設定" %></small>
+                <strong><%= campaign.name %></strong>
+                <small><%= campaign.campaign_type_label %> / <%= campaign.status_label %></small>
               </div>
-              <span class="pill"><%= landing_page.landing_page_public_status_label %></span>
+              <span class="pill">期待利益順位 <%= campaign_row.fetch(:rank) %>位</span>
             </div>
-            <dl class="business-access-values">
-              <dt>GitHub</dt>
-              <dd><%= landing_page.landing_page_repository_url.presence || "未設定" %></dd>
-              <dt>GA4 Path</dt>
-              <dd><%= landing_page.landing_page_ga4_path.presence || "未設定" %></dd>
-              <dt>CV</dt>
-              <dd><%= landing_page.landing_page_conversion_rate ? number_to_percentage(landing_page.landing_page_conversion_rate * 100, precision: 2) : "未計測" %></dd>
-              <dt>改善候補</dt>
-              <dd><%= metadata["improvement_target"].presence || "未分析" %></dd>
-              <dt>期待利益</dt>
-              <dd><%= metadata["expected_profit_yen"].present? ? number_to_currency(metadata["expected_profit_yen"], unit: "¥", precision: 0) : "未算定" %></dd>
-              <dt>期待CV</dt>
-              <dd><%= metadata["expected_cv"].presence || "未算定" %></dd>
-              <dt>期待時給</dt>
-              <dd><%= metadata["expected_hourly_value_yen"].present? ? number_to_currency(metadata["expected_hourly_value_yen"], unit: "¥", precision: 0) : "未算定" %></dd>
-              <dt>同期状態</dt>
-              <dd><%= landing_page.landing_page_sync_status_label %></dd>
-              <dt>最終同期</dt>
-              <dd><%= landing_page.landing_page_last_sync_at ? l(landing_page.landing_page_last_sync_at, format: :short) : "未同期" %></dd>
-            </dl>
+            <div class="campaign-kpi-grid">
+              <span>LP <strong><%= campaign_row.fetch(:lp_count) %></strong></span>
+              <span>PV <strong><%= number_with_delimiter(campaign_row.fetch(:pageviews)) %></strong></span>
+              <span>CV <strong><%= campaign_row.fetch(:conversions) %></strong></span>
+              <span>CV率 <strong><%= campaign_row[:conversion_rate] ? number_to_percentage(campaign_row[:conversion_rate] * 100, precision: 2) : "未計測" %></strong></span>
+              <span>問い合わせ <strong><%= campaign_row.fetch(:inquiries).to_i %></strong></span>
+              <span>契約 <strong><%= campaign_row.fetch(:contracts).to_i %></strong></span>
+              <span>売上 <strong><%= number_to_currency(campaign_row.fetch(:revenue_yen), unit: "¥", precision: 0) %></strong></span>
+              <span>期待利益 <strong><%= number_to_currency(campaign_row.fetch(:expected_profit_yen), unit: "¥", precision: 0) %></strong></span>
+              <span>期待時給 <strong><%= number_to_currency(campaign_row.fetch(:expected_hourly_value_yen), unit: "¥", precision: 0) %></strong></span>
+              <span>改善候補 <strong><%= campaign_row.fetch(:improvement_candidate_count) %></strong></span>
+            </div>
             <div class="business-access-card-actions">
               <details class="business-access-editor">
-                <summary class="button secondary">編集</summary>
-                <%= render "external_landing_page_form", business:, landing_page: %>
+                <summary class="button secondary">Campaign編集</summary>
+                <%= render "business_campaign_form", business:, campaign: %>
               </details>
-              <% if landing_page.landing_page_url.present? %>
-                <%= link_to "開く", landing_page.landing_page_url, class: "button secondary", target: "_blank", rel: "noopener" %>
+              <details class="business-access-editor">
+                <summary class="button">+ LP追加</summary>
+                <%= render "external_landing_page_form", business:, landing_page: nil, campaign: %>
+              </details>
+              <% if campaign_row.fetch(:lp_count).zero? %>
+                <%= button_to "アーカイブ",
+                              remove_campaign_business_access_settings_path(business, campaign_id: campaign.id),
+                              method: :delete,
+                              class: "button danger",
+                              data: { turbo_confirm: "#{campaign.name}をアーカイブしますか？" } %>
               <% end %>
-              <%= button_to "同期",
-                            landing_page_task_business_access_settings_path(business, landing_page_id: landing_page.id),
-                            method: :post,
-                            class: "button secondary" %>
-              <%= button_to "改善",
-                            improve_landing_page_business_access_settings_path(business, landing_page_id: landing_page.id),
-                            method: :post,
-                            class: "button secondary" %>
-              <%= button_to "削除",
-                            remove_landing_page_business_access_settings_path(business, landing_page_id: landing_page.id),
-                            method: :delete,
-                            class: "button danger",
-                            data: { turbo_confirm: "#{landing_page.landing_page_name}を削除しますか？" } %>
+            </div>
+
+            <div class="campaign-lp-list">
+              <% campaign_row.fetch(:landing_pages).each do |lp_row| %>
+                <% landing_page = lp_row.fetch(:landing_page) %>
+                <% metadata = landing_page.metadata.to_h %>
+                <details class="campaign-lp-row" id="external-lp-<%= landing_page.id %>">
+                  <summary>
+                    <span><strong><%= lp_row.fetch(:rank) %>位 <%= landing_page.landing_page_name %></strong> <span class="pill"><%= landing_page.landing_page_public_status_label %></span></span>
+                    <span>CV <%= lp_row[:conversion_rate] ? number_to_percentage(lp_row[:conversion_rate] * 100, precision: 2) : "未計測" %></span>
+                    <span>期待利益 <%= number_to_currency(lp_row.fetch(:expected_profit_yen), unit: "¥", precision: 0) %></span>
+                    <span>候補 <%= lp_row.fetch(:improvement_candidate_count) %></span>
+                    <span><%= landing_page.landing_page_sync_status_label %></span>
+                  </summary>
+                  <dl class="business-access-values lp-analysis-values">
+                    <dt>URL</dt><dd><%= landing_page.landing_page_url.presence || "未設定" %></dd>
+                    <dt>GitHub</dt><dd><%= landing_page.landing_page_repository_url.presence || "未設定" %></dd>
+                    <dt>PV</dt><dd><%= number_with_delimiter(lp_row.fetch(:pageviews)) %></dd>
+                    <dt>GSC</dt><dd><%= number_with_delimiter(lp_row.fetch(:impressions)) %>表示 / <%= lp_row.fetch(:clicks) %>クリック / CTR <%= lp_row[:ctr] ? number_to_percentage(lp_row[:ctr] * 100, precision: 2) : "未計測" %> / 順位 <%= lp_row[:average_position] || "未計測" %></dd>
+                    <dt>商談 / 契約</dt><dd><%= lp_row.fetch(:deals).to_i %> / <%= lp_row.fetch(:contracts).to_i %></dd>
+                    <dt>期待CV / 時給</dt><dd><%= lp_row.fetch(:expected_cv).to_f.round(2) %> / <%= number_to_currency(lp_row.fetch(:expected_hourly_value_yen), unit: "¥", precision: 0) %></dd>
+                    <dt>Cloudflare</dt><dd><%= metadata["cloudflare_deploy_status"].presence || "未デプロイ" %> / <%= metadata["cloudflare_preview_url"].presence || "Preview未設定" %> / 最終Deploy <%= lp_row[:last_deploy_at] ? l(lp_row[:last_deploy_at], format: :short) : "未実施" %></dd>
+                    <dt>A/Bテスト</dt><dd><%= landing_page.landing_page_ab_test["name"].presence || "未実施" %> <%= landing_page.landing_page_ab_test["variant"].presence %> <%= landing_page.landing_page_ab_test["winner"] ? "勝者" : nil %> <%= landing_page.landing_page_ab_test["win_rate"].present? ? number_to_percentage(landing_page.landing_page_ab_test["win_rate"].to_f * 100, precision: 1) : nil %></dd>
+                  </dl>
+                  <div class="business-access-card-actions">
+                    <details class="business-access-editor">
+                      <summary class="button secondary">編集</summary>
+                      <%= render "external_landing_page_form", business:, landing_page:, campaign: %>
+                    </details>
+                    <% if landing_page.landing_page_url.present? %>
+                      <%= link_to "開く", landing_page.landing_page_url, class: "button secondary", target: "_blank", rel: "noopener" %>
+                    <% end %>
+                    <%= button_to "同期", landing_page_task_business_access_settings_path(business, landing_page_id: landing_page.id), method: :post, class: "button secondary" %>
+                    <% if landing_page.landing_page_public_status == "published" %>
+                      <%= button_to "改善を開始", improve_landing_page_business_access_settings_path(business, landing_page_id: landing_page.id), method: :post, class: "button" %>
+                      <%= button_to "停止", landing_page_status_business_access_settings_path(business, landing_page_id: landing_page.id), method: :patch, params: { public_status: "stopped" }, class: "button secondary" %>
+                    <% else %>
+                      <%= button_to "公開中にする", landing_page_status_business_access_settings_path(business, landing_page_id: landing_page.id), method: :patch, params: { public_status: "published" }, class: "button secondary" %>
+                    <% end %>
+                    <%= button_to "削除", remove_landing_page_business_access_settings_path(business, landing_page_id: landing_page.id), method: :delete, class: "button danger", data: { turbo_confirm: "#{landing_page.landing_page_name}を削除しますか？" } %>
+                  </div>
+                  <details class="lp-improvement-history">
+                    <summary>改善履歴 <%= lp_row.fetch(:improvement_history).size %>件</summary>
+                    <% if lp_row.fetch(:improvement_history).any? %>
+                      <% lp_row.fetch(:improvement_history).first(10).each do |history| %>
+                        <p><%= l(history.fetch(:occurred_at), format: :short) %> / <%= history.fetch(:change_content) %> / 期待 <%= number_to_currency(history.fetch(:expected_profit_yen), unit: "¥", precision: 0) %> / 実績 <%= number_to_currency(history.fetch(:actual_profit_yen), unit: "¥", precision: 0) %> / <%= history.fetch(:result) %></p>
+                      <% end %>
+                    <% else %>
+                      <p>改善履歴はまだありません。</p>
+                    <% end %>
+                  </details>
+                </details>
+              <% end %>
             </div>
           </article>
         <% end %>
       </div>
 
-      <% if external_landing_pages.empty? %>
-        <p class="aicoo-empty-state">LPは未登録です。GA4/GSCを増やさず、共通ドメイン配下のpage_pathで追加できます。</p>
+      <% if business_campaigns.empty? %>
+        <p class="aicoo-empty-state">Campaignは未登録です。最初にSEO、広告、比較などの運用単位を追加してください。</p>
       <% end %>
 
       <details class="business-access-editor business-access-add-editor">
-        <summary class="button">+ LP追加</summary>
-        <%= render "external_landing_page_form", business:, landing_page: nil %>
+        <summary class="button">+ Campaign追加</summary>
+        <%= render "business_campaign_form", business:, campaign: nil %>
       </details>
     </div>
 
@@ -144,6 +184,10 @@
       </div>
 
       <dl class="business-access-values">
+        <dt>Cloudflare Project</dt>
+        <dd><%= business.metadata.to_h["lp_cloudflare_project_name"].presence || "未設定" %></dd>
+        <dt>Cloudflare Production</dt>
+        <dd><%= business.metadata.to_h["lp_cloudflare_production_url"].presence || "未設定" %></dd>
         <dt>GA4</dt>
         <dd><%= analytics_site&.ga4_property_id.presence || "未設定" %></dd>
         <dt>Measurement ID</dt>
@@ -164,6 +208,18 @@
           <div class="field">
             <%= form.label :public_url, "Cloudflare Pages共通URL" %>
             <%= form.url_field :public_url, value: analytics_site&.public_url, placeholder: "https://lp.example.com" %>
+          </div>
+          <div class="field">
+            <%= form.label :cloudflare_project_name, "Cloudflare Pages Project" %>
+            <%= form.text_field :cloudflare_project_name, value: business.metadata.to_h["lp_cloudflare_project_name"], placeholder: "business-lps" %>
+          </div>
+          <div class="field">
+            <%= form.label :cloudflare_production_url, "Cloudflare Production URL" %>
+            <%= form.url_field :cloudflare_production_url, value: business.metadata.to_h["lp_cloudflare_production_url"], placeholder: "https://lp.example.com" %>
+          </div>
+          <div class="field">
+            <%= form.label :cloudflare_branch, "Cloudflare Branch" %>
+            <%= form.text_field :cloudflare_branch, value: business.metadata.to_h["lp_cloudflare_branch"] || "main" %>
           </div>
           <div class="field">
             <%= form.label :ga4_measurement_id, "GA4 Measurement ID" %>
