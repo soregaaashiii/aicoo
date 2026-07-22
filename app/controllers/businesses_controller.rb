@@ -81,6 +81,8 @@ class BusinessesController < ApplicationController
     @lp_evaluations_by_id = @lp_evaluations.index_by { |row| row.landing_page.id }
     @mvp_ready_check = Aicoo::MvpReadyCheck.new(@business, @lp_evaluations).call
     @business_services = @business.business_services.recent
+    @business_access_overview = Aicoo::LpIntegration::Overview.new(@business)
+    @primary_business_service = @business_services.first
     @mvp_evaluations = Aicoo::MvpEvaluationSummary.for_business(@business)
     @mvp_evaluations_by_service_id = @mvp_evaluations.index_by { |row| row.business_service.id }
     @production_ready_check = Aicoo::ProductionReadyCheck.new(@business, @mvp_evaluations).call

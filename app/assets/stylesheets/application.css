@@ -805,6 +805,128 @@ details.revenue-card > summary {
   overflow-wrap: anywhere;
 }
 
+.business-access-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.business-access-card .business-access-connected {
+  color: #19715d;
+}
+
+.business-access-values {
+  display: grid;
+  gap: 4px 10px;
+  grid-template-columns: minmax(88px, auto) minmax(0, 1fr);
+  margin: 0;
+}
+
+.business-access-values dt {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.business-access-values dd {
+  font-size: 13px;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.business-access-card-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.business-access-card-actions form {
+  margin: 0;
+}
+
+.business-access-editor {
+  width: 100%;
+}
+
+.business-access-editor > summary {
+  cursor: pointer;
+  display: inline-flex;
+  list-style: none;
+}
+
+.business-access-editor > summary::-webkit-details-marker {
+  display: none;
+}
+
+.business-access-editor[open] > summary {
+  margin-bottom: 12px;
+}
+
+.business-access-form {
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+}
+
+.business-access-form .field {
+  margin: 0;
+  min-width: 0;
+}
+
+.business-access-form input,
+.business-access-form select {
+  width: 100%;
+}
+
+.business-access-form .checkbox-field {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: auto 1fr;
+}
+
+.business-access-form .checkbox-field input {
+  width: auto;
+}
+
+.business-access-form .checkbox-field input[type="hidden"] {
+  display: none;
+}
+
+.business-access-form .actions {
+  align-items: stretch;
+}
+
+@media (max-width: 760px) {
+  .business-access-values {
+    grid-template-columns: 1fr;
+  }
+
+  .business-access-values dd + dt {
+    margin-top: 6px;
+  }
+
+  .business-access-card-actions,
+  .business-access-form .actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .business-access-card-actions .button,
+  .business-access-card-actions form,
+  .business-access-card-actions form .button,
+  .business-access-editor > summary,
+  .business-access-form .actions .button {
+    justify-content: center;
+    width: 100%;
+  }
+}
+
 .alert-banner {
   border-radius: 8px;
   margin: 1rem 0;

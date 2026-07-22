@@ -61,6 +61,26 @@ module Aicoo
         source_metadata["lp_source_url"]
       end
 
+      def lovable_project_url
+        source_metadata["lovable_project_url"]
+      end
+
+      def lp_public_url
+        source_metadata["lp_public_url"]
+      end
+
+      def lp_public_status
+        source_metadata["lp_public_status"].presence || "draft"
+      end
+
+      def lp_public_status_label
+        {
+          "draft" => "下書き",
+          "published" => "公開",
+          "paused" => "一時停止"
+        }.fetch(lp_public_status, lp_public_status)
+      end
+
       def app_repository_url
         execution_profile&.effective_codex_repository_url
       end
@@ -217,6 +237,10 @@ module Aicoo
 
       def last_verified_at
         parse_time(source_metadata["last_verified_at"])
+      end
+
+      def last_verification_status
+        source_metadata["last_verification_status"]
       end
 
       def last_error

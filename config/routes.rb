@@ -165,6 +165,13 @@ Rails.application.routes.draw do
     patch :update_resource_status, on: :member
     resources :business_services, only: %i[create update]
     resources :business_prototypes, path: "prototypes", only: %i[create edit update destroy]
+    resource :access_settings, only: [], controller: "business_access_settings" do
+      patch :service, action: :update_service
+      patch :landing_page, action: :update_landing_page
+      post :landing_page_task, action: :create_landing_page_task
+      patch :production, action: :update_production
+      post :verify_production
+    end
     resource :lp_integration, only: %i[show update], controller: "business_lp_integrations" do
       post :create_task
       post :verify_production
