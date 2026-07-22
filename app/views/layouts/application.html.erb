@@ -24,7 +24,7 @@
     <%= render "shared/aicoo_submit_feedback_script" %>
   </head>
 
-  <body>
+  <body class="<%= content_for(:body_class) %>">
     <header class="app-header aicoo-global-header">
       <div class="aicoo-brand-block">
         <%= link_to "AICOO", aicoo_mode_home_path, class: "brand" %>

@@ -26,6 +26,7 @@ module Aicoo
       return skipped("missing_business") unless business
       return skipped("not_automatic") unless business.automatic_auto_revision?
       return skipped("new_business_candidate") if action_candidate.department == "new_business"
+      return skipped("manual_task_creation_only") if action_candidate.metadata.to_h["manual_task_creation_only"] == true
       return skipped("inactive_candidate") if action_candidate.status.in?(ActionCandidate::INACTIVE_STATUSES)
       return skipped("missing_execution_prompt") if action_candidate.execution_prompt.blank?
       readiness = Aicoo::ActionCandidateExecutionReadiness.call(action_candidate)

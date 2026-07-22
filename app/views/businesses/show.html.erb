@@ -2,6 +2,7 @@
 
 <% header_actions = capture do %>
     <%= link_to "Edit", edit_business_path(@business), class: "button secondary" %>
+    <%= link_to "LP・計測連携", business_lp_integration_path(@business), class: "button secondary" %>
     <%= link_to "Codex接続を開く", admin_codex_connection_path(business_id: @business.id, anchor: "codex-businesses"), class: "button secondary" %>
     <%= link_to "収益記録を追加", new_revenue_event_path(revenue_event: { business_id: @business.id }), class: "button secondary" %>
     <%= link_to "代理指標を追加", new_business_metric_daily_path(business_metric_daily: { business_id: @business.id }), class: "button secondary" %>

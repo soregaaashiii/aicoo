@@ -165,6 +165,10 @@ Rails.application.routes.draw do
     patch :update_resource_status, on: :member
     resources :business_services, only: %i[create update]
     resources :business_prototypes, path: "prototypes", only: %i[create edit update destroy]
+    resource :lp_integration, only: %i[show update], controller: "business_lp_integrations" do
+      post :create_task
+      post :verify_production
+    end
     post :generate_ai_candidates, on: :member
     post :import_google_api, on: :member
     post :import_gsc, on: :member

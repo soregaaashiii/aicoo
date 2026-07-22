@@ -1,0 +1,298 @@
+<% content_for :title, "#{@business.name} LP・計測連携" %>
+<% content_for :body_class, "lp-integration-body" %>
+
+<% header_actions = capture do %>
+  <%= link_to "Businessへ戻る", business_path(@business), class: "button secondary" %>
+  <%= link_to "同期履歴を見る", business_lp_integration_path(@business, anchor: "lp-sync-history"), class: "button secondary" %>
+<% end %>
+
+<div class="aicoo-page lp-integration-page">
+  <%= render "shared/aicoo_header",
+             title: "LP・計測連携",
+             description: "#{@business.name}の外部LP、独立リポジトリ、GA4・GSC・Activity APIを管理します。",
+             mode: :ceo,
+             active_main: :revenue,
+             actions: header_actions %>
+
+  <%= render "businesses/navigation", business: @business, current_section: "LP・計測連携" %>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <div>
+        <h2>連携状態</h2>
+        <p>AICOOは設定・タスク・匿名化した成果だけを保持します。LPコードと顧客データは独立事業側が正本です。</p>
+      </div>
+      <div class="actions compact-actions">
+        <%= button_to "LP取り込みタスクを作成",
+                      create_task_business_lp_integration_path(@business),
+                      method: :post,
+                      class: "button",
+                      data: { turbo_confirm: "現在の設定から手動承認付きタスクを作成します。Codexへはまだ送信しません。" } %>
+        <%= link_to "計測設定を確認", google_settings_business_path(@business), class: "button secondary" %>
+        <% if @lp_integration.production_url.present? %>
+          <%= button_to "本番を確認", verify_production_business_lp_integration_path(@business), method: :post, class: "button secondary" %>
+        <% end %>
+      </div>
+    </div>
+
+    <div class="metric-grid">
+      <div class="metric-card">
+        <span>事業</span>
+        <strong><%= @business.name %></strong>
+        <small>Business #<%= @business.id %></small>
+      </div>
+      <div class="metric-card">
+        <span>実装先</span>
+        <strong><%= @lp_integration.app_repository_url.presence || "未設定" %></strong>
+        <small><%= @lp_integration.app_branch %> / <%= @lp_integration.app_framework %></small>
+      </div>
+      <div class="metric-card">
+        <span>LP作成元</span>
+        <strong><%= @lp_integration.lp_source_type_label %></strong>
+        <small><%= @lp_integration.lp_source_repository_url.presence || @lp_integration.lp_source_url.presence || "未設定" %></small>
+      </div>
+      <div class="metric-card">
+        <span>Activity API</span>
+        <strong><%= @lp_integration.activity_api_status_label %></strong>
+        <small>個人情報は送信せず、匿名化した成果イベントだけを受信</small>
+      </div>
+      <div class="metric-card">
+        <span>最終LP同期</span>
+        <strong><%= @lp_integration.last_sync_at ? l(@lp_integration.last_sync_at, format: :short) : "未実施" %></strong>
+        <small>Commit: <%= @lp_integration.last_sync_commit_sha.presence || "未登録" %></small>
+      </div>
+      <div class="metric-card">
+        <span>最終本番確認</span>
+        <strong><%= @lp_integration.last_verified_at ? l(@lp_integration.last_verified_at, format: :short) : "未確認" %></strong>
+        <small><%= @lp_integration.production_url.presence || "本番URL未設定" %></small>
+      </div>
+      <div class="metric-card">
+        <span>最終デプロイ</span>
+        <strong><%= @lp_integration.last_deployed_at ? l(@lp_integration.last_deployed_at, format: :short) : "未実施" %></strong>
+        <small><%= @lp_integration.latest_task ? @lp_integration.task_deploy_status(@lp_integration.latest_task) : "同期履歴なし" %></small>
+      </div>
+    </div>
+
+    <% if @lp_integration.last_error.present? %>
+      <div class="alert">
+        <strong>最新エラー</strong>
+        <p><%= @lp_integration.last_error %></p>
+        <p>設定値と外部サービスの状態を確認し、解消後に再実行してください。</p>
+      </div>
+    <% end %>
+  </section>
+
+  <%= form_with url: business_lp_integration_path(@business), method: :patch, scope: :lp_integration, class: "form lp-integration-form" do |form| %>
+    <section class="dashboard-section">
+      <div class="section-heading">
+        <div>
+          <h2>LP作成元</h2>
+          <p>URLやリポジトリの参照情報だけを保存します。ソースコードやZIP本体はAICOOへ保存しません。</p>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="field">
+          <%= form.label :lp_source_type, "LP作成元の種類" %>
+          <%= form.select :lp_source_type,
+                          Aicoo::LpIntegration::Overview::SOURCE_TYPES.map { |value, label| [ label, value ] },
+                          { selected: @lp_integration.lp_source_type } %>
+        </div>
+        <div class="field">
+          <%= form.label :lp_source_repository_url, "LP作成元リポジトリ" %>
+          <%= form.url_field :lp_source_repository_url, value: @lp_integration.lp_source_repository_url, placeholder: "https://github.com/owner/lp-source" %>
+        </div>
+        <div class="field">
+          <%= form.label :lp_source_branch, "LP作成元ブランチ" %>
+          <%= form.text_field :lp_source_branch, value: @lp_integration.lp_source_branch, placeholder: "main" %>
+        </div>
+        <div class="field">
+          <%= form.label :lp_source_url, "LP作成元URL" %>
+          <%= form.url_field :lp_source_url, value: @lp_integration.lp_source_url, placeholder: "https://example.lovable.app" %>
+        </div>
+      </div>
+    </section>
+
+    <section class="dashboard-section">
+      <div class="section-heading">
+        <div>
+          <h2>独立事業</h2>
+          <p>Codexが変更できる対象を、この独立リポジトリだけに固定します。</p>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="field">
+          <%= form.label :app_repository_url, "事業のGitHubリポジトリ" %>
+          <%= form.url_field :app_repository_url, value: @lp_integration.app_repository_url, placeholder: "https://github.com/owner/service" %>
+        </div>
+        <div class="field">
+          <%= form.label :app_branch, "対象ブランチ" %>
+          <%= form.text_field :app_branch, value: @lp_integration.app_branch, placeholder: "main" %>
+        </div>
+        <div class="field">
+          <%= form.label :app_framework, "フレームワーク" %>
+          <%= form.select :app_framework,
+                          BusinessExecutionProfile::REPOSITORY_TYPES.map { |value| [ value == "rails" ? "Rails" : value, value ] },
+                          { selected: @lp_integration.app_framework } %>
+        </div>
+        <div class="field">
+          <%= form.label :marketing_root_path, "LP実装先ディレクトリまたは方式" %>
+          <%= form.text_field :marketing_root_path, value: @lp_integration.marketing_root_path, placeholder: "app/views/marketing" %>
+        </div>
+        <div class="field">
+          <%= form.label :production_url, "本番URL" %>
+          <%= form.url_field :production_url, value: @lp_integration.production_url, placeholder: "https://service.example.com" %>
+        </div>
+        <div class="field">
+          <%= form.label :render_service_name, "Renderサービス" %>
+          <%= form.text_field :render_service_name, value: @lp_integration.render_service_name, placeholder: "service-web" %>
+        </div>
+      </div>
+    </section>
+
+    <section class="dashboard-section" id="measurement-settings">
+      <div class="section-heading">
+        <div>
+          <h2>計測</h2>
+          <p>既存のGoogle OAuth・GA4・GSC取得基盤とActivity APIを利用します。</p>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="field">
+          <%= form.label :ga4_property_id, "GA4 Property ID" %>
+          <%= form.text_field :ga4_property_id, value: @lp_integration.ga4_property_id, placeholder: "123456789" %>
+        </div>
+        <div class="field">
+          <%= form.label :ga4_measurement_id, "GA4 Measurement ID" %>
+          <%= form.text_field :ga4_measurement_id, value: @lp_integration.ga4_measurement_id, placeholder: "G-XXXXXXXXXX" %>
+        </div>
+        <div class="field">
+          <%= form.label :gsc_site_url, "GSC Site URL" %>
+          <%= form.text_field :gsc_site_url, value: @lp_integration.gsc_site_url, placeholder: "sc-domain:example.com" %>
+        </div>
+      </div>
+
+      <div class="metric-grid">
+        <div class="metric-card">
+          <span>GA4</span>
+          <strong><%= @lp_integration.ga4_summary.status_label %></strong>
+          <small>最終取得: <%= @lp_integration.ga4_summary.last_fetched_at ? l(@lp_integration.ga4_summary.last_fetched_at, format: :short) : "未取得" %><%= " / #{@lp_integration.ga4_summary.last_error.to_s.truncate(80)}" if @lp_integration.ga4_summary.last_error.present? %></small>
+        </div>
+        <div class="metric-card">
+          <span>GSC</span>
+          <strong><%= @lp_integration.gsc_summary.status_label %></strong>
+          <small>最終取得: <%= @lp_integration.gsc_summary.last_fetched_at ? l(@lp_integration.gsc_summary.last_fetched_at, format: :short) : "未取得" %><%= " / #{@lp_integration.gsc_summary.last_error.to_s.truncate(80)}" if @lp_integration.gsc_summary.last_error.present? %></small>
+        </div>
+        <div class="metric-card">
+          <span>GSC 30日</span>
+          <strong><%= number_with_delimiter(@lp_integration.metrics_30d[:impressions]) %>表示 / <%= number_with_delimiter(@lp_integration.metrics_30d[:clicks]) %>クリック</strong>
+          <small>CTR <%= @lp_integration.metrics_30d[:ctr] ? number_to_percentage(@lp_integration.metrics_30d[:ctr] * 100, precision: 2) : "データなし" %> / 平均順位 <%= @lp_integration.metrics_30d[:average_position]&.round(1) || "データなし" %></small>
+        </div>
+      </div>
+
+      <% if @lp_integration.gsc_site_url.present? && !@lp_integration.gsc_summary.connected %>
+        <div class="notice">
+          GSC所有権をGoogle Search Consoleで確認し、AICOOのGoogle連携画面で共通OAuthを接続してください。
+        </div>
+      <% end %>
+    </section>
+
+    <section class="dashboard-section">
+      <div class="section-heading">
+        <div>
+          <h2>実行方針</h2>
+          <p>初期状態ではタスク作成までです。設定保存だけでCodex送信や本番変更は行いません。</p>
+        </div>
+      </div>
+
+      <div class="checkbox-grid">
+        <label class="checkbox">
+          <%= form.check_box :integration_enabled, checked: @lp_integration.integration_enabled? %>
+          LP・計測連携を有効にする
+        </label>
+        <label class="checkbox">
+          <%= form.check_box :activity_api_enabled, checked: @lp_integration.activity_api_enabled? %>
+          Activity APIを有効にする
+        </label>
+        <label class="checkbox">
+          <%= form.check_box :auto_deploy_enabled, checked: @lp_integration.auto_deploy_enabled? %>
+          Execution Profileで自動デプロイを許可する
+        </label>
+        <label class="checkbox">
+          <%= form.check_box :manual_approval_required, checked: @lp_integration.manual_approval_required? %>
+          人間の承認を必須にする
+        </label>
+      </div>
+
+      <div class="actions">
+        <%= form.submit "設定を保存", class: "button" %>
+      </div>
+    </section>
+  <% end %>
+
+  <section class="dashboard-section" id="lp-sync-history">
+    <div class="section-heading">
+      <div>
+        <h2>同期履歴</h2>
+        <p>LP取り込みタスクと既存CodexSubmissionの進行状況です。</p>
+      </div>
+    </div>
+
+    <% if @lp_integration.sync_tasks.any? %>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>実行日時</th>
+              <th>実行者</th>
+              <th>対象Business</th>
+              <th>移植元</th>
+              <th>実装先</th>
+              <th>タスク状態</th>
+              <th>GitHub Issue</th>
+              <th>PR</th>
+              <th>Commit</th>
+              <th>デプロイ</th>
+              <th>本番確認</th>
+              <th>GA4 / GSC</th>
+              <th>エラー</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @lp_integration.sync_tasks.each do |task| %>
+              <% submission = task.codex_submission %>
+              <tr>
+                <td><%= l(task.created_at, format: :short) %></td>
+                <td><%= task.generated_by == "owner" ? "Owner" : task.generated_by %></td>
+                <td><%= @business.name %></td>
+                <td><%= task.metadata.to_h["lp_source_prototype_id"] ? "Prototype ##{task.metadata.to_h['lp_source_prototype_id']}" : "設定値" %></td>
+                <td><%= task.metadata.to_h["target_repository_url"].presence || "未設定" %></td>
+                <td><%= link_to @lp_integration.task_status_label(task), auto_revision_task_path(task) %></td>
+                <td>
+                  <% if submission&.github_issue_url.present? %>
+                    <%= link_to "Issue", submission.github_issue_url, target: "_blank", rel: "noopener" %>
+                  <% else %>
+                    未作成
+                  <% end %>
+                </td>
+                <td><%= submission&.pr_url.present? ? link_to("PR", submission.pr_url, target: "_blank", rel: "noopener") : "未作成" %></td>
+                <td><%= @lp_integration.task_commit_sha(task).presence || "未登録" %></td>
+                <td><%= @lp_integration.task_deploy_status(task) %></td>
+                <td><%= task == @lp_integration.latest_task && @lp_integration.last_verified_at ? "確認済み" : "未確認" %></td>
+                <td><%= @lp_integration.ga4_summary.status_label %> / <%= @lp_integration.gsc_summary.status_label %></td>
+                <td><%= (task.error_message.presence || submission&.error_message.presence)&.truncate(120) || "なし" %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% else %>
+      <div class="empty-state">
+        <p>LP同期履歴はまだありません。</p>
+        <p>設定を保存し、「LP取り込みタスクを作成」を押すとここに追加されます。</p>
+      </div>
+    <% end %>
+  </section>
+</div>
