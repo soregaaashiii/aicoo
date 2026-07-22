@@ -168,8 +168,11 @@ Rails.application.routes.draw do
     resource :access_settings, only: [], controller: "business_access_settings" do
       patch :service, action: :update_service
       patch :landing_page, action: :update_landing_page
-      post :landing_page_task, action: :create_landing_page_task
+      post "landing_pages/:landing_page_id/sync", action: :create_landing_page_task, as: :landing_page_task
+      post "landing_pages/:landing_page_id/improve", action: :improve_landing_page, as: :improve_landing_page
+      delete "landing_pages/:landing_page_id", action: :destroy_landing_page, as: :remove_landing_page
       patch :production, action: :update_production
+      patch :measurement, action: :update_measurement
       post :verify_production
     end
     resource :lp_integration, only: %i[show update], controller: "business_lp_integrations" do

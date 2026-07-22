@@ -51,6 +51,10 @@ class AicooCodexPromptTargetValidationService
   def validate_target_repository_fields
     add_error("target_repository_nameが未設定です。", "target_repository_name") if task.target_repository_name.blank?
     add_error("target_repository_typeが未設定です。", "target_repository_type") if task.target_repository_type.blank?
+    return unless task.external_repository_override?
+
+    add_error("LPのtarget_repository_urlが未設定です。", "target_repository_url") if task.effective_codex_repository_url.blank?
+    add_error("LPのtarget_branchが未設定です。", "target_branch") if task.effective_codex_base_branch.blank?
   end
 
   def validate_profile
@@ -75,6 +79,8 @@ class AicooCodexPromptTargetValidationService
   end
 
   def validate_target_matches_profile
+    return if task.external_repository_override?
+
     if task.target_repository_name.present? && profile.repository_name.present? && task.target_repository_name != profile.repository_name
       add_error("target_repository_nameがBusinessExecutionProfileのrepository_nameと一致しません。", "target_repository_name")
     end

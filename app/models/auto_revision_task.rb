@@ -58,6 +58,8 @@ class AutoRevisionTask < ApplicationRecord
       create!(
         action_candidate:,
         business: action_candidate.business,
+        target_repository_name: action_candidate.metadata.to_h["target_repository_name"],
+        target_repository_type: action_candidate.metadata.to_h["target_repository_type"],
         title: action_candidate.title,
         execution_prompt: Aicoo::ExecutionPromptBuilder.new(action_candidate).call,
         priority_score: action_candidate.final_score.to_d,
@@ -69,7 +71,16 @@ class AutoRevisionTask < ApplicationRecord
           "generation_source" => action_candidate.generation_source,
           "evaluation_reason" => action_candidate.evaluation_reason,
           "final_score" => action_candidate.final_score.to_s
-        }
+        }.merge(action_candidate.metadata.to_h.slice(
+          "workflow_type",
+          "landing_page_id",
+          "target_repository_url",
+          "target_branch",
+          "target_deploy_target",
+          "target_url",
+          "ga4_page_path",
+          "service_repository_protected"
+        ))
       )
   end
 
@@ -310,30 +321,30 @@ class AutoRevisionTask < ApplicationRecord
       対象事業: #{business.name}
       対象リポジトリ: #{target_repository_display}
       リポジトリ種別: #{target_repository_type.presence || "-"}
-      GitHub Repository: #{execution_profile&.github_repository.presence || "-"}
+      GitHub Repository: #{effective_codex_repository_url.presence || "-"}
       Codex Workspace: #{execution_profile&.codex_workspace_name.presence || "-"}
-      Codex Project Folder: #{execution_profile&.codex_project_folder.presence || "-"}
-      Codex Repository URL: #{execution_profile&.effective_codex_repository_url.presence || "-"}
-      Codex Base Branch: #{execution_profile&.effective_codex_base_branch.presence || "main"}
+      Codex Project Folder: #{effective_codex_project_folder.presence || "-"}
+      Codex Repository URL: #{effective_codex_repository_url.presence || "-"}
+      Codex Base Branch: #{effective_codex_base_branch}
       Codex Working Branch: #{codex_working_branch_name}
       Codex Auto Submit Enabled: #{execution_profile&.codex_auto_submit_enabled? ? "true" : "false"}
       Codex Auto PR Enabled: #{execution_profile&.codex_auto_pr_enabled? ? "true" : "false"}
-      Codex Auto Merge Enabled: #{execution_profile&.codex_auto_merge_enabled? ? "true" : "false"}
-      Codex Auto Deploy Enabled: #{execution_profile&.codex_auto_deploy_enabled? ? "true" : "false"}
+      Codex Auto Merge Enabled: #{external_repository_override? ? "false" : execution_profile&.codex_auto_merge_enabled? ? "true" : "false"}
+      Codex Auto Deploy Enabled: #{external_repository_override? ? "false" : execution_profile&.codex_auto_deploy_enabled? ? "true" : "false"}
       Codex Risk Limit: #{execution_profile&.codex_risk_limit.presence || "low"}
-      Repository Path: #{execution_profile&.repository_path.presence || "-"}
-      Default Branch: #{execution_profile&.default_branch.presence || "-"}
+      Repository Path: #{external_repository_override? ? "-" : execution_profile&.repository_path.presence || "-"}
+      Default Branch: #{effective_codex_base_branch}
       Working Branch: #{working_branch_name}
       Commit Message: #{suggested_commit_message}
-      Deploy Target: #{execution_profile&.deploy_target.presence || "-"}
-      Render Service: #{execution_profile&.render_service_name.presence || "-"}
-      Auto Merge Enabled: #{execution_profile&.auto_merge_enabled? ? "true" : "false"}
-      Auto Deploy Enabled: #{execution_profile&.auto_deploy_enabled? ? "true" : "false"}
+      Deploy Target: #{effective_deploy_target.presence || "-"}
+      Render Service: #{external_repository_override? ? "-" : execution_profile&.render_service_name.presence || "-"}
+      Auto Merge Enabled: #{external_repository_override? ? "false" : execution_profile&.auto_merge_enabled? ? "true" : "false"}
+      Auto Deploy Enabled: #{external_repository_override? ? "false" : execution_profile&.auto_deploy_enabled? ? "true" : "false"}
       Auto Deploy Risk Limit: #{execution_profile&.auto_deploy_risk_limit.presence || "low"}
       Require Manual Approval: #{execution_profile&.require_manual_approval? ? "true" : "false"}
-      PR/Deploy Flow: #{execution_profile ? execution_profile.deploy_flow_label_for(self) : "Execution Profile未設定のためPR作成まで"}
-      Deploy Verification URL: #{execution_profile&.production_url.presence || "-"}
-      Health Check URL: #{execution_profile&.health_check_url.presence || "-"}
+      PR/Deploy Flow: #{deploy_flow_label}
+      Deploy Verification URL: #{metadata.to_h["target_url"].presence || execution_profile&.production_url.presence || "-"}
+      Health Check URL: #{external_repository_override? ? "-" : execution_profile&.health_check_url.presence || "-"}
       action_type: #{metadata.to_h["action_type"].presence || action_candidate.action_type}
       risk_level: #{risk_level}
       rollback方針: 変更前commitを控え、異常時はAICOOにRollback依頼を記録する
@@ -396,6 +407,33 @@ class AutoRevisionTask < ApplicationRecord
     profile
   end
 
+  def external_repository_override?
+    metadata.to_h["workflow_type"].to_s.start_with?("external_lp_") &&
+      metadata.to_h["target_repository_url"].present?
+  end
+
+  def effective_codex_repository_url
+    metadata.to_h["target_repository_url"].presence || execution_profile&.effective_codex_repository_url
+  end
+
+  def effective_codex_base_branch
+    metadata.to_h["target_branch"].presence || execution_profile&.effective_codex_base_branch || "main"
+  end
+
+  def effective_codex_project_folder
+    return target_repository_name.presence || repository_name_from_url(effective_codex_repository_url) if external_repository_override?
+
+    execution_profile&.codex_project_folder
+  end
+
+  def repository_name_from_url(url)
+    File.basename(url.to_s.delete_suffix("/"), ".git")
+  end
+
+  def effective_deploy_target
+    metadata.to_h["target_deploy_target"].presence || execution_profile&.deploy_target
+  end
+
   def target_repository_display
     target_repository_name.presence || execution_profile&.display_repository_name || "-"
   end
@@ -440,30 +478,30 @@ class AutoRevisionTask < ApplicationRecord
       - Business: #{business.name}
       - Target Repository Name: #{target_repository_name.presence || "-"}
       - Target Repository Type: #{target_repository_type.presence || "-"}
-      - GitHub Repository: #{profile&.github_repository.presence || "-"}
+      - GitHub Repository: #{effective_codex_repository_url.presence || "-"}
       - Codex Workspace: #{profile&.codex_workspace_name.presence || "-"}
-      - Codex Project Folder: #{profile&.codex_project_folder.presence || "-"}
-      - Codex Repository URL: #{profile&.effective_codex_repository_url.presence || "-"}
-      - Codex Base Branch: #{profile&.effective_codex_base_branch.presence || "main"}
+      - Codex Project Folder: #{effective_codex_project_folder.presence || "-"}
+      - Codex Repository URL: #{effective_codex_repository_url.presence || "-"}
+      - Codex Base Branch: #{effective_codex_base_branch}
       - Codex Working Branch: #{codex_working_branch_name}
       - Codex Auto Submit Enabled: #{profile&.codex_auto_submit_enabled? ? "true" : "false"}
       - Codex Auto PR Enabled: #{profile&.codex_auto_pr_enabled? ? "true" : "false"}
-      - Codex Auto Merge Enabled: #{profile&.codex_auto_merge_enabled? ? "true" : "false"}
-      - Codex Auto Deploy Enabled: #{profile&.codex_auto_deploy_enabled? ? "true" : "false"}
+      - Codex Auto Merge Enabled: #{external_repository_override? ? "false" : profile&.codex_auto_merge_enabled? ? "true" : "false"}
+      - Codex Auto Deploy Enabled: #{external_repository_override? ? "false" : profile&.codex_auto_deploy_enabled? ? "true" : "false"}
       - Codex Risk Limit: #{profile&.codex_risk_limit.presence || "low"}
-      - Repository Path: #{profile&.repository_path.presence || "-"}
-      - Default Branch: #{profile&.default_branch.presence || "-"}
+      - Repository Path: #{external_repository_override? ? "-" : profile&.repository_path.presence || "-"}
+      - Default Branch: #{effective_codex_base_branch}
       - Working Branch: #{working_branch_name}
       - Commit Message: #{suggested_commit_message}
-      - Deploy Target: #{profile&.deploy_target.presence || "-"}
-      - Render Service: #{profile&.render_service_name.presence || "-"}
-      - Deploy Verification URL: #{profile&.production_url.presence || "-"}
-      - Health Check URL: #{profile&.health_check_url.presence || "-"}
-      - Auto Deploy Enabled: #{profile&.auto_deploy_enabled? ? "true" : "false"}
-      - Auto Merge Enabled: #{profile&.auto_merge_enabled? ? "true" : "false"}
+      - Deploy Target: #{effective_deploy_target.presence || "-"}
+      - Render Service: #{external_repository_override? ? "-" : profile&.render_service_name.presence || "-"}
+      - Deploy Verification URL: #{metadata.to_h["target_url"].presence || profile&.production_url.presence || "-"}
+      - Health Check URL: #{external_repository_override? ? "-" : profile&.health_check_url.presence || "-"}
+      - Auto Deploy Enabled: #{external_repository_override? ? "false" : profile&.auto_deploy_enabled? ? "true" : "false"}
+      - Auto Merge Enabled: #{external_repository_override? ? "false" : profile&.auto_merge_enabled? ? "true" : "false"}
       - Auto Deploy Risk Limit: #{profile&.auto_deploy_risk_limit.presence || "low"}
       - Require Manual Approval: #{profile&.require_manual_approval? ? "true" : "false"}
-      - PR/Deploy Flow: #{profile ? profile.deploy_flow_label_for(self) : "Execution Profile未設定のためPR作成まで"}
+      - PR/Deploy Flow: #{deploy_flow_label}
       - Rollback Policy: 変更前commitを控え、異常時はRollback依頼をAICOOに記録する
       - Risk Level: #{risk_level}
       - Priority Score: #{priority_score}
@@ -478,13 +516,13 @@ class AutoRevisionTask < ApplicationRecord
 
       ## Repository Commands
 
-      - Test Command: #{profile&.test_command.presence || "bin/rails test"}
-      - Lint Command: #{profile&.lint_command.presence || "RUBOCOP_CACHE_ROOT=tmp/rubocop_cache bundle exec rubocop"}
-      - Deploy Command: #{profile&.deploy_command.presence || "-"}
+      - Test Command: #{external_repository_override? ? "LPリポジトリの既存package scriptsを使用" : profile&.test_command.presence || "bin/rails test"}
+      - Lint Command: #{external_repository_override? ? "LPリポジトリの既存package scriptsを使用" : profile&.lint_command.presence || "RUBOCOP_CACHE_ROOT=tmp/rubocop_cache bundle exec rubocop"}
+      - Deploy Command: #{external_repository_override? ? "-" : profile&.deploy_command.presence || "-"}
 
       ## GitHub / PR / Deploy Flow
 
-      - Base Branch: #{profile&.default_branch.presence || "main"}
+      - Base Branch: #{effective_codex_base_branch}
       - Working Branch: #{working_branch_name}
       - Commit Message: #{suggested_commit_message}
       - Pull Request: main直接push禁止。必ず作業ブランチからPRを作成する
@@ -492,10 +530,10 @@ class AutoRevisionTask < ApplicationRecord
       - auto_deploy_enabled=false の場合はPR作成までで停止
       - auto_deploy_enabled=true でもrisk limitを超える場合はPR作成までで停止
       - auto_merge_enabled=false の場合はPR作成までで停止
-      - Deploy Target: #{profile&.deploy_target.presence || "-"}
-      - Render Service: #{profile&.render_service_name.presence || "-"}
-      - Deploy Verification URL: #{profile&.production_url.presence || "-"}
-      - Health Check URL: #{profile&.health_check_url.presence || "-"}
+      - Deploy Target: #{effective_deploy_target.presence || "-"}
+      - Render Service: #{external_repository_override? ? "-" : profile&.render_service_name.presence || "-"}
+      - Deploy Verification URL: #{metadata.to_h["target_url"].presence || profile&.production_url.presence || "-"}
+      - Health Check URL: #{external_repository_override? ? "-" : profile&.health_check_url.presence || "-"}
       - Rollback: deploy後に異常があれば変更commitを控えてRollback可能にする
 
       ## Forbidden Patterns
@@ -738,53 +776,56 @@ class AutoRevisionTask < ApplicationRecord
   end
 
   def auto_deploy_allowed?
-    return false if article_opportunity_codex_connection_only?
+    return false if article_opportunity_codex_connection_only? || external_repository_override?
 
     execution_profile&.auto_deploy_allowed_for?(self) || false
   end
 
   def auto_merge_allowed?
-    return false if article_opportunity_codex_connection_only?
+    return false if article_opportunity_codex_connection_only? || external_repository_override?
 
     execution_profile&.auto_merge_allowed_for?(self) || false
   end
 
   def deploy_flow_label
+    return "LP専用PR作成までで停止" if external_repository_override?
+
     execution_profile&.deploy_flow_label_for(self) || "Execution Profile未設定のためPR作成まで"
   end
 
   def execution_metadata(operator:)
     profile = execution_profile
     article_opportunity_connection = article_opportunity_codex_connection_only?
+    external_repository_connection = external_repository_override?
     {
       operator:,
       business_id: business_id,
       risk_level: risk_level,
-      github_repository: profile&.github_repository,
-      base_branch: profile&.default_branch || "main",
+      github_repository: effective_codex_repository_url,
+      base_branch: effective_codex_base_branch,
       working_branch: working_branch_name,
-      deploy_target: profile&.deploy_target,
-      render_service_name: profile&.render_service_name,
-      deploy_url: profile&.production_url,
-      health_check_url: profile&.health_check_url,
-      auto_deploy_enabled: article_opportunity_connection ? false : (profile&.auto_deploy_enabled? || false),
-      auto_merge_enabled: article_opportunity_connection ? false : (profile&.auto_merge_enabled? || false),
+      deploy_target: effective_deploy_target,
+      render_service_name: external_repository_override? ? nil : profile&.render_service_name,
+      deploy_url: metadata.to_h["target_url"].presence || profile&.production_url,
+      health_check_url: external_repository_override? ? nil : profile&.health_check_url,
+      auto_deploy_enabled: article_opportunity_connection || external_repository_connection ? false : (profile&.auto_deploy_enabled? || false),
+      auto_merge_enabled: article_opportunity_connection || external_repository_connection ? false : (profile&.auto_merge_enabled? || false),
       codex_submission_id: codex_submission&.id,
       codex_workspace_name: profile&.codex_workspace_name,
-      codex_project_folder: profile&.codex_project_folder,
-      codex_repository_url: profile&.effective_codex_repository_url,
-      codex_base_branch: profile&.effective_codex_base_branch,
+      codex_project_folder: effective_codex_project_folder,
+      codex_repository_url: effective_codex_repository_url,
+      codex_base_branch: effective_codex_base_branch,
       codex_working_branch: codex_working_branch_name,
       codex_auto_submit_enabled: profile&.codex_auto_submit_enabled? || false,
       codex_auto_pr_enabled: profile&.codex_auto_pr_enabled? || false,
-      codex_auto_merge_enabled: article_opportunity_connection ? false : (profile&.codex_auto_merge_enabled? || false),
-      codex_auto_deploy_enabled: article_opportunity_connection ? false : (profile&.codex_auto_deploy_enabled? || false),
+      codex_auto_merge_enabled: article_opportunity_connection || external_repository_connection ? false : (profile&.codex_auto_merge_enabled? || false),
+      codex_auto_deploy_enabled: article_opportunity_connection || external_repository_connection ? false : (profile&.codex_auto_deploy_enabled? || false),
       codex_risk_limit: profile&.codex_risk_limit,
       auto_deploy_allowed: auto_deploy_allowed?,
       auto_merge_allowed: auto_merge_allowed?,
       auto_deploy_risk_limit: profile&.auto_deploy_risk_limit,
       require_manual_approval: profile&.require_manual_approval? || false,
-      deploy_flow: profile&.deploy_flow_for(self),
+      deploy_flow: external_repository_connection ? "draft_pr_only" : profile&.deploy_flow_for(self),
       commit_message: suggested_commit_message,
       rollback_policy: "変更前commitを控え、異常時はRollback依頼をAICOOに記録する"
     }

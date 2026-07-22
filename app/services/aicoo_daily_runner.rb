@@ -197,6 +197,16 @@ class AicooDailyRunner
     )
     article_opportunity_result = nil
 
+    landing_page_result = record_step!(run, "landing_page_opportunity_analysis") do
+      Aicoo::LpIntegration::LandingPageImprovementBatchAnalyzer.call
+    end
+    log!(
+      "LandingPageOpportunityAnalysis businesses=#{landing_page_result.business_count} " \
+      "landing_pages=#{landing_page_result.landing_page_count} analyzed=#{landing_page_result.analyzed_count} " \
+      "candidates=#{landing_page_result.candidate_count} failed=#{landing_page_result.failed_count}"
+    )
+    landing_page_result = nil
+
     run_source_app_diff_detection!(run)
 
     adjustment_logs = record_step!(run, "proxy_weight_adjustment") do

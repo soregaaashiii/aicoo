@@ -22,9 +22,7 @@ module Aicoo
       end
 
       def source_prototype
-        @source_prototype ||= business.business_prototypes.active.recent.detect do |prototype|
-          prototype.metadata.to_h["role"] == ROLE
-        end
+        @source_prototype ||= business.business_prototypes.active.external_landing_pages.first
       end
 
       def analytics_site
@@ -114,7 +112,7 @@ module Aicoo
       end
 
       def ga4_measurement_id
-        source_metadata["ga4_measurement_id"]
+        business.metadata.to_h["lp_ga4_measurement_id"].presence || source_metadata["ga4_measurement_id"]
       end
 
       def gsc_site_url
@@ -122,11 +120,13 @@ module Aicoo
       end
 
       def integration_enabled?
+        return activity_connection.enabled? && activity_connection.status == "active" if activity_connection
+
         ActiveModel::Type::Boolean.new.cast(source_metadata["integration_enabled"])
       end
 
       def activity_api_enabled?
-        integration_enabled? && activity_connection&.enabled? && activity_connection&.status == "active"
+        integration_enabled?
       end
 
       def auto_deploy_enabled?

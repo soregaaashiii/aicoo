@@ -20,9 +20,9 @@ module Aicoo
         business_execution_profile: profile,
         status: status,
         workspace_name: profile.codex_workspace_name,
-        project_folder: profile.codex_project_folder,
-        repository_url: profile.effective_codex_repository_url,
-        base_branch: profile.effective_codex_base_branch,
+        project_folder: auto_revision_task.effective_codex_project_folder,
+        repository_url: auto_revision_task.effective_codex_repository_url,
+        base_branch: auto_revision_task.effective_codex_base_branch,
         working_branch: auto_revision_task.codex_working_branch_name,
         prompt: prompt_body,
         error_message: reasons.join("\n").presence
@@ -85,9 +85,9 @@ module Aicoo
 
         - Service Name: #{auto_revision_task.business.name}
         - Business ID: #{auto_revision_task.business_id}
-        - Project Folder: #{profile.codex_project_folder}
-        - Repository URL: #{profile.effective_codex_repository_url}
-        - Base Branch: #{profile.effective_codex_base_branch}
+        - Project Folder: #{auto_revision_task.effective_codex_project_folder}
+        - Repository URL: #{auto_revision_task.effective_codex_repository_url}
+        - Base Branch: #{auto_revision_task.effective_codex_base_branch}
         - Working Branch: #{auto_revision_task.codex_working_branch_name}
         - Codex Workspace: #{profile.codex_workspace_name.presence || "-"}
 
@@ -96,8 +96,8 @@ module Aicoo
         - main直接pushは禁止
         - 作業ブランチからPRを作成してください
         - Auto PR: #{profile.codex_auto_pr_enabled? ? "可" : "不可"}
-        - Auto Merge: #{profile.codex_auto_merge_enabled? ? "可" : "不可"}
-        - Auto Deploy: #{profile.codex_auto_deploy_enabled? ? "可" : "不可"}
+        - Auto Merge: #{auto_revision_task.external_repository_override? ? "不可" : profile.codex_auto_merge_enabled? ? "可" : "不可"}
+        - Auto Deploy: #{auto_revision_task.external_repository_override? ? "不可" : profile.codex_auto_deploy_enabled? ? "可" : "不可"}
         - Risk Limit: #{profile.codex_risk_limit}
         - Task Risk: #{auto_revision_task.risk_level}
         - high riskの場合は自動merge・自動deployは禁止
@@ -105,10 +105,10 @@ module Aicoo
 
         ## Deploy Target
 
-        - Deploy Target: #{profile.deploy_target.presence || "-"}
-        - Render Service Name: #{profile.render_service_name.presence || "-"}
-        - Production URL: #{profile.production_url.presence || "-"}
-        - Health Check URL: #{profile.health_check_url.presence || "-"}
+        - Deploy Target: #{auto_revision_task.effective_deploy_target.presence || "-"}
+        - Render Service Name: #{auto_revision_task.external_repository_override? ? "-" : profile.render_service_name.presence || "-"}
+        - Production URL: #{auto_revision_task.metadata.to_h["target_url"].presence || profile.production_url.presence || "-"}
+        - Health Check URL: #{auto_revision_task.external_repository_override? ? "-" : profile.health_check_url.presence || "-"}
 
         ## Estimated Target Files
 
@@ -139,6 +139,8 @@ module Aicoo
     end
 
     def target_paths_prompt
+      return "- LP repository root" if auto_revision_task.external_repository_override?
+
       paths = Array(profile.target_paths).presence
       return "- 未設定。対象ファイルはタスク内容から最小範囲で推定してください。" unless paths
 

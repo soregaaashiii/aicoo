@@ -1,0 +1,56 @@
+<% metadata = landing_page&.metadata.to_h || {} %>
+<% source_options = Aicoo::LpIntegration::Overview::SOURCE_TYPES.map { |value, label| [label, value] } %>
+<%= form_with url: landing_page_business_access_settings_path(business), method: :patch, scope: :lp_access, class: "business-access-form" do |form| %>
+  <%= form.hidden_field :landing_page_id, value: landing_page&.id %>
+  <div class="field">
+    <%= form.label :name, "LP名" %>
+    <%= form.text_field :name, value: landing_page&.landing_page_name, placeholder: "広告LP" %>
+  </div>
+  <div class="field">
+    <%= form.label :source_type, "作成元" %>
+    <%= form.select :source_type,
+                    options_for_select(source_options, landing_page&.landing_page_source_type || "lovable_github") %>
+  </div>
+  <div class="field">
+    <%= form.label :repository_url, "GitHub Repository" %>
+    <%= form.url_field :repository_url, value: landing_page&.landing_page_repository_url, placeholder: "https://github.com/owner/lp" %>
+  </div>
+  <div class="field">
+    <%= form.label :lovable_project_url, "Lovable Project URL" %>
+    <%= form.url_field :lovable_project_url, value: metadata["lovable_project_url"], placeholder: "https://lovable.dev/projects/..." %>
+  </div>
+  <div class="field">
+    <%= form.label :url, "公開URL" %>
+    <%= form.url_field :url, value: landing_page&.landing_page_url, placeholder: "https://lp.example.com/ai-reception" %>
+  </div>
+  <div class="field">
+    <%= form.label :branch, "Branch" %>
+    <%= form.text_field :branch, value: landing_page&.landing_page_branch || "main" %>
+  </div>
+  <div class="field">
+    <%= form.label :ga4_page_path, "GA4 Page Path" %>
+    <%= form.text_field :ga4_page_path, value: landing_page&.landing_page_ga4_path, placeholder: "/ai-reception" %>
+  </div>
+  <div class="field">
+    <%= form.label :public_status, "公開状態" %>
+    <%= form.select :public_status,
+                    options_for_select([["下書き", "draft"], ["公開", "published"], ["一時停止", "paused"]], landing_page&.landing_page_public_status || "draft") %>
+  </div>
+  <div class="field">
+    <%= form.label :cta, "CTA" %>
+    <%= form.text_field :cta, value: metadata["cta"], placeholder: "無料相談を予約" %>
+  </div>
+  <div class="field">
+    <%= form.label :current_conversion_rate, "現在のCV率" %>
+    <%= form.number_field :current_conversion_rate, value: landing_page&.landing_page_conversion_rate, min: 0, step: 0.0001 %>
+  </div>
+  <div class="field">
+    <%= form.label :improvement_target, "改善対象" %>
+    <%= form.text_field :improvement_target, value: metadata["improvement_target"], placeholder: "CTA / SEO / 構成" %>
+  </div>
+  <div class="actions compact-actions">
+    <%= form.submit "保存", class: "button" %>
+    <%= button_tag "保存して同期タスク作成", type: "submit", name: "commit_action", value: "create_task", class: "button secondary" %>
+    <%= link_to "キャンセル", business_path(business, anchor: "business-access-urls"), class: "button secondary" %>
+  </div>
+<% end %>

@@ -3,12 +3,25 @@ module Aicoo
     class LandingPageAnalyticsReader
       Result = Data.define(:ga4, :gsc)
 
-      def initialize(business:, generation_run:, landing_page:, started_at:, ended_at:)
+      def self.latest_snapshots_for(business)
+        %w[ga4 gsc].index_with do |source_type|
+          import_ids = business.data_sources.where(source_type:).joins(:data_imports).pluck("data_imports.id")
+          AicooDataSnapshot
+            .where(source_type:, source_id: import_ids)
+            .where("COALESCE(payload ->> 'snapshot_status', 'active') NOT IN (?)", %w[archived ignored])
+            .recent
+            .first
+        end
+      end
+
+      def initialize(business:, generation_run: nil, landing_page: nil, started_at:, ended_at:, target_paths: nil, snapshots: nil)
         @business = business
         @generation_run = generation_run
         @landing_page = landing_page
         @started_at = started_at
         @ended_at = ended_at
+        @provided_target_paths = target_paths
+        @provided_snapshots = snapshots&.stringify_keys
       end
 
       def call
@@ -19,7 +32,7 @@ module Aicoo
 
       private
 
-      attr_reader :business, :generation_run, :landing_page, :started_at, :ended_at
+      attr_reader :business, :generation_run, :landing_page, :started_at, :ended_at, :provided_target_paths, :provided_snapshots
 
       def ga4_metrics
         rows = matching_rows("ga4")
@@ -37,6 +50,8 @@ module Aicoo
           "sessions" => sessions.to_i,
           "engagement_seconds" => sessions.positive? ? (engagement_total / sessions).round(2).to_f : nil,
           "event_count" => rows.sum { |row| decimal(value(row, "eventCount", "event_count", metric_index: 3)) }.to_i,
+          "conversions" => rows.sum { |row| decimal(value(row, "keyEvents", "conversions", "conversion_count")) }.to_i,
+          "cta_clicks" => rows.sum { |row| decimal(value(row, "ctaClicks", "cta_clicks", "cta_click_count")) }.to_i,
           "landing_page_views" => rows.sum { |row| decimal(value(row, "landingPageViews", "landing_page_views")) }.to_i,
           "bounce_rate" => average(bounce_values),
           "page_paths" => rows.map { |row| page_value(row) }.uniq.first(20),
@@ -112,6 +127,8 @@ module Aicoo
       end
 
       def latest_snapshot(source_type)
+        return provided_snapshots[source_type] if provided_snapshots&.key?(source_type)
+
         @latest_snapshots ||= {}
         return @latest_snapshots[source_type] if @latest_snapshots.key?(source_type)
 
@@ -124,7 +141,7 @@ module Aicoo
       end
 
       def target_paths
-        @target_paths ||= [
+        @target_paths ||= Array(provided_target_paths).presence&.filter_map { |value| normalize(value) }&.uniq || [
           generation_run.metadata.to_h.dig("publication", "production_url"),
           landing_page.published_slug.present? ? "/lp/#{landing_page.published_slug}" : nil,
           generation_run.metadata.to_h["page_path"],

@@ -1,0 +1,193 @@
+<% access_overview = business_access_overview %>
+<% analytics_site = access_overview.analytics_site %>
+
+<section class="dashboard-section" id="business-access-urls">
+  <div class="section-heading">
+    <div>
+      <h2>公開確認URL</h2>
+      <p>Service本体、複数LP、共通計測を分離して管理します。LPはCloudflare Pagesなどの静的ホスティングを前提に改善します。</p>
+    </div>
+  </div>
+
+  <div class="metric-grid business-access-grid">
+    <div class="metric-card business-access-card" id="business-service-access-card">
+      <div class="business-access-card-heading">
+        <div>
+          <span>Service</span>
+          <strong><%= business_services.size %>件</strong>
+        </div>
+        <small>Renderで動くサービス本体</small>
+      </div>
+
+      <div class="business-access-item-list">
+        <% business_services.each do |service| %>
+          <% metadata = service.metadata.to_h %>
+          <article class="business-access-list-item">
+            <div>
+              <strong><%= service.name %></strong>
+              <small><%= service.render_service.presence || "Render未設定" %></small>
+            </div>
+            <dl class="business-access-values">
+              <dt>GitHub</dt>
+              <dd><%= service.repository.presence || "未設定" %></dd>
+              <dt>Production</dt>
+              <dd><%= service.url.presence || "未設定" %></dd>
+              <dt>Health Check</dt>
+              <dd><%= metadata["health_check_url"].presence || "未設定" %></dd>
+            </dl>
+            <div class="business-access-card-actions">
+              <details class="business-access-editor">
+                <summary class="button secondary">編集</summary>
+                <%= render "business_service_access_form", business:, service: %>
+              </details>
+              <% if service.url.present? %>
+                <%= link_to "開く", service.url, class: "button secondary", target: "_blank", rel: "noopener" %>
+              <% end %>
+            </div>
+          </article>
+        <% end %>
+      </div>
+
+      <% if business_services.empty? %>
+        <p class="aicoo-empty-state">Serviceは未登録です。サービス本体のGitHub・Render・Productionを登録してください。</p>
+      <% end %>
+
+      <details class="business-access-editor business-access-add-editor">
+        <summary class="button">+ Service追加</summary>
+        <%= render "business_service_access_form", business:, service: nil %>
+      </details>
+    </div>
+
+    <div class="metric-card business-access-card" id="business-lp-access-card">
+      <div class="business-access-card-heading">
+        <div>
+          <span>LP</span>
+          <strong><%= external_landing_pages.size %>件</strong>
+        </div>
+        <small>Cloudflare Pages標準 / Serviceと分離</small>
+      </div>
+
+      <div class="business-access-item-list business-lp-list">
+        <% external_landing_pages.each do |landing_page| %>
+          <% metadata = landing_page.metadata.to_h %>
+          <article class="business-access-list-item" id="external-lp-<%= landing_page.id %>">
+            <div class="business-access-item-heading">
+              <div>
+                <strong><%= landing_page.landing_page_name %></strong>
+                <small><%= landing_page.landing_page_url.presence || "URL未設定" %></small>
+              </div>
+              <span class="pill"><%= landing_page.landing_page_public_status_label %></span>
+            </div>
+            <dl class="business-access-values">
+              <dt>GitHub</dt>
+              <dd><%= landing_page.landing_page_repository_url.presence || "未設定" %></dd>
+              <dt>GA4 Path</dt>
+              <dd><%= landing_page.landing_page_ga4_path.presence || "未設定" %></dd>
+              <dt>CV</dt>
+              <dd><%= landing_page.landing_page_conversion_rate ? number_to_percentage(landing_page.landing_page_conversion_rate * 100, precision: 2) : "未計測" %></dd>
+              <dt>改善候補</dt>
+              <dd><%= metadata["improvement_target"].presence || "未分析" %></dd>
+              <dt>期待利益</dt>
+              <dd><%= metadata["expected_profit_yen"].present? ? number_to_currency(metadata["expected_profit_yen"], unit: "¥", precision: 0) : "未算定" %></dd>
+              <dt>期待CV</dt>
+              <dd><%= metadata["expected_cv"].presence || "未算定" %></dd>
+              <dt>期待時給</dt>
+              <dd><%= metadata["expected_hourly_value_yen"].present? ? number_to_currency(metadata["expected_hourly_value_yen"], unit: "¥", precision: 0) : "未算定" %></dd>
+              <dt>同期状態</dt>
+              <dd><%= landing_page.landing_page_sync_status_label %></dd>
+              <dt>最終同期</dt>
+              <dd><%= landing_page.landing_page_last_sync_at ? l(landing_page.landing_page_last_sync_at, format: :short) : "未同期" %></dd>
+            </dl>
+            <div class="business-access-card-actions">
+              <details class="business-access-editor">
+                <summary class="button secondary">編集</summary>
+                <%= render "external_landing_page_form", business:, landing_page: %>
+              </details>
+              <% if landing_page.landing_page_url.present? %>
+                <%= link_to "開く", landing_page.landing_page_url, class: "button secondary", target: "_blank", rel: "noopener" %>
+              <% end %>
+              <%= button_to "同期",
+                            landing_page_task_business_access_settings_path(business, landing_page_id: landing_page.id),
+                            method: :post,
+                            class: "button secondary" %>
+              <%= button_to "改善",
+                            improve_landing_page_business_access_settings_path(business, landing_page_id: landing_page.id),
+                            method: :post,
+                            class: "button secondary" %>
+              <%= button_to "削除",
+                            remove_landing_page_business_access_settings_path(business, landing_page_id: landing_page.id),
+                            method: :delete,
+                            class: "button danger",
+                            data: { turbo_confirm: "#{landing_page.landing_page_name}を削除しますか？" } %>
+            </div>
+          </article>
+        <% end %>
+      </div>
+
+      <% if external_landing_pages.empty? %>
+        <p class="aicoo-empty-state">LPは未登録です。GA4/GSCを増やさず、共通ドメイン配下のpage_pathで追加できます。</p>
+      <% end %>
+
+      <details class="business-access-editor business-access-add-editor">
+        <summary class="button">+ LP追加</summary>
+        <%= render "external_landing_page_form", business:, landing_page: nil %>
+      </details>
+    </div>
+
+    <div class="metric-card business-access-card" id="business-measurement-access-card">
+      <div class="business-access-card-heading">
+        <div>
+          <span>計測</span>
+          <strong>LP共通</strong>
+        </div>
+        <small>GA4 1 Property / GSC 1 Domain</small>
+      </div>
+
+      <dl class="business-access-values">
+        <dt>GA4</dt>
+        <dd><%= analytics_site&.ga4_property_id.presence || "未設定" %></dd>
+        <dt>Measurement ID</dt>
+        <dd><%= access_overview.ga4_measurement_id.presence || "未設定" %></dd>
+        <dt>GSC</dt>
+        <dd><%= analytics_site&.gsc_site_url.presence || "未設定" %></dd>
+        <dt>計測ドメイン</dt>
+        <dd><%= analytics_site&.public_url.presence || analytics_site&.domain.presence || "未設定" %></dd>
+        <dt>Activity API</dt>
+        <dd><%= access_overview.activity_api_enabled? ? "接続済み" : "未設定" %></dd>
+      </dl>
+
+      <p class="aicoo-help-text">LP追加時はGA4/GSCを新設しません。各LPのpage_pathとURLで同じ接続から抽出します。</p>
+
+      <details class="business-access-editor business-access-add-editor">
+        <summary class="button"><%= analytics_site ? "共通計測を編集" : "共通計測を設定" %></summary>
+        <%= form_with url: measurement_business_access_settings_path(business), method: :patch, scope: :measurement_access, class: "business-access-form" do |form| %>
+          <div class="field">
+            <%= form.label :public_url, "Cloudflare Pages共通URL" %>
+            <%= form.url_field :public_url, value: analytics_site&.public_url, placeholder: "https://lp.example.com" %>
+          </div>
+          <div class="field">
+            <%= form.label :ga4_measurement_id, "GA4 Measurement ID" %>
+            <%= form.text_field :ga4_measurement_id, value: access_overview.ga4_measurement_id, placeholder: "G-XXXXXXXXXX" %>
+          </div>
+          <div class="field">
+            <%= form.label :ga4_property_id, "GA4 Property ID" %>
+            <%= form.text_field :ga4_property_id, value: analytics_site&.ga4_property_id %>
+          </div>
+          <div class="field">
+            <%= form.label :gsc_site_url, "GSC Domain URL" %>
+            <%= form.url_field :gsc_site_url, value: analytics_site&.gsc_site_url, placeholder: "https://lp.example.com" %>
+          </div>
+          <div class="field checkbox-field">
+            <%= form.check_box :activity_api_enabled, { checked: access_overview.activity_api_enabled? }, "1", "0" %>
+            <%= form.label :activity_api_enabled, "Activity APIを有効にする" %>
+          </div>
+          <div class="actions compact-actions">
+            <%= form.submit "保存", class: "button" %>
+            <%= link_to "Google接続", admin_analytics_sites_path, class: "button secondary" %>
+            <%= link_to "Activity API詳細", admin_source_app_connections_path, class: "button secondary" %>
+          </div>
+        <% end %>
+      </details>
+    </div>
+  </div>
+</section>

@@ -809,6 +809,60 @@ details.revenue-card > summary {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  min-width: 0;
+}
+
+.business-access-grid {
+  align-items: start;
+}
+
+.business-access-card-heading,
+.business-access-item-heading {
+  align-items: flex-start;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.business-access-card-heading > div,
+.business-access-item-heading > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.business-access-item-list {
+  display: grid;
+  gap: 0;
+  max-height: 680px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.business-access-list-item {
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 10px;
+  padding: 14px 0;
+}
+
+.business-access-list-item:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.business-access-list-item:last-child {
+  padding-bottom: 0;
+}
+
+.business-access-list-item strong,
+.business-access-list-item small {
+  overflow-wrap: anywhere;
+}
+
+.business-access-add-editor {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
 }
 
 .business-access-card .business-access-connected {

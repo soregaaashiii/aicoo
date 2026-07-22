@@ -1,0 +1,46 @@
+<% metadata = service&.metadata.to_h || {} %>
+<%= form_with url: service_business_access_settings_path(business), method: :patch, scope: :service_access, class: "business-access-form" do |form| %>
+  <%= form.hidden_field :business_service_id, value: service&.id %>
+  <div class="field">
+    <%= form.label :name, "Service名" %>
+    <%= form.text_field :name, value: service&.name, placeholder: "AI受付 API" %>
+  </div>
+  <div class="field">
+    <%= form.label :github_repository, "GitHub Repository" %>
+    <%= form.url_field :github_repository, value: service&.repository, placeholder: "https://github.com/owner/service" %>
+  </div>
+  <div class="field">
+    <%= form.label :branch, "Branch" %>
+    <%= form.text_field :branch, value: metadata["branch"].presence || "main" %>
+  </div>
+  <div class="field">
+    <%= form.label :framework, "Framework" %>
+    <%= form.select :framework,
+                    options_for_select(BusinessExecutionProfile::REPOSITORY_TYPES.map { |type| [type, type] }, metadata["framework"]) %>
+  </div>
+  <div class="field">
+    <%= form.label :render_service_name, "Render Service" %>
+    <%= form.text_field :render_service_name, value: service&.render_service, placeholder: "service-web" %>
+  </div>
+  <div class="field">
+    <%= form.label :service_url, "Production URL" %>
+    <%= form.url_field :service_url, value: service&.url, placeholder: "https://service.example.com" %>
+  </div>
+  <div class="field">
+    <%= form.label :health_check_url, "Health Check URL" %>
+    <%= form.url_field :health_check_url, value: metadata["health_check_url"], placeholder: "https://service.example.com/up" %>
+  </div>
+  <div class="field">
+    <%= form.label :activity_api_endpoint, "Activity API" %>
+    <%= form.url_field :activity_api_endpoint, value: service&.api_endpoint, placeholder: "https://service.example.com/activity" %>
+  </div>
+  <%= form.hidden_field :deploy_target, value: "render" %>
+  <div class="field checkbox-field">
+    <%= form.check_box :auto_deploy_enabled, { checked: ActiveModel::Type::Boolean.new.cast(metadata["auto_deploy_enabled"]) }, "1", "0" %>
+    <%= form.label :auto_deploy_enabled, "自動デプロイを有効にする" %>
+  </div>
+  <div class="actions compact-actions">
+    <%= form.submit "保存", class: "button" %>
+    <%= link_to "キャンセル", business_path(business, anchor: "business-access-urls"), class: "button secondary" %>
+  </div>
+<% end %>
