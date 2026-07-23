@@ -1,0 +1,95 @@
+<% content_for :title, "#{@business.name} LP生成レビュー" %>
+
+<div class="aicoo-page lp-plan-review-page">
+  <%= render "shared/aicoo_header",
+             title: "LP生成レビュー",
+             description: "AICOOが考えた制作計画です。実行するまでLovable、GitHub、Cloudflareへは送信しません。",
+             active_main: :revenue,
+             actions: link_to("Businessへ戻る", business_path(@business, anchor: "business-access-urls"), class: "button secondary") %>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <div>
+        <h2>生成予定</h2>
+        <p><%= @plan_items.size %>件のLPを、期待利益（円）だけで並べています。</p>
+      </div>
+      <span class="pill"><%= @plan_task&.status == "waiting_approval" ? "承認待ち" : @plan_task&.status %></span>
+    </div>
+
+    <div class="metric-grid lp-plan-review-metrics">
+      <div class="metric-card"><span>LP数</span><strong><%= @review_metrics["lp_count"].to_i %>件</strong></div>
+      <div class="metric-card"><span>期待利益</span><strong><%= number_to_currency(@review_metrics["expected_profit_yen"].to_i, unit: "¥", precision: 0) %></strong></div>
+      <div class="metric-card"><span>期待CV</span><strong><%= @review_metrics["expected_cv"].to_f.round(2) %></strong></div>
+      <div class="metric-card"><span>期待時給</span><strong><%= number_to_currency(@review_metrics["expected_hourly_value_yen"].to_i, unit: "¥", precision: 0) %></strong></div>
+      <div class="metric-card"><span>想定検索流入</span><strong><%= number_with_delimiter(@review_metrics["expected_organic_visits"].to_i) %></strong></div>
+      <div class="metric-card"><span>想定広告流入</span><strong><%= number_with_delimiter(@review_metrics["expected_ad_visits"].to_i) %></strong></div>
+      <div class="metric-card"><span>推定制作時間</span><strong><%= @review_metrics["estimated_work_hours"].to_f.round(1) %>h</strong></div>
+      <div class="metric-card"><span>Codex利用量</span><strong><%= @review_metrics["codex_usage_count"].to_i %> Task</strong></div>
+      <div class="metric-card"><span>Lovable利用量</span><strong><%= @review_metrics["lovable_usage_count"].to_i %> LP</strong></div>
+      <div class="metric-card"><span>Cloudflare公開数</span><strong><%= @review_metrics["cloudflare_publish_count"].to_i %> Path</strong></div>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <div>
+        <h2>LP計画</h2>
+        <p>目的、制作根拠、期待利益を確認できます。キーワード・ペルソナ・CTAはAICOOが決定済みです。</p>
+      </div>
+    </div>
+    <div class="lp-plan-item-list">
+      <% @plan_items.sort_by { |item| -item.dig("strategy", "expected_profit_yen").to_i }.each_with_index do |item, index| %>
+        <% strategy = item.fetch("strategy") %>
+        <article class="metric-card lp-plan-review-item">
+          <div class="business-access-item-heading">
+            <div>
+              <span><%= index + 1 %>位 / <%= item.fetch("purpose_label") %></span>
+              <strong><%= item.fetch("name") %></strong>
+            </div>
+            <strong><%= number_to_currency(strategy["expected_profit_yen"].to_i, unit: "¥", precision: 0) %></strong>
+          </div>
+          <dl class="business-access-values">
+            <dt>ターゲット</dt><dd><%= strategy["target"] %></dd>
+            <dt>CTA</dt><dd><%= strategy["cta"] %></dd>
+            <dt>キーワード</dt><dd><%= Array(strategy["keywords"]).join("、") %></dd>
+            <dt>構成</dt><dd><%= Array(strategy["structure"]).join(" → ") %></dd>
+            <dt>SEO</dt><dd><%= strategy["seo_title"] %></dd>
+            <dt>改善根拠</dt><dd><%= strategy["reason"] %></dd>
+            <dt>期待CV</dt><dd><%= strategy["expected_cv"].to_f.round(2) %></dd>
+            <dt>推定制作時間</dt><dd><%= strategy["estimated_work_hours"].to_f.round(1) %>時間</dd>
+          </dl>
+        </article>
+      <% end %>
+    </div>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <div>
+        <h2>Pipeline</h2>
+        <p>各LPのPrompt生成後もLovable送信前で止まります。公開は別のOwner承認が必要です。</p>
+      </div>
+    </div>
+    <ol class="lp-pipeline-list">
+      <% @pipeline_stages.each do |stage| %>
+        <li class="lp-pipeline-stage status-<%= stage["status"] %>">
+          <strong><%= stage["label"] %></strong>
+          <small><%= { "completed" => "完了", "waiting_approval" => "承認待ち", "pending" => "待機", "blocked" => "前工程待ち" }.fetch(stage["status"], stage["status"]) %></small>
+        </li>
+      <% end %>
+    </ol>
+  </section>
+
+  <div class="lp-plan-review-actions">
+    <% if @plan_metadata["executed_at"].blank? %>
+      <%= button_to "実行",
+                    execute_landing_page_plan_business_access_settings_path(@business, plan_id: @plan.id),
+                    method: :post,
+                    class: "button",
+                    data: { turbo_confirm: "#{@plan_items.size}件のLP Promptを生成します。Lovable・Cloudflareへはまだ送信しません。" } %>
+    <% else %>
+      <span class="pill">Prompt生成済み</span>
+    <% end %>
+    <%= link_to "Businessへ戻る", business_path(@business, anchor: "business-access-urls"), class: "button secondary" %>
+  </div>
+</div>

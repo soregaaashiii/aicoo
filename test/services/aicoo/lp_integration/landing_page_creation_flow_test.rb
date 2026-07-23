@@ -49,7 +49,7 @@ module Aicoo
         assert_equal "build_lp", result.candidate.action_type
         assert_equal "lovable_generation", result.candidate.execution_mode
         assert_equal "waiting_approval", result.task.status
-        assert_equal "prompt_review", result.task.metadata.to_h["pipeline_stage"]
+        assert_equal "lovable_pending", result.task.metadata.to_h["pipeline_stage"]
         assert_equal false, result.task.metadata.to_h["auto_deploy_enabled"]
         assert_equal "cloudflare_pages", result.task.metadata.to_h["target_deploy_target"]
       end

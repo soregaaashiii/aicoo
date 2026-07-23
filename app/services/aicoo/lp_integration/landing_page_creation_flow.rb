@@ -3,16 +3,17 @@ module Aicoo
     class LandingPageCreationFlow
       Result = Data.define(:landing_page, :strategy, :generation_run, :candidate, :task)
 
-      def initialize(business:, campaign:, attributes:, strategy_builder_class: LandingPageStrategyBuilder)
+      def initialize(business:, campaign:, attributes:, strategy_builder_class: LandingPageStrategyBuilder, strategy: nil)
         @business = business
         @campaign = campaign
         @attributes = attributes.to_h.deep_stringify_keys
         @strategy_builder_class = strategy_builder_class
+        @provided_strategy = strategy&.to_h&.deep_stringify_keys
       end
 
       def call
         validate!
-        strategy = strategy_builder_class.new(
+        strategy = provided_strategy || strategy_builder_class.new(
           business:,
           campaign:,
           purpose: attributes.fetch("purpose"),
@@ -38,7 +39,7 @@ module Aicoo
 
       private
 
-      attr_reader :business, :campaign, :attributes, :strategy_builder_class
+      attr_reader :business, :campaign, :attributes, :strategy_builder_class, :provided_strategy
 
       def validate!
         raise ArgumentError, "このBusinessのCampaignではありません。" unless campaign.business_id == business.id
@@ -123,7 +124,8 @@ module Aicoo
             "landing_page_prototype_id" => landing_page.id,
             "campaign_id" => campaign.id,
             "lovable_generation_run_id" => generation_run.id,
-            "pipeline_stage" => "prompt_review",
+            "pipeline_stage" => "lovable_pending",
+            "pipeline_stages" => LandingPagePipelineState.build(current: "lovable_pending"),
             "approval_required_reason" => "Lovable送信前にLP戦略とPromptのOwner確認が必要です。",
             "manual_approval_required" => true,
             "auto_submit_enabled" => false,

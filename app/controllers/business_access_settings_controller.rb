@@ -24,18 +24,51 @@ class BusinessAccessSettingsController < ApplicationController
   def create_landing_page_plan
     values = landing_page_plan_params
     campaign = @business.business_campaigns.active.find(values.fetch(:campaign_id))
-    result = Aicoo::LpIntegration::LandingPageCreationFlow.new(
+    result = Aicoo::LpIntegration::LandingPagePlanFlow.new(
       business: @business,
       campaign:,
       attributes: values
     ).call
-    redirect_to business_lovable_landing_page_path(
-      @business,
-      landing_page_id: result.landing_page.id,
-      anchor: "lovable-prompt"
-    ), notice: "AICOOがLP戦略とLovable Promptを生成しました。確認後にLovableへ送信してください。"
+    redirect_to landing_page_plan_review_business_access_settings_path(@business, plan_id: result.generation_run.id),
+      notice: "AICOOがLP生成計画を作成しました。内容を確認して実行してください。"
   rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotFound, ArgumentError => e
     redirect_to_access_section("LPを生成できませんでした: #{error_message(e)}", alert: true)
+  end
+
+  def create_recommended_landing_page_plan
+    planner = Aicoo::LpIntegration::BusinessLandingPagePlanner.new(@business).call(persist: true)
+    result = Aicoo::LpIntegration::LandingPagePlanFlow.new(
+      business: @business,
+      recommendations: planner.recommendations
+    ).call
+    redirect_to landing_page_plan_review_business_access_settings_path(@business, plan_id: result.generation_run.id),
+      notice: "不足LPを期待利益順で計画しました。実行前に利用量と制作内容を確認してください。"
+  rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotFound, ArgumentError => e
+    redirect_to_access_section("おすすめLPを計画できませんでした: #{error_message(e)}", alert: true)
+  end
+
+  def show_landing_page_plan
+    @plan = landing_page_plan
+    @plan_metadata = @plan.metadata.to_h.deep_stringify_keys
+    @plan_items = Array(@plan_metadata["plan_items"])
+    @review_metrics = @plan_metadata.fetch("review_metrics", {})
+    @pipeline_stages = Array(@plan_metadata["pipeline_stages"])
+    @plan_task = @business.auto_revision_tasks.find_by(id: @plan_metadata["auto_revision_task_id"])
+  end
+
+  def execute_landing_page_plan
+    result = Aicoo::LpIntegration::LandingPagePlanExecutor.new(
+      business: @business,
+      generation_run: landing_page_plan
+    ).call
+    message = if result.already_executed
+      "このLP生成計画は実行済みです。"
+    else
+      "#{result.landing_pages.size}件のLovable Promptを生成し、承認待ちで停止しました。"
+    end
+    redirect_to business_path(@business, anchor: "business-access-urls"), notice: message
+  rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotFound, ArgumentError => e
+    redirect_to_access_section("LP生成計画を実行できませんでした: #{error_message(e)}", alert: true)
   end
 
   def update_campaign
@@ -163,6 +196,15 @@ class BusinessAccessSettingsController < ApplicationController
 
   def landing_page_registry
     @landing_page_registry ||= Aicoo::LpIntegration::LandingPageRegistry.new(business: @business)
+  end
+
+  def landing_page_plan
+    @landing_page_plan ||= AicooLabGenerationRun.find(params.expect(:plan_id)).tap do |run|
+      metadata = run.metadata.to_h
+      unless metadata["pipeline"] == "aicoo_lp_planner" && metadata["business_id"].to_i == @business.id
+        raise ActiveRecord::RecordNotFound, "LP生成計画が見つかりません。"
+      end
+    end
   end
 
   def redirect_to_access_section(message, alert: false)

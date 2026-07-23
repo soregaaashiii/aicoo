@@ -23,7 +23,9 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
     assert_select "#business-access-urls"
     assert_select "#business-service-access-card", text: /Service/
     assert_select "#business-campaign-access-card", text: /Campaign/
+    assert_select "#business-lp-access-card", text: /LP/
     assert_select "#business-measurement-access-card", text: /計測/
+    assert_select "#business-lp-planner-card", text: /改善Planner/
     assert_select "summary", text: "+ Service追加"
     assert_select "summary", text: "+ Campaign追加"
     assert_select "summary", text: "共通計測を設定"
@@ -38,15 +40,47 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select "form.lp-creation-form" do
-      assert_select "input[name='lp_plan[name]']"
       assert_select "select[name='lp_plan[purpose]']"
-      assert_select "textarea[name='lp_plan[notes]']"
-      assert_select "details.lp-advanced-settings", text: /詳細設定/
+      assert_select ".lp-creation-core-fields input[name='lp_plan[name]']", count: 0
+      assert_select ".lp-creation-core-fields textarea[name='lp_plan[notes]']", count: 0
+      assert_select "details.lp-advanced-settings", text: /補足・詳細設定/ do
+        assert_select "input[name='lp_plan[name]']", count: 1
+        assert_select "textarea[name='lp_plan[notes]']", count: 1
+      end
       assert_select "input[name='lp_plan[keywords]']", count: 0
       assert_select "input[name='lp_plan[advanced][keywords]']", count: 1
       assert_select "input[name='lp_plan[campaign_id]'][value='#{campaign.id}']"
       assert_select "input[type='submit'][value='生成開始']"
     end
+  end
+
+  test "landing page generation reviews the plan before materializing a prompt task" do
+    campaign = @business.business_campaigns.create!(name: "SEO", campaign_type: "seo", status: "active")
+    plan = nil
+
+    assert_no_difference [ "BusinessPrototype.count", "AicooAnalyticsSite.count", "AnalyticsSourceSetting.count" ] do
+      assert_difference [ "AicooLabGenerationRun.count", "ActionCandidate.count", "AutoRevisionTask.count" ], 1 do
+        post landing_page_plan_business_access_settings_url(@business), params: {
+          lp_plan: { campaign_id: campaign.id, purpose: "seo" }
+        }
+      end
+      plan = AicooLabGenerationRun.order(:created_at).last
+    end
+
+    assert_redirected_to landing_page_plan_review_business_access_settings_url(@business, plan_id: plan.id)
+    follow_redirect!
+    assert_response :success
+    assert_select "h1, h2", text: /LP生成レビュー/
+    assert_select "form[action='#{execute_landing_page_plan_business_access_settings_path(@business, plan_id: plan.id)}'] button", text: "実行"
+    assert_select ".lp-pipeline-stage", minimum: 9
+    assert_includes response.body, "Lovable、GitHub、Cloudflareへは送信しません"
+
+    assert_difference -> { @business.business_prototypes.active.external_landing_pages.count }, 1 do
+      post execute_landing_page_plan_business_access_settings_url(@business, plan_id: plan.id)
+    end
+    assert_redirected_to business_url(@business, anchor: "business-access-urls")
+    assert_equal "waiting_approval", @business.auto_revision_tasks.order(:created_at).last.status
+    assert_nil @business.auto_revision_tasks.order(:created_at).last.sent_to_codex_at
   end
 
   test "business can store multiple campaigns and landing pages belong to a campaign" do

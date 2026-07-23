@@ -179,6 +179,58 @@
       </details>
     </div>
 
+    <div class="metric-card business-access-card" id="business-lp-access-card">
+      <div class="business-access-card-heading">
+        <div>
+          <span>LP</span>
+          <strong><%= external_landing_pages.size %>件</strong>
+        </div>
+        <small>Cloudflare Pages / page_path単位</small>
+      </div>
+
+      <div class="business-access-item-list">
+        <% campaign_dashboard.flat_map { |row| row.fetch(:landing_pages) }.sort_by { |row| [ -row.fetch(:expected_profit_yen), row.fetch(:landing_page).id ] }.first(8).each do |lp_row| %>
+          <% landing_page = lp_row.fetch(:landing_page) %>
+          <article class="business-access-list-item">
+            <div>
+              <strong><%= landing_page.landing_page_name %></strong>
+              <small><%= landing_page.business_campaign&.name || "未分類" %> / <%= landing_page.landing_page_public_status_label %></small>
+            </div>
+            <dl class="business-access-values">
+              <dt>期待利益</dt>
+              <dd><%= number_to_currency(lp_row.fetch(:expected_profit_yen), unit: "¥", precision: 0) %></dd>
+              <dt>Page Path</dt>
+              <dd><%= landing_page.landing_page_ga4_path.presence || "生成待ち" %></dd>
+              <dt>Pipeline</dt>
+              <dd><%= landing_page.metadata.to_h["planning_status"].presence || landing_page.landing_page_sync_status_label %></dd>
+            </dl>
+            <div class="business-access-card-actions">
+              <% if landing_page.metadata.to_h["lovable_generation_run_id"].present? %>
+                <%= link_to "Promptレビュー",
+                            business_lovable_landing_page_path(business, landing_page_id: landing_page.id, anchor: "lovable-prompt"),
+                            class: "button secondary" %>
+              <% end %>
+              <% if landing_page.landing_page_url.present? %>
+                <%= link_to "開く", landing_page.landing_page_url, class: "button secondary", target: "_blank", rel: "noopener" %>
+              <% end %>
+            </div>
+          </article>
+        <% end %>
+      </div>
+
+      <% if external_landing_pages.empty? %>
+        <p class="aicoo-empty-state">LPはまだありません。目的を選ぶだけでAICOOが制作内容を考えます。</p>
+      <% end %>
+
+      <% if business_campaigns.first %>
+        <%= link_to "+ LP追加",
+                    business_path(business, anchor: "business-campaign-#{business_campaigns.first.id}"),
+                    class: "button" %>
+      <% else %>
+        <p class="aicoo-help-text">LP追加の前にCampaignを1件追加してください。</p>
+      <% end %>
+    </div>
+
     <div class="metric-card business-access-card" id="business-measurement-access-card">
       <div class="business-access-card-heading">
         <div>
@@ -249,6 +301,40 @@
           </div>
         <% end %>
       </details>
+    </div>
+
+    <div class="metric-card business-access-card" id="business-lp-planner-card">
+      <div class="business-access-card-heading">
+        <div>
+          <span>改善Planner</span>
+          <strong><%= landing_page_planner.total_missing_count %> LP</strong>
+        </div>
+        <small>期待利益（円）だけで順位付け</small>
+      </div>
+
+      <div class="business-access-item-list">
+        <% landing_page_planner.recommendations.each_with_index do |recommendation, index| %>
+          <article class="business-access-list-item lp-planner-recommendation">
+            <div class="business-access-item-heading">
+              <div>
+                <span><%= index + 1 %>位</span>
+                <strong><%= recommendation.fetch("purpose_label") %> あと<%= recommendation.fetch("missing_count") %>件</strong>
+              </div>
+              <strong><%= number_to_currency(recommendation.fetch("expected_profit_yen"), unit: "¥", precision: 0) %></strong>
+            </div>
+          </article>
+        <% end %>
+      </div>
+
+      <% if landing_page_planner.recommendations.any? %>
+        <%= button_to "+ おすすめLPを作る",
+                      recommended_landing_page_plan_business_access_settings_path(business),
+                      method: :post,
+                      class: "button",
+                      data: { turbo_confirm: "#{landing_page_planner.total_missing_count}件の生成レビューを作成します。まだLovableやCloudflareへは送信しません。" } %>
+      <% else %>
+        <p class="aicoo-empty-state">現在のCampaign目標と検索需要に対する不足LPはありません。</p>
+      <% end %>
     </div>
   </div>
 </section>
