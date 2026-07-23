@@ -92,7 +92,7 @@ module Aicoo
 
       test "improvement flow creates a waiting approval task for a published landing page" do
         result = nil
-        assert_difference [ "ActionCandidate.count", "AutoRevisionTask.count" ], 1 do
+        assert_difference [ "ActionCandidate.count", "AutoRevisionTask.count", "BusinessPrototype.count" ], 1 do
           result = LandingPageImprovementFlow.new(business: @business, landing_page: @landing_page).call
         end
 
@@ -102,6 +102,23 @@ module Aicoo
         assert_equal "cloudflare_pages", result.task.effective_deploy_target
         assert_equal "LP公開前にOwner確認が必要です。", result.task.metadata.to_h["approval_required_reason"]
         assert_equal false, result.task.metadata.to_h["auto_deploy_enabled"]
+        variant = BusinessPrototype.find(result.task.metadata.to_h.fetch("landing_page_prototype_id"))
+        assert_equal "testing", variant.landing_page_public_status
+        assert_equal @landing_page.id, variant.metadata.to_h["ab_source_landing_page_id"]
+        assert_equal "B", variant.landing_page_ab_test["variant"]
+        assert_equal "published", @landing_page.reload.landing_page_public_status
+        assert_includes result.task.execution_prompt, "現行LP A"
+        assert_includes result.task.execution_prompt, "上書きしない"
+      end
+
+      test "batch analyzer creates a waiting approval task only above the yen threshold" do
+        AicooAutoRevisionSetting.current.update!(minimum_final_score: 1)
+
+        result = LandingPageImprovementBatchAnalyzer.call
+
+        assert_equal 1, result.task_count
+        assert_equal 1, result.task_ids.size
+        assert_equal "waiting_approval", AutoRevisionTask.find(result.task_ids.first).status
       end
 
       test "improvement flow rejects a landing page that is not published" do

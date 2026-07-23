@@ -31,6 +31,24 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
     assert_select "#business-campaign-access-card input[name='measurement_access[gsc_site_url]']", count: 0
   end
 
+  test "landing page creation asks only for purpose and hides optional controls in details" do
+    campaign = @business.business_campaigns.create!(name: "SEO", campaign_type: "seo", status: "active")
+
+    get business_url(@business)
+
+    assert_response :success
+    assert_select "form.lp-creation-form" do
+      assert_select "input[name='lp_plan[name]']"
+      assert_select "select[name='lp_plan[purpose]']"
+      assert_select "textarea[name='lp_plan[notes]']"
+      assert_select "details.lp-advanced-settings", text: /詳細設定/
+      assert_select "input[name='lp_plan[keywords]']", count: 0
+      assert_select "input[name='lp_plan[advanced][keywords]']", count: 1
+      assert_select "input[name='lp_plan[campaign_id]'][value='#{campaign.id}']"
+      assert_select "input[type='submit'][value='生成開始']"
+    end
+  end
+
   test "business can store multiple campaigns and landing pages belong to a campaign" do
     assert_difference -> { @business.business_campaigns.count }, 2 do
       save_campaign(name: "SEO", campaign_type: "seo")

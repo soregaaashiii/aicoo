@@ -100,6 +100,35 @@ module Aicoo
         assert publication["published_at"].present?
         assert_equal "collecting", @run.metadata.dig("learning", "measurement_status")
       end
+
+      test "external landing page publication targets its repository and cloudflare" do
+        campaign = @business.business_campaigns.create!(name: "LP SEO", campaign_type: "seo", status: "active")
+        prototype = Aicoo::LpIntegration::LandingPageRegistry.new(business: @business).save!(
+          campaign_id: campaign.id,
+          name: "SEO LP",
+          source_type: "github",
+          repository_url: "https://github.com/example/seo-lp",
+          branch: "main",
+          public_status: "testing",
+          ga4_page_path: "/seo-lp"
+        )
+        @run.update!(metadata: @run.metadata.to_h.merge(
+          "landing_page_prototype_id" => prototype.id,
+          "campaign_id" => campaign.id
+        ))
+
+        result = PublicationCoordinator.new(github_bridge_class: FakeGithubBridge).call(
+          business: @business,
+          generation_run: @run
+        )
+
+        assert_equal "https://github.com/example/seo-lp", result.auto_revision_task.effective_codex_repository_url
+        assert_equal "cloudflare_pages", result.auto_revision_task.effective_deploy_target
+        assert_equal true, result.auto_revision_task.metadata.to_h["service_repository_protected"]
+        assert_equal false, result.auto_revision_task.metadata.to_h["auto_deploy_enabled"]
+        assert_includes result.action_candidate.execution_prompt, "Service本体のRepositoryは変更しません"
+        assert_not_includes result.action_candidate.execution_prompt, "https://github.com/example/suelog\nBase Branch"
+      end
     end
   end
 end

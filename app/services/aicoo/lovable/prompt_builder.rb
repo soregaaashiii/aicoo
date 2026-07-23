@@ -11,23 +11,24 @@ module Aicoo
         "最終CTA"
       ].freeze
 
-      def initialize(business:, landing_page:, previous_version: nil, learning_version: nil, best_version: nil, change_request: nil)
+      def initialize(business:, landing_page:, previous_version: nil, learning_version: nil, best_version: nil, change_request: nil, strategy: {})
         @business = business
         @landing_page = landing_page
         @previous_version = previous_version
         @learning_version = learning_version
         @best_version = best_version
         @change_request = change_request
+        @strategy = strategy.to_h.deep_stringify_keys
         @metadata = business.metadata.to_h.deep_stringify_keys
       end
 
       def call
-        [ role_and_goal, business_context, content_requirements, design_requirements, implementation_requirements, revision_context ].compact_blank.join("\n\n")
+        [ role_and_goal, business_context, strategy_context, content_requirements, design_requirements, implementation_requirements, revision_context ].compact_blank.join("\n\n")
       end
 
       private
 
-      attr_reader :business, :landing_page, :previous_version, :learning_version, :best_version, :change_request, :metadata
+      attr_reader :business, :landing_page, :previous_version, :learning_version, :best_version, :change_request, :metadata, :strategy
 
       def role_and_goal
         <<~PROMPT.strip
@@ -69,6 +70,34 @@ module Aicoo
           #{DEFAULT_STRUCTURE.map { |item| "  - #{item}" }.join("\n")}
           - 内部向けの説明やAICOO/Lovable/Codexという制作ツール名は公開コピーへ含めないこと。
           - 日本語として自然で、誇大表現を避け、CTAの行動を明確にすること。
+        PROMPT
+      end
+
+      def strategy_context
+        return "" if strategy.blank?
+
+        <<~PROMPT.strip
+          ## AICOOが分析したLP戦略
+          - 作成目的: #{strategy['creation_purpose_label'] || strategy['purpose_label'] || 'LP制作'}
+          - キーワード: #{Array(strategy['keywords']).join('、')}
+          - 検索意図: #{strategy['search_intent']}
+          - ターゲット: #{strategy['target']}
+          - ペルソナ: #{strategy['persona']}
+          - USP: #{strategy['usp']}
+          - 見出し: #{strategy['headline']}
+          - 補足見出し: #{strategy['subheadline']}
+          - CTA: #{strategy['cta']}
+          - FAQ: #{Array(strategy['faq']).join(' / ')}
+          - 比較表項目: #{Array(strategy['comparison_table']).join(' / ')}
+          - ページ構成: #{Array(strategy['structure']).join(' → ')}
+          - SEO title: #{strategy['seo_title']}
+          - meta description: #{strategy['meta_description']}
+          - 画像指示: #{Array(strategy['image_instructions']).join(' / ')}
+          - カラー方針: #{strategy['color_direction']}
+          - デザイン方針: #{strategy['design_direction']}
+          - 改善根拠: #{strategy['reason']}
+
+          この戦略を制作要件として使い、入力のない項目をユーザーへ質問せず完成案まで作ってください。
         PROMPT
       end
 

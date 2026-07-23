@@ -40,9 +40,71 @@ module Aicoo
         Result.new(landing_page:, generation_run: run, mode: "prompt_review", message: "Lovable Promptを生成しました。")
       end
 
+      def prepare_external_create!(business:, landing_page_prototype:, strategy:, action_candidate: nil)
+        unless landing_page_prototype.business_id == business.id && landing_page_prototype.external_landing_page?
+          raise ArgumentError, "このBusinessのLPではありません。"
+        end
+
+        landing_page = ensure_landing_page_for_prototype!(business, landing_page_prototype, strategy)
+        repository = VersionRepository.new(business:, landing_page:, landing_page_prototype:)
+        prompt = PromptBuilder.new(business:, landing_page:, strategy:).call
+        run = create_run!(
+          business:,
+          landing_page:,
+          version: repository.next_version,
+          request_type: "create",
+          prompt:,
+          action_candidate:,
+          extra_metadata: {
+            "landing_page_prototype_id" => landing_page_prototype.id,
+            "campaign_id" => landing_page_prototype.business_campaign_id,
+            "lp_strategy" => strategy
+          }
+        )
+        Result.new(landing_page:, generation_run: run, mode: "prompt_review", message: "AICOOがLP戦略とLovable Promptを生成しました。")
+      end
+
       def enqueue_revision!(business:, change_request:, action_candidate: nil)
         prepared = prepare_revision!(business:, change_request:, action_candidate:)
         launch!(business:, generation_run: prepared.generation_run)
+      end
+
+      def prepare_external_revision!(business:, landing_page_prototype:, change_request:, action_candidate: nil)
+        raise ArgumentError, "修正内容を入力してください。" if change_request.blank?
+        unless landing_page_prototype.business_id == business.id && landing_page_prototype.external_landing_page?
+          raise ArgumentError, "このBusinessのLPではありません。"
+        end
+
+        landing_page = business.aicoo_lab_landing_pages.find_by(id: landing_page_prototype.metadata.to_h["lovable_landing_page_id"])
+        raise ArgumentError, "修正元のLovable LPがありません。" unless landing_page
+
+        repository = VersionRepository.new(business:, landing_page:, landing_page_prototype:)
+        previous = repository.current || raise(ArgumentError, "修正元のLovable Versionがありません。")
+        strategy = landing_page_prototype.metadata.to_h["lp_strategy"].to_h
+        prompt = PromptBuilder.new(
+          business:,
+          landing_page:,
+          previous_version: previous,
+          learning_version: repository.published,
+          change_request:,
+          strategy:
+        ).call
+        run = create_run!(
+          business:,
+          landing_page:,
+          version: repository.next_version,
+          request_type: "revision",
+          prompt:,
+          previous_run: previous,
+          change_request:,
+          action_candidate:,
+          extra_metadata: {
+            "landing_page_prototype_id" => landing_page_prototype.id,
+            "campaign_id" => landing_page_prototype.business_campaign_id,
+            "lp_strategy" => strategy
+          }
+        )
+        Result.new(landing_page:, generation_run: run, mode: "prompt_review", message: "Lovable改善Promptを生成しました。")
       end
 
       def prepare_revision!(business:, change_request:, action_candidate: nil)
@@ -87,7 +149,8 @@ module Aicoo
           prompt: generation_run.prompt,
           previous_run: generation_run,
           change_request: generation_run.metadata.to_h["change_request"],
-          retry_of: generation_run
+          retry_of: generation_run,
+          extra_metadata: generation_run.metadata.to_h.slice("landing_page_prototype_id", "campaign_id", "lp_strategy")
         )
         launch!(business:, generation_run: run)
       end
@@ -125,7 +188,8 @@ module Aicoo
         validate_prompt_editable!(generation_run)
         metadata = generation_run.metadata.to_h.deep_stringify_keys
         landing_page = AicooLabLandingPage.find(metadata.fetch("landing_page_id"))
-        repository = VersionRepository.new(business:, landing_page:)
+        prototype = BusinessPrototype.find_by(id: metadata["landing_page_prototype_id"])
+        repository = VersionRepository.new(business:, landing_page:, landing_page_prototype: prototype)
         previous = AicooLabGenerationRun.find_by(id: metadata["previous_run_id"])
         refresh_learning!(business, repository.published)
         comparison = LandingPageLearningComparison.new(business:, repository:).call
@@ -135,7 +199,8 @@ module Aicoo
           previous_version: previous,
           learning_version: repository.published,
           best_version: comparison.best&.run,
-          change_request: metadata["change_request"]
+          change_request: metadata["change_request"],
+          strategy: metadata["lp_strategy"]
         ).call
         update_prompt!(business:, generation_run:, prompt:)
       end
@@ -162,6 +227,7 @@ module Aicoo
             "handoff_reason" => "official_build_with_url"
           )
         )
+        stamp_external_handoff!(business, generation_run)
         Result.new(
           landing_page: AicooLabLandingPage.find(metadata.fetch("landing_page_id")),
           generation_run:,
@@ -224,6 +290,7 @@ module Aicoo
         generation_run.update!(status: "succeeded", metadata:, generated_count: 1, finished_at: Time.current)
         landing_page = AicooLabLandingPage.find(metadata.fetch("landing_page_id"))
         mark_preview_ready!(landing_page, generation_run)
+        stamp_external_preview!(business, metadata, preview_url)
         Result.new(landing_page:, generation_run:, mode: "registered", message: "Lovable Previewを登録しました。")
       end
 
@@ -291,7 +358,7 @@ module Aicoo
         [ created.merge("refreshed_project" => refreshed), {}, {} ]
       end
 
-      def create_run!(business:, landing_page:, version:, request_type:, prompt:, action_candidate: nil, previous_run: nil, change_request: nil, retry_of: nil)
+      def create_run!(business:, landing_page:, version:, request_type:, prompt:, action_candidate: nil, previous_run: nil, change_request: nil, retry_of: nil, extra_metadata: {})
         AicooLabGenerationRun.create!(
           generation_type: "lp_generation",
           status: "draft",
@@ -319,8 +386,84 @@ module Aicoo
             "prompt_generated_at" => Time.current.iso8601,
             "publication" => {},
             "created_by" => "owner"
-          }.compact
+          }.compact.merge(extra_metadata.to_h.deep_stringify_keys)
         )
+      end
+
+      def ensure_landing_page_for_prototype!(business, prototype, strategy)
+        existing_id = prototype.metadata.to_h["lovable_landing_page_id"]
+        existing = business.aicoo_lab_landing_pages.find_by(id: existing_id)
+        return existing if existing
+
+        experiment = AicooLabExperiment.create!(
+          title: "#{prototype.landing_page_name} Lovable生成",
+          description: strategy["reason"],
+          experiment_type: "lp",
+          acquisition_channel: acquisition_channel_for(prototype.business_campaign&.campaign_type),
+          status: "draft",
+          approval_status: "pending",
+          expected_90d_profit_yen: strategy["expected_profit_yen"].to_i,
+          success_probability: strategy["confidence"].to_d,
+          budget_yen: 0,
+          estimated_work_minutes: (strategy["estimated_work_hours"].to_d * 60).round,
+          notes: "External LP prototype ##{prototype.id}",
+          created_by: "aicoo_lp_strategy"
+        )
+        landing_page = experiment.create_aicoo_lab_landing_page!(
+          business:,
+          headline: strategy["headline"],
+          subheadline: strategy["subheadline"],
+          body: Array(strategy["structure"]).join("\n"),
+          cta_text: strategy["cta"],
+          seo_title: strategy["seo_title"],
+          seo_description: strategy["meta_description"],
+          status: "draft",
+          public_status: "draft",
+          generation_source: "lovable",
+          notes: "AICOO LP strategy for BusinessPrototype ##{prototype.id}"
+        )
+        prototype.update!(metadata: prototype.metadata.to_h.merge("lovable_landing_page_id" => landing_page.id))
+        landing_page
+      end
+
+      def acquisition_channel_for(campaign_type)
+        {
+          "seo" => "seo",
+          "google_ads" => "ads",
+          "meta_ads" => "ads",
+          "sns" => "sns",
+          "email" => "direct",
+          "referral" => "referral"
+        }.fetch(campaign_type.to_s, "direct")
+      end
+
+      def stamp_external_handoff!(business, generation_run)
+        metadata = generation_run.metadata.to_h
+        prototype = business.business_prototypes.find_by(id: metadata["landing_page_prototype_id"])
+        return unless prototype
+
+        task = business.auto_revision_tasks.find_by(id: metadata["auto_revision_task_id"])
+        task&.update!(metadata: task.metadata.to_h.merge(
+          "pipeline_stage" => "lovable_handoff",
+          "lovable_prompt_approved_at" => Time.current.iso8601,
+          "build_url_generated_at" => metadata["build_url_generated_at"]
+        ))
+        prototype.update!(metadata: prototype.metadata.to_h.merge(
+          "planning_status" => "lovable_handoff",
+          "lovable_build_url" => metadata["build_url"],
+          "lovable_build_url_generated_at" => metadata["build_url_generated_at"]
+        ))
+      end
+
+      def stamp_external_preview!(business, metadata, preview_url)
+        prototype = business.business_prototypes.find_by(id: metadata["landing_page_prototype_id"])
+        return unless prototype
+
+        prototype.update!(metadata: prototype.metadata.to_h.merge(
+          "planning_status" => "preview_ready",
+          "cloudflare_preview_url" => preview_url,
+          "preview_registered_at" => Time.current.iso8601
+        ))
       end
 
       def ensure_landing_page!(business)

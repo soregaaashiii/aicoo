@@ -21,10 +21,14 @@
       </div>
     <% end %>
     <div class="lovable-toolbar">
+      <% if @landing_page_prototype %>
+        <span class="pill"><%= @landing_page_prototype.landing_page_name %> / Promptレビュー</span>
+      <% else %>
       <%= button_to(@source_action_candidate&.generation_source == "lp_learning" ? "Lovableで改善" : "Lovableで作成", business_lovable_landing_page_path(@business), method: :post, params: { action_candidate_id: @source_action_candidate&.id }, class: "button", form: { target: "_blank" }) %>
       <%= button_to "Promptを見る", prepare_business_lovable_landing_page_path(@business), method: :post, params: { action_candidate_id: @source_action_candidate&.id }, class: "button secondary" %>
+      <% end %>
       <% if @current_version %>
-        <%= link_to "Version比較", compare_business_lovable_landing_page_path(@business), class: "button secondary" %>
+          <%= link_to "Version比較", compare_business_lovable_landing_page_path(@business, landing_page_id: @landing_page_prototype&.id), class: "button secondary" %>
         <% if @current_version.metadata.to_h["preview_url"].present? && @current_version.metadata.to_h.dig("publication", "published") != true %>
           <%= button_to "公開", publish_version_business_lovable_landing_page_path(@business, generation_run_id: @current_version.id), method: :post, class: "button", data: { turbo_confirm: "このLovable VersionをCodexへ渡し、Git・PR・merge・Render公開を開始します。よろしいですか？" } %>
         <% end %>
@@ -32,6 +36,31 @@
       <% end %>
     </div>
   </section>
+
+  <% if @prompt_version&.metadata.to_h&.dig("lp_strategy").present? %>
+    <% strategy = @prompt_version.metadata.to_h.fetch("lp_strategy") %>
+    <section class="dashboard-section lp-strategy-review">
+      <div class="section-heading">
+        <div><h2>生成予定</h2><p><%= strategy["reason"] %></p></div>
+        <span class="pill">Owner確認待ち</span>
+      </div>
+      <div class="metric-grid lp-strategy-metrics">
+        <div class="metric-card"><span>期待利益</span><strong><%= number_to_currency(strategy["expected_profit_yen"].to_i, unit: "¥", precision: 0) %></strong></div>
+        <div class="metric-card"><span>期待CV</span><strong><%= strategy["expected_cv"].to_f.round(2) %></strong></div>
+        <div class="metric-card"><span>期待時給</span><strong><%= number_to_currency(strategy["expected_hourly_value_yen"].to_i, unit: "¥", precision: 0) %></strong></div>
+        <div class="metric-card"><span>推定制作時間</span><strong><%= strategy["estimated_work_hours"].to_f %>h</strong></div>
+      </div>
+      <dl class="business-access-values lp-strategy-values">
+        <dt>タイトル</dt><dd><%= strategy["headline"] %></dd>
+        <dt>目的</dt><dd><%= @landing_page_prototype&.metadata.to_h&.dig("creation_purpose_label") || "LP制作" %></dd>
+        <dt>ターゲット</dt><dd><%= strategy["target"] %></dd>
+        <dt>CTA</dt><dd><%= strategy["cta"] %></dd>
+        <dt>構成</dt><dd><%= Array(strategy["structure"]).join(" → ") %></dd>
+        <dt>SEO</dt><dd><%= strategy["seo_title"] %><br><small><%= strategy["meta_description"] %></small></dd>
+        <dt>改善根拠</dt><dd><%= strategy["reason"] %> / confidence <%= number_to_percentage(strategy["confidence"].to_f * 100, precision: 0) %></dd>
+      </dl>
+    </section>
+  <% end %>
 
   <% if @prompt_version %>
     <section class="dashboard-section" id="lovable-prompt">
@@ -134,6 +163,7 @@
       </div>
       <%= form_with url: revise_business_lovable_landing_page_path(@business), method: :post, class: "form" do |form| %>
         <%= form.hidden_field :action_candidate_id, value: @source_action_candidate&.id %>
+        <%= form.hidden_field :landing_page_id, value: @landing_page_prototype&.id %>
         <%= form.label :change_request, "修正内容" %>
         <%= form.text_area :change_request, value: @source_action_candidate&.metadata.to_h&.dig("lovable_change_request"), rows: 4, required: true, placeholder: "例: CTAを目立たせ、ファーストビューの余白を増やす" %>
         <div class="compact-actions">
@@ -168,7 +198,7 @@
                   <% elsif run.metadata.to_h["preview_url"].present? && run != @current_version %>
                     <%= button_to "戻す", restore_version_business_lovable_landing_page_path(@business, generation_run_id: run.id), method: :post, class: "button secondary", data: { turbo_confirm: "このVersionをCurrentへ戻しますか？" } %>
                   <% end %>
-                  <%= link_to "比較", compare_business_lovable_landing_page_path(@business, after_id: run.id), class: "button secondary" %>
+                  <%= link_to "比較", compare_business_lovable_landing_page_path(@business, landing_page_id: @landing_page_prototype&.id, after_id: run.id), class: "button secondary" %>
                 </div>
               </td>
             </tr>

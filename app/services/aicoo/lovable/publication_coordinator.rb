@@ -1,3 +1,5 @@
+require "uri"
+
 module Aicoo
   module Lovable
     class PublicationCoordinator
@@ -10,14 +12,21 @@ module Aicoo
       def call(business:, generation_run:)
         validate!(business, generation_run)
         landing_page = AicooLabLandingPage.find(generation_run.metadata.to_h.fetch("landing_page_id"))
+        landing_page_prototype = external_landing_page(business, generation_run)
         profile = business.business_execution_profile
         raise ArgumentError, "BusinessExecutionProfileが未設定です。Codex/Git/Render接続を先に設定してください。" unless profile&.active?
+        if landing_page_prototype && landing_page_prototype.landing_page_repository_url.blank?
+          raise ArgumentError, "LPのGitHubリポジトリを登録してください。"
+        end
 
-        candidate = find_or_create_candidate!(business, landing_page, generation_run, profile)
+        candidate = find_or_create_candidate!(business, landing_page, generation_run, profile, landing_page_prototype)
         task = candidate.auto_revision_tasks.active.first || AutoRevisionTask.from_action_candidate(candidate, generated_by: "lovable_publish_button")
         raise ArgumentError, "Codex公開Taskを作成できませんでした。" unless task
 
         task.update!(
+          target_repository_name: landing_page_prototype ? repository_name(landing_page_prototype.landing_page_repository_url) : task.target_repository_name,
+          target_repository_type: landing_page_prototype ? "static_site" : task.target_repository_type,
+          execution_prompt: candidate.execution_prompt,
           status: "ready_for_codex",
           risk_level: "low",
           approved_at: task.approved_at || Time.current,
@@ -27,8 +36,8 @@ module Aicoo
             "lovable_project_id" => generation_run.metadata.to_h["project_id"],
             "lovable_preview_url" => generation_run.metadata.to_h["preview_url"],
             "owner_publish_approved_at" => Time.current.iso8601,
-            "publication_role" => "codex_git_pr_merge_render"
-          )
+            "publication_role" => landing_page_prototype ? "codex_git_pr_cloudflare" : "codex_git_pr_merge_render"
+          ).merge(external_task_metadata(landing_page_prototype))
         )
 
         submission_result = Aicoo::CodexSubmissionBuilder.new(task, force: true).call
@@ -76,17 +85,17 @@ module Aicoo
         raise ArgumentError, "公開済みVersionです。" if metadata.dig("publication", "published") == true
       end
 
-      def find_or_create_candidate!(business, landing_page, run, profile)
+      def find_or_create_candidate!(business, landing_page, run, profile, landing_page_prototype)
         existing_id = run.metadata.to_h.dig("publication", "action_candidate_id") || run.metadata.to_h["action_candidate_id"]
         existing = business.action_candidates.find_by(id: existing_id)
-        file_changes = Array(profile.target_paths).presence || [ "Lovable Previewを公開RepositoryのLP実装へ反映" ]
+        file_changes = landing_page_prototype ? [ "LP専用RepositoryへLovable Previewを新しい静的LPとして反映" ] : Array(profile.target_paths).presence || [ "Lovable Previewを公開RepositoryのLP実装へ反映" ]
         completion_criteria = [
           "Lovable PreviewとDesktop/Tablet/Mobileの主要表示が一致する",
           "CTA generate_lead計測が動作する",
           "PRのCIとテストが成功する",
-          "PRをmergeしRender deploy後にProduction URLが200を返す"
+          landing_page_prototype ? "PR承認後にCloudflare Pagesへ公開できる状態にする" : "PRをmergeしRender deploy後にProduction URLが200を返す"
         ]
-        prompt = codex_execution_prompt(business, run, profile, file_changes, completion_criteria)
+        prompt = codex_execution_prompt(business, run, profile, file_changes, completion_criteria, landing_page_prototype)
         execution_metadata = {
           "source_system" => "lovable",
           "generation_source_detail" => "lovable_preview",
@@ -110,7 +119,7 @@ module Aicoo
           "lovable_deploy_forbidden" => true,
           "owner_publish_approval" => true,
           "lovable_owner_preview_approved_at" => Time.current.iso8601
-        }
+        }.merge(external_candidate_metadata(landing_page_prototype))
         if existing && !existing.status.in?(ActionCandidate::INACTIVE_STATUSES)
           existing.update_columns(
             execution_prompt: prompt,
@@ -123,8 +132,8 @@ module Aicoo
         end
 
         candidate = business.action_candidates.create!(
-          title: "#{business.name} LPの文言とCSSをLovable Previewから反映して公開する",
-          description: "Lovable #{run.metadata.to_h['version_label']}をCodexでRepositoryへ反映し、PR・merge・Render deploy・Production確認を行う。",
+          title: "#{business.name} #{landing_page_prototype&.landing_page_name || 'LP'}をLovable Previewから反映して公開する",
+          description: landing_page_prototype ? "Lovable #{run.metadata.to_h['version_label']}をLP専用Repositoryへ反映し、PR承認後にCloudflare Pagesへ公開する。" : "Lovable #{run.metadata.to_h['version_label']}をCodexでRepositoryへ反映し、PR・merge・Render deploy・Production確認を行う。",
           action_type: "build_lp",
           generation_source: "manual",
           department: "revenue",
@@ -142,7 +151,10 @@ module Aicoo
         candidate
       end
 
-      def codex_execution_prompt(business, run, profile, file_changes, completion_criteria)
+      def codex_execution_prompt(business, run, profile, file_changes, completion_criteria, landing_page_prototype)
+        repository_url = landing_page_prototype&.landing_page_repository_url || profile.effective_codex_repository_url
+        branch = landing_page_prototype&.landing_page_branch || profile.effective_codex_base_branch
+        deploy_target = landing_page_prototype ? "Cloudflare Pages" : "Render"
         <<~PROMPT
           #{business.name}のLPをLovable Previewから公開Repositoryへ反映してください。
 
@@ -150,14 +162,15 @@ module Aicoo
           Lovable Editor: #{run.metadata.to_h['editor_url']}
           Lovable Preview: #{run.metadata.to_h['preview_url']}
           Lovable Commit: #{run.metadata.to_h['latest_commit_sha']}
-          Repository: #{profile.effective_codex_repository_url}
-          Base Branch: #{profile.effective_codex_base_branch}
+          Repository: #{repository_url}
+          Base Branch: #{branch}
 
           役割分担:
           - LovableはデザインとPreview生成済みです。
           - CodexはPreviewとLovable projectのコード・diffを確認し、公開Repositoryへ実装します。
-          - Codexがbranch、commit、Pull Request、merge条件、Render deploy、Production確認を担当します。
+          - Codexがbranch、commit、Pull Requestと#{deploy_target}公開準備を担当します。
           - Lovableのdeploy_projectは使用しません。
+          - Service本体のRepositoryは変更しません。
 
           変更対象:
           #{file_changes.map { |item| "- #{item}" }.join("\n")}
@@ -170,6 +183,45 @@ module Aicoo
           - DB migrationを追加しない
           - Previewで確認できない機能を推測で追加しない
         PROMPT
+      end
+
+      def external_landing_page(business, run)
+        prototype_id = run.metadata.to_h["landing_page_prototype_id"]
+        business.business_prototypes.active.external_landing_pages.find_by(id: prototype_id) if prototype_id.present?
+      end
+
+      def external_candidate_metadata(prototype)
+        return {} unless prototype
+
+        {
+          "landing_page_id" => prototype.id,
+          "campaign_id" => prototype.business_campaign_id,
+          "target_repository_url" => prototype.landing_page_repository_url,
+          "target_branch" => prototype.landing_page_branch,
+          "target_deploy_target" => "cloudflare_pages",
+          "target_url" => prototype.landing_page_url,
+          "service_repository_protected" => true,
+          "auto_merge" => false,
+          "auto_deploy" => false
+        }.compact
+      end
+
+      def external_task_metadata(prototype)
+        return {} unless prototype
+
+        external_candidate_metadata(prototype).merge(
+          "landing_page_prototype_id" => prototype.id,
+          "manual_approval_required" => true,
+          "auto_submit_enabled" => false,
+          "auto_merge_enabled" => false,
+          "auto_deploy_enabled" => false
+        )
+      end
+
+      def repository_name(url)
+        File.basename(URI.parse(url).path, ".git")
+      rescue URI::InvalidURIError
+        url.to_s.split("/").last
       end
 
       def previous_preview(run)

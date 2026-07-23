@@ -169,6 +169,7 @@ Rails.application.routes.draw do
       patch :service, action: :update_service
       patch :campaign, action: :update_campaign
       delete "campaigns/:campaign_id", action: :destroy_campaign, as: :remove_campaign
+      post :landing_page_plan, action: :create_landing_page_plan
       patch :landing_page, action: :update_landing_page
       post "landing_pages/:landing_page_id/sync", action: :create_landing_page_task, as: :landing_page_task
       post "landing_pages/:landing_page_id/improve", action: :improve_landing_page, as: :improve_landing_page

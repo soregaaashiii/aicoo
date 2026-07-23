@@ -21,6 +21,23 @@ class BusinessAccessSettingsController < ApplicationController
     redirect_to_access_section("LP設定を保存できませんでした: #{error_message(e)}", alert: true)
   end
 
+  def create_landing_page_plan
+    values = landing_page_plan_params
+    campaign = @business.business_campaigns.active.find(values.fetch(:campaign_id))
+    result = Aicoo::LpIntegration::LandingPageCreationFlow.new(
+      business: @business,
+      campaign:,
+      attributes: values
+    ).call
+    redirect_to business_lovable_landing_page_path(
+      @business,
+      landing_page_id: result.landing_page.id,
+      anchor: "lovable-prompt"
+    ), notice: "AICOOがLP戦略とLovable Promptを生成しました。確認後にLovableへ送信してください。"
+  rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotFound, ArgumentError => e
+    redirect_to_access_section("LPを生成できませんでした: #{error_message(e)}", alert: true)
+  end
+
   def update_campaign
     Aicoo::BusinessAccessSettingsUpdater.new(@business).update_campaign!(campaign_params)
     redirect_to_access_section("Campaign設定を保存しました。")
@@ -112,6 +129,16 @@ class BusinessAccessSettingsController < ApplicationController
       ga4_page_path cta current_conversion_rate improvement_target cloudflare_preview_url cloudflare_deploy_status
       ab_test_name ab_variant ab_status ab_winner ab_win_rate
     ])
+  end
+
+  def landing_page_plan_params
+    params.require(:lp_plan).permit(
+      :campaign_id,
+      :name,
+      :purpose,
+      :notes,
+      advanced: %i[keywords persona cta design_direction brand_colors image_instructions excluded_keywords output_format]
+    )
   end
 
   def campaign_params

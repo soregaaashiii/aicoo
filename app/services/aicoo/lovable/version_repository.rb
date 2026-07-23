@@ -3,12 +3,13 @@ module Aicoo
     class VersionRepository
       PIPELINE_KEY = "lovable".freeze
 
-      def initialize(business: nil, landing_page: nil)
+      def initialize(business: nil, landing_page: nil, landing_page_prototype: nil)
         @business = business
         @landing_page = landing_page
+        @landing_page_prototype = landing_page_prototype
       end
 
-      attr_reader :business, :landing_page
+      attr_reader :business, :landing_page, :landing_page_prototype
 
       def all
         @all ||= AicooLabGenerationRun.where(generation_type: "lp_generation").recent.select do |run|
@@ -16,6 +17,7 @@ module Aicoo
           next false unless metadata["pipeline"] == PIPELINE_KEY
           next false if business && metadata["business_id"].to_i != business.id
           next false if landing_page && metadata["landing_page_id"].to_i != landing_page.id
+          next false if landing_page_prototype && metadata["landing_page_prototype_id"].to_i != landing_page_prototype.id
 
           true
         end

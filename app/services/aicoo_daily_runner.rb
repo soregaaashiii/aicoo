@@ -203,7 +203,8 @@ class AicooDailyRunner
     log!(
       "LandingPageOpportunityAnalysis businesses=#{landing_page_result.business_count} " \
       "landing_pages=#{landing_page_result.landing_page_count} analyzed=#{landing_page_result.analyzed_count} " \
-      "candidates=#{landing_page_result.candidate_count} failed=#{landing_page_result.failed_count}"
+      "candidates=#{landing_page_result.candidate_count} waiting_approval_tasks=#{landing_page_result.task_count} " \
+      "failed=#{landing_page_result.failed_count}"
     )
     landing_page_result = nil
 

@@ -1,0 +1,41 @@
+<%= form_with url: landing_page_plan_business_access_settings_path(business), method: :post, scope: :lp_plan, class: "business-access-form lp-creation-form" do |form| %>
+  <%= form.hidden_field :campaign_id, value: campaign.id %>
+
+  <div class="lp-creation-core-fields">
+    <div class="field">
+      <%= form.label :name, "LP名（任意）" %>
+      <%= form.text_field :name, placeholder: "空欄ならAICOOが命名します" %>
+    </div>
+    <div class="field">
+      <%= form.label :purpose, "作成目的" %>
+      <%= form.select :purpose,
+                      options_for_select(Aicoo::LpIntegration::LandingPageStrategyBuilder::PURPOSES.map { |value, label| [label, value] }, campaign.campaign_type),
+                      { include_blank: "選択してください" },
+                      { required: true } %>
+    </div>
+    <div class="field">
+      <%= form.label :notes, "補足（任意）" %>
+      <%= form.text_area :notes, rows: 3, placeholder: "例: 法人向け。料金より導入の早さを伝えたい" %>
+    </div>
+  </div>
+
+  <details class="lp-advanced-settings">
+    <summary>詳細設定</summary>
+    <p class="aicoo-help-text">固定したい条件だけ入力してください。空欄はAICOOが分析して決めます。</p>
+    <div class="form-grid">
+      <div class="field"><%= label_tag "lp_plan_advanced_keywords", "キーワード固定" %><%= text_field_tag "lp_plan[advanced][keywords]", nil, id: "lp_plan_advanced_keywords" %></div>
+      <div class="field"><%= label_tag "lp_plan_advanced_persona", "ペルソナ固定" %><%= text_field_tag "lp_plan[advanced][persona]", nil, id: "lp_plan_advanced_persona" %></div>
+      <div class="field"><%= label_tag "lp_plan_advanced_cta", "CTA固定" %><%= text_field_tag "lp_plan[advanced][cta]", nil, id: "lp_plan_advanced_cta" %></div>
+      <div class="field"><%= label_tag "lp_plan_advanced_design_direction", "デザイン固定" %><%= text_field_tag "lp_plan[advanced][design_direction]", nil, id: "lp_plan_advanced_design_direction" %></div>
+      <div class="field"><%= label_tag "lp_plan_advanced_brand_colors", "ブランドカラー" %><%= text_field_tag "lp_plan[advanced][brand_colors]", nil, id: "lp_plan_advanced_brand_colors" %></div>
+      <div class="field"><%= label_tag "lp_plan_advanced_image_instructions", "画像指定" %><%= text_field_tag "lp_plan[advanced][image_instructions]", nil, id: "lp_plan_advanced_image_instructions" %></div>
+      <div class="field"><%= label_tag "lp_plan_advanced_excluded_keywords", "除外キーワード" %><%= text_field_tag "lp_plan[advanced][excluded_keywords]", nil, id: "lp_plan_advanced_excluded_keywords" %></div>
+      <div class="field"><%= label_tag "lp_plan_advanced_output_format", "出力形式" %><%= text_field_tag "lp_plan[advanced][output_format]", nil, id: "lp_plan_advanced_output_format" %></div>
+    </div>
+  </details>
+
+  <div class="actions compact-actions">
+    <%= form.submit "生成開始", class: "button" %>
+    <%= link_to "キャンセル", business_path(business, anchor: "business-campaign-#{campaign.id}"), class: "button secondary" %>
+  </div>
+<% end %>

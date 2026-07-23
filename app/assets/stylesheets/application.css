@@ -839,6 +839,11 @@ details.revenue-card > summary {
   padding-right: 2px;
 }
 
+.business-campaign-list:has(.business-access-editor[open]) {
+  max-height: none;
+  overflow-y: visible;
+}
+
 .business-access-list-item {
   border-top: 1px solid var(--border);
   display: grid;
@@ -922,6 +927,26 @@ details.revenue-card > summary {
   display: grid;
   gap: 0.55rem;
   margin-top: 0.8rem;
+}
+
+.lp-creation-form {
+  width: 100%;
+  min-width: 0;
+}
+
+.lp-creation-core-fields {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.lp-advanced-settings {
+  border-top: 1px solid var(--color-border, #d9dee8);
+  padding-top: 0.8rem;
+}
+
+.lp-advanced-settings > summary {
+  cursor: pointer;
+  font-weight: 700;
 }
 
 .campaign-lp-row {

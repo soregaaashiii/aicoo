@@ -138,7 +138,7 @@ module Aicoo
           "bounce_rate" => weighted_average(:bounce_rate, :sessions),
           "source" => "business_metric_daily",
           "scope" => "business_fallback",
-          "missing_reason" => page_analytics.ga4["missing_reason"]
+          "missing_reason" => landing_page_analytics.ga4["missing_reason"]
         }
       end
 
@@ -149,7 +149,7 @@ module Aicoo
           "average_position" => weighted_average(:average_position, :impressions),
           "source" => "business_metric_daily",
           "scope" => "business_fallback",
-          "missing_reason" => page_analytics.gsc["missing_reason"]
+          "missing_reason" => landing_page_analytics.gsc["missing_reason"]
         }
       end
 

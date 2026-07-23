@@ -97,7 +97,7 @@
               </details>
               <details class="business-access-editor">
                 <summary class="button">+ LP追加</summary>
-                <%= render "external_landing_page_form", business:, landing_page: nil, campaign: %>
+                <%= render "landing_page_creation_form", business:, campaign: %>
               </details>
               <% if campaign_row.fetch(:lp_count).zero? %>
                 <%= button_to "アーカイブ",
@@ -131,6 +131,11 @@
                     <dt>A/Bテスト</dt><dd><%= landing_page.landing_page_ab_test["name"].presence || "未実施" %> <%= landing_page.landing_page_ab_test["variant"].presence %> <%= landing_page.landing_page_ab_test["winner"] ? "勝者" : nil %> <%= landing_page.landing_page_ab_test["win_rate"].present? ? number_to_percentage(landing_page.landing_page_ab_test["win_rate"].to_f * 100, precision: 1) : nil %></dd>
                   </dl>
                   <div class="business-access-card-actions">
+                    <% if metadata["lovable_generation_run_id"].present? %>
+                      <%= link_to "Promptレビュー",
+                                  business_lovable_landing_page_path(business, landing_page_id: landing_page.id, anchor: "lovable-prompt"),
+                                  class: "button" %>
+                    <% end %>
                     <details class="business-access-editor">
                       <summary class="button secondary">編集</summary>
                       <%= render "external_landing_page_form", business:, landing_page:, campaign: %>

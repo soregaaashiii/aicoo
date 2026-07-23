@@ -1,7 +1,7 @@
 module Aicoo
   module LpIntegration
     class LandingPageImprovementBatchAnalyzer
-      Result = Data.define(:business_count, :landing_page_count, :analyzed_count, :candidate_count, :skipped_count, :failed_count, :candidate_ids, :errors)
+      Result = Data.define(:business_count, :landing_page_count, :analyzed_count, :candidate_count, :task_count, :skipped_count, :failed_count, :candidate_ids, :task_ids, :errors)
 
       def self.call
         new.call
@@ -40,6 +40,7 @@ module Aicoo
         if result.candidate
           stats[:candidate_count] += 1
           stats[:candidate_ids] << result.candidate.id
+          create_improvement_task(business, landing_page, snapshots, result, stats)
         else
           stats[:skipped_count] += 1
         end
@@ -49,15 +50,37 @@ module Aicoo
         Rails.logger.warn("[LandingPageImprovementBatchAnalyzer] business_id=#{business.id} landing_page_id=#{landing_page.id} error=#{e.class}: #{e.message}")
       end
 
+      def create_improvement_task(business, landing_page, snapshots, analysis, stats)
+        return if analysis.candidate.final_expected_value_yen.to_d < minimum_expected_profit_yen
+        return if landing_page.landing_page_repository_url.blank?
+
+        flow = LandingPageImprovementFlow.new(
+          business:,
+          landing_page:,
+          snapshots:,
+          analysis:
+        ).call
+        return unless flow.created
+
+        stats[:task_count] += 1
+        stats[:task_ids] << flow.task.id
+      end
+
+      def minimum_expected_profit_yen
+        @minimum_expected_profit_yen ||= AicooAutoRevisionSetting.current.minimum_final_score.to_d
+      end
+
       def empty_stats
         {
           business_count: 0,
           landing_page_count: 0,
           analyzed_count: 0,
           candidate_count: 0,
+          task_count: 0,
           skipped_count: 0,
           failed_count: 0,
           candidate_ids: [],
+          task_ids: [],
           errors: []
         }
       end
