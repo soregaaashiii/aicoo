@@ -2,10 +2,12 @@ module Aicoo
   class TodayActionBoard
     include Rails.application.routes.url_helpers
 
-    DESCRIPTION = "Todayは、未実行の有効な施策を、最終期待値が高い順に処理する画面です。".freeze
+    DESCRIPTION = "Todayは、オーナーの判断・承認・手作業が必要な行動を、期待値（円）が高い順に処理する画面です。".freeze
     MODES = %w[revenue learning balanced].freeze
-    APPROVAL_REQUIRED_STATUSES = %w[draft waiting_approval approved].freeze
+    OWNER_ACTION_TASK_STATUSES = %w[draft waiting_approval approved failed].freeze
+    APPROVAL_REQUIRED_STATUSES = %w[draft waiting_approval].freeze
     CODEX_QUEUE_STATUSES = %w[queued ready_for_codex sent_to_codex running].freeze
+    TERMINAL_TASK_STATUSES = %w[completed succeeded partial_succeeded canceled cancelled rejected invalid duplicate].freeze
     PER_PAGE = Aicoo::ActionExpectedValueRanking::DEFAULT_PER_PAGE
     HIGH_VALUE_REVIEW_THRESHOLD_YEN = 1_000_000
     DAILY_RUN_MINIMUM_AVOIDED_LOSS_YEN = 15_000
@@ -93,6 +95,7 @@ module Aicoo
       :approval_required,
       :codex_target,
       :auto_execution,
+      :current_status,
       :owner_next_step,
       :planned_url,
       :detail_url,
@@ -217,9 +220,9 @@ module Aicoo
       article_opportunity = article_opportunity_candidate?(candidate)
       readiness = action_execution_readiness(candidate)
       readiness_applicable = !article_opportunity && execution_readiness_display_applicable?(candidate, execution_mode)
-      approval_task = approval_required_task(candidate)
+      owner_action_task = owner_action_task(candidate)
 
-      exclusion_reason = today_exclusion_reason(candidate, execution_mode, approval_task)
+      exclusion_reason = today_exclusion_reason(candidate, execution_mode, owner_action_task)
       if exclusion_reason
         mark_today_exclusion!(candidate, exclusion_reason, detected_target_url: detected_target_url_for(candidate))
         return
@@ -235,7 +238,7 @@ module Aicoo
       raw_concrete_task = concrete_task_for(candidate, presenter, action_plan)
       raw_target = target_for(candidate, presenter, action_plan)
       planned_url = planned_url_for(candidate)
-      raw_owner_next_step = owner_next_step_for(presenter, action_plan, approval_task)
+      raw_owner_next_step = owner_next_step_for(presenter, action_plan, owner_action_task)
       concrete_task = raw_concrete_task.presence || candidate.title.presence || "施策内容を確認する"
       target = if article_opportunity
         article_target_for(candidate)
@@ -274,9 +277,9 @@ module Aicoo
       Item.new(
         stable_id: "action_candidate:#{candidate.id}",
         rank: nil,
-        source_type: approval_task ? "auto_revision_task" : "action_candidate",
-        record: approval_task || candidate,
-        priority: approval_task ? "critical" : "improvement",
+        source_type: owner_action_task ? "auto_revision_task" : "action_candidate",
+        record: owner_action_task || candidate,
+        priority: owner_action_task ? "critical" : "improvement",
         business_name: resolved_business&.name.to_s,
         concrete_task:,
         target:,
@@ -295,14 +298,15 @@ module Aicoo
         execution_mode: readiness_applicable && !readiness.ready? ? readiness.readiness : execution_mode,
         execution_mode_label: article_opportunity ? article_opportunity_label(candidate) : (readiness_applicable ? readiness_execution_mode_label(candidate, readiness, presenter) : presenter.execution_mode_label),
         data_sources_label: article_opportunity ? "ArticleAnalyticsSnapshot" : presenter.source_label,
-        approval_required: approval_task.present?,
+        approval_required: approval_required_task?(owner_action_task),
         codex_target: !article_opportunity && readiness_applicable && readiness.ready? && candidate.metadata.to_h["codex_eligible"] == true,
         auto_execution: !article_opportunity && readiness_applicable && readiness.ready? && candidate.metadata.to_h["auto_revision"] == true && candidate.business&.automatic_auto_revision?,
+        current_status: owner_action_task&.status || candidate.status,
         owner_next_step:,
         planned_url:,
-        detail_url: action_workspace_path(candidate),
+        detail_url: owner_action_detail_url(candidate, owner_action_task),
         reason: article_opportunity ? article_opportunity_reason(candidate, presenter) : presenter.reason,
-        stopped_reason: today_warning_text((readiness_stop_reason(readiness).presence if readiness_applicable) || stopped_reason_for(approval_task), quality_warnings),
+        stopped_reason: today_warning_text((readiness_stop_reason(readiness).presence if readiness_applicable) || stopped_reason_for(owner_action_task), quality_warnings),
         group_count: 1,
         group_summary: nil,
         revenue_score: revenue_score.round(2),
@@ -369,6 +373,7 @@ module Aicoo
         approval_required: false,
         codex_target: false,
         auto_execution: false,
+        current_status: latest.status,
         owner_next_step: "#{step_name}を修復する",
         planned_url: nil,
         detail_url: aicoo_daily_run_path(latest, anchor: "step-breakdown"),
@@ -449,6 +454,7 @@ module Aicoo
         approval_required: false,
         codex_target: false,
         auto_execution: false,
+        current_status: business.status,
         owner_next_step: business.metadata.to_h["owner_next_step"].presence || business.metadata.to_h["next_action"].presence || "代表案を確認し、残りを統合またはアーカイブする",
         planned_url: nil,
         detail_url: owner_new_business_pipeline_path(selected: "business:#{business.id}"),
@@ -467,11 +473,13 @@ module Aicoo
       )
     end
 
-    def today_exclusion_reason(candidate, execution_mode, approval_task)
+    def today_exclusion_reason(candidate, execution_mode, owner_action_task)
       return "executed" if candidate.executed?
       business = article_opportunity_candidate?(candidate) ? article_opportunity_business(candidate) : candidate.business
       return "inactive_business" if business.blank? || business.deleted? || business.resource_status == "archived"
       return "invalid_status" if candidate.status.to_s.in?(ActionCandidate::INACTIVE_STATUSES)
+      task_exclusion_reason = auto_revision_exclusion_reason(candidate) unless owner_action_task
+      return task_exclusion_reason if task_exclusion_reason
       return "blocked_by_prerequisite" if candidate.metadata.to_h["blocked"] && candidate.metadata.to_h["prerequisite_action_candidate_id"].present?
       return "external_reference_target" if external_target_url_for_existing_business?(candidate)
       return "invalid_target" if invalid_target_path_reason(candidate).present?
@@ -655,8 +663,14 @@ module Aicoo
         metadata["work_type"].to_s.in?(%w[new_article new_lp new_category article_create])
     end
 
-    def owner_next_step_for(presenter, action_plan, approval_task)
-      return "Codex実行前の判断を行う" if approval_task.present?
+    def owner_next_step_for(presenter, action_plan, owner_action_task)
+      if owner_action_task
+        return "実行前レビューを確認して承認する" if lp_generation_plan_task?(owner_action_task)
+        return "失敗内容を確認して再実行を判断する" if owner_action_task.status == "failed"
+        return "Codex送信内容を確認して次の操作を行う" if owner_action_task.status == "approved"
+
+        return "改修内容を確認して承認する"
+      end
 
       Array(action_plan["execution_steps"]).compact_blank.first.presence ||
         action_plan["owner_next_step"].presence ||
@@ -687,15 +701,53 @@ module Aicoo
       (data_sources.map(&:to_s).map(&:downcase) & %w[serp x reddit news]).any?
     end
 
-    def approval_required_task(candidate)
-      task = candidate.auto_revision_tasks
-        .reject { |auto_revision_task| auto_revision_task.status == "canceled" }
-        .max_by(&:updated_at)
+    def owner_action_task(candidate)
+      task = latest_auto_revision_task(candidate)
       return unless task
       return if CODEX_QUEUE_STATUSES.include?(task.status)
-      return unless task.owner_approval_required?
+      return if TERMINAL_TASK_STATUSES.include?(task.status)
 
-      task if APPROVAL_REQUIRED_STATUSES.include?(task.status) || task.high_risk?
+      task if OWNER_ACTION_TASK_STATUSES.include?(task.status)
+    end
+
+    def approval_required_task?(task)
+      task.present? && APPROVAL_REQUIRED_STATUSES.include?(task.status)
+    end
+
+    def approval_required_task(candidate)
+      task = owner_action_task(candidate)
+      task if approval_required_task?(task)
+    end
+
+    def latest_auto_revision_task(candidate)
+      candidate.auto_revision_tasks.max_by(&:updated_at)
+    end
+
+    def auto_revision_exclusion_reason(candidate)
+      task = latest_auto_revision_task(candidate)
+      return unless task
+
+      return "auto_revision_queued" if task.status.in?(%w[queued ready_for_codex sent_to_codex])
+      return "auto_revision_in_progress" if task.status == "running"
+      return "auto_revision_completed" if task.status.in?(%w[completed succeeded partial_succeeded])
+      return "auto_revision_inactive" if task.status.in?(%w[canceled cancelled rejected invalid duplicate])
+
+      nil
+    end
+
+    def owner_action_detail_url(candidate, task)
+      return action_workspace_path(candidate) unless task
+      return landing_page_plan_review_business_access_settings_path(
+        candidate.business,
+        plan_id: task.metadata.to_h["generation_run_id"]
+      ) if lp_generation_plan_task?(task)
+
+      auto_revision_task_path(task)
+    end
+
+    def lp_generation_plan_task?(task)
+      task.metadata.to_h["workflow_type"] == "lp_generation_plan" &&
+        task.metadata.to_h["generation_run_id"].present?
     end
 
     def stopped_reason_for(task)

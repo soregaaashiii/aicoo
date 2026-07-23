@@ -31,7 +31,14 @@
             <% if item.respond_to?(:planned_url) && item.planned_url.present? %>
               <small>予定URL: <%= item.planned_url %></small><br>
             <% end %>
-            <small>次: <%= item.owner_next_step %></small>
+            <% status_label = {
+                 "draft" => "承認準備中",
+                 "waiting_approval" => "承認待ち",
+                 "approved" => "Owner操作待ち",
+                 "failed" => "再実行判断待ち"
+               }.fetch(item.current_status.to_s, item.current_status.to_s.presence || "-") %>
+            <small>状態: <%= status_label %></small><br>
+            <small>次にやること: <%= item.owner_next_step %></small>
             <% if item.reason.present? %>
               <br><small>理由: <%= item.reason %></small>
             <% end %>
@@ -69,7 +76,20 @@
           <td><%= item.approval_required ? "必要" : "不要" %></td>
           <td><%= item.codex_target ? "はい" : "いいえ" %></td>
           <td><%= item.respond_to?(:auto_execution) && item.auto_execution ? "はい" : "いいえ" %></td>
-          <td><%= link_to "詳細を見る", item.detail_url, class: "button secondary" %></td>
+          <td>
+            <% direct_approval =
+                 item.approval_required &&
+                 item.record.is_a?(AutoRevisionTask) &&
+                 item.record.status.in?(%w[draft waiting_approval]) &&
+                 item.record.metadata.to_h["workflow_type"] != "lp_generation_plan" %>
+            <% if direct_approval %>
+              <%= button_to "承認する",
+                            approve_auto_revision_task_path(item.record),
+                            method: :patch,
+                            class: "button" %>
+            <% end %>
+            <%= link_to(item.approval_required ? "承認内容を見る" : "詳細を見る", item.detail_url, class: "button secondary") %>
+          </td>
         </tr>
       <% end %>
     </tbody>

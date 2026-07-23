@@ -29,12 +29,24 @@ module Aicoo
       article_planning
     ].freeze
     ARTICLE_MANUAL_TYPES = %w[
+      shop_addition
       verified_shop_addition
       smoking_condition_confirmation
       shop_information_confirmation
       phone_confirmation
       publication_review
     ].freeze
+    OWNER_MANUAL_EXECUTION_MODES = %w[manual manual_operation data_operation owner_decision].freeze
+    OWNER_MANUAL_ACTION_TYPES = %w[
+      shop_addition
+      verified_shop_addition
+      smoking_info_verify
+      smoking_condition_confirmation
+      shop_information_confirmation
+      shop_phone_verify
+      phone_confirmation
+    ].freeze
+    OWNER_ACTION_TASK_STATUSES = %w[draft waiting_approval approved failed].freeze
 
     Result = Data.define(
       :candidate_category,
@@ -132,7 +144,7 @@ module Aicoo
 
     private
 
-    attr_reader :item, :candidate, :metadata
+    attr_reader :item, :record, :candidate, :metadata
 
     def candidate_category
       return "legacy" if legacy?
@@ -217,6 +229,7 @@ module Aicoo
 
     def article_opportunity_manual?
       human_required? &&
+        !research_required? &&
         target_valid? &&
         concrete_manual_target_present? &&
         ARTICLE_MANUAL_TYPES.include?(improvement_type)
@@ -333,7 +346,11 @@ module Aicoo
     end
 
     def human_required?
-      boolean_metadata?("human_required") ||
+      owner_action_item? ||
+        (!article_opportunity? && OWNER_MANUAL_EXECUTION_MODES.include?(item_value(:execution_mode).to_s)) ||
+        OWNER_MANUAL_ACTION_TYPES.include?(candidate&.action_type.to_s) ||
+        OWNER_MANUAL_ACTION_TYPES.include?(improvement_type) ||
+        boolean_metadata?("human_required") ||
         boolean_metadata?("requires_human") ||
         boolean_metadata?("manual_required")
     end
@@ -346,6 +363,7 @@ module Aicoo
 
     def approved?
       candidate&.approved_at.present? ||
+        (record.is_a?(AutoRevisionTask) && record.approved_at.present?) ||
         metadata&.dig("approved") == true ||
         metadata&.dig("approval_status").to_s == "approved"
     end
@@ -380,6 +398,7 @@ module Aicoo
     end
 
     def non_candidate_manual?
+      return true if owner_action_item?
       return false if item_value(:source_type).to_s == "auto_revision_task" && target_blank?
 
       target_valid? || item_value(:source_type).blank?
@@ -387,8 +406,15 @@ module Aicoo
 
     def non_candidate_preparation?
       return false if item_value(:source_type).to_s == "daily_run_issue"
+      return false if owner_action_item?
 
       item_value(:source_type).to_s == "auto_revision_task" && target_blank?
+    end
+
+    def owner_action_item?
+      item_value(:source_type).to_s == "auto_revision_task" &&
+        record.is_a?(AutoRevisionTask) &&
+        OWNER_ACTION_TASK_STATUSES.include?(record.status)
     end
 
     def executable_rule_result
@@ -406,6 +432,7 @@ module Aicoo
     end
 
     def manual_rule_result
+      return "owner_action_waiting" if owner_action_item?
       return "daily_run_issue" if non_candidate_manual?
       return "not_article_opportunity" unless article_opportunity?
       return "human_not_required" unless human_required?
@@ -451,7 +478,11 @@ module Aicoo
       when "executable_improvement"
         article_opportunity? ? "ArticleOpportunityの#{improvement_type}で、Business・対象・根拠・実行Briefが揃っています" : "対象が特定済みの実行候補です"
       when "manual_action"
-        article_opportunity? ? "人手確認が必要で対象が特定済みです" : "人手で実行する具体的な候補です"
+        if owner_action_item?
+          "改修PipelineがOwnerの判断または手作業を待っています"
+        else
+          article_opportunity? ? "人手確認が必要で対象が特定済みです" : "人手で実行する具体的な候補です"
+        end
       when "preparation"
         preparation_rule_result
       when "unspecified"
@@ -511,7 +542,7 @@ module Aicoo
 
     def resolved_business
       @resolved_business ||= begin
-        business = candidate&.business
+        business = candidate&.business || (record.business if record.respond_to?(:business))
         business ||= Business.find_by(id: resolved_business_id) if resolved_business_id.present?
         business
       end
@@ -520,6 +551,7 @@ module Aicoo
     def resolved_business_id
       @resolved_business_id ||= begin
         candidate&.business_id ||
+          (record.business_id if record.respond_to?(:business_id)) ||
           metadata&.dig("business_id").presence ||
           metadata&.dig("execution_brief", "target", "business_id").presence ||
           metadata&.dig("article_opportunity", "business_id").presence ||
