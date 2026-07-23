@@ -348,6 +348,7 @@ module Aicoo
     def human_required?
       owner_action_item? ||
         (!article_opportunity? && OWNER_MANUAL_EXECUTION_MODES.include?(item_value(:execution_mode).to_s)) ||
+        (!article_opportunity? && OWNER_MANUAL_EXECUTION_MODES.include?(candidate&.execution_mode.to_s)) ||
         OWNER_MANUAL_ACTION_TYPES.include?(candidate&.action_type.to_s) ||
         OWNER_MANUAL_ACTION_TYPES.include?(improvement_type) ||
         boolean_metadata?("human_required") ||

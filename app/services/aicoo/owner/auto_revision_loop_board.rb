@@ -43,7 +43,7 @@ module Aicoo
         Aicoo::AutoRevisionAutopilot.sweep(limit:)
         rows = (task_rows + candidate_rows)
           .uniq(&:key)
-          .sort_by { |row| [ -row.priority_score.to_d, row.updated_at || Time.zone.at(0) ] }
+          .sort_by { |row| [ -row.priority_score.to_d, row.record.created_at || Time.zone.at(0), -row.record.id.to_i ] }
           .first(limit)
         selected = rows.find { |row| row.key == selected_key } || rows.first
 
@@ -62,8 +62,9 @@ module Aicoo
       def task_rows
         AutoRevisionTask
           .includes(:business, :action_candidate, :codex_submission, :auto_revision_executions)
+          .left_joins(:action_candidate)
           .where.not(status: %w[canceled])
-          .by_priority
+          .order(Arel.sql("action_candidates.final_expected_value_yen DESC NULLS LAST, auto_revision_tasks.created_at ASC, auto_revision_tasks.id DESC"))
           .limit(limit)
           .map { |task| row_for_task(task) }
       end
@@ -74,13 +75,14 @@ module Aicoo
           .active_for_ranking
           .where.not(department: "new_business")
           .where.missing(:auto_revision_tasks)
-          .by_recommendation
+          .order(Arel.sql("final_expected_value_yen DESC NULLS LAST, created_at ASC, id DESC"))
           .limit(limit)
           .map { |candidate| row_for_candidate(candidate) }
       end
 
       def row_for_task(task)
         candidate = task.action_candidate
+        expected_value_yen = candidate&.final_expected_value_yen.to_i
         Row.new(
           key: "auto_revision_task:#{task.id}",
           record: task,
@@ -88,9 +90,9 @@ module Aicoo
           auto_revision_task: task,
           business: task.business,
           title: task.title,
-          expected_profit_yen: candidate&.expected_profit_yen.to_i,
+          expected_profit_yen: expected_value_yen,
           expected_hourly_value_yen: candidate&.expected_hourly_value_yen.to_i,
-          priority_score: task.priority_score.to_d,
+          priority_score: expected_value_yen,
           current_state: state_for_task(task),
           progress_percent: progress_for_task(task)[:percent],
           progress_label: progress_for_task(task)[:label],
@@ -107,6 +109,7 @@ module Aicoo
 
       def row_for_candidate(candidate)
         automatic = candidate.business&.automatic_auto_revision?
+        expected_value_yen = candidate.final_expected_value_yen.to_i
         Row.new(
           key: "action_candidate:#{candidate.id}",
           record: candidate,
@@ -114,9 +117,9 @@ module Aicoo
           auto_revision_task: nil,
           business: candidate.business,
           title: candidate.title,
-          expected_profit_yen: candidate.expected_profit_yen.to_i,
+          expected_profit_yen: expected_value_yen,
           expected_hourly_value_yen: candidate.expected_hourly_value_yen.to_i,
-          priority_score: candidate.final_score.to_d,
+          priority_score: expected_value_yen,
           current_state: automatic ? "自動改修処理待ち" : "改修タスク化待ち",
           progress_percent: 10,
           progress_label: "Candidate",

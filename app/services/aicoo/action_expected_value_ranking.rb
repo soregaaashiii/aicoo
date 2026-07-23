@@ -142,8 +142,6 @@ module Aicoo
       breakdown = entry.fetch(:expected_value_breakdown)
       [
         -breakdown.fetch(:total_expected_value_yen),
-        -confidence_value(item),
-        estimated_work_hours(item),
         record_created_timestamp(item),
         -record_id(item)
       ]
@@ -201,9 +199,30 @@ module Aicoo
         record.business_id,
         normalized_action_type(record),
         normalized_query(metadata, record),
+        normalized_target_record(metadata),
+        normalized_existing_target(metadata),
         normalize(metadata["planned_url"].presence || metadata["proposed_url"].presence || metadata["recommended_url"].presence || metadata["recommended_slug"].presence),
         normalize(metadata["content_type"].presence || metadata["work_type"].presence || record.action_type)
       ].join("::")
+    end
+
+    def normalized_target_record(metadata)
+      normalize(
+        metadata["target_record_id"].presence ||
+          metadata["shop_id"].presence ||
+          metadata["article_id"].presence ||
+          metadata["external_record_id"].presence
+      )
+    end
+
+    def normalized_existing_target(metadata)
+      normalize(
+        metadata["target_url"].presence ||
+          metadata["target_url_or_identifier"].presence ||
+          metadata["page_path"].presence ||
+          metadata.dig("action_plan", "target").presence ||
+          metadata.dig("action_plan", "target_url_or_identifier").presence
+      )
     end
 
     def normalized_action_type(record)

@@ -28,7 +28,8 @@ module Aicoo
           record: nil,
           action_expected_value_delta_yen: 100_000 - index,
           confidence: 0.8,
-          valuation_status: "positive"
+          valuation_status: "positive",
+          expected_hours: 1
         )
       end
 
@@ -97,14 +98,27 @@ module Aicoo
       end
     end
 
-    test "expected improvement is not used as tie breaker" do
-      high_improvement = item(stable_id: "action_candidate:high_improvement", delta: 10_000, confidence: 0.7, expected_hours: 3)
-      low_improvement = item(stable_id: "action_candidate:low_improvement", delta: 10_000, confidence: 0.8, expected_hours: 3)
-      short_work = item(stable_id: "action_candidate:short_work", delta: 10_000, confidence: 0.7, expected_hours: 1)
+    test "non yen metrics are not used as tie breakers" do
+      older = action_candidate(
+        title: "作成日時が古い候補",
+        metadata: { "target_url_type" => "own_existing", "target_url" => "/" }
+      )
+      newer = action_candidate(
+        title: "作成日時が新しい候補",
+        metadata: { "target_url_type" => "own_existing", "target_url" => "/" }
+      )
+      older.update_columns(created_at: 2.hours.ago)
+      newer.update_columns(created_at: 1.hour.ago)
 
-      result = ActionExpectedValueRanking.new(items: [ high_improvement, short_work, low_improvement ], mode: "revenue").call
+      result = ActionExpectedValueRanking.new(
+        items: [
+          item(stable_id: "action_candidate:newer", delta: 10_000, confidence: 0.99, expected_hours: 0.1, record: newer),
+          item(stable_id: "action_candidate:older", delta: 10_000, confidence: 0.01, expected_hours: 100, record: older)
+        ],
+        mode: "revenue"
+      ).call
 
-      assert_equal [ "action_candidate:low_improvement", "action_candidate:short_work", "action_candidate:high_improvement" ], result.items.map(&:stable_id)
+      assert_equal [ "action_candidate:older", "action_candidate:newer" ], result.items.map(&:stable_id)
     end
 
     test "daily run record does not receive article opportunity metric lookup" do
@@ -322,6 +336,27 @@ module Aicoo
       assert_equal [ "action_candidate:second_fallback" ], result.items.map(&:stable_id)
     end
 
+    test "does not add fallback when a normal candidate exists" do
+      normal = action_candidate(
+        title: "通常の手動候補",
+        metadata: { "target_url_type" => "own_existing", "target_url" => "/" }
+      )
+      fallback = action_candidate(
+        title: "fallback action",
+        metadata: { "today_fallback" => true, "target_url" => "/" }
+      )
+
+      result = ActionExpectedValueRanking.new(
+        items: [
+          item(stable_id: "action_candidate:normal", delta: 1_000, confidence: 0.5, record: normal),
+          item(stable_id: "action_candidate:fallback", delta: 100_000, confidence: 1, record: fallback)
+        ],
+        mode: "revenue"
+      ).call
+
+      assert_equal [ "action_candidate:normal" ], result.items.map(&:stable_id)
+    end
+
     test "deduplicates same article action by query and planned url" do
       first = action_candidate(
         title: "「吸えログ 比較」向けの記事を1本作成する",
@@ -364,6 +399,52 @@ module Aicoo
       ).call
 
       assert_equal [ "action_candidate:second", "action_candidate:different" ], result.items.map(&:stable_id)
+    end
+
+    test "does not deduplicate different target shops" do
+      first = action_candidate(
+        title: "喫煙情報を確認する",
+        metadata: { "shop_id" => 101, "target_query" => "喫煙情報確認", "target_url" => "/" }
+      )
+      second = action_candidate(
+        title: "喫煙情報を確認する",
+        metadata: { "shop_id" => 202, "target_query" => "喫煙情報確認", "target_url" => "/" }
+      )
+      first.update!(action_type: "smoking_info_verify")
+      second.update!(action_type: "smoking_info_verify")
+
+      result = ActionExpectedValueRanking.new(
+        items: [
+          item(stable_id: "action_candidate:first_shop", delta: 10_000, confidence: 0.8, record: first),
+          item(stable_id: "action_candidate:second_shop", delta: 9_000, confidence: 0.8, record: second)
+        ],
+        mode: "revenue"
+      ).call
+
+      assert_equal [ "action_candidate:first_shop", "action_candidate:second_shop" ], result.items.map(&:stable_id)
+    end
+
+    test "does not deduplicate different target urls" do
+      first = action_candidate(
+        title: "LPのCTAを改善する",
+        metadata: { "target_query" => "CTA改善", "target_url" => "/" }
+      )
+      second = action_candidate(
+        title: "LPのCTAを改善する",
+        metadata: { "target_query" => "CTA改善", "target_url" => "/" }
+      )
+      first.update_columns(metadata: first.metadata.to_h.merge("target_url" => "/lp/a", "target_url_type" => "own_existing", "url_classification" => "own_existing"))
+      second.update_columns(metadata: second.metadata.to_h.merge("target_url" => "/lp/b", "target_url_type" => "own_existing", "url_classification" => "own_existing"))
+
+      result = ActionExpectedValueRanking.new(
+        items: [
+          item(stable_id: "action_candidate:first_url", delta: 10_000, confidence: 0.8, record: first),
+          item(stable_id: "action_candidate:second_url", delta: 9_000, confidence: 0.8, record: second)
+        ],
+        mode: "revenue"
+      ).call
+
+      assert_equal [ "action_candidate:first_url", "action_candidate:second_url" ], result.items.map(&:stable_id)
     end
 
     private

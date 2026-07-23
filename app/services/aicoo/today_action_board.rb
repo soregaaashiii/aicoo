@@ -636,12 +636,24 @@ module Aicoo
         action_plan["target_url_or_identifier"].presence ||
         presenter.action_plan["target"].presence ||
         presenter.action_plan["target_url_or_identifier"].presence ||
+        concrete_record_target(candidate).presence ||
         presenter.target_label.presence
 
       return nil if target.to_s.strip.blank?
       return nil if UNSPECIFIED_VALUES.include?(target.to_s.downcase) || target.to_s.include?("未特定")
 
       target
+    end
+
+    def concrete_record_target(candidate)
+      metadata = candidate.metadata.to_h
+      record_id = metadata["target_record_id"].presence ||
+        metadata["shop_id"].presence ||
+        metadata["external_record_id"].presence
+      return if record_id.blank?
+
+      label = metadata["shop_name"].presence || metadata["target_name"].presence || "対象レコード"
+      "#{label} ##{record_id}"
     end
 
     def planned_url_for(candidate)
