@@ -68,7 +68,9 @@ module Aicoo
     end
 
     def active_runs
-      running_step_run_ids = AicooDailyRunStep.where(status: "running").select(:aicoo_daily_run_id)
+      running_step_run_ids = AicooDailyRunStep
+        .where(status: "running", updated_at: STUCK_AFTER.ago..)
+        .select(:aicoo_daily_run_id)
       AicooDailyRun.where(status: "running").or(AicooDailyRun.where(id: running_step_run_ids))
     end
 

@@ -144,7 +144,7 @@ module Aicoo
     test "execution status keeps post run queue step visible while it is running" do
       run = create_run(status: "success", finished_at: @now)
       create_step(run, "analytics_fetch", status: "success", duration_seconds: 30)
-      create_step(run, "auto_revision_queue", status: "running", started_at: @now - 10.seconds)
+      create_step(run, "auto_revision_queue", status: "running", started_at: 10.seconds.ago)
 
       status = Aicoo::DailyRunExecutionStatus.call
       row = status.rows.find { |item| item.run_id == run.id }
@@ -154,6 +154,16 @@ module Aicoo
       assert row.progress.active?
       assert_operator row.progress.progress_percent, :<, 100
       assert_equal "Auto Revision Queue", row.current_step_name
+    end
+
+    test "execution status ignores stale running steps on completed runs" do
+      run = create_run(status: "success", finished_at: 2.hours.ago)
+      step = create_step(run, "business_metrics_import", status: "running", started_at: 2.hours.ago)
+      step.update_columns(updated_at: 2.hours.ago)
+
+      status = Aicoo::DailyRunExecutionStatus.call
+
+      assert_not status.rows.any? { |item| item.run_id == run.id }
     end
 
     private
