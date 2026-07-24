@@ -122,7 +122,7 @@
               <td><%= daily_run.started_at ? l(daily_run.started_at, format: :short) : "-" %></td>
               <td><%= daily_run.target_date %></td>
               <td><span class="pill"><%= daily_run.source %></span></td>
-              <td><span class="pill"><%= daily_run.status %></span></td>
+              <td><span class="pill daily-run-status-<%= progress.state %>"><%= progress.list_status_label %></span></td>
               <td class="number">
                 <strong data-daily-run-progress-key="list-<%= daily_run.id %>"><%= progress.progress_percent %>%</strong>
               </td>

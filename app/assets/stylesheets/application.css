@@ -2737,6 +2737,38 @@ textarea {
   transition: width 180ms ease;
 }
 
+.daily-run-progress-partial-failed .daily-run-progress-percent,
+.daily-run-progress-stuck .daily-run-progress-percent {
+  color: #a16207;
+}
+
+.daily-run-progress-partial-failed .daily-run-progress-track span,
+.daily-run-progress-stuck .daily-run-progress-track span {
+  background: #ca8a04;
+}
+
+.daily-run-progress-failed .daily-run-progress-percent {
+  color: #b91c1c;
+}
+
+.daily-run-progress-failed .daily-run-progress-track span {
+  background: #dc2626;
+}
+
+.daily-run-status-partial-failed,
+.daily-run-status-stuck,
+.daily-run-partial-failure-summary {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #854d0e;
+}
+
+.daily-run-status-failed {
+  background: #fff1f2;
+  border-color: #fecdd3;
+  color: #991b1b;
+}
+
 .daily-run-progress-track-small {
   height: 6px;
   margin-top: 5px;
@@ -2799,6 +2831,12 @@ textarea {
   flex-wrap: wrap;
   gap: 8px 18px;
   padding: 12px;
+}
+
+.daily-run-completion-summary-partial {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #854d0e;
 }
 
 .compact-definition {

@@ -271,6 +271,57 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
     assert_equal 160, first_checkpoint.fetch("total_candidate_count")
   end
 
+  test "stores weighted progress and the applicable step plan in existing step metadata" do
+    run = AicooDailyRun.create!(target_date: Date.new(2026, 7, 23), status: "running", source: "manual")
+    runner = AicooDailyRunner.new(target_date: run.target_date, source: "manual")
+    runner.instance_variable_set(:@daily_run_progress_step_names, %w[action_generation])
+    runner.instance_variable_set(:@daily_run_progress_averages, { "action_generation" => 400.0 })
+    runner.instance_variable_set(:@daily_run_progress_steps, [])
+    runner.instance_variable_set(:@daily_run_progress_percent, 0)
+    step = runner.send(:start_step!, run, "action_generation")
+
+    runner.send(
+      :record_step_progress!,
+      step,
+      batch: 1,
+      processed: 25,
+      current_business_index: 25,
+      total_business_count: 100
+    )
+
+    metadata = step.reload.metadata
+    assert_equal 25, metadata.fetch("progress_percent")
+    assert_equal true, metadata.dig("progress_step_plan", "action_generation")
+    assert_equal false, metadata.dig("progress_step_plan", "analytics_fetch")
+  end
+
+  test "marks a configuration-disabled skipped step as excluded from progress" do
+    run = AicooDailyRun.create!(target_date: Date.new(2026, 7, 23), status: "running", source: "manual")
+    runner = AicooDailyRunner.new(target_date: run.target_date, source: "manual")
+    step = runner.send(:start_step!, run, "auto_revision_queue")
+
+    runner.send(:skip_step!, step, metadata: { reason: "disabled" })
+
+    assert_equal false, step.reload.metadata.fetch("progress_applicable")
+  end
+
+  test "persists nondecreasing weighted progress when a step finishes" do
+    run = AicooDailyRun.create!(target_date: Date.new(2026, 7, 23), status: "running", source: "manual")
+    runner = AicooDailyRunner.new(target_date: run.target_date, source: "manual")
+    runner.instance_variable_set(:@daily_run_progress_step_names, %w[analytics_fetch insight_generation])
+    runner.instance_variable_set(
+      :@daily_run_progress_averages,
+      { "analytics_fetch" => 100.0, "insight_generation" => 300.0 }
+    )
+    runner.instance_variable_set(:@daily_run_progress_steps, [])
+    runner.instance_variable_set(:@daily_run_progress_percent, 0)
+    step = runner.send(:start_step!, run, "analytics_fetch")
+
+    runner.send(:finish_step!, step)
+
+    assert_equal 25, step.reload.metadata.fetch("progress_percent")
+  end
+
   test "releases memory metadata for success skipped and failed steps" do
     run = AicooDailyRun.create!(target_date: Date.new(2026, 6, 21), status: "running", source: "manual")
     runner = AicooDailyRunner.new(target_date: run.target_date, source: "manual")

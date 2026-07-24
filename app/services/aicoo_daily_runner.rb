@@ -8,6 +8,17 @@ class AicooDailyRunner
   MAX_METADATA_ARRAY_ITEMS = 20
   MAX_METADATA_STRING_LENGTH = 500
   PROGRESS_BATCH_SIZE = 25
+  SUELOG_PROGRESS_STEP_NAMES = %w[
+    suelog_database_health_check
+    suelog_candidate_generation
+    article_opportunity_analysis
+  ].freeze
+  PRE_RUN_SKIP_REASONS = %w[
+    disabled
+    auto_build_disabled
+    suelog_business_not_found
+    missing_database_url
+  ].freeze
 
   def self.run!(target_date: Date.yesterday, source: "manual")
     new(target_date:, source:).run!
@@ -45,6 +56,7 @@ class AicooDailyRunner
       retry_count: retry_count_for_today
     )
     run.update!(status: "running", started_at: Time.current)
+    prepare_daily_run_progress!(run)
 
     Aicoo::MemoryDiagnostics.measure("AicooDailyRunner#run!", context: daily_run_memory_context(run)) do
       execute_steps!(run)
@@ -1022,49 +1034,71 @@ class AicooDailyRunner
   end
 
   def start_step!(run, step_name)
-    run.aicoo_daily_run_steps.create!(
+    metadata = initial_step_memory_metadata
+    if @daily_run_progress_step_names && @daily_run_progress_plan_run_id != run.id
+      metadata[Aicoo::DailyRunProgress::STEP_PLAN_METADATA_KEY] =
+        Aicoo::DailyRunProgress::STEP_NAMES.index_with { |name| @daily_run_progress_step_names.include?(name) }
+      @daily_run_progress_plan_run_id = run.id
+    end
+    step = run.aicoo_daily_run_steps.create!(
       step_name:,
       status: "running",
       started_at: Time.current,
-      metadata: initial_step_memory_metadata
+      metadata:
     )
+    @daily_run_progress_steps << step if @daily_run_progress_steps
+    step
   end
 
   def finish_step!(step, metadata: {})
     finished_at = Time.current
-    step.update!(
+    step.assign_attributes(
       status: "success",
       finished_at:,
       duration_seconds: step_duration(step, finished_at),
       metadata: step_metadata_with_memory_event(step, "finish", metadata)
     )
+    persist_terminal_step!(step)
   ensure
     release_step_references!(step, release_reason: "finish")
   end
 
   def fail_step!(step, error_message, metadata: {})
     finished_at = Time.current
-    step.update!(
+    step.assign_attributes(
       status: "failed",
       finished_at:,
       duration_seconds: step_duration(step, finished_at),
       error_message:,
       metadata: step_metadata_with_memory_event(step, "error", metadata)
     )
+    persist_terminal_step!(step)
   ensure
     release_step_references!(step, release_reason: "error")
   end
 
   def skip_step!(step, metadata: {})
+    reason = metadata[:reason] || metadata["reason"]
+    metadata = metadata.merge(progress_applicable: false) if PRE_RUN_SKIP_REASONS.include?(reason.to_s)
     finished_at = Time.current
-    step.update!(
+    step.assign_attributes(
       status: "skipped",
       finished_at:,
       duration_seconds: step_duration(step, finished_at),
       metadata: step_metadata_with_memory_event(step, "skipped", metadata)
     )
+    persist_terminal_step!(step)
   ensure
     release_step_references!(step, release_reason: "skipped")
+  end
+
+  def persist_terminal_step!(step)
+    if @daily_run_progress_steps
+      metadata = step.metadata.to_h
+      metadata[Aicoo::DailyRunProgress::PROGRESS_PERCENT_METADATA_KEY] = persisted_daily_run_progress_percent(step)
+      step.metadata = metadata
+    end
+    step.save!
   end
 
   def release_step_references!(step_or_run, step_name = nil, release_reason: "manual")
@@ -1152,7 +1186,45 @@ class AicooDailyRunner
     )
     metadata.merge!(sanitize_metadata(progress_attributes.deep_stringify_keys))
     metadata["insight_generation_progress"] = sanitize_metadata(attributes[:insight_generation_progress].deep_stringify_keys) if attributes[:insight_generation_progress].present?
+    step.metadata = metadata
+    if @daily_run_progress_steps
+      metadata[Aicoo::DailyRunProgress::PROGRESS_PERCENT_METADATA_KEY] = persisted_daily_run_progress_percent(step)
+    end
     step.update_columns(metadata:, updated_at: Time.current)
+  end
+
+  def prepare_daily_run_progress!(run)
+    @daily_run_progress_step_names = daily_run_progress_step_names
+    @daily_run_progress_averages = Aicoo::DailyRunProgress.historical_averages(excluding_run_ids: [ run.id ])
+    @daily_run_progress_steps = []
+    @daily_run_progress_percent = 0
+    @daily_run_progress_plan_run_id = nil
+  rescue StandardError => e
+    Rails.logger.warn("[AicooDailyRunner] progress plan unavailable: #{e.class}: #{e.message}")
+    @daily_run_progress_step_names = Aicoo::DailyRunProgress::STEP_NAMES
+    @daily_run_progress_averages = {}
+    @daily_run_progress_steps = []
+    @daily_run_progress_percent = 0
+    @daily_run_progress_plan_run_id = nil
+  end
+
+  def daily_run_progress_step_names
+    names = Aicoo::DailyRunProgress::STEP_NAMES.dup
+    names -= SUELOG_PROGRESS_STEP_NAMES unless suelog_business && SuelogRecord.configured?
+    names.delete("auto_revision_queue") unless AicooAutoRevisionSetting.first&.enabled?
+    names.delete("resource_aware_auto_build") unless AicooResourceBudget.first&.auto_build_enabled?
+    names
+  end
+
+  def persisted_daily_run_progress_percent(step)
+    step.metadata = step.metadata.to_h
+    snapshot = Aicoo::DailyRunProgress.new(
+      step.aicoo_daily_run,
+      steps: @daily_run_progress_steps,
+      averages: @daily_run_progress_averages,
+      now: Time.current
+    ).call
+    @daily_run_progress_percent = [ @daily_run_progress_percent.to_i, snapshot.progress_percent ].max
   end
 
   def step_metadata_with_memory_event(step, event_name, metadata)

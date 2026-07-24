@@ -1,9 +1,11 @@
 module Aicoo
   class DailyRunProgress
     DEFAULT_STEP_DURATION_SECONDS = 60.0
-    MAX_CURRENT_STEP_FRACTION = 0.95
     HISTORY_SAMPLE_LIMIT = 2_000
+    DURATION_CACHE_TTL = 5.seconds
     POST_RUN_STEP_GRACE_PERIOD = 30.minutes
+    PROGRESS_PERCENT_METADATA_KEY = "progress_percent"
+    STEP_PLAN_METADATA_KEY = "progress_step_plan"
 
     STEP_DEFINITIONS = [
       [ "analytics_fetch", "Analytics" ],
@@ -38,7 +40,11 @@ module Aicoo
     STEP_LABELS = STEP_DEFINITIONS.to_h.freeze
     TERMINAL_STEP_STATUSES = %w[success failed skipped].freeze
     COMPLETED_RUN_STATUSES = %w[success succeeded partial_failed].freeze
-    FAILED_RUN_STATUSES = %w[failed stuck].freeze
+    SUCCESS_RUN_STATUSES = %w[success succeeded].freeze
+
+    class DurationAverageCache < ActiveSupport::CurrentAttributes
+      attribute :maps
+    end
 
     StepRow = Data.define(:name, :label, :status, :current) do
       def current?
@@ -71,7 +77,11 @@ module Aicoo
       :revision_queue_count,
       :active,
       :completed,
-      :failed
+      :successful,
+      :partial_failed,
+      :failed,
+      :stuck,
+      :current_step_percent
     ) do
       def active?
         active
@@ -81,16 +91,50 @@ module Aicoo
         completed
       end
 
+      def successful?
+        successful
+      end
+
+      def partial_failed?
+        partial_failed
+      end
+
       def failed?
         failed
       end
 
+      def stuck?
+        stuck
+      end
+
+      def state
+        return "running" if active?
+        return "partial-failed" if partial_failed?
+        return "failed" if failed?
+        return "stuck" if stuck?
+        return "success" if successful?
+
+        "pending"
+      end
+
       def status_label
         return "実行中" if active?
-        return "Failed" if failed?
-        return "Completed" if completed?
+        return "実行終了・一部失敗" if partial_failed?
+        return "実行終了・失敗" if failed?
+        return "停止中" if stuck?
+        return "完了" if successful?
 
         "待機中"
+      end
+
+      def list_status_label
+        return "実行中" if active?
+        return "一部失敗" if partial_failed?
+        return "失敗" if failed?
+        return "停止中" if stuck?
+        return "完了" if successful?
+
+        run.status
       end
 
       def elapsed_label
@@ -134,36 +178,51 @@ module Aicoo
     end
 
     def self.call(run, steps: nil, averages: nil, now: Time.current)
+      loaded_steps = Array(steps || loaded_steps_for(run))
+      active_run_ids = if run.running? || loaded_steps.any? { |step| step.status == "running" }
+        [ run.id ]
+      else
+        []
+      end
       new(
         run,
-        steps:,
-        averages: averages || historical_averages(excluding_run_ids: [ run.id ]),
+        steps: loaded_steps,
+        averages: averages || historical_averages(excluding_run_ids: active_run_ids),
         now:
       ).call
     end
 
-    def self.for_runs(runs, now: Time.current)
+    def self.for_runs(runs, averages: nil, now: Time.current)
       records = Array(runs).compact
       return {} if records.empty?
 
-      averages = historical_averages(excluding_run_ids: records.map(&:id))
+      active_run_ids = records.filter_map do |run|
+        run.id if run.running? || loaded_steps_for(run).any? { |step| step.status == "running" }
+      end
+      averages ||= historical_averages(excluding_run_ids: active_run_ids)
       records.index_with do |run|
         new(run, steps: loaded_steps_for(run), averages:, now:).call
       end
     end
 
     def self.historical_averages(excluding_run_ids: [])
-      recent_ids = AicooDailyRunStep
-        .where(status: "success", step_name: STEP_NAMES)
-        .where.not(duration_seconds: nil)
-        .where("duration_seconds > 0")
-        .order(id: :desc)
-        .limit(HISTORY_SAMPLE_LIMIT)
-        .select(:id)
+      excluded_ids = Array(excluding_run_ids).map(&:to_i).sort
+      request_maps = DurationAverageCache.maps ||= {}
+      return request_maps[excluded_ids] if request_maps.key?(excluded_ids)
 
-      scope = AicooDailyRunStep.where(id: recent_ids)
-      scope = scope.where.not(aicoo_daily_run_id: excluding_run_ids) if excluding_run_ids.present?
-      scope.group(:step_name).average(:duration_seconds).transform_values(&:to_f)
+      cache_key = "aicoo/daily-run-progress/durations/v2/#{excluded_ids.join('-').presence || 'none'}"
+      request_maps[excluded_ids] = Rails.cache.fetch(cache_key, expires_in: DURATION_CACHE_TTL) do
+        recent_ids = AicooDailyRunStep
+          .where(status: "success", step_name: STEP_NAMES)
+          .where.not(duration_seconds: nil)
+          .where("duration_seconds > 0")
+          .order(id: :desc)
+          .limit(HISTORY_SAMPLE_LIMIT)
+          .select(:id)
+        scope = AicooDailyRunStep.where(id: recent_ids)
+        scope = scope.where.not(aicoo_daily_run_id: excluded_ids) if excluded_ids.any?
+        scope.group(:step_name).average(:duration_seconds).transform_values(&:to_f)
+      end
     end
 
     def self.loaded_steps_for(run)
@@ -205,7 +264,11 @@ module Aicoo
         revision_queue_count: revision_queue_count,
         active: active?,
         completed: completed?,
-        failed: failed?
+        successful: successful?,
+        partial_failed: partial_failed?,
+        failed: failed?,
+        stuck: stuck?,
+        current_step_percent: (current_step_fraction * 100).round
       )
     end
 
@@ -232,7 +295,7 @@ module Aicoo
     end
 
     def progress_step
-      current_step || (failed? ? failed_step : nil)
+      current_step || ((failed? || partial_failed? || stuck?) ? failed_step : nil)
     end
 
     def terminal_steps
@@ -247,8 +310,20 @@ module Aicoo
       COMPLETED_RUN_STATUSES.include?(run.status) && !active?
     end
 
+    def successful?
+      SUCCESS_RUN_STATUSES.include?(run.status) && !active?
+    end
+
+    def partial_failed?
+      run.status == "partial_failed" && !active?
+    end
+
     def failed?
-      FAILED_RUN_STATUSES.include?(run.status) && !active?
+      run.status == "failed" && !active?
+    end
+
+    def stuck?
+      run.status == "stuck" && !active?
     end
 
     def recent_post_run_step?
@@ -259,77 +334,156 @@ module Aicoo
     end
 
     def progress_percent
-      return 100 if completed?
+      return 100 if successful? || partial_failed?
       return 0 if run.status == "pending" && steps.empty?
+      return saved_progress_percent if (failed? || stuck?) && saved_progress_percent
 
+      calculated = weighted_progress_percent || legacy_step_progress_percent
+      percent = [ saved_progress_percent, calculated ].compact.max || 0
+      active? ? percent.clamp(0, 99) : percent.clamp(0, 100)
+    end
+
+    def weighted_progress_percent
+      total_duration = step_duration_map.values.sum
+      return if total_duration <= 0
+
+      completed_duration = applicable_step_names.sum do |step_name|
+        step = latest_steps_by_name[step_name]
+        step && TERMINAL_STEP_STATUSES.include?(step.status) ? step_duration_map.fetch(step_name) : 0
+      end
+      current_duration = if current_step && applicable_step_names.include?(current_step.step_name)
+        step_duration_map.fetch(current_step.step_name) * current_step_fraction
+      else
+        0
+      end
+      ((completed_duration + current_duration) / total_duration * 100).round
+    end
+
+    def legacy_step_progress_percent
       completed_units = STEP_NAMES.count do |step_name|
         step = latest_steps_by_name[step_name]
         step && TERMINAL_STEP_STATUSES.include?(step.status)
       end
       current_units = current_step ? current_step_fraction : 0
-      raw_percent = ((completed_units + current_units) / STEP_NAMES.size.to_f * 100).floor
-      active? ? raw_percent.clamp(0, 99) : raw_percent.clamp(0, 100)
+      ((completed_units + current_units) / STEP_NAMES.size.to_f * 100).round
+    end
+
+    def saved_progress_percent
+      @saved_progress_percent ||= begin
+        values = steps.filter_map do |step|
+          metadata = step.metadata.to_h.stringify_keys
+          value = metadata[PROGRESS_PERCENT_METADATA_KEY]
+          value.to_f if value.present? || value == 0
+        end
+        values.max&.round&.clamp(0, 100)
+      end
     end
 
     def current_step_fraction
-      business_total = current_progress_metadata["total_business_count"].to_i
-      business_index = current_progress_metadata["current_business_index"].to_i
-      return (business_index.to_f / business_total).clamp(0, MAX_CURRENT_STEP_FRACTION) if business_total.positive?
+      return 0 unless current_step
 
-      expected = expected_duration_for(current_step.step_name)
-      return 0 if expected <= 0
+      business_fraction = fraction_for(
+        current_progress_metadata["current_business_index"],
+        current_progress_metadata["total_business_count"]
+      )
+      return business_fraction if business_fraction
 
-      (current_step_elapsed / expected).clamp(0, MAX_CURRENT_STEP_FRACTION)
+      candidate_fraction = fraction_for(
+        current_progress_metadata["current_candidate_count"],
+        current_progress_metadata["total_candidate_count"]
+      )
+      return candidate_fraction if candidate_fraction
+
+      step_specific_fraction || 0
+    end
+
+    def step_specific_fraction
+      metadata = current_progress_metadata
+      insight = metadata["insight_generation_progress"].to_h.stringify_keys
+      [
+        [ metadata["current_position"], metadata["total_count"] ],
+        [ metadata["processed_count"], metadata["total_count"] ],
+        [ metadata["last_progress_processed"], metadata["target_count"] ],
+        [ insight["current_position"], insight["total_count"] ],
+        [ insight["processed_count"], insight["total_count"] ]
+      ].each do |current, total|
+        fraction = fraction_for(current, total)
+        return fraction if fraction
+      end
+      nil
+    end
+
+    def fraction_for(current, total)
+      return if current.nil? || total.nil?
+
+      total_value = total.to_f
+      return unless total_value.positive?
+
+      (current.to_f / total_value).clamp(0.0, 1.0)
     end
 
     def remaining_seconds
       return 0 unless active?
 
       current_remaining = if current_step
-        expected = expected_duration_for(current_step.step_name)
+        expected = step_duration_map.fetch(current_step.step_name, 0)
         [ expected * (1 - current_step_fraction), 0 ].max
       else
         0
       end
-      future_remaining = STEP_NAMES.sum do |step_name|
+      future_remaining = applicable_step_names.sum do |step_name|
         step = latest_steps_by_name[step_name]
         next 0 if step && (TERMINAL_STEP_STATUSES.include?(step.status) || step.status == "running")
 
-        expected_duration_for(step_name)
+        step_duration_map.fetch(step_name)
       end
       (current_remaining + future_remaining).ceil
+    end
+
+    def step_duration_map
+      @step_duration_map ||= applicable_step_names.index_with { |step_name| expected_duration_for(step_name) }
     end
 
     def expected_duration_for(step_name)
       historical = averages[step_name].to_f
       return historical if historical.positive?
 
-      same_step_duration = latest_steps_by_name[step_name]&.duration_seconds.to_f
-      return same_step_duration if same_step_duration.positive?
-
       current_run_average_duration
     end
 
     def current_run_average_duration
       @current_run_average_duration ||= begin
-        durations = terminal_steps.filter_map do |step|
+        durations = latest_steps_by_name.values.filter_map do |step|
+          next unless step.status == "success"
+
           duration = step.duration_seconds.to_f
           duration if duration.positive?
         end
         if durations.any?
           durations.sum / durations.size
-        elsif current_step_elapsed.positive?
-          [ current_step_elapsed, DEFAULT_STEP_DURATION_SECONDS ].max
         else
           DEFAULT_STEP_DURATION_SECONDS
         end
       end
     end
 
-    def current_step_elapsed
-      return 0 unless current_step&.started_at
-
-      [ now - current_step.started_at, 0 ].max
+    def applicable_step_names
+      @applicable_step_names ||= begin
+        planned = steps.filter_map do |step|
+          plan = step.metadata.to_h.stringify_keys[STEP_PLAN_METADATA_KEY]
+          plan.to_h.stringify_keys if plan.is_a?(Hash)
+        end.first
+        names = if planned.present?
+          STEP_NAMES.select { |step_name| ActiveModel::Type::Boolean.new.cast(planned[step_name]) }
+        else
+          STEP_NAMES.dup
+        end
+        names.reject do |step_name|
+          metadata = latest_steps_by_name[step_name]&.metadata.to_h.stringify_keys
+          metadata && metadata.key?("progress_applicable") &&
+            !ActiveModel::Type::Boolean.new.cast(metadata["progress_applicable"])
+        end
+      end
     end
 
     def elapsed_seconds
@@ -393,7 +547,7 @@ module Aicoo
           name:,
           label:,
           status: step&.status || "pending",
-          current: step == current_step
+          current: step.present? && step == current_step
         )
       end
     end

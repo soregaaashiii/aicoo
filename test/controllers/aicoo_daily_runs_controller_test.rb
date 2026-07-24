@@ -118,6 +118,19 @@ class AicooDailyRunsControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, "通常実行中"
   end
 
+  test "labels partial failed failed and stuck states distinctly in run history" do
+    AicooDailyRun.create!(target_date: Date.yesterday, status: "partial_failed", source: "cron")
+    AicooDailyRun.create!(target_date: 2.days.ago.to_date, status: "failed", source: "cron")
+    AicooDailyRun.create!(target_date: 3.days.ago.to_date, status: "stuck", source: "cron")
+
+    get aicoo_daily_runs_url
+
+    assert_response :success
+    assert_includes response.body, "daily-run-status-partial-failed\">一部失敗"
+    assert_includes response.body, "daily-run-status-failed\">失敗"
+    assert_includes response.body, "daily-run-status-stuck\">停止中"
+  end
+
   test "compact operation status shows only the latest running daily run" do
     older_run = AicooDailyRun.create!(
       target_date: 2.days.ago.to_date,
@@ -306,7 +319,7 @@ class AicooDailyRunsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "補正提案"
     assert_includes response.body, "Execution Correction Overview"
     assert_includes response.body, "done"
-    assert_includes response.body, "Completed"
+    assert_includes response.body, "完了"
     assert_includes response.body, "100%"
   end
 
@@ -371,11 +384,65 @@ class AicooDailyRunsControllerTest < ActionDispatch::IntegrationTest
     get aicoo_daily_run_url(daily_run)
 
     assert_response :success
-    assert_includes response.body, "Failed"
+    assert_includes response.body, "実行終了・失敗"
     assert_includes response.body, "Step: business_metrics_import"
     assert_includes response.body, "原因: Timeout"
     assert_includes response.body, "Retry: 2"
     assert_match(/data-progress-percent="[1-9]\d*"/, response.body)
+  end
+
+  test "shows partial failed as an amber completed execution instead of success" do
+    daily_run = AicooDailyRun.create!(
+      target_date: Date.yesterday,
+      status: "partial_failed",
+      source: "cron",
+      started_at: 20.minutes.ago,
+      finished_at: 5.minutes.ago,
+      retry_count: 1,
+      error_message: "optional analytics failed"
+    )
+    daily_run.aicoo_daily_run_steps.create!(
+      step_name: "analytics_fetch",
+      status: "failed",
+      started_at: 20.minutes.ago,
+      finished_at: 19.minutes.ago,
+      duration_seconds: 60,
+      error_message: "optional analytics failed"
+    )
+
+    get aicoo_daily_run_url(daily_run)
+
+    assert_response :success
+    assert_includes response.body, "data-daily-run-state=\"partial-failed\""
+    assert_includes response.body, "data-progress-percent=\"100\""
+    assert_includes response.body, "実行終了・一部失敗"
+    assert_includes response.body, "daily-run-completion-summary-partial"
+    assert_not_includes response.body, "daily-run-progress-success"
+  end
+
+  test "shows stuck run with retained progress instead of one hundred percent" do
+    daily_run = AicooDailyRun.create!(
+      target_date: Date.yesterday,
+      status: "stuck",
+      source: "cron",
+      started_at: 45.minutes.ago,
+      retry_count: 2,
+      error_message: "heartbeat expired"
+    )
+    daily_run.aicoo_daily_run_steps.create!(
+      step_name: "insight_generation",
+      status: "running",
+      started_at: 44.minutes.ago,
+      metadata: { progress_percent: 64 }
+    )
+
+    get aicoo_daily_run_url(daily_run)
+
+    assert_response :success
+    assert_includes response.body, "data-daily-run-state=\"stuck\""
+    assert_includes response.body, "data-progress-percent=\"64\""
+    assert_includes response.body, "停止中"
+    assert_not_includes response.body, "data-progress-percent=\"100\""
   end
 
   test "creates daily run from form" do

@@ -3,14 +3,15 @@
 <% refresh_key = local_assigns[:refresh_key] || "daily-run-#{progress.run.id}" %>
 
 <div
-  class="aicoo-card daily-run-progress <%= 'daily-run-progress-compact' if compact %>"
+  class="aicoo-card daily-run-progress daily-run-progress-<%= progress.state %> <%= 'daily-run-progress-compact' if compact %>"
   data-daily-run-progress="<%= progress.run.id %>"
   data-daily-run-progress-key="<%= refresh_key %>"
+  data-daily-run-state="<%= progress.state %>"
   data-progress-percent="<%= progress.progress_percent %>">
   <div class="section-heading">
     <div>
       <p><span class="pill"><%= progress.active? ? "現在実行中" : progress.status_label %></span></p>
-      <h2><%= progress.active? ? "Daily Runはまだ完了していません" : "Daily Run進捗" %></h2>
+      <h2><%= progress.active? ? "Daily Runはまだ完了していません" : progress.status_label %></h2>
     </div>
     <strong class="daily-run-progress-percent"><%= progress.progress_percent %>%</strong>
   </div>
@@ -31,6 +32,9 @@
       <strong><%= progress.current_step_label %></strong>
       <% if progress.current_step_name.present? %>
         <small><%= progress.current_step_name %></small>
+      <% end %>
+      <% if progress.active? %>
+        <small>Step内進捗 <%= progress.current_step_percent %>%</small>
       <% end %>
     </div>
     <div class="metric-card">
@@ -63,18 +67,44 @@
     </ol>
   <% end %>
 
-  <% if progress.failed? %>
+  <% if progress.partial_failed? %>
+    <div class="alert-banner daily-run-partial-failure-summary">
+      <strong>実行終了・一部失敗</strong>
+      <p>
+        Step: <%= progress.failed_step.presence || "-" %> /
+        原因: <%= progress.failure_reason.presence || "一部Stepが失敗しました" %> /
+        Retry: <%= progress.retry_count %>
+      </p>
+    </div>
+    <% unless compact %>
+      <div class="daily-run-completion-summary daily-run-completion-summary-partial">
+        <span>所要時間 <%= progress.elapsed_label %></span>
+        <span>Business <%= progress.business_count %>件</span>
+        <span>ActionCandidate <%= progress.candidate_count %>件</span>
+        <span>改修Queue <%= progress.revision_queue_count %>件</span>
+      </div>
+    <% end %>
+  <% elsif progress.failed? %>
     <div class="alert-banner alert-banner-danger">
-      <strong>Failed</strong>
+      <strong>実行終了・失敗</strong>
       <p>
         Step: <%= progress.failed_step.presence || "-" %> /
         原因: <%= progress.failure_reason.presence || "不明" %> /
         Retry: <%= progress.retry_count %>
       </p>
     </div>
-  <% elsif progress.completed? && !compact %>
+  <% elsif progress.stuck? %>
+    <div class="alert-banner alert-banner-danger">
+      <strong>停止中</strong>
+      <p>
+        Step: <%= progress.current_step_name.presence || progress.failed_step.presence || "-" %> /
+        原因: <%= progress.failure_reason.presence || "処理が停止しています" %> /
+        Retry: <%= progress.retry_count %>
+      </p>
+    </div>
+  <% elsif progress.successful? && !compact %>
     <div class="daily-run-completion-summary">
-      <strong>Completed</strong>
+      <strong>完了</strong>
       <span>所要時間 <%= progress.elapsed_label %></span>
       <span>Business <%= progress.business_count %>件</span>
       <span>ActionCandidate <%= progress.candidate_count %>件</span>
