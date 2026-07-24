@@ -3,6 +3,7 @@ module Aicoo
     DEFAULT_STEP_DURATION_SECONDS = 60.0
     MAX_CURRENT_STEP_FRACTION = 0.95
     HISTORY_SAMPLE_LIMIT = 2_000
+    POST_RUN_STEP_GRACE_PERIOD = 30.minutes
 
     STEP_DEFINITIONS = [
       [ "analytics_fetch", "Analytics" ],
@@ -239,7 +240,7 @@ module Aicoo
     end
 
     def active?
-      run.running? || current_step.present?
+      run.running? || recent_post_run_step?
     end
 
     def completed?
@@ -248,6 +249,13 @@ module Aicoo
 
     def failed?
       FAILED_RUN_STATUSES.include?(run.status) && !active?
+    end
+
+    def recent_post_run_step?
+      return false unless COMPLETED_RUN_STATUSES.include?(run.status)
+      return false unless current_step&.started_at
+
+      current_step.started_at >= now - POST_RUN_STEP_GRACE_PERIOD
     end
 
     def progress_percent

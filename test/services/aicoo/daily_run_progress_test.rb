@@ -141,6 +141,31 @@ module Aicoo
       assert_equal "Timeout", after_retry.failure_reason
     end
 
+    test "execution status keeps a recent post run step visible" do
+      run = create_run(status: "success", finished_at: @now)
+      create_step(run, "analytics_fetch", status: "success", duration_seconds: 30)
+      create_step(run, "auto_revision_queue", status: "running", started_at: 10.seconds.ago)
+
+      status = Aicoo::DailyRunExecutionStatus.call
+      row = status.rows.find { |item| item.run_id == run.id }
+
+      assert row
+      assert row.progress.active?
+      assert_operator row.progress.progress_percent, :<, 100
+    end
+
+    test "completed run with a stale running step remains complete" do
+      run = create_run(status: "success", finished_at: 2.hours.ago)
+      create_step(run, "business_metrics_import", status: "running", started_at: @now - 2.hours)
+
+      progress = build_progress(run)
+      status = Aicoo::DailyRunExecutionStatus.call
+
+      assert progress.completed?
+      assert_equal 100, progress.progress_percent
+      assert_not status.rows.any? { |item| item.run_id == run.id }
+    end
+
     private
 
     def create_run(status: "running", started_at: @now - 2.minutes, finished_at: nil, **attributes)

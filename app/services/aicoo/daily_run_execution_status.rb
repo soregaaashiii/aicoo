@@ -68,7 +68,15 @@ module Aicoo
     end
 
     def active_runs
-      AicooDailyRun.running
+      recent_step_run_ids = AicooDailyRunStep
+        .where(status: "running", started_at: Aicoo::DailyRunProgress::POST_RUN_STEP_GRACE_PERIOD.ago..)
+        .select(:aicoo_daily_run_id)
+      recent_post_run_scope = AicooDailyRun.where(
+        status: Aicoo::DailyRunProgress::COMPLETED_RUN_STATUSES,
+        id: recent_step_run_ids
+      )
+
+      AicooDailyRun.running.or(recent_post_run_scope)
     end
 
     def build_rows(runs)
