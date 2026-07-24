@@ -43,7 +43,7 @@ module Aicoo
         Aicoo::AutoRevisionAutopilot.sweep(limit:)
         rows = (task_rows + candidate_rows)
           .uniq(&:key)
-          .sort_by { |row| [ -row.priority_score.to_d, row.record.created_at || Time.zone.at(0), -row.record.id.to_i ] }
+          .sort_by { |row| [ -row.priority_score.to_d, (row.record.created_at || Time.zone.at(0)).to_i, -row.record.id.to_i ] }
           .first(limit)
         selected = rows.find { |row| row.key == selected_key } || rows.first
 
@@ -138,7 +138,7 @@ module Aicoo
       def expected_value_sort_key(candidate, record)
         [
           -expected_value_yen_for(candidate).to_d,
-          record.created_at || Time.zone.at(0),
+          (record.created_at || Time.zone.at(0)).to_i,
           -record.id.to_i
         ]
       end

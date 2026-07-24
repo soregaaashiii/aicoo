@@ -85,6 +85,28 @@ module Aicoo
         assert_equal expected_values, rows.select { |row| common_ids.include?(row.auto_revision_task&.id) }.map(&:expected_profit_yen)
       end
 
+      test "uses the same second precision timestamp and id tie break as Today" do
+        lower_id_candidate = action_candidates(:nagazakicho_article)
+        higher_id_candidate = action_candidates(:ui_improvement)
+        same_value_metadata = {
+          "expected_value_if_action_yen" => 50_000,
+          "expected_value_if_no_action_yen" => 0,
+          "execution_cost_yen" => 0
+        }
+        lower_id_candidate.update_columns(status: "approved", metadata: lower_id_candidate.metadata.to_h.merge(same_value_metadata))
+        higher_id_candidate.update_columns(status: "approved", metadata: higher_id_candidate.metadata.to_h.merge(same_value_metadata))
+        lower_id_task = create_task!(lower_id_candidate, priority_score: 99_999)
+        higher_id_task = create_task!(higher_id_candidate, priority_score: 1)
+        timestamp = Time.zone.now.change(usec: 0)
+        lower_id_task.update_columns(created_at: timestamp + 0.9.seconds)
+        higher_id_task.update_columns(created_at: timestamp + 0.1.seconds)
+
+        rows = AutoRevisionLoopBoard.new(limit: 100).call.rows
+        common_ids = rows.filter_map(&:auto_revision_task).map(&:id) & [ lower_id_task.id, higher_id_task.id ]
+
+        assert_equal [ higher_id_task.id, lower_id_task.id ], common_ids
+      end
+
       private
 
       def create_task!(candidate, priority_score:)
