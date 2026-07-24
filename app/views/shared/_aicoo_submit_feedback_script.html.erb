@@ -114,13 +114,22 @@
         if (!currentPanel || !currentPanel.dataset.aicooAutoRefresh) return;
 
         fetch(window.location.href, {
-          headers: { "X-Requested-With": "XMLHttpRequest" },
+          headers: { "Accept": "text/html", "X-Requested-With": "XMLHttpRequest" },
           credentials: "same-origin"
         })
           .then(function (response) { return response.text(); })
           .then(function (html) {
             var parser = new DOMParser();
             var doc = parser.parseFromString(html, "text/html");
+            document.querySelectorAll("[data-daily-run-progress-key]").forEach(function (currentProgress) {
+              if (currentProgress.closest("[data-aicoo-operation-panel]")) return;
+
+              var key = currentProgress.dataset.dailyRunProgressKey;
+              var replacementProgress = Array.from(doc.querySelectorAll("[data-daily-run-progress-key]")).find(function (candidate) {
+                return candidate.dataset.dailyRunProgressKey === key;
+              });
+              if (replacementProgress) currentProgress.replaceWith(replacementProgress);
+            });
             var replacement = doc.querySelector("[data-aicoo-operation-panel]");
             if (replacement && currentPanel) currentPanel.replaceWith(replacement);
           })

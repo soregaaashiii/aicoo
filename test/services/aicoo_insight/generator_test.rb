@@ -176,6 +176,9 @@ module AicooInsight
       progress = events.last.fetch(:insight_generation_progress)
       assert_equal "in_progress", progress.fetch(:status)
       assert_equal business.id, progress.fetch(:business_id)
+      assert_equal business.name, progress.fetch(:business_name)
+      assert_equal 1, progress.fetch(:current_business_index)
+      assert_operator progress.fetch(:business_count), :>=, 1
       assert_equal 2, progress.fetch(:current_position)
       assert_equal 3, progress.fetch(:total_count)
       assert_equal 1, progress.fetch(:remaining_count)

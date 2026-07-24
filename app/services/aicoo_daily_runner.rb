@@ -412,7 +412,15 @@ class AicooDailyRunner
       batch = progress_batch_for(processed)
       return unless progress_checkpoint?(step, batch:, processed:, event: progress.event)
 
-      record_step_progress!(step, batch:, processed:)
+      record_step_progress!(
+        step,
+        batch:,
+        processed:,
+        current_business_id: progress.current_business_id,
+        current_business_name: progress.current_business_name,
+        current_business_index: processed,
+        total_business_count: progress.target_business_count
+      )
       log!("business_metrics_import progress batch=#{batch} processed=#{processed} rss_mb=#{memory_snapshot['rss_mb'] || '-'}")
     end
   end
@@ -421,6 +429,15 @@ class AicooDailyRunner
     lambda do |batch:, processed:, **attributes|
       return unless attributes[:insight_generation_progress].present? || progress_checkpoint?(step, batch:, processed:)
 
+      if attributes[:insight_generation_progress].present?
+        insight_progress = attributes[:insight_generation_progress].to_h
+        attributes = attributes.merge(
+          current_business_id: insight_progress[:business_id] || insight_progress["business_id"],
+          current_business_name: insight_progress[:business_name] || insight_progress["business_name"],
+          current_business_index: insight_progress[:current_business_index] || insight_progress["current_business_index"],
+          total_business_count: insight_progress[:business_count] || insight_progress["business_count"]
+        )
+      end
       record_step_progress!(step, batch:, processed:, **attributes)
       log!("daily_step progress step=#{step.step_name} batch=#{batch} processed=#{processed} rss_mb=#{memory_snapshot['rss_mb'] || '-'}")
       release_step_references!(step, release_reason: "batch") if attributes[:insight_generation_progress].present?
@@ -1125,6 +1142,15 @@ class AicooDailyRunner
     metadata["last_progress"] = event
     metadata["last_progress_batch"] = event["batch"]
     metadata["last_progress_processed"] = event["processed"]
+    progress_attributes = attributes.slice(
+      :current_business_id,
+      :current_business_name,
+      :current_business_index,
+      :total_business_count,
+      :current_candidate_count,
+      :total_candidate_count
+    )
+    metadata.merge!(sanitize_metadata(progress_attributes.deep_stringify_keys))
     metadata["insight_generation_progress"] = sanitize_metadata(attributes[:insight_generation_progress].deep_stringify_keys) if attributes[:insight_generation_progress].present?
     step.update_columns(metadata:, updated_at: Time.current)
   end

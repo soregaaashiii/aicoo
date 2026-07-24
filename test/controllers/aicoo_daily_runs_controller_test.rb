@@ -43,6 +43,7 @@ class AicooDailyRunsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "source"
     assert_includes response.body, "Analytics"
     assert_includes response.body, "Insight"
+    assert_includes response.body, "100%"
   end
 
   test "filters daily runs by warning" do
@@ -72,7 +73,14 @@ class AicooDailyRunsControllerTest < ActionDispatch::IntegrationTest
     daily_run.aicoo_daily_run_steps.create!(
       step_name: "action_generation",
       status: "running",
-      started_at: 2.minutes.ago
+      started_at: 2.minutes.ago,
+      metadata: {
+        current_business_name: "吸えログ",
+        current_business_index: 42,
+        total_business_count: 183,
+        current_candidate_count: 412,
+        total_candidate_count: 801
+      }
     )
 
     get aicoo_daily_runs_url
@@ -84,7 +92,12 @@ class AicooDailyRunsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "stuck判定"
     assert_includes response.body, "通常実行中"
     assert_includes response.body, "最終ログ"
-    assert_includes response.body, "action_generation"
+    assert_includes response.body, "Action Generation"
+    assert_includes response.body, "吸えログ 42 / 183"
+    assert_includes response.body, "残り時間"
+    assert_includes response.body, "data-aicoo-auto-refresh=\"5000\""
+    assert_includes response.body, "data-daily-run-progress-key=\"list-#{daily_run.id}\""
+    assert_includes response.body, "\"Accept\": \"text/html\""
     assert_includes response.body, aicoo_daily_run_path(daily_run)
   end
 
@@ -272,6 +285,8 @@ class AicooDailyRunsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "補正提案"
     assert_includes response.body, "Execution Correction Overview"
     assert_includes response.body, "done"
+    assert_includes response.body, "Completed"
+    assert_includes response.body, "100%"
   end
 
   test "shows running banner on daily run detail" do
@@ -284,7 +299,12 @@ class AicooDailyRunsControllerTest < ActionDispatch::IntegrationTest
     daily_run.aicoo_daily_run_steps.create!(
       step_name: "business_playbook_update",
       status: "running",
-      started_at: 1.minute.ago
+      started_at: 1.minute.ago,
+      metadata: {
+        current_business_name: "吸えログ",
+        current_business_index: 12,
+        total_business_count: 20
+      }
     )
 
     get aicoo_daily_run_url(daily_run)
@@ -292,8 +312,49 @@ class AicooDailyRunsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.body, "現在実行中"
     assert_includes response.body, "Daily Runはまだ完了していません"
-    assert_includes response.body, "business_playbook_update"
+    assert_includes response.body, "Business Playbook"
+    assert_includes response.body, "吸えログ 12 / 20"
+    assert_includes response.body, "ETA"
+    assert_includes response.body, "Daily Run Step一覧"
+    assert_includes response.body, "data-daily-run-progress-key=\"detail-#{daily_run.id}\""
     assert_includes response.body, "同じ対象日の再実行はスキップされます"
+  end
+
+  test "shows retained progress and failure details on failed daily run" do
+    daily_run = AicooDailyRun.create!(
+      target_date: Date.yesterday,
+      status: "failed",
+      source: "cron",
+      started_at: 20.minutes.ago,
+      finished_at: 5.minutes.ago,
+      retry_count: 2,
+      error_message: "Timeout"
+    )
+    daily_run.aicoo_daily_run_steps.create!(
+      step_name: "analytics_fetch",
+      status: "success",
+      started_at: 20.minutes.ago,
+      finished_at: 19.minutes.ago,
+      duration_seconds: 60
+    )
+    daily_run.aicoo_daily_run_steps.create!(
+      step_name: "business_metrics_import",
+      status: "failed",
+      started_at: 19.minutes.ago,
+      finished_at: 5.minutes.ago,
+      duration_seconds: 14.minutes,
+      error_message: "Timeout",
+      metadata: { current_business_index: 122, total_business_count: 183 }
+    )
+
+    get aicoo_daily_run_url(daily_run)
+
+    assert_response :success
+    assert_includes response.body, "Failed"
+    assert_includes response.body, "Step: business_metrics_import"
+    assert_includes response.body, "原因: Timeout"
+    assert_includes response.body, "Retry: 2"
+    assert_match(/data-progress-percent="[1-9]\d*"/, response.body)
   end
 
   test "creates daily run from form" do

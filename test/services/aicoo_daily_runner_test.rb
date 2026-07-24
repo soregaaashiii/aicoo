@@ -236,6 +236,41 @@ class AicooDailyRunnerTest < ActiveSupport::TestCase
     end
   end
 
+  test "stores business and candidate progress only at batch checkpoints" do
+    run = AicooDailyRun.create!(target_date: Date.new(2026, 7, 23), status: "running", source: "manual")
+    runner = AicooDailyRunner.new(target_date: run.target_date, source: "manual")
+    step = runner.send(:start_step!, run, "action_generation")
+    callback = runner.send(:daily_step_progress_callback, step)
+
+    callback.call(
+      batch: 1,
+      processed: 25,
+      current_business_id: businesses(:suelog).id,
+      current_business_name: businesses(:suelog).name,
+      current_business_index: 25,
+      total_business_count: 100,
+      current_candidate_count: 40,
+      total_candidate_count: 160
+    )
+    first_checkpoint = step.reload.metadata
+
+    callback.call(
+      batch: 1,
+      processed: 26,
+      current_business_index: 26,
+      total_business_count: 100,
+      current_candidate_count: 41,
+      total_candidate_count: 158
+    )
+    second_checkpoint = step.reload.metadata
+
+    assert_equal 25, first_checkpoint.fetch("last_progress_processed")
+    assert_equal first_checkpoint, second_checkpoint
+    assert_equal businesses(:suelog).name, first_checkpoint.fetch("current_business_name")
+    assert_equal 40, first_checkpoint.fetch("current_candidate_count")
+    assert_equal 160, first_checkpoint.fetch("total_candidate_count")
+  end
+
   test "releases memory metadata for success skipped and failed steps" do
     run = AicooDailyRun.create!(target_date: Date.new(2026, 6, 21), status: "running", source: "manual")
     runner = AicooDailyRunner.new(target_date: run.target_date, source: "manual")

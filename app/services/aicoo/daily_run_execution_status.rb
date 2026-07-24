@@ -13,7 +13,8 @@ module Aicoo
       :elapsed_label,
       :stuck,
       :last_log,
-      :path
+      :path,
+      :progress
     ) do
       def stuck?
         stuck
@@ -56,18 +57,28 @@ module Aicoo
     private
 
     def running_rows
-      @running_rows ||= AicooDailyRun.running
+      @running_rows ||= active_runs
         .includes(:aicoo_daily_run_steps)
         .recent
-        .map { |run| build_row(run) }
+        .then { |runs| build_rows(runs) }
     end
 
     def latest_run
       @latest_run ||= AicooDailyRun.includes(:aicoo_daily_run_steps).recent.first
     end
 
-    def build_row(run)
-      current_step = run.current_step
+    def active_runs
+      running_step_run_ids = AicooDailyRunStep.where(status: "running").select(:aicoo_daily_run_id)
+      AicooDailyRun.where(status: "running").or(AicooDailyRun.where(id: running_step_run_ids))
+    end
+
+    def build_rows(runs)
+      records = runs.to_a
+      progress_by_id = Aicoo::DailyRunProgress.for_runs(records)
+      records.map { |run| build_row(run, progress_by_id.fetch(run)) }
+    end
+
+    def build_row(run, progress)
       Row.new(
         run:,
         run_id: run.id,
@@ -75,12 +86,17 @@ module Aicoo
         source: run.source,
         target_date: run.target_date,
         started_at: run.started_at,
-        current_step_name: current_step&.step_name || "準備中",
-        elapsed_label: run.running_duration_label,
+        current_step_name: progress.current_step_label,
+        elapsed_label: progress.elapsed_label,
         stuck: stuck?(run),
-        last_log: last_log_for(run, current_step),
-        path: aicoo_daily_run_path(run)
+        last_log: last_log_for(run, current_step_for(progress)),
+        path: aicoo_daily_run_path(run),
+        progress:
       )
+    end
+
+    def current_step_for(progress)
+      progress.run.aicoo_daily_run_steps.find { |step| step.step_name == progress.current_step_name && step.status == "running" }
     end
 
     def stuck?(run)

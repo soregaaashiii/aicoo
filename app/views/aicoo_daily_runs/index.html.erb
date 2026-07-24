@@ -99,6 +99,7 @@
             <th>対象日</th>
             <th>source</th>
             <th>状態</th>
+            <th>進捗</th>
             <th>retry</th>
             <th>Analytics</th>
             <th>Snapshot</th>
@@ -116,11 +117,15 @@
         <tbody>
           <% @daily_runs.each do |daily_run| %>
             <% related_serp_runs = @serp_runs_by_daily_run_id[daily_run.id].to_a %>
+            <% progress = @daily_run_progress_by_id.fetch(daily_run) %>
             <tr>
               <td><%= daily_run.started_at ? l(daily_run.started_at, format: :short) : "-" %></td>
               <td><%= daily_run.target_date %></td>
               <td><span class="pill"><%= daily_run.source %></span></td>
               <td><span class="pill"><%= daily_run.status %></span></td>
+              <td class="number">
+                <strong data-daily-run-progress-key="list-<%= daily_run.id %>"><%= progress.progress_percent %>%</strong>
+              </td>
               <td class="number"><%= daily_run.retry_count %></td>
               <td class="number"><%= daily_run.analytics_fetch_count %></td>
               <td class="number"><%= daily_run.snapshot_count %></td>
@@ -171,7 +176,7 @@
             </tr>
           <% end %>
           <% if @daily_runs.empty? %>
-            <tr><td colspan="16">まだDaily Runはありません。</td></tr>
+            <tr><td colspan="17">まだDaily Runはありません。</td></tr>
           <% end %>
         </tbody>
       </table>

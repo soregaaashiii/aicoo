@@ -62,16 +62,38 @@ class MetricActionCandidateGenerator
   def self.generate_all!(progress: nil)
     summary = Result.new
     processed = 0
-    Business.real_businesses.find_each do |business|
+    businesses = Business.real_businesses
+    total_business_count = businesses.count
+    businesses.find_each do |business|
       processed += 1
       summary += new(business:).call
-      progress&.call(batch: progress_batch_for(processed), processed:)
+      emit_progress(progress, summary:, business:, processed:, total_business_count:)
     rescue StandardError => e
       Rails.logger.warn("[MetricActionCandidateGenerator] business_id=#{business.id} failed: #{e.class}: #{e.message}")
       summary += Result.new(failed_count: 1, skipped: [ "#{business.name}: #{e.class}: #{e.message}" ])
-      progress&.call(batch: progress_batch_for(processed), processed:)
+      emit_progress(progress, summary:, business:, processed:, total_business_count:)
     end
     summary
+  end
+
+  def self.emit_progress(progress, summary:, business:, processed:, total_business_count:)
+    return unless progress
+
+    estimated_total_candidates = if processed.positive?
+      (summary.created_count.to_f / processed * total_business_count).ceil
+    else
+      0
+    end
+    progress.call(
+      batch: progress_batch_for(processed),
+      processed:,
+      current_business_id: business.id,
+      current_business_name: business.name,
+      current_business_index: processed,
+      total_business_count:,
+      current_candidate_count: summary.created_count,
+      total_candidate_count: [ estimated_total_candidates, summary.created_count ].max
+    )
   end
 
   def self.progress_batch_for(processed)

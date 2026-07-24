@@ -141,6 +141,7 @@ module AicooInsight
           memory_context:,
           business:,
           business_count:,
+          current_business_index: processed,
           current_position: offset + business_result.processed_count,
           total_count: business_result.total_count,
           processed_count: batch_no,
@@ -171,6 +172,7 @@ module AicooInsight
           memory_context:,
           business: nil,
           business_count:,
+          current_business_index: business_count,
           current_position: 0,
           total_count: 0,
           processed_count: batch_no,
@@ -218,7 +220,7 @@ module AicooInsight
       {}
     end
 
-    def self.insight_generation_progress_payload(memory_context:, business:, business_count:, current_position:, total_count:, processed_count:, batch_size:, batch_started_at:, batch_rss_before:, last_spec:, completed_business:, completed_all:)
+    def self.insight_generation_progress_payload(memory_context:, business:, business_count:, current_business_index:, current_position:, total_count:, processed_count:, batch_size:, batch_started_at:, batch_rss_before:, last_spec:, completed_business:, completed_all:)
       rss_after = Aicoo::MemoryDiagnostics.current_rss_mb
       elapsed_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - batch_started_at) * 1000).round
       remaining_count = [ total_count.to_i - current_position.to_i, 0 ].max
@@ -228,6 +230,8 @@ module AicooInsight
         daily_run_id: memory_context[:daily_run_id] || memory_context["daily_run_id"],
         step_id: memory_context[:step_id] || memory_context["step_id"],
         business_id: business&.id,
+        business_name: business&.name,
+        current_business_index:,
         current_position:,
         total_count:,
         processed_count:,

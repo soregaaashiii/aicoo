@@ -2710,6 +2710,97 @@ textarea {
   height: 100%;
 }
 
+.daily-run-progress {
+  display: grid;
+  gap: 14px;
+}
+
+.daily-run-progress-percent {
+  color: #0f766e;
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.daily-run-progress-track {
+  background: #e2e8f0;
+  border-radius: 999px;
+  height: 14px;
+  overflow: hidden;
+  width: 100%;
+}
+
+.daily-run-progress-track span {
+  background: #0f766e;
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+  transition: width 180ms ease;
+}
+
+.daily-run-progress-track-small {
+  height: 6px;
+  margin-top: 5px;
+  min-width: 90px;
+}
+
+.daily-run-progress-metrics {
+  margin: 0;
+}
+
+.daily-run-step-list {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.daily-run-step {
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  display: flex;
+  gap: 7px;
+  min-width: 0;
+  padding: 8px 10px;
+}
+
+.daily-run-step strong {
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+
+.daily-run-step-success,
+.daily-run-step-skipped {
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.daily-run-step-failed {
+  background: #fff1f2;
+  color: #991b1b;
+}
+
+.daily-run-step.is-current {
+  background: #eef6ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
+.daily-run-completion-summary {
+  align-items: center;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 6px;
+  color: #166534;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  padding: 12px;
+}
+
 .compact-definition {
   display: grid;
   gap: 0.35rem 0.75rem;
@@ -2984,6 +3075,10 @@ summary {
 }
 
 @media (max-width: 760px) {
+  .daily-run-step-list {
+    grid-template-columns: 1fr;
+  }
+
   .lp-integration-body .aicoo-sidebar {
     display: none;
   }

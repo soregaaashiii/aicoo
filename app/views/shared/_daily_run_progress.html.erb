@@ -1,0 +1,88 @@
+<% progress = local_assigns.fetch(:progress) %>
+<% compact = local_assigns.fetch(:compact, false) %>
+<% refresh_key = local_assigns[:refresh_key] || "daily-run-#{progress.run.id}" %>
+
+<div
+  class="aicoo-card daily-run-progress <%= 'daily-run-progress-compact' if compact %>"
+  data-daily-run-progress="<%= progress.run.id %>"
+  data-daily-run-progress-key="<%= refresh_key %>"
+  data-progress-percent="<%= progress.progress_percent %>">
+  <div class="section-heading">
+    <div>
+      <p><span class="pill"><%= progress.active? ? "現在実行中" : progress.status_label %></span></p>
+      <h2><%= progress.active? ? "Daily Runはまだ完了していません" : "Daily Run進捗" %></h2>
+    </div>
+    <strong class="daily-run-progress-percent"><%= progress.progress_percent %>%</strong>
+  </div>
+
+  <div
+    class="daily-run-progress-track"
+    role="progressbar"
+    aria-label="Daily Run進捗"
+    aria-valuemin="0"
+    aria-valuemax="100"
+    aria-valuenow="<%= progress.progress_percent %>">
+    <span style="width: <%= progress.progress_percent %>%"></span>
+  </div>
+
+  <div class="metric-grid daily-run-progress-metrics">
+    <div class="metric-card">
+      <span>現在Step</span>
+      <strong><%= progress.current_step_label %></strong>
+      <% if progress.current_step_name.present? %>
+        <small><%= progress.current_step_name %></small>
+      <% end %>
+    </div>
+    <div class="metric-card">
+      <span><%= progress.active? ? "残り時間" : "所要時間" %></span>
+      <strong><%= progress.active? ? progress.remaining_label : progress.elapsed_label %></strong>
+      <% if progress.estimated_finish_at %>
+        <small>ETA <%= progress.estimated_finish_at.strftime("%H:%M") %></small>
+      <% end %>
+    </div>
+    <div class="metric-card">
+      <span>Business</span>
+      <strong><%= progress.business_label %></strong>
+    </div>
+    <% if progress.current_step_name == "action_generation" || progress.completed? %>
+      <div class="metric-card">
+        <span>ActionCandidate</span>
+        <strong><%= progress.active? ? progress.candidate_label : "#{progress.candidate_count}件" %></strong>
+      </div>
+    <% end %>
+  </div>
+
+  <% unless compact %>
+    <ol class="daily-run-step-list" aria-label="Daily Run Step一覧">
+      <% progress.step_rows.each do |step| %>
+        <li class="daily-run-step daily-run-step-<%= step.status %> <%= 'is-current' if step.current? %>">
+          <span aria-hidden="true"><%= step.current? ? "▶" : (step.status.in?(%w[success skipped]) ? "✓" : (step.status == "failed" ? "!" : "□")) %></span>
+          <strong><%= step.label %></strong>
+        </li>
+      <% end %>
+    </ol>
+  <% end %>
+
+  <% if progress.failed? %>
+    <div class="alert-banner alert-banner-danger">
+      <strong>Failed</strong>
+      <p>
+        Step: <%= progress.failed_step.presence || "-" %> /
+        原因: <%= progress.failure_reason.presence || "不明" %> /
+        Retry: <%= progress.retry_count %>
+      </p>
+    </div>
+  <% elsif progress.completed? && !compact %>
+    <div class="daily-run-completion-summary">
+      <strong>Completed</strong>
+      <span>所要時間 <%= progress.elapsed_label %></span>
+      <span>Business <%= progress.business_count %>件</span>
+      <span>ActionCandidate <%= progress.candidate_count %>件</span>
+      <span>改修Queue <%= progress.revision_queue_count %>件</span>
+    </div>
+  <% end %>
+
+  <% if progress.active? && !compact %>
+    <p class="muted">このRunが完了するまで、同じ対象日の再実行はスキップされます。</p>
+  <% end %>
+</div>

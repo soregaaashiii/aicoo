@@ -9,6 +9,26 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     DataSourceCostProfile.find_by!(source_key: "serp").update!(api_key: nil)
   end
 
+  test "emits business and estimated candidate progress" do
+    payload = nil
+    summary = MetricActionCandidateGenerator::Result.new(created_count: 12)
+
+    MetricActionCandidateGenerator.emit_progress(
+      ->(**attributes) { payload = attributes },
+      summary:,
+      business: @business,
+      processed: 3,
+      total_business_count: 10
+    )
+
+    assert_equal @business.id, payload.fetch(:current_business_id)
+    assert_equal @business.name, payload.fetch(:current_business_name)
+    assert_equal 3, payload.fetch(:current_business_index)
+    assert_equal 10, payload.fetch(:total_business_count)
+    assert_equal 12, payload.fetch(:current_candidate_count)
+    assert_equal 40, payload.fetch(:total_candidate_count)
+  end
+
   test "generic opportunity analyzer creates concrete low ctr opportunity" do
     create_metric_series(default_impressions: 10, recent_impressions: 1_000, default_clicks: 0, recent_clicks: 5)
 

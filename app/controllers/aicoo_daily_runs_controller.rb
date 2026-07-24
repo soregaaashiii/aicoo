@@ -1,6 +1,7 @@
 class AicooDailyRunsController < ApplicationController
   def index
     @daily_runs = filtered_daily_runs.includes(:aicoo_daily_run_steps).limit(50)
+    @daily_run_progress_by_id = Aicoo::DailyRunProgress.for_runs(@daily_runs)
     @daily_run_execution_status = Aicoo::DailyRunExecutionStatus.call
     @daily_run_system_status = Aicoo::SystemStatusResolver.call("daily_run")
     @latest_serp_run = SerpRun.includes(:serp_analyses).recent.first
@@ -10,6 +11,7 @@ class AicooDailyRunsController < ApplicationController
   def show
     @daily_run = AicooDailyRun.find(params[:id])
     @daily_run_steps = @daily_run.aicoo_daily_run_steps.order(:started_at, :created_at)
+    @daily_run_progress = Aicoo::DailyRunProgress.call(@daily_run, steps: @daily_run_steps)
     @daily_run_history = Aicoo::DailyRunHistory.new(@daily_run)
     @correction_readiness = AicooCorrectionReadinessService.new.call
     @execution_feasibility_insight = AicooExecutionFeasibilityInsightService.new.call
