@@ -3,15 +3,14 @@
 
 <% if status&.running? %>
   <% if mode == :compact %>
-    <% status.rows.each do |row| %>
-      <%= render "shared/daily_run_progress",
-                 progress: row.progress,
-                 compact: true,
-                 refresh_key: "operation-#{row.run_id}" %>
-      <div class="actions compact-actions">
-        <%= link_to "進行状況を見る", row.path, class: "button secondary" %>
-      </div>
-    <% end %>
+    <% row = status.rows.first %>
+    <%= render "shared/daily_run_progress",
+               progress: row.progress,
+               compact: true,
+               refresh_key: "operation-#{row.run_id}" %>
+    <div class="actions compact-actions">
+      <%= link_to "進行状況を見る", row.path, class: "button secondary" %>
+    </div>
   <% else %>
     <div class="aicoo-card <%= 'danger' if status.rows.any?(&:stuck?) %>">
       <div class="section-heading">

@@ -118,6 +118,27 @@ class AicooDailyRunsControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, "通常実行中"
   end
 
+  test "compact operation status shows only the latest running daily run" do
+    older_run = AicooDailyRun.create!(
+      target_date: 2.days.ago.to_date,
+      status: "running",
+      source: "cron",
+      started_at: 20.minutes.ago
+    )
+    newer_run = AicooDailyRun.create!(
+      target_date: Date.yesterday,
+      status: "running",
+      source: "manual",
+      started_at: 10.minutes.ago
+    )
+
+    get aicoo_daily_runs_url
+
+    assert_response :success
+    assert_includes response.body, "data-daily-run-progress-key=\"operation-#{newer_run.id}\""
+    assert_not_includes response.body, "data-daily-run-progress-key=\"operation-#{older_run.id}\""
+  end
+
   test "shows stale running daily run as stuck possibility consistently" do
     daily_run = AicooDailyRun.create!(
       target_date: Date.yesterday,
