@@ -13,9 +13,10 @@ module Aicoo
       counts = [ 10, 50, 100 ].index_with do |candidate_count|
         activate_candidates(candidate_count)
         run_board
-        query_count, board = count_queries { run_board }
+        query_count, write_count, board = count_queries { run_board }
 
         assert_equal candidate_count, board.items.count { |item| item.record.is_a?(ActionCandidate) }
+        assert_equal 0, write_count
         query_count
       end
       assert_operator counts.fetch(100), :<=, counts.fetch(10) + 10
@@ -80,14 +81,16 @@ module Aicoo
 
     def count_queries
       count = 0
+      write_count = 0
       callback = lambda do |_name, _started, _finished, _unique_id, payload|
         next if payload[:name] == "SCHEMA" || payload[:cached]
 
         count += 1
+        write_count += 1 if payload[:sql].match?(/\A(?:INSERT|UPDATE|DELETE)/)
       end
 
       result = ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { yield }
-      [ count, result ]
+      [ count, write_count, result ]
     end
   end
 end

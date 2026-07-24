@@ -181,7 +181,9 @@ module Aicoo
     end
 
     def select_today_items(items)
-      suppress_article_opportunity_duplicates(items.uniq(&:stable_id))
+      selected_items = suppress_article_opportunity_duplicates(items.uniq(&:stable_id))
+      persist_today_inclusions!(selected_items)
+      selected_items
     end
 
     def suppress_article_opportunity_duplicates(items)
@@ -284,7 +286,7 @@ module Aicoo
       balanced_score = (revenue_score * 0.6) + (learning_score * 0.4)
       selected_score = score_for(revenue_score:, learning_score:, balanced_score:)
 
-      mark_today_included!(candidate, quality_warnings:)
+      remember_today_inclusion(candidate, quality_warnings:)
       Item.new(
         stable_id: "action_candidate:#{candidate.id}",
         rank: nil,
@@ -843,6 +845,23 @@ module Aicoo
         ),
         updated_at: Time.current
       )
+    end
+
+    def remember_today_inclusion(candidate, quality_warnings:)
+      @today_inclusions ||= {}
+      @today_inclusions[candidate.id] = [ candidate, quality_warnings ]
+    end
+
+    def persist_today_inclusions!(items)
+      selected_candidate_ids = items.filter_map do |item|
+        item.stable_id.to_s.match(/\Aaction_candidate:(\d+)\z/)&.captures&.first&.to_i
+      end.to_set
+
+      (@today_inclusions || {}).each do |candidate_id, (candidate, quality_warnings)|
+        next unless selected_candidate_ids.include?(candidate_id)
+
+        mark_today_included!(candidate, quality_warnings:)
+      end
     end
 
     def mark_filtered_items!(items, ranked_items)
