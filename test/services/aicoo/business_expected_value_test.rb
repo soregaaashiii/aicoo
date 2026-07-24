@@ -213,6 +213,24 @@ module Aicoo
       assert_equal 10_000, result.action_opportunity_value_yen
     end
 
+    test "read only calculation accepts preloaded candidates without persisting metadata" do
+      @business = businesses(:cards)
+      candidate = create_candidate!(title: "Today read only expected value", value: 12_000)
+      business = candidate.business.reload
+      original_business_metadata = business.metadata.deep_dup
+      original_candidate_metadata = candidate.reload.metadata.deep_dup
+
+      result = BusinessExpectedValue.call(
+        business,
+        candidates: [ candidate ],
+        persist: false
+      )
+
+      assert_operator result.expected_total_value_yen, :>=, 0
+      assert_equal original_business_metadata, business.reload.metadata
+      assert_equal original_candidate_metadata, candidate.reload.metadata
+    end
+
     test "exploring business expected value is not fixed capped" do
       business = Business.create!(
         name: "大型SERP発見事業",

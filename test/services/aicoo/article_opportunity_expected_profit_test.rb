@@ -93,6 +93,17 @@ module Aicoo
       assert_equal "business_metadata.profit_per_conversion_yen", sources["profit_per_conversion_yen"]
     end
 
+    test "batched context preserves the expected profit result" do
+      candidate = create_candidate!("rank_improvement")
+      direct = ArticleOpportunityExpectedProfit.call(candidate)
+      context = ArticleOpportunityExpectedProfit::Context.new([ candidate ])
+
+      batched = ArticleOpportunityExpectedProfit.call(candidate, context:)
+
+      assert_equal direct.to_h.except(:metadata), batched.to_h.except(:metadata)
+      assert_equal direct.metadata.fetch("expected_profit_model"), batched.metadata.fetch("expected_profit_model")
+    end
+
     test "active calibration adjusts article opportunity estimate" do
       candidate = create_candidate!("ctr_improvement")
       baseline = ArticleOpportunityExpectedProfit.call(candidate)

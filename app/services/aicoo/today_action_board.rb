@@ -209,11 +209,18 @@ module Aicoo
 
     def action_candidate_items
       Aicoo::MemoryDiagnostics.measure("Aicoo::TodayActionBoard#action_candidate_items", context: memory_context) do
-        ActionCandidate
+        candidates = ActionCandidate
           .active_for_ranking
-          .includes(:business, :action_result, :action_execution, :auto_revision_tasks)
+          .preload(
+            :action_result,
+            :action_execution,
+            auto_revision_tasks: :business,
+            business: [ :business_execution_profile, :business_data_source_settings ]
+          )
           .order(updated_at: :desc)
-          .filter_map { |candidate| build_item(candidate) }
+          .to_a
+        prepare_action_candidate_context(candidates)
+        candidates.filter_map { |candidate| build_item(candidate) }
       end
     end
 
@@ -222,7 +229,7 @@ module Aicoo
       action_plan = presenter.action_plan
       execution_mode = presenter.execution_mode.to_s
       article_opportunity = article_opportunity_candidate?(candidate)
-      readiness = action_execution_readiness(candidate)
+      readiness = action_execution_readiness(candidate) unless article_opportunity
       readiness_applicable = !article_opportunity && execution_readiness_display_applicable?(candidate, execution_mode)
       owner_action_task = owner_action_task(candidate)
 
@@ -419,7 +426,7 @@ module Aicoo
 
     def build_new_business_item(group)
       business = group.max_by { |item| new_business_score(item) }
-      business_value = Aicoo::BusinessExpectedValue.call(business)
+      business_value = business_expected_value_for(business)
       valuation = new_business_valuation(business, business_value)
       expected_value_yen = valuation.fetch(:action_expected_value_delta_yen)
       expected_hours = positive_decimal(business.metadata.to_h["expected_hours"].presence || 2)
@@ -708,7 +715,7 @@ module Aicoo
     end
 
     def external_data_source_used_for_existing_business?(candidate)
-      return false if Aicoo::DataSourcePolicy.for(candidate.business).exploration_business?
+      return false if data_source_policy_for(candidate.business).exploration_business?
 
       data_sources = Array(candidate.metadata.to_h["data_sources_used"]) +
         Array(candidate.metadata.to_h.dig("evidence", "source")) +
@@ -851,9 +858,19 @@ module Aicoo
     def log_business_diagnostics!(items, ranked_items)
       grouped_items = items.select { |item| item.record.respond_to?(:business_id) }.group_by { |item| item.record.business_id }
       ranked_grouped_items = ranked_items.select { |item| item.record.respond_to?(:business_id) }.group_by { |item| item.record.business_id }
+      businesses = Business.real_businesses.to_a
+      business_ids = businesses.map(&:id)
+      gsc_metric_counts = BusinessMetricDaily.where(business_id: business_ids)
+                                             .where("impressions > 0 OR clicks > 0")
+                                             .group(:business_id)
+                                             .count
+      ga4_metric_counts = BusinessMetricDaily.where(business_id: business_ids)
+                                             .where("sessions > 0 OR pageviews > 0")
+                                             .group(:business_id)
+                                             .count
 
-      Business.real_businesses.find_each do |business|
-        active_candidates = business.action_candidates.active_for_ranking.limit(250).to_a
+      businesses.each do |business|
+        active_candidates = action_candidates_by_business_id.fetch(business.id, []).first(250)
         business_items = grouped_items[business.id] || []
         ranked_business_items = ranked_grouped_items[business.id] || []
         diagnostics = {
@@ -863,8 +880,8 @@ module Aicoo
           business_name: business.name,
           business_type: business.business_type,
           active: business.resource_status,
-          gsc_candidate_count: gsc_candidate_count_for(business, active_candidates),
-          ga4_candidate_count: ga4_candidate_count_for(business, active_candidates),
+          gsc_candidate_count: gsc_metric_counts.fetch(business.id, 0) + candidates_using_source(active_candidates, "gsc"),
+          ga4_candidate_count: ga4_metric_counts.fetch(business.id, 0) + candidates_using_source(active_candidates, "ga4"),
           opportunity_count: opportunity_count_for(active_candidates),
           strategy_count: strategy_count_for(active_candidates),
           action_candidate_count: active_candidates.size,
@@ -881,16 +898,8 @@ module Aicoo
       end
     end
 
-    def gsc_candidate_count_for(business, candidates)
-      metric_count = business.business_metric_dailies.where("impressions > 0 OR clicks > 0").count
-      candidate_count = candidates.count { |candidate| candidate_metadata_sources(candidate).include?("gsc") }
-      metric_count + candidate_count
-    end
-
-    def ga4_candidate_count_for(business, candidates)
-      metric_count = business.business_metric_dailies.where("sessions > 0 OR pageviews > 0").count
-      candidate_count = candidates.count { |candidate| candidate_metadata_sources(candidate).include?("ga4") }
-      metric_count + candidate_count
+    def candidates_using_source(candidates, source)
+      candidates.count { |candidate| candidate_metadata_sources(candidate).include?(source) }
     end
 
     def opportunity_count_for(candidates)
@@ -1117,7 +1126,7 @@ module Aicoo
     end
 
     def article_opportunity_valuation(candidate)
-      profit = Aicoo::ArticleOpportunityExpectedProfit.call(candidate)
+      profit = Aicoo::ArticleOpportunityExpectedProfit.call(candidate, context: article_opportunity_profit_context)
       {
         expected_value_if_no_action_yen: 0,
         expected_value_if_action_yen: profit.expected_revenue_yen,
@@ -1225,12 +1234,35 @@ module Aicoo
       snapshot_id = candidate.metadata.to_h["snapshot_id"]
       return 0 if snapshot_id.blank?
 
-      AicooDataSnapshot.where(id: snapshot_id).pick(:captured_at)&.to_i || 0
+      article_opportunity_profit_context.snapshot(snapshot_id)&.captured_at&.to_i || 0
     end
 
     def business_expected_value_for(business)
       @business_expected_value_for ||= {}
-      @business_expected_value_for[business.id] ||= Aicoo::BusinessExpectedValue.call(business)
+      @business_expected_value_for[business.id] ||= Aicoo::BusinessExpectedValue.call(
+        business,
+        candidates: action_candidates_by_business_id.fetch(business.id, []),
+        persist: false
+      )
+    end
+
+    def prepare_action_candidate_context(candidates)
+      @action_candidates_by_business_id = candidates.group_by(&:business_id)
+      article_candidates = candidates.select { |candidate| article_opportunity_candidate?(candidate) }
+      @article_opportunity_profit_context = Aicoo::ArticleOpportunityExpectedProfit::Context.new(article_candidates)
+    end
+
+    def action_candidates_by_business_id
+      @action_candidates_by_business_id ||= {}
+    end
+
+    def article_opportunity_profit_context
+      @article_opportunity_profit_context ||= Aicoo::ArticleOpportunityExpectedProfit::Context.new([])
+    end
+
+    def data_source_policy_for(business)
+      @data_source_policies_by_business_id ||= {}
+      @data_source_policies_by_business_id[business&.id] ||= Aicoo::DataSourcePolicy.for(business)
     end
 
     def persist_daily_run_valuation!(step, valuation)
@@ -1404,7 +1436,7 @@ module Aicoo
     end
 
     def external_target_url_for_existing_business?(candidate)
-      return false if Aicoo::DataSourcePolicy.for(candidate.business).exploration_business?
+      return false if data_source_policy_for(candidate.business).exploration_business?
       metadata = candidate.metadata.to_h
       return true if metadata["url_classification"].to_s == "external_reference"
       return true if metadata["target_url_type"].to_s == "external_reference"
@@ -1487,7 +1519,7 @@ module Aicoo
     end
 
     def new_business_score(business)
-      business_value = Aicoo::BusinessExpectedValue.call(business)
+      business_value = business_expected_value_for(business)
       valuation = new_business_valuation(business, business_value)
       expected_value = valuation.fetch(:action_expected_value_delta_yen)
       metadata = business.metadata.to_h

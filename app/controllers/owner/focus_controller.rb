@@ -2,17 +2,6 @@ module Owner
   class FocusController < ApplicationController
     def show
       Aicoo::MemoryDiagnostics.measure("Owner::FocusController#show", context: memory_diagnostics_context) do
-        @cron_health_summary = Aicoo::CronHealthDashboard.new.call.summary
-        @traffic_channel_summary = Aicoo::TrafficChannels::Summary.call
-        @serp_summary = Aicoo::Serp::Summary.call
-        @system_statuses = %w[daily_run traffic traffic_serp render openai codex learning].index_with do |key|
-          Aicoo::SystemStatusResolver.call(key)
-        end
-        @auto_revision_execution_summary = Aicoo::AutoRevisionExecutionSummary.new.call
-        @approval_kpi_summary = Aicoo::ApprovalKpiSummary.new.call
-        @codex_submission_summary = Aicoo::CodexSubmissionSummary.new.call
-        @auto_build_summary = Aicoo::ResourceAwareAutoBuildSummary.new.call
-        @new_business_candidate_board = Aicoo::NewBusinessCandidateBoard.call(limit: 3)
         @today_board = Aicoo::MemoryDiagnostics.measure("Owner::FocusController#show.today_board", context: memory_diagnostics_context(mode: params[:mode])) do
           Aicoo::TodayActionBoard.new(
             mode: params[:mode],
@@ -20,10 +9,6 @@ module Owner
             page_param: :today_actions_page
           ).call
         end
-        @ceo_improvement_board = Aicoo::CeoModeBusinessImprovementBoard.new(
-          deferred_task_keys:
-        ).call
-        @today_business_improvement = @ceo_improvement_board.today_one
       end
     end
 

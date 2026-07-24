@@ -34,12 +34,68 @@ module Aicoo
       :metadata
     )
 
-    def self.call(candidate)
-      new(candidate).call
+    class Context
+      def initialize(candidates)
+        @candidates = candidates
+      end
+
+      def snapshot(snapshot_id)
+        snapshots_by_id[snapshot_id.to_i]
+      end
+
+      def article_opportunity_results
+        @article_opportunity_results ||= ActionResult.evaluated
+          .includes(:action_candidate, :revenue_events)
+          .where.not(action_candidate_id: nil)
+          .to_a
+      end
+
+      def calibration(action_type)
+        calibrations_by_action_type[action_type.to_s] ||= ActionPredictionCalibration.new(
+          action_type: action_type.to_s,
+          sample_count: 0,
+          profit_calibration_factor: 1.0,
+          probability_calibration_factor: 1.0,
+          confidence_level: "low",
+          warning_level: "none",
+          approval_status: "auto_applied"
+        )
+      end
+
+      private
+
+      attr_reader :candidates
+
+      def snapshots_by_id
+        @snapshots_by_id ||= begin
+          ids = candidates.filter_map { |candidate| candidate.metadata.to_h["snapshot_id"].presence }.map(&:to_i).uniq
+          AicooDataSnapshot.where(source_type: SNAPSHOT_SOURCE_TYPE, id: ids).index_by(&:id)
+        end
+      end
+
+      def calibrations_by_action_type
+        @calibrations_by_action_type ||= begin
+          action_types = candidates.flat_map do |candidate|
+            metadata = candidate.metadata.to_h
+            improvement_type = metadata["opportunity_type"].presence ||
+              metadata["improvement_type"].presence ||
+              metadata.dig("execution_brief", "target", "improvement_type").presence ||
+              metadata.dig("opportunities", 0, "opportunity_type").presence ||
+              "content_update"
+            [ "article_opportunity:#{improvement_type}", candidate.action_type.presence || "article_update" ]
+          end.uniq
+          ActionPredictionCalibration.where(action_type: action_types).index_by(&:action_type)
+        end
+      end
     end
 
-    def initialize(candidate)
+    def self.call(candidate, context: nil)
+      new(candidate, context:).call
+    end
+
+    def initialize(candidate, context: nil)
       @candidate = candidate
+      @context = context
       @metadata = candidate.metadata.to_h.deep_stringify_keys
       @assumed_fields = []
       @assumption_reasons = {}
@@ -79,7 +135,7 @@ module Aicoo
 
     private
 
-    attr_reader :candidate, :metadata, :assumed_fields, :assumption_reasons, :input_sources
+    attr_reader :candidate, :context, :metadata, :assumed_fields, :assumption_reasons, :input_sources
 
     def resolved_improvement_type
       first_present(
@@ -116,12 +172,12 @@ module Aicoo
       snapshot_id = metadata["snapshot_id"]
       @snapshot =
         if snapshot_id.present?
-          AicooDataSnapshot.where(source_type: SNAPSHOT_SOURCE_TYPE).find_by(id: snapshot_id)
+          context ? context.snapshot(snapshot_id) : AicooDataSnapshot.where(source_type: SNAPSHOT_SOURCE_TYPE).find_by(id: snapshot_id)
         end
     end
 
     def resolved_coefficients(improvement_type)
-      @learning_coefficients = Aicoo::ArticleOpportunityLearningCoefficients.call(candidate, improvement_type)
+      @learning_coefficients = Aicoo::ArticleOpportunityLearningCoefficients.call(candidate, improvement_type, context:)
       {
         "ctr_gain_rate" => coefficient("ctr_gain_rate", business_metadata_keys: %w[ctr_gain_rate article_ctr_gain_rate]),
         "rank_gain_positions" => coefficient("rank_gain_positions", business_metadata_keys: %w[rank_gain_positions article_rank_gain_positions]),
@@ -289,9 +345,13 @@ module Aicoo
     def calibration_for(improvement_type)
       @calibrations ||= {}
       @calibrations[improvement_type] ||= begin
-        specific = ActionPredictionCalibration.for_action_type(calibration_action_type(improvement_type))
-        specific.active? ? specific : ActionPredictionCalibration.for_action_type(candidate.action_type.presence || "article_update")
+        specific = calibration(calibration_action_type(improvement_type))
+        specific.active? ? specific : calibration(candidate.action_type.presence || "article_update")
       end
+    end
+
+    def calibration(action_type)
+      context ? context.calibration(action_type) : ActionPredictionCalibration.for_action_type(action_type)
     end
 
     def calibration_action_type(improvement_type)
@@ -465,11 +525,17 @@ module Aicoo
 
       @business_learning_stats ||= {}
       @business_learning_stats[improvement_type] ||= begin
-        results = ActionResult.evaluated
-                              .includes(:action_candidate)
-                              .where(business_id: candidate.business_id)
-                              .where.not(action_candidate_id: nil)
-                              .select { |result| article_opportunity_result?(result, improvement_type) }
+        results = if context
+          context.article_opportunity_results.select do |result|
+            result.business_id == candidate.business_id && article_opportunity_result?(result, improvement_type)
+          end
+        else
+          ActionResult.evaluated
+                      .includes(:action_candidate)
+                      .where(business_id: candidate.business_id)
+                      .where.not(action_candidate_id: nil)
+                      .select { |result| article_opportunity_result?(result, improvement_type) }
+        end
         build_business_learning_stats(results)
       end
     end

@@ -68,7 +68,7 @@ module Aicoo
       :source_model
     )
 
-    def self.call(business)
+    def self.call(business, candidates: nil, persist: true)
       Aicoo::MemoryDiagnostics.measure(
         "Aicoo::BusinessExpectedValue.call",
         context: {
@@ -79,12 +79,14 @@ module Aicoo
         },
         finish: :warning_only
       ) do
-        new(business).call
+        new(business, candidates:, persist:).call
       end
     end
 
-    def initialize(business)
+    def initialize(business, candidates: nil, persist: true)
       @business = business
+      @supplied_candidates = candidates
+      @persist = persist
     end
 
     def call
@@ -95,7 +97,7 @@ module Aicoo
 
     private
 
-    attr_reader :business
+    attr_reader :business, :supplied_candidates, :persist
 
     def existing_business_result
       rows = grouped_opportunities.map { |key, candidates| build_opportunity_row(key, candidates) }
@@ -166,7 +168,10 @@ module Aicoo
     end
 
     def active_candidates
-      @active_candidates ||= business.action_candidates.active_for_ranking.to_a.reject { |candidate| invalid_url_candidate?(candidate) }
+      @active_candidates ||= begin
+        candidates = supplied_candidates.nil? ? business.action_candidates.active_for_ranking.to_a : supplied_candidates
+        candidates.reject { |candidate| invalid_url_candidate?(candidate) }
+      end
     end
 
     def grouped_opportunities
@@ -274,6 +279,8 @@ module Aicoo
     end
 
     def persist_candidate_value_models!(key, candidates, row)
+      return unless persist
+
       duplicate_ids = row.candidate_ids
       candidates.each do |candidate|
         metadata = candidate.metadata.to_h
@@ -307,6 +314,8 @@ module Aicoo
     end
 
     def persist_business_value!(result)
+      return unless persist
+
       metadata = business.metadata.to_h
       payload = {
         "raw_candidate_sum_yen" => result.raw_candidate_sum_yen,

@@ -6,13 +6,14 @@ module Aicoo
 
     Result = Data.define(:coefficients, :sources, :sample_counts, :learning_values, :source)
 
-    def self.call(candidate, improvement_type)
-      new(candidate, improvement_type).call
+    def self.call(candidate, improvement_type, context: nil)
+      new(candidate, improvement_type, context:).call
     end
 
-    def initialize(candidate, improvement_type)
+    def initialize(candidate, improvement_type, context: nil)
       @candidate = candidate
       @improvement_type = improvement_type.to_s
+      @context = context
     end
 
     def call
@@ -40,7 +41,7 @@ module Aicoo
 
     private
 
-    attr_reader :candidate, :improvement_type
+    attr_reader :candidate, :improvement_type, :context
 
     def result_for(source, stats)
       coefficients = stats.fetch(:coefficients)
@@ -70,10 +71,17 @@ module Aicoo
     end
 
     def article_opportunity_results
-      @article_opportunity_results ||= ActionResult.evaluated
-        .includes(:action_candidate, :revenue_events)
-        .where.not(action_candidate_id: nil)
-        .select { |result| article_opportunity_result?(result) }
+      @article_opportunity_results ||= begin
+        results = if context
+          context.article_opportunity_results
+        else
+          ActionResult.evaluated
+                      .includes(:action_candidate, :revenue_events)
+                      .where.not(action_candidate_id: nil)
+                      .to_a
+        end
+        results.select { |result| article_opportunity_result?(result) }
+      end
     end
 
     def article_opportunity_result?(result)
