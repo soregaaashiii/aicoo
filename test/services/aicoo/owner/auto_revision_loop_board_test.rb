@@ -47,19 +47,42 @@ module Aicoo
         assert_equal "判断する", result.selected.next_action_label
       end
 
-      test "orders common revision candidates by final expected yen" do
+      test "orders common revision candidates by the same expected yen used by Today" do
         low_candidate = action_candidates(:nagazakicho_article)
         high_candidate = action_candidates(:ui_improvement)
-        low_candidate.update_columns(status: "approved", final_expected_value_yen: 20_000, final_score: 99_999)
-        high_candidate.update_columns(status: "approved", final_expected_value_yen: 80_000, final_score: 1)
+        low_candidate.update_columns(
+          status: "approved",
+          final_expected_value_yen: 80_000,
+          final_score: 99_999,
+          metadata: low_candidate.metadata.to_h.merge(
+            "expected_value_if_action_yen" => 20_000,
+            "expected_value_if_no_action_yen" => 0,
+            "execution_cost_yen" => 0
+          )
+        )
+        high_candidate.update_columns(
+          status: "approved",
+          final_expected_value_yen: 20_000,
+          final_score: 1,
+          metadata: high_candidate.metadata.to_h.merge(
+            "expected_value_if_action_yen" => 80_000,
+            "expected_value_if_no_action_yen" => 0,
+            "execution_cost_yen" => 0
+          )
+        )
         low_task = create_task!(low_candidate, priority_score: 99_999)
         high_task = create_task!(high_candidate, priority_score: 1)
+        today_board = Aicoo::TodayActionBoard.new(mode: "revenue")
+        expected_values = [
+          today_board.expected_value_yen_for(high_candidate),
+          today_board.expected_value_yen_for(low_candidate)
+        ]
 
         rows = AutoRevisionLoopBoard.new(limit: 100).call.rows
         common_ids = rows.filter_map(&:auto_revision_task).map(&:id) & [ low_task.id, high_task.id ]
 
         assert_equal [ high_task.id, low_task.id ], common_ids
-        assert_equal [ 80_000, 20_000 ], rows.select { |row| common_ids.include?(row.auto_revision_task&.id) }.map(&:expected_profit_yen)
+        assert_equal expected_values, rows.select { |row| common_ids.include?(row.auto_revision_task&.id) }.map(&:expected_profit_yen)
       end
 
       private

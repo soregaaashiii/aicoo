@@ -147,6 +147,10 @@ module Aicoo
       end
     end
 
+    def expected_value_yen_for(candidate)
+      action_candidate_valuation(candidate).fetch(:action_expected_value_delta_yen)
+    end
+
     private
 
     attr_reader :mode, :page, :page_param, :per_page

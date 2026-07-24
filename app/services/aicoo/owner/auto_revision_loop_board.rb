@@ -62,10 +62,10 @@ module Aicoo
       def task_rows
         AutoRevisionTask
           .includes(:business, :action_candidate, :codex_submission, :auto_revision_executions)
-          .left_joins(:action_candidate)
           .where.not(status: %w[canceled])
-          .order(Arel.sql("action_candidates.final_expected_value_yen DESC NULLS LAST, auto_revision_tasks.created_at ASC, auto_revision_tasks.id DESC"))
-          .limit(limit)
+          .to_a
+          .sort_by { |task| expected_value_sort_key(task.action_candidate, task) }
+          .first(limit)
           .map { |task| row_for_task(task) }
       end
 
@@ -75,14 +75,15 @@ module Aicoo
           .active_for_ranking
           .where.not(department: "new_business")
           .where.missing(:auto_revision_tasks)
-          .order(Arel.sql("final_expected_value_yen DESC NULLS LAST, created_at ASC, id DESC"))
-          .limit(limit)
+          .to_a
+          .sort_by { |candidate| expected_value_sort_key(candidate, candidate) }
+          .first(limit)
           .map { |candidate| row_for_candidate(candidate) }
       end
 
       def row_for_task(task)
         candidate = task.action_candidate
-        expected_value_yen = candidate&.final_expected_value_yen.to_i
+        expected_value_yen = expected_value_yen_for(candidate)
         Row.new(
           key: "auto_revision_task:#{task.id}",
           record: task,
@@ -109,7 +110,7 @@ module Aicoo
 
       def row_for_candidate(candidate)
         automatic = candidate.business&.automatic_auto_revision?
-        expected_value_yen = candidate.final_expected_value_yen.to_i
+        expected_value_yen = expected_value_yen_for(candidate)
         Row.new(
           key: "action_candidate:#{candidate.id}",
           record: candidate,
@@ -132,6 +133,25 @@ module Aicoo
           updated_at: candidate.updated_at,
           detail: detail_for_candidate(candidate)
         )
+      end
+
+      def expected_value_sort_key(candidate, record)
+        [
+          -expected_value_yen_for(candidate).to_d,
+          record.created_at || Time.zone.at(0),
+          -record.id.to_i
+        ]
+      end
+
+      def expected_value_yen_for(candidate)
+        return 0 unless candidate
+
+        @expected_value_yen_by_candidate_id ||= {}
+        @expected_value_yen_by_candidate_id[candidate.id] ||= today_action_board.expected_value_yen_for(candidate).to_i
+      end
+
+      def today_action_board
+        @today_action_board ||= Aicoo::TodayActionBoard.new(mode: "revenue")
       end
 
       def state_for_task(task)
