@@ -66,7 +66,7 @@ module Aicoo
 
       def profile
         @profile ||= begin
-          DataSourceCostProfile.ensure_defaults!
+          DataSourceCostProfile.ensure_defaults! unless Aicoo::RequestQueryContext.active
           DataSourceCostProfile.for_source("serp")
         end
       end

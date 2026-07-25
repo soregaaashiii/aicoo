@@ -35,6 +35,12 @@ module Aicoo
       assert_equal 1, matching_query_count(sql, "data_source_cost_profiles")
     end
 
+    test "does not persist data source defaults while rendering a read request" do
+      DataSourceCostProfile.stub(:ensure_defaults!, -> { flunk("read requests must not persist defaults") }) do
+        RequestQueryContext.within { Aicoo::Serp::OptionalMode.call }
+      end
+    end
+
     test "keeps business connection result unchanged" do
       direct = BusinessConnectionStatus.new(@business, source_key: "serp").call
       contextual = RequestQueryContext.within do
