@@ -79,7 +79,7 @@ module Aicoo
 
     def business_priority_bonus(business)
       return 0 unless business
-      return 10 if business.revenue_events.revenue.exists?
+      return 10 if Aicoo::RequestQueryContext.revenue_event_available(business) { business.revenue_events.revenue.exists? }
 
       5
     end

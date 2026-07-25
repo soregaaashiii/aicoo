@@ -34,6 +34,14 @@ module Aicoo
     MIN_ACTION_TYPE_SAMPLE = 2
 
     def call
+      return Aicoo::RequestQueryContext.fetch(:learning_loop_quality_report) { build_result } if Aicoo::RequestQueryContext.active
+
+      build_result
+    end
+
+    private
+
+    def build_result
       Result.new(
         generated_at: Time.current,
         total_predictions: results.count,
@@ -50,8 +58,6 @@ module Aicoo
         warnings:
       )
     end
-
-    private
 
     def results
       @results ||= ActionResult.includes(:action_candidate).where.not(predicted_expected_profit_yen: nil).to_a

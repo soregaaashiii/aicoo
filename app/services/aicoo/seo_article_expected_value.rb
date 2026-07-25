@@ -262,7 +262,9 @@ module Aicoo
     end
 
     def revenue_event_available?
-      @revenue_event_available = candidate.business&.revenue_events&.revenue&.exists? if @revenue_event_available.nil?
+      @revenue_event_available = Aicoo::RequestQueryContext.revenue_event_available(candidate.business) do
+        candidate.business&.revenue_events&.revenue&.exists?
+      end if @revenue_event_available.nil?
       @revenue_event_available == true
     rescue StandardError
       false
@@ -271,7 +273,9 @@ module Aicoo
     def revenue_event_average_amount
       return nil unless revenue_event_available?
 
-      candidate.business.revenue_events.revenue.average(:amount)&.to_d
+      Aicoo::RequestQueryContext.revenue_event_average_amount(candidate.business) do
+        candidate.business.revenue_events.revenue.average(:amount)
+      end&.to_d
     end
 
     def calculation_ready?

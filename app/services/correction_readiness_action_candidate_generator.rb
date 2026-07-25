@@ -64,17 +64,18 @@ class CorrectionReadinessActionCandidateGenerator
   def current_counts_for(business_item)
     business = business_item.business
     {
-      "action_results" => business.action_results.count,
-      "evaluated" => business.action_results.evaluated.count,
-      "revenue" => business.revenue_events.revenue.count,
-      "business_metric_daily" => business.business_metric_dailies.count
+      "action_results" => business.action_results.size,
+      "evaluated" => business.action_results.count(&:evaluated?),
+      "revenue" => business.revenue_events.count(&:revenue?),
+      "business_metric_daily" => business.business_metric_dailies.size
     }
   end
 
   def execution_prompt_for(business_item)
     business = business_item.business
-    action_result_shortage = [ AicooCorrectionReadinessService::ACTION_RESULT_REQUIRED - business.action_results.count, 0 ].max
-    metric_shortage = [ AicooCorrectionReadinessService::BUSINESS_METRIC_DAILY_REQUIRED - business.business_metric_dailies.count, 0 ].max
+    counts = current_counts_for(business_item)
+    action_result_shortage = [ AicooCorrectionReadinessService::ACTION_RESULT_REQUIRED - counts.fetch("action_results"), 0 ].max
+    metric_shortage = [ AicooCorrectionReadinessService::BUSINESS_METRIC_DAILY_REQUIRED - counts.fetch("business_metric_daily"), 0 ].max
 
     <<~PROMPT
       #{business.name}の予測精度に必要な学習データを増やしてください。

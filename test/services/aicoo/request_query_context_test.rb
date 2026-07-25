@@ -35,6 +35,19 @@ module Aicoo
       assert_equal 1, matching_query_count(sql, "data_source_cost_profiles")
     end
 
+    test "reuses revenue event availability and average within one read request" do
+      sql = capture_sql do
+        RequestQueryContext.within do
+          2.times do
+            RequestQueryContext.revenue_event_available(@business) { @business.revenue_events.revenue.exists? }
+            RequestQueryContext.revenue_event_average_amount(@business) { @business.revenue_events.revenue.average(:amount) }
+          end
+        end
+      end
+
+      assert_operator matching_query_count(sql, "revenue_events"), :<=, 2
+    end
+
     test "does not persist data source defaults while rendering a read request" do
       DataSourceCostProfile.stub(:ensure_defaults!, -> { flunk("read requests must not persist defaults") }) do
         RequestQueryContext.within { Aicoo::Serp::OptionalMode.call }

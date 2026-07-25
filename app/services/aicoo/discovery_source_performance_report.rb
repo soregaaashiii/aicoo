@@ -39,6 +39,14 @@ module Aicoo
     )
 
     def call
+      return Aicoo::RequestQueryContext.fetch(:discovery_source_performance_report) { build_result } if Aicoo::RequestQueryContext.active
+
+      build_result
+    end
+
+    private
+
+    def build_result
       Result.new(
         generated_at: Time.current,
         source_summaries: summaries,
@@ -48,8 +56,6 @@ module Aicoo
         warnings: warnings
       )
     end
-
-    private
 
     def summaries
       @summaries ||= source_types.map { |source_type| build_summary(source_type) }

@@ -355,7 +355,9 @@ class Business < ApplicationRecord
   end
 
   def revenue_recorded?
-    revenue_events.revenue.exists?
+    Aicoo::RequestQueryContext.revenue_event_available(self) do
+      revenue_events.revenue.exists?
+    end
   end
 
   def evaluation_focus

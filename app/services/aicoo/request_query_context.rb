@@ -84,6 +84,25 @@ module Aicoo
         business_serp_keyword_counts.fetch(business&.id, 0)
       end
 
+      def fetch(key)
+        return yield unless active?
+
+        records[key] = yield unless records.key?(key)
+        records[key]
+      end
+
+      def revenue_event_available(business)
+        return yield unless active?
+
+        revenue_event_business_ids.include?(business&.id)
+      end
+
+      def revenue_event_average_amount(business)
+        return yield unless active?
+
+        revenue_event_average_amounts[business&.id]
+      end
+
       private
 
       def active?
@@ -135,6 +154,14 @@ module Aicoo
           .where(status: "active")
           .group(:business_id)
           .count
+      end
+
+      def revenue_event_business_ids
+        records[:revenue_event_business_ids] ||= RevenueEvent.revenue.distinct.pluck(:business_id).to_set
+      end
+
+      def revenue_event_average_amounts
+        records[:revenue_event_average_amounts] ||= RevenueEvent.revenue.group(:business_id).average(:amount)
       end
     end
   end
