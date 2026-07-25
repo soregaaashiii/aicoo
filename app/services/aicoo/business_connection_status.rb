@@ -187,8 +187,12 @@ module Aicoo
     def serp_result
       profile = data_source_cost_profile
       optional = Aicoo::Serp::OptionalMode.call
-      active_query_count = business.serp_queries.where(enabled: true, status: "active").count
-      active_keyword_count = business.business_serp_keywords.active.count
+      active_query_count = Aicoo::RequestQueryContext.serp_query_count(business) do
+        business.serp_queries.where(enabled: true, status: "active").count
+      end
+      active_keyword_count = Aicoo::RequestQueryContext.business_serp_keyword_count(business) do
+        business.business_serp_keywords.active.count
+      end
 
       return disabled_result(summary: "Business側でSERPがOFFです") unless business.serp_enabled?
       return disabled_result(summary: "SERP全体設定がOFFです") unless profile.enabled?
@@ -329,7 +333,9 @@ module Aicoo
     def business_data_source_setting
       return @provided_business_data_source_setting unless @provided_business_data_source_setting.equal?(UNSET)
 
-      @business_data_source_setting ||= BusinessDataSourceSetting.find_by(business:, source_key:)
+      @business_data_source_setting ||= Aicoo::RequestQueryContext.business_data_source_setting(business, source_key) do
+        BusinessDataSourceSetting.find_by(business:, source_key:)
+      end
     end
 
     def data_source_cost_profile
@@ -348,7 +354,9 @@ module Aicoo
     end
 
     def analytics_site
-      @analytics_site ||= AicooAnalyticsSite.where(business:).recent.first
+      @analytics_site ||= Aicoo::RequestQueryContext.analytics_site(business) do
+        AicooAnalyticsSite.where(business:).recent.first
+      end
     end
 
     def analytics_site_identifier
@@ -356,9 +364,9 @@ module Aicoo
     end
 
     def named_setting
-      @named_setting ||= AnalyticsSourceSetting
-        .where(source_type: source_key, enabled: true)
-        .to_a
+      @named_setting ||= Aicoo::RequestQueryContext
+        .analytics_source_settings { AnalyticsSourceSetting.includes(:aicoo_analytics_site, :google_credential).to_a }
+        .select { |row| row.source_type == source_key && row.enabled? }
         .find { |row| row.name.to_s.match?(/\A#{Regexp.escape(business.name)}\b/i) }
     end
 
@@ -371,8 +379,9 @@ module Aicoo
     end
 
     def analytics_source_setting
-      @analytics_source_setting ||= AnalyticsSourceSetting.includes(:aicoo_analytics_site)
-        .where(source_type: source_key, enabled: true)
+      @analytics_source_setting ||= Aicoo::RequestQueryContext
+        .analytics_source_settings { AnalyticsSourceSetting.includes(:aicoo_analytics_site, :google_credential).to_a }
+        .select { |row| row.source_type == source_key && row.enabled? }
         .find do |row|
           row.aicoo_analytics_site&.business_id == business.id ||
             identifier_matches?(row) ||
@@ -392,7 +401,9 @@ module Aicoo
 
     def google_credential
       explicit_id = business_data_source_setting&.metadata.to_h["google_credential_id"]
-      explicit_credential = AicooGoogleCredential.find_by(id: explicit_id) if explicit_id.present?
+      explicit_credential = if explicit_id.present?
+        Aicoo::RequestQueryContext.google_credential(explicit_id) { AicooGoogleCredential.find_by(id: explicit_id) }
+      end
       return explicit_credential if explicit_credential
 
       analytics_source_setting&.google_credential || AicooGoogleCredential.default
@@ -426,15 +437,23 @@ module Aicoo
     end
 
     def latest_run(setting)
-      setting&.analytics_fetch_runs&.recent&.first
+      analytics_fetch_runs_for(setting).first
     end
 
     def latest_success_run(setting)
-      setting&.analytics_fetch_runs&.where(status: "success")&.recent&.first
+      analytics_fetch_runs_for(setting).find { |run| run.status == "success" }
     end
 
     def latest_failed_run(setting)
-      setting&.analytics_fetch_runs&.where(status: "failed")&.recent&.first
+      analytics_fetch_runs_for(setting).find { |run| run.status == "failed" }
+    end
+
+    def analytics_fetch_runs_for(setting)
+      return [] unless setting
+
+      Aicoo::RequestQueryContext
+        .analytics_fetch_runs { setting.analytics_fetch_runs.recent.to_a }
+        .select { |run| run.analytics_source_setting_id == setting.id }
     end
 
     def global_default_available_for?(profile)

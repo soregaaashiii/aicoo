@@ -48,7 +48,9 @@ class ProxyScoreWeight < ApplicationRecord
   end
 
   def self.for_business(business)
-    where(business:).order(updated_at: :desc).first || current_global || new(default_attributes)
+    Aicoo::RequestQueryContext.proxy_score_weight(business) do
+      where(business:).order(updated_at: :desc).first || current_global || new(default_attributes)
+    end
   end
 
   def self.default_attributes

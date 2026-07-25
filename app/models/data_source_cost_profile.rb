@@ -62,7 +62,7 @@ class DataSourceCostProfile < ApplicationRecord
       average_cost_yen: 0,
       average_expected_profit_yen: 0
     }
-    find_by(source_key:) || definition.then do |definition|
+    Aicoo::RequestQueryContext.data_source_cost_profile(source_key) { find_by(source_key:) } || definition.then do |definition|
       new(definition.merge(source_key:))
     end
   end

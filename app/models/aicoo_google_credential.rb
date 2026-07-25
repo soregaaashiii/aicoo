@@ -10,7 +10,7 @@ class AicooGoogleCredential < ApplicationRecord
   scope :recent, -> { order(created_at: :desc) }
 
   def self.default
-    enabled.recent.first
+    Aicoo::RequestQueryContext.default_google_credential { enabled.recent.first }
   end
 
   def connected?

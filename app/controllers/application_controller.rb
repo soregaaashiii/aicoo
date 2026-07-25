@@ -8,11 +8,20 @@ class ApplicationController < ActionController::Base
   before_action :set_robots_header
   before_action :load_daily_run_execution_status
   before_action :load_long_running_operation_monitor
+  around_action :reuse_read_only_query_results
 
   # Changes to the importmap will invalidate the etag for HTML responses
   stale_when_importmap_changes
 
   private
+
+  def reuse_read_only_query_results
+    if request.get? && request.format.html?
+      Aicoo::RequestQueryContext.within { yield }
+    else
+      yield
+    end
+  end
 
   def protect_aicoo_management_area
     return unless aicoo_management_protection_enabled?

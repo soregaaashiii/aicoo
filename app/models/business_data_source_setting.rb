@@ -18,12 +18,16 @@ class BusinessDataSourceSetting < ApplicationRecord
   before_save :stamp_last_connected_at
 
   def self.enabled_for?(business, source_key)
-    setting = find_by(business:, source_key:)
+    setting = Aicoo::RequestQueryContext.business_data_source_setting(business, source_key) do
+      find_by(business:, source_key:)
+    end
     setting.nil? ? true : setting.enabled?
   end
 
   def self.for_business_and_source(business, source_key)
-    find_by(business:, source_key:) || new(business:, source_key:)
+    Aicoo::RequestQueryContext.business_data_source_setting(business, source_key) do
+      find_by(business:, source_key:)
+    end || new(business:, source_key:)
   end
 
   def linked?

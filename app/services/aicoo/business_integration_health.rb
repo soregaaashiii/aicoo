@@ -158,24 +158,34 @@ module Aicoo
     end
 
     def latest_fetch_run(settings, status)
-      AnalyticsFetchRun
-        .where(analytics_source_setting_id: settings.map(&:id), status:)
-        .recent
-        .first
+      analytics_fetch_runs.find do |run|
+        run.status == status && run.analytics_source_setting_id.in?(settings.map(&:id))
+      end
     end
 
     def latest_fetch_run_for(setting)
-      AnalyticsFetchRun.where(analytics_source_setting_id: setting.id).recent.first
+      analytics_fetch_runs.find { |run| run.analytics_source_setting_id == setting.id }
     end
 
     def snapshot_count_for(settings)
       return 0 if settings.empty?
 
-      AnalyticsFetchRun.where(analytics_source_setting_id: settings.map(&:id)).sum(:snapshot_count)
+      setting_ids = settings.map(&:id)
+      analytics_fetch_runs
+        .select { |run| run.analytics_source_setting_id.in?(setting_ids) }
+        .sum(&:snapshot_count)
     end
 
     def analytics_settings
-      @analytics_settings ||= AnalyticsSourceSetting.includes(:aicoo_analytics_site).to_a
+      @analytics_settings ||= Aicoo::RequestQueryContext.analytics_source_settings do
+        AnalyticsSourceSetting.includes(:aicoo_analytics_site, :google_credential).to_a
+      end
+    end
+
+    def analytics_fetch_runs
+      @analytics_fetch_runs ||= Aicoo::RequestQueryContext.analytics_fetch_runs do
+        AnalyticsFetchRun.recent.to_a
+      end
     end
 
     def configured_analytics?(business, source_type, setting)
@@ -211,14 +221,14 @@ module Aicoo
     end
 
     def uses_global_business_source?(business, source_type)
-      setting = BusinessDataSourceSetting.find_by(business:, source_key: source_type)
+      setting = business_data_source_setting_for(business, source_type)
       return false unless setting&.enabled?
 
       ActiveModel::Type::Boolean.new.cast(setting.metadata.to_h.dig("source_binding", "use_global") || true)
     end
 
     def business_source_identifier(business, source_type)
-      setting = BusinessDataSourceSetting.find_by(business:, source_key: source_type)
+      setting = business_data_source_setting_for(business, source_type)
       return nil unless setting&.enabled?
 
       case source_type
@@ -235,15 +245,27 @@ module Aicoo
     def analytics_identifier_for(business, source_type)
       case source_type
       when "gsc"
-        business_source_identifier(business, source_type).presence ||
+          business_source_identifier(business, source_type).presence ||
           business.gsc_site_url.presence ||
-          AicooAnalyticsSite.where(business:).where.not(gsc_site_url: [ nil, "" ]).recent.first&.gsc_site_url ||
+          analytics_site_for(business, :gsc_site_url)&.gsc_site_url.presence ||
           named_analytics_setting_for(business, source_type)&.site_url
       when "ga4"
         business_source_identifier(business, source_type).presence ||
-          AicooAnalyticsSite.where(business:).where.not(ga4_property_id: [ nil, "" ]).recent.first&.ga4_property_id ||
+          analytics_site_for(business, :ga4_property_id)&.ga4_property_id.presence ||
           named_analytics_setting_for(business, source_type)&.property_id
       end
+    end
+
+    def business_data_source_setting_for(business, source_type)
+      Aicoo::RequestQueryContext.business_data_source_setting(business, source_type) do
+        BusinessDataSourceSetting.find_by(business:, source_key: source_type)
+      end
+    end
+
+    def analytics_site_for(business, identifier)
+      Aicoo::RequestQueryContext.analytics_sites(business) do
+        AicooAnalyticsSite.where(business:).recent.to_a
+      end.find { |site| site.public_send(identifier).present? }
     end
 
     def named_analytics_setting_for(business, source_type)

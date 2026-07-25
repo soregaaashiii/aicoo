@@ -76,7 +76,14 @@ module Aicoo
       profile ||= DataSourceCostProfile.for_source(source_key)
       business_setting = business ? BusinessDataSourceSetting.for_business_and_source(business, source_key) : nil
       business_enabled = business_setting.nil? ? true : business_setting.enabled?
-      business_connection = business ? Aicoo::BusinessConnectionStatus.new(business, source_key:).call : nil
+      business_connection = if business
+        Aicoo::BusinessConnectionStatus.new(
+          business,
+          source_key:,
+          business_data_source_setting: business_setting,
+          data_source_cost_profile: profile
+        ).call
+      end
       global_connection = global_connection_for(profile)
       cost = estimated_cost_yen || profile.average_cost_yen
       expected_profit = expected_profit_yen || profile.average_expected_profit_yen
