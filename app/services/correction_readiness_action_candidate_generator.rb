@@ -65,7 +65,7 @@ class CorrectionReadinessActionCandidateGenerator
     business = business_item.business
     {
       "action_results" => business.action_results.size,
-      "evaluated" => business.action_results.count(&:evaluated?),
+      "evaluated" => business.action_results.count { |result| result.evaluation_status == "evaluated" },
       "revenue" => business.revenue_events.count(&:revenue?),
       "business_metric_daily" => business.business_metric_dailies.size
     }

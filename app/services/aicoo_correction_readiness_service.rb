@@ -60,7 +60,7 @@ class AicooCorrectionReadinessService
       messages = []
       missing_keys = []
       append_message(messages, missing_keys, :action_results, business.action_results.size, ACTION_RESULT_REQUIRED, "#{business.name}: ActionResult")
-      append_message(messages, missing_keys, :evaluated, business.action_results.count(&:evaluated?), EVALUATED_REQUIRED, "#{business.name}: evaluated")
+      append_message(messages, missing_keys, :evaluated, business.action_results.count { |result| result.evaluation_status == "evaluated" }, EVALUATED_REQUIRED, "#{business.name}: evaluated")
       append_message(messages, missing_keys, :revenue, business.revenue_events.count(&:revenue?), 1, "#{business.name}: RevenueEvent")
       append_message(messages, missing_keys, :business_metric_daily, business.business_metric_dailies.size, BUSINESS_METRIC_DAILY_REQUIRED, "#{business.name}: BusinessMetricDaily")
 
