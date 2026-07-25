@@ -45,16 +45,21 @@ module Aicoo
       :warnings
     )
 
-    def initialize(business: nil)
+    def initialize(business: nil, source_keys: nil, ensure_defaults: true)
       @business = business
+      @source_keys = Array(source_keys).compact.map(&:to_s).presence
+      @ensure_defaults = ensure_defaults
     end
 
     def call
-      DataSourceCostProfile.ensure_defaults!
-      estimates = DataSourceCostProfile.ordered.map { |profile| estimate(profile.source_key) }
+      DataSourceCostProfile.ensure_defaults! if ensure_defaults
+      profiles = DataSourceCostProfile.ordered
+      profiles = profiles.where(source_key: source_keys) if source_keys
+      profiles = profiles.to_a
+      estimates = profiles.map { |profile| estimate(profile.source_key, profile:) }
       Summary.new(
         generated_at: Time.current,
-        profiles: DataSourceCostProfile.ordered,
+        profiles:,
         estimates:,
         monthly_api_cost_yen: estimates.sum(&:monthly_spend_yen),
         monthly_budget_yen: estimates.sum(&:monthly_budget_yen),
@@ -67,8 +72,8 @@ module Aicoo
       )
     end
 
-    def estimate(source_key, expected_profit_yen: nil, estimated_cost_yen: nil)
-      profile = DataSourceCostProfile.for_source(source_key)
+    def estimate(source_key, expected_profit_yen: nil, estimated_cost_yen: nil, profile: nil)
+      profile ||= DataSourceCostProfile.for_source(source_key)
       business_setting = business ? BusinessDataSourceSetting.for_business_and_source(business, source_key) : nil
       business_enabled = business_setting.nil? ? true : business_setting.enabled?
       business_connection = business ? Aicoo::BusinessConnectionStatus.new(business, source_key:).call : nil
@@ -113,7 +118,7 @@ module Aicoo
 
     private
 
-    attr_reader :business
+    attr_reader :business, :source_keys, :ensure_defaults
 
     def warning_for(profile, business_enabled:, business_setting:)
       return "#{profile.name}は全体設定でOFFです" unless profile.enabled?

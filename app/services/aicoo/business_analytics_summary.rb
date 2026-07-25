@@ -41,17 +41,34 @@ module Aicoo
     PERIODS = [ 7, 30, 90 ].freeze
     DEFAULT_DAYS = 30
 
-    def self.for_businesses(businesses, health_result: nil)
+    def self.for_businesses(businesses, health_result: nil, cost_source_keys: nil, ensure_cost_defaults: true)
+      context = Aicoo::BusinessAnalyticsBatchContext.new(businesses)
       health_by_business_id = Array(health_result&.business_healths).index_by { |row| row.business.id }
       businesses.index_with do |business|
-        new(business, health: health_by_business_id[business.id]).call
+        new(
+          business,
+          health: health_by_business_id[business.id],
+          cost_source_keys:,
+          ensure_cost_defaults:,
+          context:
+        ).call
       end
     end
 
-    def initialize(business, health: nil, today: Date.current)
+    def initialize(
+      business,
+      health: nil,
+      today: Date.current,
+      cost_source_keys: nil,
+      ensure_cost_defaults: true,
+      context: nil
+    )
       @business = business
       @health = health
       @today = today
+      @cost_source_keys = cost_source_keys
+      @ensure_cost_defaults = ensure_cost_defaults
+      @context = context
     end
 
     def call
@@ -69,7 +86,11 @@ module Aicoo
         action_series: action_series,
         learning_series: learning_series,
         analysis_candidates: analysis_candidates,
-        cost_estimates: Aicoo::CostEngine.new(business:).call.estimates,
+        cost_estimates: Aicoo::CostEngine.new(
+          business:,
+          source_keys: cost_source_keys,
+          ensure_defaults: ensure_cost_defaults
+        ).call.estimates,
         settings: settings_summary,
         data_status: data_status
       )
@@ -77,7 +98,7 @@ module Aicoo
 
     private
 
-    attr_reader :business, :health, :today
+    attr_reader :business, :health, :today, :cost_source_keys, :ensure_cost_defaults, :context
 
     def period_summaries
       PERIODS.index_with do |days|
@@ -223,7 +244,11 @@ module Aicoo
     end
 
     def business_source_identifier(source_type)
-      setting = BusinessDataSourceSetting.find_by(business:, source_key: source_type)
+      setting = if context
+        context.business_data_source_setting(business.id, source_type)
+      else
+        BusinessDataSourceSetting.find_by(business:, source_key: source_type)
+      end
       return nil unless setting&.enabled?
 
       case source_type
@@ -235,16 +260,20 @@ module Aicoo
     end
 
     def analysis_candidates
-      business.analysis_candidates.where(due_on: today).ordered.limit(8).to_a
+      context ? context.analysis_candidates(business.id) : business.analysis_candidates.where(due_on: today).ordered.limit(8).to_a
     end
 
     def metrics_for(days)
-      business.business_metric_dailies.where(recorded_on: date_range(days))
+      context ? context.metrics_for(business.id, days) : business.business_metric_dailies.where(recorded_on: date_range(days))
     end
 
     def metric_records_for(days)
       @metric_records_for ||= {}
-      @metric_records_for[days] ||= business.business_metric_dailies.where(recorded_on: date_range(days)).order(:recorded_on).to_a
+      @metric_records_for[days] ||= if context
+        context.metrics_for(business.id, days)
+      else
+        business.business_metric_dailies.where(recorded_on: date_range(days)).order(:recorded_on).to_a
+      end
     end
 
     def metric_by_date
@@ -252,29 +281,39 @@ module Aicoo
     end
 
     def revenue_for(days)
+      return context.revenue_events_for(business.id, days).sum(&:amount).to_i if context
+
       business.revenue_events.revenue.where(occurred_on: date_range(days)).sum(:amount).to_i
     end
 
     def revenue_by_date
-      @revenue_by_date ||= business.revenue_events.revenue
-        .where(occurred_on: date_range(DEFAULT_DAYS))
-        .group(:occurred_on)
-        .sum(:amount)
+      @revenue_by_date ||= if context
+        context.revenue_events_for(business.id, DEFAULT_DAYS).group_by(&:occurred_on).transform_values { |rows| rows.sum(&:amount) }
+      else
+        business.revenue_events.revenue
+          .where(occurred_on: date_range(DEFAULT_DAYS))
+          .group(:occurred_on)
+          .sum(:amount)
+      end
     end
 
     def pending_actions_count
-      @pending_actions_count ||= business.action_candidates.where.not(status: ActionCandidate::INACTIVE_STATUSES).count
+      @pending_actions_count ||= context ? context.pending_actions_count(business.id) : business.action_candidates.where.not(status: ActionCandidate::INACTIVE_STATUSES).count
     end
 
     def action_candidate_counts
-      @action_candidate_counts ||= business.action_candidates
-        .where(created_at: time_range(DEFAULT_DAYS))
-        .group_by { |record| record.created_at.to_date }
-        .transform_values(&:count)
+      @action_candidate_counts ||= if context
+        context.action_candidate_counts(business.id)
+      else
+        business.action_candidates
+          .where(created_at: time_range(DEFAULT_DAYS))
+          .group_by { |record| record.created_at.to_date }
+          .transform_values(&:count)
+      end
     end
 
     def action_execution_counts
-      @action_execution_counts ||= ActionExecution
+      @action_execution_counts ||= context ? context.action_execution_counts(business.id) : ActionExecution
         .joins(:action_candidate)
         .where(action_candidates: { business_id: business.id })
         .where(created_at: time_range(DEFAULT_DAYS))
@@ -283,14 +322,14 @@ module Aicoo
     end
 
     def action_result_counts
-      @action_result_counts ||= business.action_results
+      @action_result_counts ||= context ? context.action_result_counts(business.id) : business.action_results
         .where(created_at: time_range(DEFAULT_DAYS))
         .group_by { |record| record.created_at.to_date }
         .transform_values(&:count)
     end
 
     def decision_log_counts
-      @decision_log_counts ||= OwnerDecisionLog
+      @decision_log_counts ||= context ? context.decision_log_counts(business.id) : OwnerDecisionLog
         .where(business:)
         .where(decided_at: time_range(DEFAULT_DAYS))
         .group_by { |record| record.decided_at.to_date }
@@ -310,27 +349,33 @@ module Aicoo
     end
 
     def average_candidate_metadata_by_date
-      business.action_candidates.where(created_at: time_range(DEFAULT_DAYS)).group_by { |candidate| candidate.created_at.to_date }.transform_values do |candidates|
+      candidates = context ? context.recent_candidates(business.id) : business.action_candidates.where(created_at: time_range(DEFAULT_DAYS))
+      candidates.group_by { |candidate| candidate.created_at.to_date }.transform_values do |candidates|
         values = candidates.filter_map { |candidate| yield(candidate)&.to_d }
         values.present? ? values.sum / values.size : 0.to_d
       end
     end
 
     def analytics_site
-      @analytics_site ||= AicooAnalyticsSite.find_by(business:)
+      @analytics_site ||= context ? context.analytics_site(business.id) : AicooAnalyticsSite.find_by(business:)
     end
 
     def gsc_setting
-      @gsc_setting ||= AnalyticsSourceSetting.includes(:aicoo_analytics_site)
-        .where(source_type: "gsc")
-        .find { |setting| setting.aicoo_analytics_site&.business_id == business.id || setting.site_url == business.gsc_site_url }
+      settings = context ? context.analytics_source_settings : AnalyticsSourceSetting.includes(:aicoo_analytics_site).to_a
+      @gsc_setting ||= settings
+        .find do |setting|
+          setting.source_type == "gsc" &&
+            (setting.aicoo_analytics_site&.business_id == business.id || setting.site_url == business.gsc_site_url)
+        end
     end
 
     def ga4_setting
       identifier = business_source_identifier("ga4").presence || analytics_site&.ga4_property_id.presence
-      @ga4_setting ||= AnalyticsSourceSetting.includes(:aicoo_analytics_site)
-        .where(source_type: "ga4")
+      settings = context ? context.analytics_source_settings : AnalyticsSourceSetting.includes(:aicoo_analytics_site).to_a
+      @ga4_setting ||= settings
         .find do |setting|
+          next false unless setting.source_type == "ga4"
+
           setting.aicoo_analytics_site&.business_id == business.id ||
             (identifier.present? && setting.property_id == identifier) ||
             setting.name.to_s.match?(/\A#{Regexp.escape(business.name)}\b/i)
@@ -338,11 +383,11 @@ module Aicoo
     end
 
     def latest_metric_at
-      business.business_metric_dailies.maximum(:recorded_on)&.in_time_zone
+      context ? context.latest_metric_at(business.id) : business.business_metric_dailies.maximum(:recorded_on)&.in_time_zone
     end
 
     def latest_revenue_at
-      business.revenue_events.maximum(:occurred_on)&.in_time_zone
+      context ? context.latest_revenue_at(business.id) : business.revenue_events.maximum(:occurred_on)&.in_time_zone
     end
 
     def date_range(days)

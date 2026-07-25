@@ -13,8 +13,14 @@ module Aicoo
       :execution_rates
     )
 
+    def initialize(candidates: nil, decision_logs: nil)
+      @candidates = candidates
+      @decision_logs = decision_logs
+    end
+
     def call
-      candidates = ActionCandidate.all
+      candidates = @candidates || ActionCandidate.all.to_a
+      decision_logs = @decision_logs || OwnerDecisionLog.last_30_days.to_a
       evidence_candidates = candidates.select { |candidate| evidence_score(candidate).positive? }
       Result.new(
         candidate_count: candidates.count,
@@ -23,9 +29,9 @@ module Aicoo
         insufficient_evidence_count: candidates.count { |candidate| evidence_score(candidate) < Aicoo::EvidenceBuilder::INSUFFICIENT_SCORE },
         average_evidence_score: average(evidence_candidates.map { |candidate| evidence_score(candidate) }),
         top_candidates: candidates.sort_by { |candidate| -evidence_score(candidate) }.first(5),
-        adoption_rates: rates_for(OwnerDecisionLog.last_30_days, OwnerDecisionLog::POSITIVE_DECISIONS),
-        completion_rates: rates_for(OwnerDecisionLog.last_30_days, %w[complete]),
-        execution_rates: rates_for(OwnerDecisionLog.last_30_days, OwnerDecisionLog::EXECUTION_DECISIONS)
+        adoption_rates: rates_for(decision_logs, OwnerDecisionLog::POSITIVE_DECISIONS),
+        completion_rates: rates_for(decision_logs, %w[complete]),
+        execution_rates: rates_for(decision_logs, OwnerDecisionLog::EXECUTION_DECISIONS)
       )
     end
 

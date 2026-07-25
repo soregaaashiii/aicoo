@@ -21,7 +21,15 @@ class AutoRevisionTasksController < ApplicationController
 
   def codex_queue
     @status_filter = params[:status].presence
-    @auto_revision_tasks = codex_queue_scope.includes(:business, :action_candidate).limit(100)
+    @auto_revision_tasks = codex_queue_scope
+      .includes(:action_candidate, business: :business_execution_profile)
+      .limit(100)
+      .to_a
+    prompt_rules = CodexPromptRule.active.ordered.to_a
+    @codex_target_validations_by_task_id = @auto_revision_tasks.index_with(&:codex_prompt_target_validation)
+    @codex_prompts_by_task_id = @auto_revision_tasks.index_with do |task|
+      task.codex_prompt_markdown(rules: prompt_rules)
+    end
     @codex_queue_summary = Aicoo::CodexActionQueueSummary.new.call
   end
 

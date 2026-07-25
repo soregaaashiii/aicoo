@@ -84,7 +84,7 @@
         </thead>
         <tbody>
           <% @auto_revision_tasks.each do |task| %>
-            <% target_validation = task.codex_prompt_target_validation %>
+            <% target_validation = @codex_target_validations_by_task_id.fetch(task) %>
             <tr>
               <td><%= link_to task.title, task %></td>
               <td><%= task.business.name %></td>
@@ -127,7 +127,7 @@
                   <button type="button"
                           class="button secondary"
                           onclick="navigator.clipboard.writeText(this.dataset.prompt)"
-                          data-prompt="<%= h(task.codex_prompt_markdown) %>"
+                          data-prompt="<%= h(@codex_prompts_by_task_id.fetch(task)) %>"
                           <%= "disabled" if target_validation.invalid? %>>
                     プロンプトをコピー
                   </button>

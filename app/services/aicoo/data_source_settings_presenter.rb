@@ -162,8 +162,13 @@ module Aicoo
       setting = settings_by_business_and_source[[ business.id, profile.source_key ]] ||
         BusinessDataSourceSetting.new(business:, source_key: profile.source_key)
       global_status = build_global_status(profile)
-      system_status = Aicoo::SystemStatusResolver.call(profile.source_key, business:)
-      status = Aicoo::BusinessConnectionStatus.new(business, source_key: profile.source_key).call
+      status = Aicoo::BusinessConnectionStatus.new(
+        business,
+        source_key: profile.source_key,
+        business_data_source_setting: setting,
+        data_source_cost_profile: profile
+      ).call
+      system_status = Aicoo::SystemStatusResolver.call(profile.source_key, business:, connection_status: status)
       BusinessStatus.new(
         source_key: profile.source_key,
         name: profile.name,

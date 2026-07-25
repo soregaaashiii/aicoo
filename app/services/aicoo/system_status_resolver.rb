@@ -47,10 +47,10 @@ module Aicoo
       new.call(...)
     end
 
-    def call(key, business: nil)
+    def call(key, business: nil, connection_status: nil)
       case key.to_s
       when "ga4", "gsc", "serp", "openai", "codex"
-        business ? business_source_status(business, key.to_s) : global_source_status(key.to_s)
+        business ? business_source_status(business, key.to_s, connection_status:) : global_source_status(key.to_s)
       when "daily_run"
         daily_run_status
       when "traffic"
@@ -86,8 +86,8 @@ module Aicoo
       )
     end
 
-    def business_source_status(business, source_key)
-      raw = Aicoo::BusinessConnectionStatus.new(business, source_key:).call
+    def business_source_status(business, source_key, connection_status: nil)
+      raw = connection_status || Aicoo::BusinessConnectionStatus.new(business, source_key:).call
       build_status(
         key: source_key,
         label: raw.label,

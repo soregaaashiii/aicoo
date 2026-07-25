@@ -43,6 +43,12 @@ module Aicoo
       assert_not_includes result.critical_businesses.map(&:business), system_business
     end
 
+    test "can limit health calculation to supplied businesses" do
+      result = BusinessIntegrationHealth.new(businesses: [ @business ]).call
+
+      assert_equal [ @business ], result.business_healths.map(&:business)
+    end
+
     test "aggregates configured integrations and lowers warnings for healthy data" do
       create_successful_analytics_settings
       @business.serp_analyses.create!(

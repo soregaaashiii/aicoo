@@ -252,7 +252,8 @@ class DashboardSummaryService
   def owner_business_rankings
     Aicoo::MemoryDiagnostics.measure("DashboardSummaryService#owner_business_rankings", context: { owner_mode:, current_mode: }) do
       Business.real_businesses.includes(:action_candidates).order(:name).map do |business|
-        value = Aicoo::BusinessExpectedValue.call(business)
+        candidates = business.action_candidates.reject { |candidate| candidate.status.in?(ActionCandidate::INACTIVE_STATUSES) }
+        value = Aicoo::BusinessExpectedValue.call(business, candidates:, persist: false)
         BusinessRanking.new(
           business:,
           expected_total_value_yen: value.expected_total_value_yen,

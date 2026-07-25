@@ -1,5 +1,6 @@
 module Aicoo
   class BusinessConnectionStatus
+    UNSET = Object.new.freeze
     Result = Data.define(
       :source_key,
       :label,
@@ -40,10 +41,18 @@ module Aicoo
 
     GOOGLE_SOURCE_KEYS = %w[ga4 gsc].freeze
 
-    def initialize(business, source_key:, health: nil)
+    def initialize(
+      business,
+      source_key:,
+      health: nil,
+      business_data_source_setting: UNSET,
+      data_source_cost_profile: UNSET
+    )
       @business = business
       @source_key = source_key.to_s
       @health = health
+      @provided_business_data_source_setting = business_data_source_setting
+      @provided_data_source_cost_profile = data_source_cost_profile
     end
 
     def call
@@ -176,7 +185,7 @@ module Aicoo
     end
 
     def serp_result
-      profile = DataSourceCostProfile.for_source("serp")
+      profile = data_source_cost_profile
       optional = Aicoo::Serp::OptionalMode.call
       active_query_count = business.serp_queries.where(enabled: true, status: "active").count
       active_keyword_count = business.business_serp_keywords.active.count
@@ -213,7 +222,7 @@ module Aicoo
     end
 
     def openai_result
-      profile = DataSourceCostProfile.for_source("openai")
+      profile = data_source_cost_profile
       return disabled_result(summary: "OpenAI全体設定がOFFです") unless profile.enabled?
 
       if profile.api_key_configured?
@@ -274,7 +283,7 @@ module Aicoo
 
     def generic_data_source_result
       setting = business_data_source_setting
-      profile = DataSourceCostProfile.for_source(source_key)
+      profile = data_source_cost_profile
       return disabled_result(summary: "Business側で無効です") if setting&.enabled? == false
       return disabled_result(summary: "#{profile.name}全体設定がOFFです") unless profile.enabled?
 
@@ -318,7 +327,15 @@ module Aicoo
     end
 
     def business_data_source_setting
+      return @provided_business_data_source_setting unless @provided_business_data_source_setting.equal?(UNSET)
+
       @business_data_source_setting ||= BusinessDataSourceSetting.find_by(business:, source_key:)
+    end
+
+    def data_source_cost_profile
+      return @provided_data_source_cost_profile unless @provided_data_source_cost_profile.equal?(UNSET)
+
+      @data_source_cost_profile ||= DataSourceCostProfile.for_source(source_key)
     end
 
     def business_data_source_identifier

@@ -429,7 +429,7 @@
           </small>
         </div>
       <% end %>
-      <% codex_status = @data_source_settings_presenter.codex_status(@business) %>
+      <% codex_status = @business_codex_status %>
       <div class="metric-card">
         <span>CODEX</span>
         <strong><%= codex_status.status_label %></strong>

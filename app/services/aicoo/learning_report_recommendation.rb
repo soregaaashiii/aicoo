@@ -3,6 +3,12 @@ module Aicoo
     Result = Data.define(:generated_at, :recommendations)
     Recommendation = Data.define(:priority, :category, :title, :reason, :recommended_action, :target_path, :metadata)
 
+    def initialize(quality_report: nil, learning_loop_health: nil, discovery_source_report: nil)
+      @quality_report = quality_report
+      @learning_loop_health = learning_loop_health
+      @discovery_source_report = discovery_source_report
+    end
+
     def call
       Result.new(generated_at: Time.current, recommendations: recommendations.first(10))
     end
@@ -160,8 +166,12 @@ module Aicoo
     end
 
     def action_type_sample_counts
-      @action_type_sample_counts ||= ActionCandidate::ACTION_TYPES.index_with do |action_type|
-        ActionResult.evaluated.joins(:action_candidate).where(action_candidates: { action_type: }).count
+      @action_type_sample_counts ||= begin
+        grouped_counts = ActionResult.evaluated
+          .joins(:action_candidate)
+          .group("action_candidates.action_type")
+          .count
+        ActionCandidate::ACTION_TYPES.index_with { |action_type| grouped_counts.fetch(action_type, 0) }
       end
     end
 

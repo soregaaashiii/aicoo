@@ -19,7 +19,11 @@ class BusinessesController < ApplicationController
   def index
     Aicoo::MemoryDiagnostics.measure("BusinessesController#index", context: memory_diagnostics_context) do
       @businesses = Aicoo::MemoryDiagnostics.measure("BusinessesController#index.business_list", context: memory_diagnostics_context) do
-        businesses = Business.real_businesses.includes(:business_execution_profile).order(:name)
+        businesses = Business.real_businesses.includes(
+          :action_candidates,
+          :business_execution_profile,
+          :business_playbook
+        ).order(:name)
         businesses = businesses.where(status: "exploring") if params[:filter] == "exploring"
         businesses = businesses.select(&:serp_generated?) if params[:filter] == "serp"
         businesses
@@ -31,14 +35,25 @@ class BusinessesController < ApplicationController
         Aicoo::BusinessIntegrationHealth.new.call
       end
       @data_source_settings_presenter = Aicoo::DataSourceSettingsPresenter.new
+      @business_data_source_statuses_by_id = @businesses.index_with do |business|
+        @data_source_settings_presenter.business_statuses(business, source_keys: %w[gsc ga4 serp x])
+      end
+      @business_codex_statuses_by_id = @businesses.index_with do |business|
+        @data_source_settings_presenter.codex_status(business)
+      end
       @business_analytics_summaries = Aicoo::MemoryDiagnostics.measure("Aicoo::BusinessAnalyticsSummary.for_businesses", context: memory_diagnostics_context(business_count: @businesses.size)) do
         Aicoo::BusinessAnalyticsSummary.for_businesses(
           @businesses,
-          health_result: @business_integration_health
+          health_result: @business_integration_health,
+          cost_source_keys: %w[serp],
+          ensure_cost_defaults: false
         )
       end
       @business_expected_values = Aicoo::MemoryDiagnostics.measure("BusinessesController#index.business_expected_values", context: memory_diagnostics_context(business_count: @businesses.size)) do
-        @businesses.index_with { |business| Aicoo::BusinessExpectedValue.call(business) }
+        @businesses.index_with do |business|
+          candidates = business.action_candidates.reject { |candidate| candidate.status.in?(ActionCandidate::INACTIVE_STATUSES) }
+          Aicoo::BusinessExpectedValue.call(business, candidates:, persist: false)
+        end
       end
     end
   end
@@ -105,7 +120,7 @@ class BusinessesController < ApplicationController
     @google_credential = AicooGoogleCredential.default&.reload
     @google_api_import_run = GoogleApiImportRun.latest_for(@business)
     @google_api_import_runs = GoogleApiImportRun.where(business: @business).recent.limit(8)
-    @integration_health = Aicoo::BusinessIntegrationHealth.new.call.business_healths.find { |row| row.business == @business }
+    @integration_health = Aicoo::BusinessIntegrationHealth.new(businesses: [ @business ]).call.business_healths.first
     @ga4_connection_summary = Aicoo::BusinessGoogleConnectionSummary.new(@business, source_key: "ga4", health: @integration_health).call
     @gsc_connection_summary = Aicoo::BusinessGoogleConnectionSummary.new(@business, source_key: "gsc", health: @integration_health).call
     @system_statuses = business_system_statuses(@business, %w[ga4 gsc serp openai codex daily_run traffic pipeline learning business_health])
@@ -113,6 +128,7 @@ class BusinessesController < ApplicationController
     @business_analytics_summary = Aicoo::BusinessAnalyticsSummary.new(@business, health: @integration_health).call
     @data_source_settings_presenter = Aicoo::DataSourceSettingsPresenter.new
     @business_data_source_statuses = @data_source_settings_presenter.business_statuses(@business)
+    @business_codex_status = @data_source_settings_presenter.codex_status(@business)
     @data_source_policy = Aicoo::DataSourcePolicy.for(@business)
     load_suelog_database_status
     @auto_revision_run_logs = @business.auto_revision_run_logs.includes(:auto_revision_task).recent.limit(8)

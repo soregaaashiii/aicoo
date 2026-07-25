@@ -15,8 +15,14 @@ class ActionCandidatesController < ApplicationController
   # GET /action_candidates or /action_candidates.json
   def index
     @businesses = Business.real_businesses.order(:name)
-    @action_candidates = filtered_action_candidates
+    @action_candidates = filtered_action_candidates.to_a
     @action_candidate_judge_scores = AicooJudge::ActionCandidateScore.new.score_map(@action_candidates)
+    executor_candidate_ids = @action_candidates.filter_map do |candidate|
+      candidate.id if candidate.data_preparation? || candidate.generation_source == "ai_insight"
+    end
+    @unfinished_executor_tasks_by_candidate_id = AicooExecutorTask.unfinished
+      .where(source_type: "action_candidate", source_id: executor_candidate_ids)
+      .index_by(&:source_id)
   end
 
   # GET /action_candidates/1 or /action_candidates/1.json

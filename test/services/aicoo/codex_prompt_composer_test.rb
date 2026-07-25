@@ -27,5 +27,20 @@ module Aicoo
       assert_includes prompt, "Business未選択"
       assert_includes prompt, "共通だけで作る"
     end
+
+    test "preloaded rules produce the same prompt" do
+      CodexPromptRule.ensure_defaults!
+      business = businesses(:suelog)
+      request_body = "既存表示を変えずに高速化する"
+
+      normal = CodexPromptComposer.call(business:, request_body:)
+      preloaded = CodexPromptComposer.call(
+        business:,
+        request_body:,
+        rules: CodexPromptRule.active.ordered.to_a
+      )
+
+      assert_equal normal, preloaded
+    end
   end
 end

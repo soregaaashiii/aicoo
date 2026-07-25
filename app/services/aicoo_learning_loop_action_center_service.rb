@@ -63,7 +63,12 @@ class AicooLearningLoopActionCenterService
   attr_reader :candidate_scope, :limit
 
   def prioritized_candidates
-    candidate_scope.where.not(status: INACTIVE_STATUSES).to_a.sort_by do |candidate|
+    candidates = if candidate_scope.respond_to?(:where)
+      candidate_scope.where.not(status: INACTIVE_STATUSES).to_a
+    else
+      candidate_scope.reject { |candidate| candidate.status.in?(INACTIVE_STATUSES) }
+    end
+    candidates.sort_by do |candidate|
       [
         -(candidate.final_score || 0).to_d,
         -expected_value_for(candidate).to_d,

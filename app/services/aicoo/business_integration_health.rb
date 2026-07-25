@@ -39,8 +39,14 @@ module Aicoo
     LOW_HEALTH_THRESHOLD = 60
     ATTENTION_HEALTH_THRESHOLD = 80
 
+    def initialize(businesses: nil)
+      @businesses = businesses
+    end
+
     def call
-      rows = Business.real_businesses.includes(:business_playbook).order(:name).map do |business|
+      businesses = business_scope.to_a
+      prepare_aggregate_maps(businesses)
+      rows = businesses.map do |business|
         build_business_health(business)
       end
       Result.new(
@@ -55,6 +61,12 @@ module Aicoo
 
     private
 
+    def business_scope
+      return Business.real_businesses.includes(:business_playbook).order(:name) unless @businesses
+
+      Array(@businesses)
+    end
+
     def build_business_health(business)
       gsc = analytics_health(business, "gsc")
       ga4 = analytics_health(business, "ga4")
@@ -63,7 +75,7 @@ module Aicoo
       daily_run = daily_run_health
       playbook = playbook_health(business)
       decision_log = decision_log_health(business)
-      action_candidate_count = business.action_candidates.where(created_at: 30.days.ago..).count
+      action_candidate_count = action_candidate_counts.fetch(business.id, 0)
       warnings = [
         gsc.warning,
         ga4.warning,
@@ -250,13 +262,13 @@ module Aicoo
 
     def serp_health(business)
       system_status = Aicoo::SystemStatusResolver.call("serp", business:)
-      latest = business.serp_analyses.order(analyzed_at: :desc).first
-      count = business.serp_analyses.count
+      latest_at = latest_serp_at_by_business_id[business.id]
+      count = serp_counts_by_business_id.fetch(business.id, 0)
       warning = if !system_status.connected?
         system_status.reason
-      elsif latest.blank?
+      elsif latest_at.blank?
         "SERP分析が未実行です"
-      elsif stale?(latest.analyzed_at)
+      elsif stale?(latest_at)
         "SERPが#{WARNING_STALE_DAYS}日以上更新されていません"
       end
       SourceHealth.new(
@@ -264,8 +276,8 @@ module Aicoo
         connected: system_status.connected?,
         configured: system_status.connected? || system_status.warning?,
         status: system_status.status,
-        last_fetched_at: latest&.analyzed_at,
-        last_success_at: latest&.analyzed_at,
+        last_fetched_at: latest_at,
+        last_success_at: latest_at,
         last_failed_at: nil,
         count:,
         warning:
@@ -273,10 +285,11 @@ module Aicoo
     end
 
     def explore_health(business)
-      opportunities = business.opportunity_discovery_items
-      observations = ExploreObservation.where(opportunity_discovery_item_id: opportunities.select(:id))
-      count = opportunities.count
-      latest_at = [ opportunities.maximum(:created_at), observations.maximum(:observed_at) ].compact.max
+      count = opportunity_counts_by_business_id.fetch(business.id, 0)
+      latest_at = [
+        latest_opportunity_at_by_business_id[business.id],
+        latest_observation_at_by_business_id[business.id]
+      ].compact.max
       warning = if count.zero?
         "Opportunityが生成されていません"
       elsif stale?(latest_at)
@@ -296,6 +309,8 @@ module Aicoo
     end
 
     def daily_run_health
+      return @daily_run_health if defined?(@daily_run_health)
+
       system_status = Aicoo::SystemStatusResolver.call("daily_run")
       latest = AicooDailyRun.recent.first
       warning = if !system_status.connected?
@@ -309,7 +324,7 @@ module Aicoo
       elsif stale?(latest.finished_at || latest.started_at)
         "Daily Run成功が#{WARNING_STALE_DAYS}日以上ありません"
       end
-      SourceHealth.new(
+      @daily_run_health = SourceHealth.new(
         source: "daily_run",
         connected: system_status.connected?,
         configured: true,
@@ -343,10 +358,11 @@ module Aicoo
     end
 
     def decision_log_health(business)
-      today = OwnerDecisionLog.where(business:, decided_at: Time.current.all_day).count
-      last_7_days = OwnerDecisionLog.where(business:, decided_at: 7.days.ago..).count
-      last_30_days = OwnerDecisionLog.where(business:, decided_at: 30.days.ago..).count
-      latest_at = OwnerDecisionLog.where(business:).maximum(:decided_at)
+      rows = decision_logs_by_business_id.fetch(business.id, [])
+      today = rows.count { |decided_at| decided_at.in?(Time.current.all_day) }
+      last_7_days = rows.count { |decided_at| decided_at >= 7.days.ago }
+      last_30_days = rows.count { |decided_at| decided_at >= 30.days.ago }
+      latest_at = latest_decision_at_by_business_id[business.id]
       warning = "Decision Log不足" if last_30_days < 3
       SourceHealth.new(
         source: "decision_log",
@@ -362,6 +378,39 @@ module Aicoo
         health.with(count: { "today" => today, "7d" => last_7_days, "30d" => last_30_days })
       end
     end
+
+    def prepare_aggregate_maps(businesses)
+      @business_ids = businesses.filter_map(&:id)
+      @action_candidate_counts = ActionCandidate.where(business_id: @business_ids, created_at: 30.days.ago..)
+        .group(:business_id)
+        .count
+      @serp_counts_by_business_id = SerpAnalysis.where(business_id: @business_ids).group(:business_id).count
+      @latest_serp_at_by_business_id = SerpAnalysis.where(business_id: @business_ids).group(:business_id).maximum(:analyzed_at)
+      opportunity_scope = OpportunityDiscoveryItem.where(business_id: @business_ids)
+      @opportunity_counts_by_business_id = opportunity_scope.group(:business_id).count
+      @latest_opportunity_at_by_business_id = opportunity_scope.group(:business_id).maximum(:created_at)
+      @latest_observation_at_by_business_id = ExploreObservation
+        .joins(:opportunity_discovery_item)
+        .where(opportunity_discovery_items: { business_id: @business_ids })
+        .group("opportunity_discovery_items.business_id")
+        .maximum(:observed_at)
+      decision_scope = OwnerDecisionLog.where(business_id: @business_ids)
+      @latest_decision_at_by_business_id = decision_scope.group(:business_id).maximum(:decided_at)
+      @decision_logs_by_business_id = decision_scope
+        .where(decided_at: 30.days.ago..)
+        .pluck(:business_id, :decided_at)
+        .group_by(&:first)
+        .transform_values { |rows| rows.map(&:last) }
+    end
+
+    attr_reader :action_candidate_counts,
+                :serp_counts_by_business_id,
+                :latest_serp_at_by_business_id,
+                :opportunity_counts_by_business_id,
+                :latest_opportunity_at_by_business_id,
+                :latest_observation_at_by_business_id,
+                :decision_logs_by_business_id,
+                :latest_decision_at_by_business_id
 
     def score_for(gsc:, ga4:, serp:, explore:, daily_run:, playbook:, decision_log:, action_candidate_count:)
       score = 0.to_d

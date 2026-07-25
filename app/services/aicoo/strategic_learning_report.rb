@@ -24,6 +24,10 @@ module Aicoo
     )
     Rate = Data.define(:label, :count, :rate, :coefficient)
 
+    def initialize(candidates: nil)
+      @candidates = candidates
+    end
+
     def call
       logs = OwnerDecisionLog.last_30_days
       Report.new(
@@ -105,9 +109,9 @@ module Aicoo
     end
 
     def learning_correction_rate
-      return 0.to_d if ActionCandidate.count.zero?
+      return 0.to_d if candidates.empty?
 
-      ratio(ActionCandidate.all.count { |candidate| candidate.metadata.to_h.key?("strategic_learning") }, ActionCandidate.count)
+      ratio(candidates.count { |candidate| candidate.metadata.to_h.key?("strategic_learning") }, candidates.size)
     end
 
     def strategic_alignment_rate(logs)
@@ -160,27 +164,29 @@ module Aicoo
     end
 
     def largest_adjustments
-      ActionCandidate.all
-                     .sort_by { |candidate| -guardrail_rate(candidate).abs }
-                     .first(5)
+      candidates.sort_by { |candidate| -guardrail_rate(candidate).abs }.first(5)
     end
 
     def high_risk_boosted
-      ActionCandidate.all.select do |candidate|
+      candidates.select do |candidate|
         guardrail = candidate.metadata.to_h["strategic_learning_guardrail"].to_h
         guardrail.fetch("warning_reason", "").include?("high risk") && guardrail.fetch("adjustment_rate", 0).to_d.positive?
       end.first(5)
     end
 
     def weakened_decision_log_count
-      ActionCandidate.all.count do |candidate|
+      candidates.count do |candidate|
         guardrail = candidate.metadata.to_h["strategic_learning_guardrail"].to_h
         guardrail.fetch("raw_decision_log_coefficient", "1").to_d != guardrail.fetch("decision_log_coefficient", "1").to_d
       end
     end
 
     def max_adjustment_rate
-      ActionCandidate.all.map { |candidate| guardrail_rate(candidate).abs }.max || 0.to_d
+      candidates.map { |candidate| guardrail_rate(candidate).abs }.max || 0.to_d
+    end
+
+    def candidates
+      @candidates ||= ActionCandidate.all.to_a
     end
 
     def guardrail_rate(candidate)

@@ -59,7 +59,7 @@
     <tbody>
       <% @action_candidates.each do |action_candidate| %>
         <% judge_score = @action_candidate_judge_scores.fetch(action_candidate) %>
-        <% executor_task = action_candidate.unfinished_executor_task %>
+        <% executor_task = @unfinished_executor_tasks_by_candidate_id[action_candidate.id] %>
         <tr>
           <td><%= link_to action_candidate.title, action_candidate %></td>
           <td><%= action_candidate.business.name %></td>

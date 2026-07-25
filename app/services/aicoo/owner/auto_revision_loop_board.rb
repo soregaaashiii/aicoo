@@ -60,13 +60,14 @@ module Aicoo
       attr_reader :selected_key, :limit
 
       def task_rows
-        AutoRevisionTask
-          .includes(:business, :action_candidate, :codex_submission, :auto_revision_executions)
+        tasks = AutoRevisionTask
+          .includes(:action_candidate, :codex_submission, :auto_revision_executions, business: :business_execution_profile)
           .where.not(status: %w[canceled])
           .to_a
           .sort_by { |task| expected_value_sort_key(task.action_candidate, task) }
           .first(limit)
-          .map { |task| row_for_task(task) }
+        @prompt_rules = CodexPromptRule.active.ordered.to_a
+        tasks.map { |task| row_for_task(task) }
       end
 
       def candidate_rows
@@ -255,7 +256,7 @@ module Aicoo
 
       def detail_for_task(task)
         {
-          prompt: task.codex_prompt_markdown,
+          prompt: task.codex_prompt_markdown(rules: @prompt_rules),
           github_issue_url: task.codex_submission&.github_issue_url,
           target_url: task.action_candidate&.metadata.to_h["target_url"],
           changed_files: task.changed_files.presence || task.action_candidate&.metadata.to_h["target_files"],

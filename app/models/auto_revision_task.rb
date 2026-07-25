@@ -466,7 +466,7 @@ class AutoRevisionTask < ApplicationRecord
     AicooCodexPromptTargetValidationService.new(self).call
   end
 
-  def codex_prompt_markdown
+  def codex_prompt_markdown(rules: nil)
     profile = execution_profile
     base_markdown = <<~MARKDOWN
       # AutoRevisionTask ##{id}: #{title}
@@ -577,7 +577,7 @@ class AutoRevisionTask < ApplicationRecord
       Error Message:
       ```
     MARKDOWN
-    Aicoo::CodexPromptComposer.call(business:, request_body: base_markdown)
+    Aicoo::CodexPromptComposer.call(business:, request_body: base_markdown, rules:)
   end
 
   def codex_prompt_export_filename

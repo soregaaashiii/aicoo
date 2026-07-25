@@ -15,11 +15,12 @@ class AicooDailyRunsController < ApplicationController
     @daily_run_history = Aicoo::DailyRunHistory.new(@daily_run)
     @correction_readiness = AicooCorrectionReadinessService.new.call
     @execution_feasibility_insight = AicooExecutionFeasibilityInsightService.new.call
-    @execution_feasibility_correction_overview = AicooExecutionFeasibilityCorrectionOverviewService.new.call
-    @learning_loop_summary = AicooLearningLoopSummaryService.new.call
-    @learning_loop_action_center = AicooLearningLoopActionCenterService.new.call
+    learning_candidates = ActionCandidate.includes(:business).to_a
+    @execution_feasibility_correction_overview = AicooExecutionFeasibilityCorrectionOverviewService.new(scope: learning_candidates).call
+    @learning_loop_summary = AicooLearningLoopSummaryService.new(candidate_scope: learning_candidates).call
+    @learning_loop_action_center = AicooLearningLoopActionCenterService.new(candidate_scope: learning_candidates).call
     @auto_revision_queue_run = @daily_run.auto_revision_queue_run
-    @auto_revision_candidates = ActionCandidate.includes(:business)
+    @auto_revision_candidates = ActionCandidate.includes(:business, :auto_revision_tasks)
                                                .active_for_ranking
                                                .where(created_at: @daily_run.target_date.all_day)
                                                .where.not(execution_prompt: [ nil, "" ])

@@ -102,5 +102,28 @@ module Aicoo
       assert_not result.data_status[:has_engagement_data]
       assert_not result.data_status[:has_revenue_data]
     end
+
+    test "batch context preserves analytics values" do
+      direct = BusinessAnalyticsSummary.new(
+        @business,
+        cost_source_keys: %w[serp],
+        ensure_cost_defaults: false
+      ).call
+      batched = BusinessAnalyticsSummary.for_businesses(
+        [ @business ],
+        cost_source_keys: %w[serp],
+        ensure_cost_defaults: false
+      ).fetch(@business)
+
+      assert_equal direct.periods, batched.periods
+      assert_equal direct.gsc_series, batched.gsc_series
+      assert_equal direct.ga4_series, batched.ga4_series
+      assert_equal direct.revenue_series, batched.revenue_series
+      assert_equal direct.action_series, batched.action_series
+      assert_equal direct.learning_series, batched.learning_series
+      assert_equal direct.data_status, batched.data_status
+      assert_equal direct.analysis_candidates.map(&:id), batched.analysis_candidates.map(&:id)
+      assert_equal direct.cost_estimates.map(&:source_key), batched.cost_estimates.map(&:source_key)
+    end
   end
 end
