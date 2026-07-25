@@ -33,6 +33,7 @@ class ActionCandidatesController < ApplicationController
     @opportunity = OpportunityDiscoveryItem.find_by(id: @action_candidate.metadata.to_h["opportunity_id"]) ||
       @action_candidate.opportunity_discovery_items.order(updated_at: :desc).first
     @opportunity_related_candidates = related_opportunity_candidates(@opportunity)
+    @today_outcome_group = Aicoo::TodayOutcomeGrouping.group_for(@action_candidate)
   end
 
   # GET /action_candidates/new

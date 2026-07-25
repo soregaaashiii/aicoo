@@ -447,6 +447,41 @@ module Aicoo
       assert_equal [ "action_candidate:first_url", "action_candidate:second_url" ], result.items.map(&:stable_id)
     end
 
+    test "does not deduplicate different target articles when shop metadata is shared" do
+      first = action_candidate(
+        title: "記事内の店舗情報を確認する",
+        metadata: {
+          "target_record_id" => 123,
+          "shop_id" => 66,
+          "article_id" => 901,
+          "target_query" => "店舗情報確認",
+          "target_url" => "/articles/shared"
+        }
+      )
+      second = action_candidate(
+        title: "記事内の店舗情報を確認する",
+        metadata: {
+          "target_record_id" => 123,
+          "shop_id" => 66,
+          "article_id" => 902,
+          "target_query" => "店舗情報確認",
+          "target_url" => "/articles/shared"
+        }
+      )
+      first.update!(action_type: "smoking_info_verify")
+      second.update!(action_type: "smoking_info_verify")
+
+      result = ActionExpectedValueRanking.new(
+        items: [
+          item(stable_id: "action_candidate:first_article", delta: 10_000, confidence: 0.8, record: first),
+          item(stable_id: "action_candidate:second_article", delta: 9_000, confidence: 0.8, record: second)
+        ],
+        mode: "revenue"
+      ).call
+
+      assert_equal [ "action_candidate:first_article", "action_candidate:second_article" ], result.items.map(&:stable_id)
+    end
+
     private
 
     def item(stable_id:, delta:, confidence:, valuation_status: nil, no_action: 0, action: nil, cost: 0, record: nil, expected_hours: 1)

@@ -182,8 +182,61 @@ module Aicoo
 
     def select_today_items(items)
       selected_items = suppress_article_opportunity_duplicates(items.uniq(&:stable_id))
+      selected_items = consolidate_same_outcome_items(selected_items)
       persist_today_inclusions!(selected_items)
       selected_items
+    end
+
+    def consolidate_same_outcome_items(items)
+      grouped = Hash.new { |hash, key| hash[key] = [] }
+      passthrough = []
+
+      items.each do |item|
+        candidate = action_candidate_for_item(item)
+        key = Aicoo::TodayOutcomeGrouping.key_for(candidate)
+        key.present? ? grouped[key] << item : passthrough << item
+      end
+
+      consolidated = grouped.values.map do |group|
+        representative = group.max_by { |item| outcome_representative_key(item) }
+        candidates = group.filter_map { |item| action_candidate_for_item(item) }
+        methods = candidates.map { |candidate| Aicoo::TodayOutcomeGrouping.method_label(candidate) }.uniq
+        representative_candidate = action_candidate_for_item(representative)
+
+        group.each do |item|
+          candidate = action_candidate_for_item(item)
+          next if item == representative || candidate.blank?
+
+          mark_today_exclusion!(candidate, "duplicate_suppressed_by_outcome")
+        end
+
+        representative.with(
+          concrete_task: Aicoo::TodayOutcomeGrouping.title_for(candidates),
+          owner_next_step: "#{Aicoo::TodayOutcomeGrouping.method_label(representative_candidate)}する",
+          group_count: group.size,
+          group_summary: "現在の実行方法: #{Aicoo::TodayOutcomeGrouping.method_label(representative_candidate)} / 確認方法: #{methods.join(' / ')} / 関連候補 #{group.size}件"
+        )
+      end
+
+      passthrough + consolidated
+    end
+
+    def outcome_representative_key(item)
+      candidate = action_candidate_for_item(item)
+      [
+        item.action_expected_value_delta_yen.to_d,
+        Aicoo::TodayOutcomeGrouping.method_specificity(candidate),
+        candidate&.created_at&.to_i.to_i,
+        candidate&.id.to_i
+      ]
+    end
+
+    def action_candidate_for_item(item)
+      record = item.respond_to?(:record) ? item.record : nil
+      return record if record.is_a?(ActionCandidate)
+      return record.action_candidate if record.is_a?(AutoRevisionTask)
+
+      nil
     end
 
     def suppress_article_opportunity_duplicates(items)

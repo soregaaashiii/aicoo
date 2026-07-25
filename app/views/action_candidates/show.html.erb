@@ -109,6 +109,61 @@ end %>
   </div>
 </section>
 
+<% if @today_outcome_group %>
+  <section class="dashboard-section" id="today-outcome-group">
+    <div class="section-heading">
+      <div>
+        <h2>同じ成果に含まれる候補</h2>
+        <p>Todayでは「<%= @today_outcome_group.title %>」として1件にまとめて表示します。</p>
+      </div>
+    </div>
+    <div class="aicoo-grid aicoo-grid-2">
+      <div class="aicoo-card aicoo-card-compact">
+        <h3>確認方法一覧</h3>
+        <ul class="compact-list">
+          <% @today_outcome_group.methods.each do |method| %>
+            <li><%= method %></li>
+          <% end %>
+        </ul>
+      </div>
+      <div class="aicoo-card aicoo-card-compact">
+        <h3>生成元一覧</h3>
+        <ul class="compact-list">
+          <% @today_outcome_group.sources.each do |source| %>
+            <li><%= source %></li>
+          <% end %>
+        </ul>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>候補</th>
+            <th>確認方法</th>
+            <th>生成元</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @today_outcome_group.candidates.each do |candidate| %>
+            <tr>
+              <td>
+                <% if candidate == @action_candidate %>
+                  <%= candidate.title %>
+                <% else %>
+                  <%= link_to candidate.title, action_workspace_path(candidate) %>
+                <% end %>
+              </td>
+              <td><%= Aicoo::TodayOutcomeGrouping.method_label(candidate) %></td>
+              <td><%= candidate.generation_source %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+<% end %>
+
 <section class="dashboard-section" id="action-targets">
   <div class="section-heading">
     <div>

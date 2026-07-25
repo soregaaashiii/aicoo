@@ -152,6 +152,185 @@ module Owner
       assert_equal "確認対象店舗 #601", item.target
     end
 
+    test "phone and smoking verification for the same shop are one Today outcome" do
+      phone = create_candidate!(
+        title: "おかにわへ電話確認する",
+        expected_value_yen: 728,
+        execution_mode: "manual_operation",
+        action_type: "shop_phone_verify",
+        generation_source: "suelog_db",
+        metadata: {
+          "shop_id" => 66,
+          "shop_name" => "おかにわ",
+          "target_url" => "/shops/66",
+          "action_plan" => {
+            "summary" => "おかにわへ電話確認する",
+            "owner_next_step" => "電話番号へ架電する",
+            "execution_steps" => [ "電話番号へ架電する" ]
+          }
+        }
+      )
+      smoking = create_candidate!(
+        title: "おかにわの喫煙情報を確認する",
+        expected_value_yen: 649,
+        execution_mode: "manual_operation",
+        action_type: "smoking_info_verify",
+        generation_source: "business_analyzer",
+        metadata: {
+          "shop_id" => 66,
+          "shop_name" => "おかにわ",
+          "target_url" => "/shops/66",
+          "action_plan" => {
+            "summary" => "おかにわの喫煙情報を確認する",
+            "owner_next_step" => "店舗情報を開く",
+            "execution_steps" => [ "店舗情報を開く" ]
+          }
+        }
+      )
+      candidate_count = ActionCandidate.count
+
+      items = board.items.select { |item| [ stable_id(phone), stable_id(smoking) ].include?(item.stable_id) }
+
+      assert_equal 1, items.size
+      item = items.sole
+      assert_equal stable_id(phone), item.stable_id
+      assert_equal 728, item.action_expected_value_delta_yen
+      assert_equal "おかにわの喫煙情報を確認する", item.concrete_task
+      assert_equal "電話で確認する", item.owner_next_step
+      assert_includes item.group_summary, "関連候補 2件"
+      assert_equal candidate_count, ActionCandidate.count
+      assert_equal [ phone.id, smoking.id ].sort, ActionCandidate.where(id: [ phone.id, smoking.id ]).pluck(:id).sort
+    end
+
+    test "same outcome detail shows every candidate method and generation source" do
+      phone = create_candidate!(
+        title: "おかにわへ電話確認する",
+        expected_value_yen: 728,
+        execution_mode: "manual_operation",
+        action_type: "shop_phone_verify",
+        generation_source: "suelog_db",
+        metadata: {
+          "shop_id" => 66,
+          "shop_name" => "おかにわ",
+          "target_url" => "/shops/66"
+        }
+      )
+      smoking = create_candidate!(
+        title: "おかにわの喫煙情報を確認する",
+        expected_value_yen: 649,
+        execution_mode: "manual_operation",
+        action_type: "smoking_info_verify",
+        generation_source: "business_analyzer",
+        metadata: {
+          "shop_id" => 66,
+          "shop_name" => "おかにわ",
+          "target_url" => "/shops/66"
+        }
+      )
+
+      get action_workspace_url(phone)
+
+      assert_response :success
+      assert_select "#today-outcome-group" do
+        assert_select "h2", text: "同じ成果に含まれる候補"
+        assert_select "td", text: phone.title
+        assert_select "td", text: smoking.title
+        assert_select "li", text: "電話で確認"
+        assert_select "li", text: "店舗情報を確認"
+        assert_select "li", text: "suelog_db"
+        assert_select "li", text: "business_analyzer"
+      end
+    end
+
+    test "shop verification outcomes stay separate for different shops urls articles and businesses" do
+      base = {
+        title: "店舗へ電話確認する",
+        expected_value_yen: 700,
+        execution_mode: "manual_operation",
+        action_type: "shop_phone_verify",
+        generation_source: "suelog_db"
+      }
+      first_shop = create_candidate!(**base, metadata: { "shop_id" => 66, "target_url" => "/shops/66" })
+      different_shop = create_candidate!(**base, metadata: { "shop_id" => 67, "target_url" => "/shops/67" })
+      different_url = create_candidate!(**base, metadata: { "shop_id" => 66, "target_url" => "/shops/66/alternate" })
+      article_target = create_candidate!(**base, metadata: { "shop_id" => 66, "article_id" => 901, "target_url" => "/shops/66" })
+      other_article_target = create_candidate!(**base, metadata: { "shop_id" => 66, "article_id" => 902, "target_url" => "/shops/66" })
+      other_business = create_candidate!(
+        **base,
+        business: businesses(:cards),
+        metadata: { "shop_id" => 66, "target_url" => "/shops/66" }
+      )
+
+      expected_ids = [
+        first_shop,
+        different_shop,
+        different_url,
+        article_target,
+        other_article_target,
+        other_business
+      ].map { |candidate| stable_id(candidate) }
+      actual_ids = board.items.map(&:stable_id) & expected_ids
+
+      assert_equal expected_ids.sort, actual_ids.sort
+    end
+
+    test "distinct work for the same shop is not consolidated as verification" do
+      verification = create_candidate!(
+        title: "おかにわの喫煙情報を確認する",
+        expected_value_yen: 728,
+        execution_mode: "manual_operation",
+        action_type: "smoking_info_verify",
+        metadata: { "shop_id" => 66, "target_url" => "/shops/66" }
+      )
+      phone_update = create_candidate!(
+        title: "おかにわの電話番号を修正する",
+        expected_value_yen: 700,
+        execution_mode: "manual_operation",
+        action_type: "other",
+        metadata: { "shop_id" => 66, "target_url" => "/shops/66" }
+      )
+      image_addition = create_candidate!(
+        title: "おかにわへ画像を追加する",
+        expected_value_yen: 680,
+        execution_mode: "manual_operation",
+        action_type: "other",
+        metadata: { "shop_id" => 66, "target_url" => "/shops/66" }
+      )
+
+      expected_ids = [ verification, phone_update, image_addition ].map { |candidate| stable_id(candidate) }
+      actual_ids = board.items.map(&:stable_id) & expected_ids
+
+      assert_equal expected_ids.sort, actual_ids.sort
+    end
+
+    test "outcome consolidation preserves expected yen ranking" do
+      phone = create_candidate!(
+        title: "おかにわへ電話確認する",
+        expected_value_yen: 728,
+        execution_mode: "manual_operation",
+        action_type: "shop_phone_verify",
+        metadata: { "shop_id" => 66, "shop_name" => "おかにわ", "target_url" => "/shops/66" }
+      )
+      create_candidate!(
+        title: "おかにわの喫煙情報を確認する",
+        expected_value_yen: 649,
+        execution_mode: "manual_operation",
+        action_type: "smoking_info_verify",
+        metadata: { "shop_id" => 66, "shop_name" => "おかにわ", "target_url" => "/shops/66" }
+      )
+      higher = create_candidate!(
+        title: "別店舗の高期待値作業",
+        expected_value_yen: 1_000,
+        execution_mode: "manual_operation",
+        action_type: "other",
+        metadata: { "target_record_id" => 999, "target_url" => "/shops/999" }
+      )
+
+      ids = board.items.map(&:stable_id)
+
+      assert_operator ids.index(stable_id(higher)), :<, ids.index(stable_id(phone))
+    end
+
     test "other Business code revision and LP improvement are shown in Today" do
       code_candidate, = create_task_candidate!(
         status: "waiting_approval",

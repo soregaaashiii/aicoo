@@ -207,12 +207,12 @@ module Aicoo
     end
 
     def normalized_target_record(metadata)
-      normalize(
-        metadata["target_record_id"].presence ||
-          metadata["shop_id"].presence ||
-          metadata["article_id"].presence ||
-          metadata["external_record_id"].presence
-      )
+      [
+        metadata["target_record_id"],
+        metadata["shop_id"],
+        metadata["article_id"],
+        metadata["external_record_id"]
+      ].map { |value| normalize(value) }.join(":")
     end
 
     def normalized_existing_target(metadata)
