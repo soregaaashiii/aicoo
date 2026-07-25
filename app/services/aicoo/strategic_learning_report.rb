@@ -47,9 +47,9 @@ module Aicoo
                                    .limit(10),
         contrary_decision_count: contrary_decision_count(logs),
         guardrail_settings: guardrail_settings,
-        guardrail_warning_today_count: guardrail_warning_count(ActionCandidate.where(created_at: Time.current.all_day)),
-        guardrail_warning_7_days_count: guardrail_warning_count(ActionCandidate.where(created_at: 7.days.ago..)),
-        guardrail_warning_30_days_count: guardrail_warning_count(ActionCandidate.where(created_at: 30.days.ago..)),
+        guardrail_warning_today_count: guardrail_warning_count(candidates_created_in(Time.current.all_day)),
+        guardrail_warning_7_days_count: guardrail_warning_count(candidates_created_in(7.days.ago..)),
+        guardrail_warning_30_days_count: guardrail_warning_count(candidates_created_in(30.days.ago..)),
         largest_adjustments: largest_adjustments,
         high_risk_boosted: high_risk_boosted,
         weakened_decision_log_count: weakened_decision_log_count,
@@ -161,6 +161,10 @@ module Aicoo
 
     def guardrail_warning_count(scope)
       scope.count { |candidate| candidate.metadata.to_h.dig("strategic_learning_guardrail", "warning") == true }
+    end
+
+    def candidates_created_in(range)
+      candidates.select { |candidate| candidate.created_at && range.cover?(candidate.created_at) }
     end
 
     def largest_adjustments

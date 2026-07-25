@@ -131,11 +131,18 @@ module Aicoo
     end
 
     def source_types
-      (OpportunityDiscoveryItem::SOURCE_TYPES + OpportunityDiscoveryItem.distinct.pluck(:source_type)).compact.uniq
+      (OpportunityDiscoveryItem::SOURCE_TYPES + opportunities_by_source_type.keys).compact.uniq
     end
 
     def opportunities_for(source_type)
-      OpportunityDiscoveryItem.includes(action_candidate: %i[action_execution action_result]).where(source_type:).to_a
+      opportunities_by_source_type.fetch(source_type, [])
+    end
+
+    def opportunities_by_source_type
+      @opportunities_by_source_type ||= OpportunityDiscoveryItem
+        .includes(action_candidate: %i[action_execution action_result])
+        .to_a
+        .group_by(&:source_type)
     end
 
     def candidates_for(opportunities)

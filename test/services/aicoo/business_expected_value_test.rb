@@ -231,6 +231,26 @@ module Aicoo
       assert_equal original_candidate_metadata, candidate.reload.metadata
     end
 
+    test "batch context keeps expected value result unchanged" do
+      @business.revenue_events.create!(amount: 12_000, event_type: "profit", occurred_on: Date.current)
+      @business.business_metric_dailies.create!(
+        recorded_on: Date.current,
+        clicks: 50,
+        impressions: 500,
+        sessions: 40,
+        pageviews: 80,
+        users: 30
+      )
+      candidate = create_candidate!(title: "一括取得の同値確認", value: 8_000, metadata: { "query" => "一括取得" })
+      candidates = [ candidate ]
+
+      direct = BusinessExpectedValue.call(@business, candidates:, persist: false)
+      context = BusinessExpectedValue::BatchContext.new([ @business ])
+      batched = BusinessExpectedValue.call(@business, candidates:, persist: false, context:)
+
+      assert_equal direct.to_h.except(:business), batched.to_h.except(:business)
+    end
+
     test "exploring business expected value is not fixed capped" do
       business = Business.create!(
         name: "大型SERP発見事業",

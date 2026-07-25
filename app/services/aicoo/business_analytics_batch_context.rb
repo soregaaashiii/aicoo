@@ -22,6 +22,10 @@ module Aicoo
       revenue_events_by_business_id.fetch(business_id, []).select { |row| row.occurred_on.in?(date_range(days)) }
     end
 
+    def expected_value_revenue_events_for(business_id)
+      expected_value_revenue_events_by_business_id.fetch(business_id, [])
+    end
+
     def latest_revenue_at(business_id)
       latest_revenue_at_by_business_id[business_id]&.in_time_zone
     end
@@ -79,6 +83,10 @@ module Aicoo
         .group(:business_id)
         .maximum(:recorded_on)
       @revenue_events_by_business_id = RevenueEvent.revenue
+        .where(business_id: business_ids, occurred_on: date_range(MAX_DAYS))
+        .to_a
+        .group_by(&:business_id)
+      @expected_value_revenue_events_by_business_id = RevenueEvent
         .where(business_id: business_ids, occurred_on: date_range(MAX_DAYS))
         .to_a
         .group_by(&:business_id)
@@ -151,6 +159,7 @@ module Aicoo
     attr_reader :metrics_by_business_id,
                 :latest_metric_at_by_business_id,
                 :revenue_events_by_business_id,
+                :expected_value_revenue_events_by_business_id,
                 :latest_revenue_at_by_business_id,
                 :pending_action_counts,
                 :candidates_by_business_id,

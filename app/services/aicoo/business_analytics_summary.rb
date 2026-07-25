@@ -41,8 +41,8 @@ module Aicoo
     PERIODS = [ 7, 30, 90 ].freeze
     DEFAULT_DAYS = 30
 
-    def self.for_businesses(businesses, health_result: nil, cost_source_keys: nil, ensure_cost_defaults: true)
-      context = Aicoo::BusinessAnalyticsBatchContext.new(businesses)
+    def self.for_businesses(businesses, health_result: nil, cost_source_keys: nil, ensure_cost_defaults: true, context: nil)
+      context ||= Aicoo::BusinessAnalyticsBatchContext.new(businesses)
       health_by_business_id = Array(health_result&.business_healths).index_by { |row| row.business.id }
       businesses.index_with do |business|
         new(

@@ -41,18 +41,20 @@ class BusinessesController < ApplicationController
       @business_codex_statuses_by_id = @businesses.index_with do |business|
         @data_source_settings_presenter.codex_status(business)
       end
+      analytics_context = Aicoo::BusinessAnalyticsBatchContext.new(@businesses)
       @business_analytics_summaries = Aicoo::MemoryDiagnostics.measure("Aicoo::BusinessAnalyticsSummary.for_businesses", context: memory_diagnostics_context(business_count: @businesses.size)) do
         Aicoo::BusinessAnalyticsSummary.for_businesses(
           @businesses,
           health_result: @business_integration_health,
           cost_source_keys: %w[serp],
-          ensure_cost_defaults: false
+          ensure_cost_defaults: false,
+          context: analytics_context
         )
       end
       @business_expected_values = Aicoo::MemoryDiagnostics.measure("BusinessesController#index.business_expected_values", context: memory_diagnostics_context(business_count: @businesses.size)) do
         @businesses.index_with do |business|
           candidates = business.action_candidates.reject { |candidate| candidate.status.in?(ActionCandidate::INACTIVE_STATUSES) }
-          Aicoo::BusinessExpectedValue.call(business, candidates:, persist: false)
+          Aicoo::BusinessExpectedValue.call(business, candidates:, persist: false, context: analytics_context)
         end
       end
     end

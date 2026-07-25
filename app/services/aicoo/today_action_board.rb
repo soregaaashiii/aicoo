@@ -869,6 +869,8 @@ module Aicoo
     end
 
     def mark_today_exclusion!(candidate, reason, detected_target_url: nil)
+      return if Aicoo::RequestQueryContext.active
+
       metadata = candidate.metadata.to_h
       return if metadata["today_exclusion_reason"] == reason && metadata["detected_target_url"].to_s == detected_target_url.to_s
 
@@ -885,6 +887,8 @@ module Aicoo
     end
 
     def mark_today_included!(candidate, quality_warnings: [])
+      return if Aicoo::RequestQueryContext.active
+
       metadata = candidate.metadata.to_h
       return if metadata["today_exclusion_reason"].blank? &&
         metadata["today_included_at"].present? &&
@@ -1339,6 +1343,7 @@ module Aicoo
 
     def persist_daily_run_valuation!(step, valuation)
       return unless step
+      return if Aicoo::RequestQueryContext.active
 
       metadata = step.metadata.to_h
       valuation_payload = {

@@ -5,6 +5,31 @@ module Aicoo
     NEW_BUSINESS_STANDARD_VALIDATION_COST_YEN = 5_000
     CALCULATION_VERSION = "business_expected_value_v1".freeze
 
+    class BatchContext
+      def initialize(businesses, start_on: 89.days.ago.to_date, end_on: Date.current)
+        business_ids = Array(businesses).filter_map(&:id)
+        range = start_on..end_on
+        @metrics_by_business_id = if business_ids.empty?
+          {}
+        else
+          BusinessMetricDaily.where(business_id: business_ids, recorded_on: range).to_a.group_by(&:business_id)
+        end
+        @revenue_events_by_business_id = if business_ids.empty?
+          {}
+        else
+          RevenueEvent.where(business_id: business_ids, occurred_on: range).to_a.group_by(&:business_id)
+        end
+      end
+
+      def metrics_for(business_id, _days = 90)
+        @metrics_by_business_id.fetch(business_id, [])
+      end
+
+      def expected_value_revenue_events_for(business_id)
+        @revenue_events_by_business_id.fetch(business_id, [])
+      end
+    end
+
     Result = Data.define(
       :business,
       :raw_candidate_sum_yen,
@@ -68,7 +93,7 @@ module Aicoo
       :source_model
     )
 
-    def self.call(business, candidates: nil, persist: true)
+    def self.call(business, candidates: nil, persist: true, context: nil)
       Aicoo::MemoryDiagnostics.measure(
         "Aicoo::BusinessExpectedValue.call",
         context: {
@@ -79,14 +104,15 @@ module Aicoo
         },
         finish: :warning_only
       ) do
-        new(business, candidates:, persist:).call
+        new(business, candidates:, persist:, context:).call
       end
     end
 
-    def initialize(business, candidates: nil, persist: true)
+    def initialize(business, candidates: nil, persist: true, context: nil)
       @business = business
       @supplied_candidates = candidates
       @persist = persist
+      @context = context
     end
 
     def call
@@ -97,7 +123,7 @@ module Aicoo
 
     private
 
-    attr_reader :business, :supplied_candidates, :persist
+    attr_reader :business, :supplied_candidates, :persist, :context
 
     def existing_business_result
       rows = grouped_opportunities.map { |key, candidates| build_opportunity_row(key, candidates) }
@@ -526,24 +552,26 @@ module Aicoo
     def revenue_events_profit_yen
       return 0 unless business.respond_to?(:revenue_events)
 
+      if context
+        return context.expected_value_revenue_events_for(business.id).sum { |event| event.amount.to_i }
+      end
+
       business.revenue_events.where(occurred_on: lookback_range).sum(:amount).to_i
     end
 
     def business_metric_profit_yen
-      metrics = recent_business_metrics
       total = 0
-      total += metrics.sum(:profit_yen).to_i if BusinessMetricDaily.column_names.include?("profit_yen")
-      total += metrics.sum(:revenue_yen).to_i if BusinessMetricDaily.column_names.include?("revenue_yen")
+      total += metric_sum(:profit_yen) if BusinessMetricDaily.column_names.include?("profit_yen")
+      total += metric_sum(:revenue_yen) if BusinessMetricDaily.column_names.include?("revenue_yen")
       total
     end
 
     def business_metric_inputs
       @business_metric_inputs ||= begin
-        metrics = recent_business_metrics
         weights = ProxyScoreWeight.for_business(business)
-        phone_clicks = metrics.sum(:phone_clicks).to_i
-        map_clicks = metrics.sum(:map_clicks).to_i
-        affiliate_clicks = metrics.sum(:affiliate_clicks).to_i
+        phone_clicks = metric_sum(:phone_clicks)
+        map_clicks = metric_sum(:map_clicks)
+        affiliate_clicks = metric_sum(:affiliate_clicks)
         near_conversion_count = phone_clicks + map_clicks + affiliate_clicks
         near_conversion_value =
           (phone_clicks * weights.weight_for(:phone_clicks).to_d) +
@@ -552,11 +580,11 @@ module Aicoo
 
         {
           "source" => "business_metric_dailies_90d",
-          "clicks" => metrics.sum(:clicks).to_i,
-          "impressions" => metrics.sum(:impressions).to_i,
-          "sessions" => metrics.sum(:sessions).to_i,
-          "pageviews" => metrics.sum(:pageviews).to_i,
-          "users" => metrics.sum(:users).to_i,
+          "clicks" => metric_sum(:clicks),
+          "impressions" => metric_sum(:impressions),
+          "sessions" => metric_sum(:sessions),
+          "pageviews" => metric_sum(:pageviews),
+          "users" => metric_sum(:users),
           "phone_clicks" => phone_clicks,
           "map_clicks" => map_clicks,
           "affiliate_clicks" => affiliate_clicks,
@@ -634,19 +662,39 @@ module Aicoo
     end
 
     def recent_business_metrics
-      @recent_business_metrics ||= business.business_metric_dailies.where(recorded_on: lookback_range)
+      @recent_business_metrics ||= if context
+        context.metrics_for(business.id, 90)
+      else
+        business.business_metric_dailies.where(recorded_on: lookback_range)
+      end
     end
 
     def observed_period_start
-      @observed_period_start ||= recent_business_metrics.minimum(:recorded_on) || lookback_start
+      @observed_period_start ||= metric_dates.min || lookback_start
     end
 
     def observed_period_end
-      @observed_period_end ||= recent_business_metrics.maximum(:recorded_on) || lookback_end
+      @observed_period_end ||= metric_dates.max || lookback_end
     end
 
     def observed_days
-      @observed_days ||= recent_business_metrics.distinct.count(:recorded_on)
+      @observed_days ||= metric_dates.uniq.size
+    end
+
+    def metric_dates
+      @metric_dates ||= if context
+        recent_business_metrics.map(&:recorded_on)
+      else
+        recent_business_metrics.distinct.pluck(:recorded_on)
+      end
+    end
+
+    def metric_sum(attribute)
+      if context
+        recent_business_metrics.sum { |metric| metric.public_send(attribute).to_i }
+      else
+        recent_business_metrics.sum(attribute).to_i
+      end
     end
 
     def lookback_range

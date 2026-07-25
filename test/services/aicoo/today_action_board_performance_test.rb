@@ -23,6 +23,17 @@ module Aicoo
       assert_operator counts.fetch(100), :<=, 100
     end
 
+    test "read request context does not persist Today diagnostics" do
+      activate_candidates(10)
+
+      _query_count, write_count, board = count_queries do
+        RequestQueryContext.within { run_board }
+      end
+
+      assert_equal 10, board.items.count { |item| item.record.is_a?(ActionCandidate) }
+      assert_equal 0, write_count
+    end
+
     private
 
     def insert_article_candidates(count)
