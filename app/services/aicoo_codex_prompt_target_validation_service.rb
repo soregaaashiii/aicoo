@@ -13,8 +13,9 @@ class AicooCodexPromptTargetValidationService
     end
   end
 
-  def initialize(auto_revision_task)
+  def initialize(auto_revision_task, prompt: nil)
     @auto_revision_task = auto_revision_task
+    @provided_prompt = prompt
     @errors = []
     @warnings = []
     @missing_items = []
@@ -113,7 +114,7 @@ class AicooCodexPromptTargetValidationService
   end
 
   def prompt
-    @prompt ||= task.codex_prompt.to_s
+    @prompt ||= @provided_prompt.presence || task.codex_prompt.to_s
   end
 
   def add_error(message, missing_item)

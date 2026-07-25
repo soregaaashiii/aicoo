@@ -306,8 +306,8 @@ class AutoRevisionTask < ApplicationRecord
     status.in?(%w[draft waiting_approval approved]) && approval_required_reason.present?
   end
 
-  def codex_prompt
-    Aicoo::CodexPromptComposer.call(business:, request_body: base_codex_prompt)
+  def codex_prompt(rules: nil)
+    Aicoo::CodexPromptComposer.call(business:, request_body: base_codex_prompt, rules:)
   end
 
   def base_codex_prompt
@@ -462,8 +462,8 @@ class AutoRevisionTask < ApplicationRecord
     profile.missing_required_fields.join(", ")
   end
 
-  def codex_prompt_target_validation
-    AicooCodexPromptTargetValidationService.new(self).call
+  def codex_prompt_target_validation(prompt: nil)
+    AicooCodexPromptTargetValidationService.new(self, prompt:).call
   end
 
   def codex_prompt_markdown(rules: nil)

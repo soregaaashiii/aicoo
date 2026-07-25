@@ -25,6 +25,16 @@ module Aicoo
       assert_operator matching_query_count(sql, "aicoo_google_credentials"), :<=, 1
     end
 
+    test "reuses a generated fallback for a missing cost profile" do
+      sql = capture_sql do
+        RequestQueryContext.within do
+          2.times { DataSourceCostProfile.for_source("unregistered_source") }
+        end
+      end
+
+      assert_equal 1, matching_query_count(sql, "data_source_cost_profiles")
+    end
+
     test "keeps business connection result unchanged" do
       direct = BusinessConnectionStatus.new(@business, source_key: "serp").call
       contextual = RequestQueryContext.within do

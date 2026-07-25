@@ -14,7 +14,10 @@ module Aicoo
       def data_source_cost_profile(source_key)
         return yield unless active?
 
-        data_source_cost_profiles.fetch(source_key.to_s) { yield }
+        key = source_key.to_s
+        return data_source_cost_profiles[key] if data_source_cost_profiles.key?(key)
+
+        data_source_cost_profiles[key] = yield
       end
 
       def proxy_score_weight(business)

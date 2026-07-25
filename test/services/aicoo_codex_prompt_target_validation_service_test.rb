@@ -54,6 +54,16 @@ class AicooCodexPromptTargetValidationServiceTest < ActiveSupport::TestCase
     assert_includes result.missing_items, "forbidden_patterns"
   end
 
+  test "uses a provided prompt without composing it again" do
+    create_configured_profile(forbidden_patterns: "db:drop")
+    task = AutoRevisionTask.from_action_candidate(action_candidates(:nagazakicho_article))
+    task.define_singleton_method(:codex_prompt) { raise "prompt should not be recomposed" }
+
+    result = AicooCodexPromptTargetValidationService.new(task, prompt: "禁止事項: db:drop").call
+
+    assert result.valid?
+  end
+
   private
 
   def create_configured_profile(attributes = {})
