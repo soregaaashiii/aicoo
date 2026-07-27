@@ -74,7 +74,7 @@ module Aicoo
     end
 
     def call
-      grouped_runs.map { |runs| build_incident(runs) }
+      incidents_for_grouped_runs
     end
 
     def recovery_for_step(step_name, latest_failure_run_id: nil, latest_failure_step: nil, latest_failure_at: nil)
@@ -146,6 +146,15 @@ module Aicoo
         .values
     end
 
+    def incidents_for_grouped_runs
+      groups = grouped_runs
+      prepare_recovery_steps(groups)
+      groups.map { |runs| build_incident(runs) }
+    ensure
+      @latest_steps_by_name = nil
+      @latest_success_steps_by_name = nil
+    end
+
     def build_incident(runs)
       sorted = runs.sort_by(&:id)
       latest = sorted.last
@@ -203,11 +212,38 @@ module Aicoo
     end
 
     def latest_step_for(step_name)
+      return @latest_steps_by_name[step_name] if @latest_steps_by_name
+
       steps_for(step_name).first
     end
 
     def latest_success_step_for(step_name)
+      return @latest_success_steps_by_name[step_name] if @latest_success_steps_by_name
+
       steps_for(step_name).successful.first
+    end
+
+    def prepare_recovery_steps(groups)
+      step_names = groups.filter_map do |runs|
+        latest_run = runs.max_by(&:id)
+        last_step(latest_run)&.step_name.presence
+      end.uniq
+      @latest_steps_by_name = latest_recovery_steps(step_names).index_by(&:step_name)
+      @latest_success_steps_by_name = latest_recovery_steps(step_names, status: "success").index_by(&:step_name)
+    end
+
+    def latest_recovery_steps(step_names, status: nil)
+      return [] if step_names.empty?
+
+      scope = AicooDailyRunStep
+        .joins(:aicoo_daily_run)
+        .merge(AicooDailyRun.actual_runs)
+        .where(step_name: step_names)
+      scope = scope.where(status:) if status
+      scope
+        .select("DISTINCT ON (aicoo_daily_run_steps.step_name) aicoo_daily_run_steps.*")
+        .reorder(Arel.sql("aicoo_daily_run_steps.step_name ASC, #{ORDER_SQL}, aicoo_daily_run_steps.id DESC"))
+        .to_a
     end
 
     def steps_for(step_name)

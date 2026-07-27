@@ -39,7 +39,7 @@ module Aicoo
       @candidate = action_candidate
       @require_approval = require_approval
       @ignore_existing_task = ignore_existing_task
-      @metadata = action_candidate.metadata.to_h.deep_stringify_keys
+      @metadata = Aicoo::RequestQueryContext.normalized_metadata(action_candidate)
       @brief = metadata["execution_brief"].to_h
       @reasons = []
     end

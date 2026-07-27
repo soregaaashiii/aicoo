@@ -9,6 +9,7 @@ module Aicoo
       :unconverted_opportunities,
       :funnel
     )
+    OwnerHomeResult = Data.define(:status_counts, :unconverted_opportunities)
 
     def call
       Result.new(
@@ -26,14 +27,23 @@ module Aicoo
       )
     end
 
+    def call_for_owner_home
+      OwnerHomeResult.new(
+        status_counts:,
+        unconverted_opportunities: OpportunityDiscoveryItem.where.not(status: "converted").top_ranked.limit(5).to_a
+      )
+    end
+
     private
 
     def status_counts
-      OpportunityDiscoveryItem::STATUSES.index_with { |status| OpportunityDiscoveryItem.where(status:).count }
+      counts = OpportunityDiscoveryItem.group(:status).count
+      OpportunityDiscoveryItem::STATUSES.index_with { |status| counts.fetch(status, 0) }
     end
 
     def source_type_counts
-      OpportunityDiscoveryItem::SOURCE_TYPES.index_with { |source_type| OpportunityDiscoveryItem.where(source_type:).count }
+      counts = OpportunityDiscoveryItem.group(:source_type).count
+      OpportunityDiscoveryItem::SOURCE_TYPES.index_with { |source_type| counts.fetch(source_type, 0) }
     end
   end
 end

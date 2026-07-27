@@ -137,6 +137,22 @@ module Owner
       assert_includes response.body, "today_actions_page=7"
     end
 
+    test "owner dashboard does not build reports that are not rendered" do
+      unused_service = ->(*) { flunk("Owner Home must not build an unused report") }
+
+      Aicoo::OwnerTaskInbox.stub(:new, unused_service) do
+        Aicoo::OwnerTaskDigest.stub(:new, unused_service) do
+          Aicoo::OwnerFocusHome.stub(:new, unused_service) do
+            Aicoo::StrategicLearningReport.stub(:new, unused_service) do
+              get owner_dashboard_url
+            end
+          end
+        end
+      end
+
+      assert_response :success
+    end
+
     private
 
     def create_today_candidate!(attributes = {})

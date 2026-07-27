@@ -36,7 +36,7 @@ module Aicoo
         return unless candidate.business_id.present?
         return unless candidate.execution_mode.to_s.in?(%w[manual_operation data_operation])
 
-        metadata = candidate.metadata.to_h.deep_stringify_keys
+        metadata = Aicoo::RequestQueryContext.normalized_metadata(candidate)
         return if article_target(metadata).present?
 
         text = candidate_text(candidate, metadata)
@@ -75,7 +75,7 @@ module Aicoo
       def title_for(candidates)
         members = Array(candidates)
         shop_name = members.filter_map { |candidate| shop_name_for(candidate) }.first || "対象店舗"
-        text = members.map { |candidate| candidate_text(candidate, candidate.metadata.to_h.deep_stringify_keys) }.join(" ")
+        text = members.map { |candidate| candidate_text(candidate, Aicoo::RequestQueryContext.normalized_metadata(candidate)) }.join(" ")
         smoking = text.match?(/喫煙|smoking/i)
         business_hours = text.match?(/営業時間|business.?hours/i)
 
@@ -90,7 +90,7 @@ module Aicoo
       end
 
       def method_label(candidate)
-        text = candidate_text(candidate, candidate.metadata.to_h.deep_stringify_keys)
+        text = candidate_text(candidate, Aicoo::RequestQueryContext.normalized_metadata(candidate))
         return "電話で確認" if candidate.action_type.to_s == "shop_phone_verify" || text.match?(/電話|架電|call/i)
         return "Googleで確認" if text.match?(/Google/i)
         return "SNSで確認" if text.match?(/SNS|Instagram|X(?:\s|$)|Facebook/i)
@@ -167,7 +167,7 @@ module Aicoo
       end
 
       def shop_name_for(candidate)
-        metadata = candidate.metadata.to_h.deep_stringify_keys
+        metadata = Aicoo::RequestQueryContext.normalized_metadata(candidate)
         value = metadata["shop_name"].presence ||
           metadata["target_shop_name"].presence ||
           metadata.dig("shop", "name").presence ||

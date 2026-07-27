@@ -11,26 +11,19 @@ module Owner
           ).call
         end
         @dashboard_summary = Aicoo::MemoryDiagnostics.measure("Owner::DashboardController#show.dashboard_summary", context: memory_diagnostics_context(mode: @mode)) do
-          DashboardSummaryService.new(owner_mode: @mode, current_mode: "ceo").call
+          DashboardSummaryService.new(owner_mode: @mode, current_mode: "ceo").call_for_owner_home
         end
-        @owner_task_inbox = Aicoo::OwnerTaskInbox.new.call
-        @owner_task_digest = Aicoo::OwnerTaskDigest.new(owner_task_inbox: @owner_task_inbox).call
-        @owner_focus_home = Aicoo::OwnerFocusHome.new(owner_task_inbox: @owner_task_inbox).call
-        @owner_task_completion_logs = OwnerTaskCompletionLog.recent.limit(3)
         @learning_loop_quality_report = Aicoo::LearningLoopQualityReport.new.call
         @discovery_source_performance_report = Aicoo::DiscoverySourcePerformanceReport.new.call
         @learning_report_recommendations = Aicoo::LearningReportRecommendation.new(
           quality_report: @learning_loop_quality_report,
           discovery_source_report: @discovery_source_performance_report
         ).call
-        @strategic_learning_report = Aicoo::StrategicLearningReport.new(
-          candidates: ActionCandidate.includes(:business).to_a
-        ).call
-        @opportunity_discovery_summary = Aicoo::OpportunityDiscoverySummary.new.call
+        @opportunity_discovery_summary = Aicoo::OpportunityDiscoverySummary.new.call_for_owner_home
         @opportunity_focus_queue = Aicoo::OpportunityFocusQueue.new.call
-        @explore_summary = Aicoo::ExploreSummary.new.call
+        @explore_summary = Aicoo::ExploreSummary.new.call_for_owner_home
         @explore_daily_routine = Aicoo::ExploreDailyRoutine.new.call
-        @analysis_monitor = Aicoo::AnalysisMonitor.new.call
+        @analysis_monitor = Aicoo::AnalysisMonitor.new.call_for_owner_home
       end
     end
   end

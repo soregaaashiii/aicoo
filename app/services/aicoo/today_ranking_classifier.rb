@@ -83,7 +83,7 @@ module Aicoo
       end
 
       def business_for_candidate(candidate)
-        metadata = candidate.metadata.to_h.deep_stringify_keys
+        metadata = Aicoo::RequestQueryContext.normalized_metadata(candidate)
         business_id = candidate.business_id ||
           metadata["business_id"].presence ||
           metadata.dig("execution_brief", "target", "business_id").presence ||
@@ -107,7 +107,7 @@ module Aicoo
       @item = item
       @record = item.respond_to?(:record) ? item.record : nil
       @candidate = @record.is_a?(ActionCandidate) ? @record : nil
-      @metadata = @candidate&.metadata.to_h.deep_stringify_keys
+      @metadata = @candidate ? Aicoo::RequestQueryContext.normalized_metadata(@candidate) : {}
     end
 
     def call

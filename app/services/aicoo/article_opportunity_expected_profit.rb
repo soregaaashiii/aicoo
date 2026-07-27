@@ -62,6 +62,14 @@ module Aicoo
         )
       end
 
+      def learning_coefficients(candidate, improvement_type)
+        @learning_coefficients ||= {}
+        key = [ candidate.business_id, improvement_type.to_s ]
+        @learning_coefficients[key] ||= Aicoo::ArticleOpportunityLearningCoefficients
+          .new(candidate, improvement_type, context: self)
+          .call
+      end
+
       private
 
       attr_reader :candidates
@@ -96,7 +104,7 @@ module Aicoo
     def initialize(candidate, context: nil)
       @candidate = candidate
       @context = context
-      @metadata = candidate.metadata.to_h.deep_stringify_keys
+      @metadata = Aicoo::RequestQueryContext.normalized_metadata(candidate)
       @assumed_fields = []
       @assumption_reasons = {}
       @input_sources = {}
@@ -177,7 +185,11 @@ module Aicoo
     end
 
     def resolved_coefficients(improvement_type)
-      @learning_coefficients = Aicoo::ArticleOpportunityLearningCoefficients.call(candidate, improvement_type, context:)
+      @learning_coefficients = if context
+        context.learning_coefficients(candidate, improvement_type)
+      else
+        Aicoo::ArticleOpportunityLearningCoefficients.call(candidate, improvement_type)
+      end
       {
         "ctr_gain_rate" => coefficient("ctr_gain_rate", business_metadata_keys: %w[ctr_gain_rate article_ctr_gain_rate]),
         "rank_gain_positions" => coefficient("rank_gain_positions", business_metadata_keys: %w[rank_gain_positions article_rank_gain_positions]),
@@ -234,7 +246,11 @@ module Aicoo
     end
 
     def business_metadata
-      @business_metadata ||= candidate.business&.metadata.to_h.deep_stringify_keys
+      @business_metadata ||= if candidate.business
+        Aicoo::RequestQueryContext.normalized_metadata(candidate.business)
+      else
+        {}
+      end
     end
 
     def estimate_for(improvement_type, metrics, coefficients)

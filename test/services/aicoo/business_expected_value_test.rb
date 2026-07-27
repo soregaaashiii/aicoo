@@ -251,6 +251,26 @@ module Aicoo
       assert_equal direct.to_h.except(:business), batched.to_h.except(:business)
     end
 
+    test "batch context reuses the same suelog shop click evidence" do
+      context = BusinessExpectedValue::BatchContext.new([ @business ])
+      start_at = 89.days.ago.to_date.beginning_of_day
+      end_at = Date.current.end_of_day
+      queries = 0
+      subscriber = lambda do |_name, _started, _finished, _id, payload|
+        queries += 1 if payload[:sql].to_s.include?('"shop_clicks"')
+      end
+
+      first = nil
+      second = nil
+      ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+        first = context.suelog_shop_click_inputs(start_at:, end_at:)
+        second = context.suelog_shop_click_inputs(start_at:, end_at:)
+      end
+
+      assert_same first, second
+      assert_operator queries, :<=, 1
+    end
+
     test "exploring business expected value is not fixed capped" do
       business = Business.create!(
         name: "大型SERP発見事業",

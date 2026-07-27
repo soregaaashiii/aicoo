@@ -264,36 +264,27 @@ module Aicoo
 
     def action_candidate_items
       Aicoo::MemoryDiagnostics.measure("Aicoo::TodayActionBoard#action_candidate_items", context: memory_context) do
-        candidates = ActionCandidate
-          .active_for_ranking
-          .preload(
-            :action_result,
-            :action_execution,
-            auto_revision_tasks: :business,
-            business: [ :business_execution_profile, :business_data_source_settings ]
-          )
-          .order(updated_at: :desc)
-          .to_a
+        candidates = Aicoo::RequestQueryContext.owner_active_action_candidates
         prepare_action_candidate_context(candidates)
         candidates.filter_map { |candidate| build_item(candidate) }
       end
     end
 
     def build_item(candidate)
-      presenter = ActionCandidateEvidencePresenter.new(candidate)
-      action_plan = presenter.action_plan
-      execution_mode = presenter.execution_mode.to_s
       article_opportunity = article_opportunity_candidate?(candidate)
-      readiness = action_execution_readiness(candidate) unless article_opportunity
-      readiness_applicable = !article_opportunity && execution_readiness_display_applicable?(candidate, execution_mode)
       owner_action_task = owner_action_task(candidate)
 
-      exclusion_reason = today_exclusion_reason(candidate, execution_mode, owner_action_task)
+      exclusion_reason = today_exclusion_reason(candidate, nil, owner_action_task)
       if exclusion_reason
         mark_today_exclusion!(candidate, exclusion_reason, detected_target_url: detected_target_url_for(candidate))
         return
       end
 
+      presenter = ActionCandidateEvidencePresenter.new(candidate)
+      action_plan = presenter.action_plan
+      execution_mode = presenter.execution_mode.to_s
+      readiness = action_execution_readiness(candidate) unless article_opportunity
+      readiness_applicable = !article_opportunity && execution_readiness_display_applicable?(candidate, execution_mode)
       valuation = action_candidate_valuation(candidate)
       expected_value_yen = valuation.fetch(:action_expected_value_delta_yen)
       article_scores = article_opportunity_scores(candidate)
@@ -1182,11 +1173,15 @@ module Aicoo
     def article_opportunity_candidate?(candidate)
       return false unless candidate.is_a?(ActionCandidate)
 
-      metadata = candidate.metadata.to_h
-      metadata["value_model_name"].to_s == ARTICLE_OPPORTUNITY_MODEL_NAME &&
-        metadata["analysis_source"].to_s == "article_analytics_snapshot" &&
-        metadata["snapshot_id"].present? &&
-        metadata["expected_improvement_score"].present?
+      @article_opportunity_candidate_by_object_id ||= {}
+      @article_opportunity_candidate_by_object_id.fetch(candidate.object_id) do
+        metadata = Aicoo::RequestQueryContext.normalized_metadata(candidate)
+        @article_opportunity_candidate_by_object_id[candidate.object_id] =
+          metadata["value_model_name"].to_s == ARTICLE_OPPORTUNITY_MODEL_NAME &&
+          metadata["analysis_source"].to_s == "article_analytics_snapshot" &&
+          metadata["snapshot_id"].present? &&
+          metadata["expected_improvement_score"].present?
+      end
     end
 
     def article_opportunity_scores(candidate)
@@ -1315,15 +1310,24 @@ module Aicoo
 
     def business_expected_value_for(business)
       @business_expected_value_for ||= {}
-      @business_expected_value_for[business.id] ||= Aicoo::BusinessExpectedValue.call(
-        business,
-        candidates: action_candidates_by_business_id.fetch(business.id, []),
-        persist: false
-      )
+      @business_expected_value_for[business.id] ||= Aicoo::RequestQueryContext.fetch(
+        [ :owner_business_expected_value, business.id ]
+      ) do
+        Aicoo::BusinessExpectedValue.call(
+          business,
+          candidates: action_candidates_by_business_id.fetch(business.id, []),
+          persist: false,
+          context: owner_business_expected_value_context
+        )
+      end
     end
 
     def prepare_action_candidate_context(candidates)
-      @action_candidates_by_business_id = candidates.group_by(&:business_id)
+      @action_candidates_by_business_id = if Aicoo::RequestQueryContext.active
+        Aicoo::RequestQueryContext.owner_active_action_candidates_by_business_id
+      else
+        candidates.group_by(&:business_id)
+      end
       article_candidates = candidates.select { |candidate| article_opportunity_candidate?(candidate) }
       @article_opportunity_profit_context = Aicoo::ArticleOpportunityExpectedProfit::Context.new(article_candidates)
     end
@@ -1334,6 +1338,14 @@ module Aicoo
 
     def article_opportunity_profit_context
       @article_opportunity_profit_context ||= Aicoo::ArticleOpportunityExpectedProfit::Context.new([])
+    end
+
+    def owner_business_expected_value_context
+      return unless Aicoo::RequestQueryContext.active
+
+      Aicoo::RequestQueryContext.fetch(:owner_business_expected_value_batch_context) do
+        Aicoo::BusinessExpectedValue::BatchContext.new(Aicoo::RequestQueryContext.owner_real_businesses)
+      end
     end
 
     def data_source_policy_for(business)

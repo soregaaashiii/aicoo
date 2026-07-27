@@ -82,6 +82,17 @@ class DashboardSummaryService
     :revenue_event_current,
     :revenue_event_required
   )
+  OwnerHomeResult = Data.define(
+    :owner_metrics,
+    :owner_alerts,
+    :business_rankings,
+    :approval_queue,
+    :learning_value_summary,
+    :learning_progress,
+    :aicoo_maturity_score,
+    :aicoo_maturity_label,
+    :evaluator_confidence_summary
+  )
 
   def initialize(owner_mode: "balanced", current_mode: "system")
     @owner_mode = owner_mode.presence_in(%w[balanced revenue learning]) || "balanced"
@@ -119,6 +130,23 @@ class DashboardSummaryService
       mode_description: mode_description,
       show_system_navigation: current_mode == "ceo",
       show_ceo_navigation: current_mode == "system"
+    )
+  end
+
+  def call_for_owner_home
+    learning_progress = learning_progress_summary
+    maturity_score = aicoo_maturity_score(learning_progress)
+
+    OwnerHomeResult.new(
+      owner_metrics:,
+      owner_alerts:,
+      business_rankings: owner_business_rankings,
+      approval_queue: approval_queue_summary,
+      learning_value_summary: learning_value_summary,
+      learning_progress:,
+      aicoo_maturity_score: maturity_score,
+      aicoo_maturity_label: aicoo_maturity_label(maturity_score),
+      evaluator_confidence_summary:
     )
   end
 
@@ -251,11 +279,16 @@ class DashboardSummaryService
 
   def owner_business_rankings
     Aicoo::MemoryDiagnostics.measure("DashboardSummaryService#owner_business_rankings", context: { owner_mode:, current_mode: }) do
-      businesses = Business.real_businesses.includes(:action_candidates).order(:name).to_a
-      context = Aicoo::BusinessExpectedValue::BatchContext.new(businesses)
+      businesses = Aicoo::RequestQueryContext.owner_real_businesses
+      candidates_by_business_id = Aicoo::RequestQueryContext.owner_active_action_candidates_by_business_id
+      context = Aicoo::RequestQueryContext.fetch(:owner_business_expected_value_batch_context) do
+        Aicoo::BusinessExpectedValue::BatchContext.new(businesses)
+      end
       businesses.map do |business|
-        candidates = business.action_candidates.reject { |candidate| candidate.status.in?(ActionCandidate::INACTIVE_STATUSES) }
-        value = Aicoo::BusinessExpectedValue.call(business, candidates:, persist: false, context:)
+        candidates = candidates_by_business_id.fetch(business.id, [])
+        value = Aicoo::RequestQueryContext.fetch([ :owner_business_expected_value, business.id ]) do
+          Aicoo::BusinessExpectedValue.call(business, candidates:, persist: false, context:)
+        end
         BusinessRanking.new(
           business:,
           expected_total_value_yen: value.expected_total_value_yen,

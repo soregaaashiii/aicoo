@@ -72,6 +72,55 @@ module Aicoo
       assert_equal direct.to_h, contextual.to_h
     end
 
+    test "reuses owner action candidates and businesses within one read request" do
+      sql = capture_sql do
+        RequestQueryContext.within do
+          2.times do
+            RequestQueryContext.owner_active_action_candidates
+            RequestQueryContext.owner_active_action_candidates_by_business_id
+            RequestQueryContext.owner_real_businesses
+          end
+        end
+      end
+
+      action_candidate_loads = sql.count do |statement|
+        statement.match?(/\ASELECT "action_candidates"\.\* FROM "action_candidates"/)
+      end
+      business_loads = sql.count do |statement|
+        statement.match?(/\ASELECT "businesses"\.\* FROM "businesses".*ORDER BY "businesses"\."name" ASC/)
+      end
+
+      assert_equal 1, action_candidate_loads
+      assert_equal 1, business_loads
+    end
+
+    test "reuses normalized persisted metadata within one read request" do
+      candidate = action_candidates(:nagazakicho_article)
+
+      normalized = RequestQueryContext.within do
+        first = RequestQueryContext.normalized_metadata(candidate)
+        second = RequestQueryContext.normalized_metadata(candidate)
+
+        assert_same first, second
+        first
+      end
+
+      assert_equal candidate.metadata.to_h.deep_stringify_keys, normalized
+    end
+
+    test "normalizes changed metadata without mutating the record" do
+      candidate = action_candidates(:nagazakicho_article)
+      candidate.metadata = { purpose: { kind: "test" } }
+      original = candidate.metadata.deep_dup
+
+      normalized = RequestQueryContext.within do
+        RequestQueryContext.normalized_metadata(candidate)
+      end
+
+      assert_equal({ "purpose" => { "kind" => "test" } }, normalized)
+      assert_equal original, candidate.metadata
+    end
+
     private
 
     def capture_sql

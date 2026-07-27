@@ -34,7 +34,9 @@ module Aicoo
     private
 
     def import_needed?
-      ExploreImportLog.where(created_at: Time.current.all_day).none?
+      return @import_needed if defined?(@import_needed)
+
+      @import_needed = ExploreImportLog.where(created_at: Time.current.all_day).none?
     end
 
     def import_message

@@ -28,6 +28,29 @@ module Aicoo
       def expected_value_revenue_events_for(business_id)
         @revenue_events_by_business_id.fetch(business_id, [])
       end
+
+      def suelog_shop_click_inputs(start_at:, end_at:)
+        @suelog_shop_click_inputs ||= {}
+        @suelog_shop_click_inputs[[ start_at, end_at ]] ||= begin
+          scope = ::Suelog::ShopClick.where(created_at: start_at..end_at)
+          columns = ::Suelog::ShopClick.column_names
+          click_type_column = %w[click_type kind event_type action].find { |column| columns.include?(column) }
+          grouped = click_type_column ? scope.group(click_type_column).count : {}
+          counts = { "total_clicks" => click_type_column ? grouped.values.sum : scope.count }
+          if click_type_column
+            counts.merge!(
+              "phone_clicks" => grouped.values_at("phone", "phone_click", "tel").compact.sum,
+              "map_clicks" => grouped.values_at("map", "map_click").compact.sum,
+              "affiliate_clicks" => grouped.values_at("affiliate", "affiliate_click", "reservation", "booking").compact.sum,
+              "article_shop_clicks" => grouped.values_at("article_shop", "shop", "shop_click").compact.sum,
+              "click_type_column" => click_type_column
+            )
+          end
+          counts.merge("source" => "suelog_shop_clicks_90d")
+        rescue StandardError => e
+          { "source" => "suelog_shop_clicks_90d", "error" => e.class.name, "total_clicks" => 0 }
+        end
+      end
     end
 
     Result = Data.define(
@@ -598,21 +621,13 @@ module Aicoo
     def shop_click_inputs
       @shop_click_inputs ||= begin
         if suelog_business? && defined?(::Suelog::ShopClick)
-          scope = ::Suelog::ShopClick.where(created_at: lookback_start.beginning_of_day..lookback_end.end_of_day)
-          columns = ::Suelog::ShopClick.column_names
-          click_type_column = %w[click_type kind event_type action].find { |column| columns.include?(column) }
-          counts = { "total_clicks" => scope.count }
-          if click_type_column
-            grouped = scope.group(click_type_column).count
-            counts.merge!(
-              "phone_clicks" => grouped.values_at("phone", "phone_click", "tel").compact.sum,
-              "map_clicks" => grouped.values_at("map", "map_click").compact.sum,
-              "affiliate_clicks" => grouped.values_at("affiliate", "affiliate_click", "reservation", "booking").compact.sum,
-              "article_shop_clicks" => grouped.values_at("article_shop", "shop", "shop_click").compact.sum,
-              "click_type_column" => click_type_column
-            )
+          start_at = lookback_start.beginning_of_day
+          end_at = lookback_end.end_of_day
+          if context
+            context.suelog_shop_click_inputs(start_at:, end_at:)
+          else
+            BatchContext.new([]).suelog_shop_click_inputs(start_at:, end_at:)
           end
-          counts.merge("source" => "suelog_shop_clicks_90d")
         else
           { "source" => "not_available", "total_clicks" => 0 }
         end

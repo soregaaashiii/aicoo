@@ -16,6 +16,15 @@ module Aicoo
       :top_candidates,
       :warnings
     )
+    OwnerHomeResult = Data.define(
+      :today_count,
+      :auto_count,
+      :smart_count,
+      :manual_count,
+      :estimated_cost_yen,
+      :expected_value_yen,
+      :top_candidates
+    )
 
     def initialize(today: Date.current)
       @today = today.to_date
@@ -37,6 +46,27 @@ module Aicoo
         roi: ratio(today_scope.sum(:expected_value_yen), today_scope.sum(:estimated_cost_yen)),
         top_candidates: today_scope.includes(:business).ordered.limit(5),
         warnings: warnings
+      )
+    end
+
+    def call_for_owner_home
+      aggregate = today_scope.pick(
+        Arel.sql("COUNT(*)"),
+        Arel.sql("SUM(CASE WHEN execution_mode = 'auto' THEN 1 ELSE 0 END)"),
+        Arel.sql("SUM(CASE WHEN execution_mode = 'smart' THEN 1 ELSE 0 END)"),
+        Arel.sql("SUM(CASE WHEN execution_mode = 'manual' THEN 1 ELSE 0 END)"),
+        Arel.sql("COALESCE(SUM(estimated_cost_yen), 0)"),
+        Arel.sql("COALESCE(SUM(expected_value_yen), 0)")
+      )
+
+      OwnerHomeResult.new(
+        today_count: aggregate[0].to_i,
+        auto_count: aggregate[1].to_i,
+        smart_count: aggregate[2].to_i,
+        manual_count: aggregate[3].to_i,
+        estimated_cost_yen: aggregate[4],
+        expected_value_yen: aggregate[5],
+        top_candidates: today_scope.includes(:business).ordered.limit(5).to_a
       )
     end
 

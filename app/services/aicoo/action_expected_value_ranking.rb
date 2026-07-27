@@ -194,7 +194,7 @@ module Aicoo
     end
 
     def action_dedupe_key(record)
-      metadata = record.metadata.to_h.deep_stringify_keys
+      metadata = normalized_metadata(record)
       [
         record.business_id,
         normalized_action_type(record),
@@ -257,7 +257,7 @@ module Aicoo
 
     def expected_value_breakdown(item)
       record = item.respond_to?(:record) ? item.record : nil
-      metadata = record.is_a?(ActionCandidate) ? record.metadata.to_h.deep_stringify_keys : {}
+      metadata = record.is_a?(ActionCandidate) ? normalized_metadata(record) : {}
       total = total_expected_value_yen(item)
       execution_cost = item.respond_to?(:execution_cost_yen) ? item.execution_cost_yen.to_d : 0.to_d
       learning = record.is_a?(ActionCandidate) ? record.expected_learning_value_yen.to_d : 0.to_d
@@ -279,6 +279,10 @@ module Aicoo
         ranking_source:,
         expected_improvement: article_opportunity ? expected_profit_model["expected_improvement_score"].presence || article_opportunity_metric(item, "expected_improvement_score") : nil
       }
+    end
+
+    def normalized_metadata(record)
+      Aicoo::RequestQueryContext.normalized_metadata(record)
     end
 
     def total_expected_value_yen(item)

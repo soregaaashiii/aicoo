@@ -104,6 +104,16 @@ module Aicoo
       assert_equal direct.metadata.fetch("expected_profit_model"), batched.metadata.fetch("expected_profit_model")
     end
 
+    test "batched context reuses learning coefficients for the same business and improvement type" do
+      candidate = create_candidate!("ctr_improvement")
+      context = ArticleOpportunityExpectedProfit::Context.new([ candidate ])
+
+      first = context.learning_coefficients(candidate, "ctr_improvement")
+      second = context.learning_coefficients(candidate, "ctr_improvement")
+
+      assert_same first, second
+    end
+
     test "active calibration adjusts article opportunity estimate" do
       candidate = create_candidate!("ctr_improvement")
       baseline = ArticleOpportunityExpectedProfit.call(candidate)

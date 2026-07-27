@@ -28,5 +28,16 @@ module Aicoo
       assert_equal 1, summary.pending_opportunity_count
       assert_includes summary.newest_observations, observation
     end
+
+    test "owner home result matches the displayed fields" do
+      full = ExploreSummary.new.call
+      owner_home = ExploreSummary.new.call_for_owner_home
+
+      ExploreSummary::OwnerHomeResult.members.each do |field|
+        expected = full.public_send(field)
+        expected = expected.to_a if expected.respond_to?(:to_sql)
+        assert_equal expected, owner_home.public_send(field), field
+      end
+    end
   end
 end

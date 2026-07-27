@@ -55,7 +55,28 @@ class AicooDailyRun < ApplicationRecord
   end
 
   def current_step
+    association = association(:aicoo_daily_run_steps)
+    if association.loaded?
+      steps = association.target
+      running_steps = steps.select { |step| step.status == "running" }
+      return latest_loaded_step(running_steps) if running_steps.any?
+
+      return latest_loaded_step(steps)
+    end
+
     aicoo_daily_run_steps.where(status: "running").order(started_at: :desc, created_at: :desc).first ||
       aicoo_daily_run_steps.order(started_at: :desc, created_at: :desc).first
+  end
+
+  private
+
+  def latest_loaded_step(steps)
+    steps.max_by do |step|
+      [
+        step.started_at.nil? ? 1 : 0,
+        step.started_at || Time.zone.at(0),
+        step.created_at || Time.zone.at(0)
+      ]
+    end
   end
 end

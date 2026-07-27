@@ -19,7 +19,7 @@ module Aicoo
 
     def initialize(action_candidate)
       @action_candidate = action_candidate
-      @metadata = action_candidate.metadata.to_h.deep_stringify_keys
+      @metadata = Aicoo::RequestQueryContext.normalized_metadata(action_candidate)
       @missing_items = []
       @warnings = []
     end

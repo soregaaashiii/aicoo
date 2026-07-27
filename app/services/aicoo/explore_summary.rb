@@ -15,6 +15,15 @@ module Aicoo
       :on_hold_observation_count,
       :pending_opportunity_count
     )
+    OwnerHomeResult = Data.define(
+      :top_opportunities,
+      :new_observation_count,
+      :converted_opportunity_count,
+      :imported_today_count,
+      :new_status_observation_count,
+      :high_score_observation_count,
+      :pending_opportunity_count
+    )
 
     def call
       Result.new(
@@ -34,18 +43,28 @@ module Aicoo
       )
     end
 
+    def call_for_owner_home
+      OwnerHomeResult.new(
+        top_opportunities: ExploreObservation.unconverted.includes(:explore_data_source).top_ranked.limit(5).to_a,
+        new_observation_count: ExploreObservation.where(created_at: 7.days.ago..).count,
+        converted_opportunity_count: ExploreObservation.where.not(opportunity_discovery_item_id: nil).count,
+        imported_today_count:,
+        new_status_observation_count: ExploreObservation.new_status.count,
+        high_score_observation_count: ExploreObservation.new_status.high_score.count,
+        pending_opportunity_count: OpportunityDiscoveryItem.where(status: "pending").count
+      )
+    end
+
     private
 
     def source_counts
-      ExploreDataSource::SOURCE_TYPES.index_with do |source_type|
-        ExploreDataSource.where(source_type:).count
-      end
+      counts = ExploreDataSource.group(:source_type).count
+      ExploreDataSource::SOURCE_TYPES.index_with { |source_type| counts.fetch(source_type, 0) }
     end
 
     def observation_counts
-      ExploreObservation::OBSERVATION_TYPES.index_with do |observation_type|
-        ExploreObservation.where(observation_type:).count
-      end
+      counts = ExploreObservation.group(:observation_type).count
+      ExploreObservation::OBSERVATION_TYPES.index_with { |observation_type| counts.fetch(observation_type, 0) }
     end
 
     def imported_today_count

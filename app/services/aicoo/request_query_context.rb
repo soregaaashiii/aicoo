@@ -103,6 +103,35 @@ module Aicoo
         revenue_event_average_amounts[business&.id]
       end
 
+      def owner_active_action_candidates
+        return load_owner_active_action_candidates unless active?
+
+        records[:owner_active_action_candidates] ||= load_owner_active_action_candidates
+      end
+
+      def owner_active_action_candidates_by_business_id
+        return owner_active_action_candidates.group_by(&:business_id) unless active?
+
+        records[:owner_active_action_candidates_by_business_id] ||= owner_active_action_candidates.group_by(&:business_id)
+      end
+
+      def owner_real_businesses
+        return load_owner_real_businesses unless active?
+
+        records[:owner_real_businesses] ||= load_owner_real_businesses
+      end
+
+      def normalized_metadata(record)
+        metadata = record&.metadata.to_h
+        return metadata.deep_stringify_keys unless active?
+
+        normalized_metadata_by_record[record.object_id] ||= if record.persisted? && !record.will_save_change_to_metadata?
+          metadata
+        else
+          metadata.deep_stringify_keys
+        end
+      end
+
       private
 
       def active?
@@ -162,6 +191,27 @@ module Aicoo
 
       def revenue_event_average_amounts
         records[:revenue_event_average_amounts] ||= RevenueEvent.revenue.group(:business_id).average(:amount)
+      end
+
+      def normalized_metadata_by_record
+        records[:normalized_metadata_by_record] ||= {}
+      end
+
+      def load_owner_active_action_candidates
+        ActionCandidate
+          .active_for_ranking
+          .preload(
+            :action_result,
+            :action_execution,
+            auto_revision_tasks: :business,
+            business: [ :business_execution_profile, :business_data_source_settings ]
+          )
+          .order(updated_at: :desc)
+          .to_a
+      end
+
+      def load_owner_real_businesses
+        Business.real_businesses.order(:name).to_a
       end
     end
   end

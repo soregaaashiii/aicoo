@@ -157,6 +157,31 @@ module Aicoo
       assert incidents.all?(&:recovered)
     end
 
+    test "loads recovery comparisons in batches" do
+      %w[business_metrics_import insight_generation calibration].each_with_index do |step_name, index|
+        create_run_with_step!(
+          status: "stuck",
+          step_name:,
+          step_status: "failed",
+          error_message: "failure #{index}",
+          started_at: (6 - index).hours.ago
+        )
+      end
+
+      step_queries = 0
+      subscriber = lambda do |_name, _started, _finished, _id, payload|
+        next if payload[:name] == "SCHEMA" || payload[:cached]
+
+        step_queries += 1 if payload[:sql].to_s.include?('"aicoo_daily_run_steps"')
+      end
+      incidents = ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+        DailyRunIncidentResolver.call
+      end
+
+      assert_equal 3, incidents.size
+      assert_operator step_queries, :<=, 3
+    end
+
     private
 
     def create_run_with_step!(status:, step_name:, step_status:, error_message: nil, started_at:, id: nil)

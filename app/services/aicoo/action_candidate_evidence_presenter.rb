@@ -56,7 +56,7 @@ module Aicoo
     end
 
     def seo_action_type
-      action_candidate.metadata.to_h["seo_action_type"].presence
+      metadata["seo_action_type"].presence
     end
 
     def seo_action_type?
@@ -68,7 +68,7 @@ module Aicoo
     end
 
     def execution_units
-      source = Array(action_plan["execution_units"]).presence || Array(action_candidate.metadata.to_h["execution_units"])
+      source = Array(action_plan["execution_units"]).presence || Array(metadata["execution_units"])
       source.map do |unit|
         unit.to_h.deep_stringify_keys
       end
@@ -104,7 +104,7 @@ module Aicoo
     end
 
     def data_sources_used
-      Array(action_candidate.metadata.to_h["data_sources_used"]).compact_blank
+      Array(metadata["data_sources_used"]).compact_blank
     end
 
     def target_label
@@ -139,7 +139,7 @@ module Aicoo
     end
 
     def action_plan
-      @action_plan ||= action_candidate.metadata.to_h.fetch("action_plan", {}).to_h.deep_stringify_keys
+      @action_plan ||= metadata.fetch("action_plan", {}).to_h
     end
 
     def action_plan?
@@ -148,8 +148,8 @@ module Aicoo
 
     def summary
       action_plan["summary"].presence ||
-        action_candidate.metadata.to_h["concrete_task"].presence ||
-        action_candidate.metadata.to_h.dig("decision", "selected", "concrete_task").presence
+        metadata["concrete_task"].presence ||
+        metadata.dig("decision", "selected", "concrete_task").presence
     end
 
     def owner_output
@@ -205,8 +205,12 @@ module Aicoo
 
     attr_reader :action_candidate
 
+    def metadata
+      @metadata ||= Aicoo::RequestQueryContext.normalized_metadata(action_candidate)
+    end
+
     def evidence
-      @evidence ||= action_candidate.metadata.to_h.fetch("evidence", {}).to_h
+      @evidence ||= metadata.fetch("evidence", {}).to_h
     end
 
     def article_candidate?
@@ -214,7 +218,7 @@ module Aicoo
     end
 
     def article_candidate
-      @article_candidate ||= action_candidate.metadata.to_h.fetch("article_candidate", {}).to_h.deep_stringify_keys
+      @article_candidate ||= metadata.fetch("article_candidate", {}).to_h
     end
 
     def metric_label(value)

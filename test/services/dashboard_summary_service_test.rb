@@ -89,6 +89,15 @@ class DashboardSummaryServiceTest < ActiveSupport::TestCase
     assert system_result.show_ceo_navigation
   end
 
+  test "owner home result matches the displayed fields from the full summary" do
+    full = DashboardSummaryService.new(owner_mode: "balanced", current_mode: "ceo").call
+    owner_home = DashboardSummaryService.new(owner_mode: "balanced", current_mode: "ceo").call_for_owner_home
+
+    DashboardSummaryService::OwnerHomeResult.members.each do |field|
+      assert_equal full.public_send(field), owner_home.public_send(field), field
+    end
+  end
+
   private
 
   def create_result(business:, generation_source:, action_type:, actual:)

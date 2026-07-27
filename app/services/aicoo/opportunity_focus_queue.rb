@@ -14,6 +14,14 @@ module Aicoo
     MEDIUM_THRESHOLD = 60
 
     def call
+      return Aicoo::RequestQueryContext.fetch(:owner_opportunity_focus_queue) { build_result } if Aicoo::RequestQueryContext.active
+
+      build_result
+    end
+
+    private
+
+    def build_result
       Result.new(
         items:,
         top_item: items.first,
@@ -22,8 +30,6 @@ module Aicoo
         generated_at: Time.current
       )
     end
-
-    private
 
     def items
       @items ||= OpportunityDiscoveryItem.includes(:business)
