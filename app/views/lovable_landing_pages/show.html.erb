@@ -3,13 +3,13 @@
 <div class="aicoo-page lovable-workspace">
   <%= render "shared/aicoo_header",
              title: "#{@business.name} / LP Studio",
-             description: "AICOOがPromptを作り、公式Build with URLでLovableを開き、CodexがGitと公開を担当します。",
+             description: "AICOOがPromptを作り、公式Build with URLでLovableを開き、検証済み静的成果物をLP専用GitHubへ公開します。",
              active_main: :businesses,
              actions: link_to("Businessへ戻る", business_path(@business, anchor: "business-lp"), class: "button secondary") %>
 
   <section class="dashboard-section">
     <div class="lovable-phase-strip" aria-label="LP workflow">
-      <% [ ["1", "AICOO要件"], ["2", "Lovable Preview"], ["3", "Owner確認"], ["4", "Codex公開"], ["5", "Learning"] ].each do |number, label| %>
+      <% [ ["1", "AICOO要件"], ["2", "Lovable生成"], ["3", "静的検証"], ["4", "Cloudflare公開"], ["5", "Learning"] ].each do |number, label| %>
         <div><span><%= number %></span><strong><%= label %></strong></div>
       <% end %>
     </div>
@@ -29,8 +29,10 @@
       <% end %>
       <% if @current_version %>
           <%= link_to "Version比較", compare_business_lovable_landing_page_path(@business, landing_page_id: @landing_page_prototype&.id), class: "button secondary" %>
-        <% if @current_version.metadata.to_h["preview_url"].present? && @current_version.metadata.to_h.dig("publication", "published") != true %>
-          <%= button_to "公開", publish_version_business_lovable_landing_page_path(@business, generation_run_id: @current_version.id), method: :post, class: "button", data: { turbo_confirm: "このLovable VersionをCodexへ渡し、Git・PR・merge・Render公開を開始します。よろしいですか？" } %>
+        <% if @current_version.metadata.to_h["preview_url"].present? &&
+            @current_version.metadata.to_h.dig("publication", "published") != true &&
+            (!@landing_page_prototype || @current_version.metadata.to_h["static_validation_status"] == "succeeded") %>
+          <%= button_to "公開", publish_version_business_lovable_landing_page_path(@business, generation_run_id: @current_version.id), method: :post, class: "button", data: { turbo_confirm: "検証済みの静的LPをaicoo-lpへ反映し、Cloudflare Pages公開を開始します。よろしいですか？" } %>
         <% end %>
         <%= link_to "履歴", "#lovable-versions", class: "button secondary" %>
       <% end %>
@@ -89,9 +91,100 @@
         <% if @prompt_editable %>
           <%= button_to "再生成", regenerate_prompt_version_business_lovable_landing_page_path(@business, generation_run_id: @prompt_version.id), method: :post, class: "button secondary", form: { data: { turbo_confirm: "Business情報からPromptを再生成します。現在の編集内容は置き換わります。" } } %>
         <% end %>
-        <%= button_to(@prompt_version.metadata.to_h["request_type"] == "revision" ? "Lovableで改善" : "Lovableで作成", launch_version_business_lovable_landing_page_path(@business, generation_run_id: @prompt_version.id), method: :post, class: "button", form: { target: "_blank" }) %>
+        <% if @lovable_task&.status&.in?(%w[draft waiting_approval]) %>
+          <%= button_to "承認してLovable作成開始", approve_auto_revision_task_path(@lovable_task), method: :patch, class: "button", form: { target: "_blank" }, data: { turbo_confirm: "LP戦略とPromptを承認し、公式Lovable Build with URLを開きます。よろしいですか？" } %>
+        <% elsif @prompt_version.metadata.to_h["build_url"].present? %>
+          <%= link_to "Lovableを開く", @prompt_version.metadata.to_h["build_url"], class: "button", target: "_blank", rel: "noopener" %>
+        <% else %>
+          <%= button_to(@prompt_version.metadata.to_h["request_type"] == "revision" ? "Lovableで改善" : "Lovableで作成", launch_version_business_lovable_landing_page_path(@business, generation_run_id: @prompt_version.id), method: :post, class: "button", form: { target: "_blank" }) %>
+        <% end %>
       </div>
       <p class="muted">Build URL生成: <%= @prompt_version.metadata.to_h["build_url_generated_at"].presence || "未生成" %> / Prompt作成: <%= @prompt_version.metadata.to_h["prompt_generated_at"].presence || "-" %></p>
+    </section>
+  <% end %>
+
+  <% if @pipeline_version %>
+    <% pipeline = @pipeline_version.metadata.to_h %>
+    <% publication = pipeline["publication"].to_h %>
+    <% status_labels = {
+      "prompt_ready" => "Promptレビュー待ち",
+      "lovable_handoff_ready" => "Lovableでのユーザー操作待ち",
+      "lovable_generation_waiting" => "Lovable生成待ち",
+      "lovable_result_waiting" => "生成結果取得待ち",
+      "lovable_result_received" => "生成結果取得済み",
+      "static_build_started" => "静的build中",
+      "waiting_manual_fix" => "手動修正待ち",
+      "github_commit_waiting" => "GitHub commit待ち",
+      "cloudflare_deploying" => "Cloudflare公開待ち",
+      "cloudflare_published" => "Cloudflare公開済み",
+      "improvement_waiting" => "改善待ち"
+    } %>
+    <% next_action =
+      case pipeline["pipeline_status"]
+      when "prompt_ready" then "LP戦略とPromptを確認して承認"
+      when "lovable_handoff_ready", "lovable_generation_waiting" then "Lovableで生成し、project URLと結果Repositoryを登録"
+      when "lovable_result_waiting" then "生成結果を取得"
+      when "waiting_manual_fix" then "表示された理由を修正して再開"
+      when "github_commit_waiting" then "GitHub Token権限を確認して再試行"
+      when "cloudflare_deploying" then "Cloudflare Pagesの反映を待つ"
+      else "現在の状態を確認"
+      end %>
+    <section class="dashboard-section" id="lovable-pipeline">
+      <div class="section-heading">
+        <div>
+          <h2>Lovable連携</h2>
+          <p>Lovable公式Build with URLを利用します。生成の確定操作はLovable画面で行い、非公開APIやブラウザ自動操作は使用しません。</p>
+        </div>
+        <span class="pill"><%= status_labels.fetch(pipeline["pipeline_status"], pipeline["pipeline_status"]) %></span>
+      </div>
+      <dl class="business-access-values">
+        <dt>連携方式</dt>
+        <dd>
+          <%= case pipeline["lovable_execution_mode"]
+              when "lovable_mcp" then "公式MCP"
+              when "lovable_api" then "公式Build with URL"
+              else "手動引き継ぎ"
+              end %>
+        </dd>
+        <dt>生成するLP</dt><dd><%= @landing_page_prototype&.landing_page_name || @landing_page&.headline || "-" %></dd>
+        <dt>Lovable実行URL</dt><dd><%= pipeline["build_url"].present? ? link_to("Lovableを開く", pipeline["build_url"], target: "_blank", rel: "noopener") : "承認後に生成" %></dd>
+        <dt>Lovable project URL</dt><dd><%= pipeline["lovable_project_url"].present? ? link_to(pipeline["lovable_project_url"], pipeline["lovable_project_url"], target: "_blank", rel: "noopener") : "未登録" %></dd>
+        <dt>生成状態</dt><dd><%= status_labels.fetch(pipeline["pipeline_status"], pipeline["pipeline_status"]) %></dd>
+        <dt>最終同期</dt><dd><%= pipeline["lovable_last_sync_at"].presence || pipeline["lovable_result_registered_at"].presence || "-" %></dd>
+        <dt>生成結果Repository</dt><dd><%= pipeline["lovable_result_repository"].presence || "未登録" %> / <%= pipeline["lovable_result_branch"].presence || "main" %></dd>
+        <dt>静的build</dt><dd><%= pipeline["static_build_status"].presence || "未実行" %><% if pipeline["static_build_type"].present? %>（<%= pipeline["static_build_type"] %>）<% end %></dd>
+        <dt>GitHub commit SHA</dt><dd><%= pipeline["github_commit_sha"].presence || publication["commit_sha"].presence || "-" %></dd>
+        <dt>Cloudflare公開URL</dt><dd><%= pipeline["cloudflare_url"].present? ? link_to(pipeline["cloudflare_url"], pipeline["cloudflare_url"], target: "_blank", rel: "noopener") : publication["production_url"].presence || "-" %></dd>
+        <dt>次に必要な操作</dt><dd><strong><%= next_action %></strong></dd>
+      </dl>
+
+      <% if pipeline["lovable_error_message"].present? %>
+        <div class="aicoo-notice status-warning">
+          <strong><%= pipeline["lovable_error_code"] %></strong>
+          <p><%= pipeline["lovable_error_message"] %></p>
+        </div>
+      <% end %>
+
+      <% if pipeline["build_url"].present? && publication["published"] != true %>
+        <%= form_with url: register_result_version_business_lovable_landing_page_path(@business, generation_run_id: @pipeline_version.id), method: :patch, class: "form lovable-register-form" do |form| %>
+          <div class="form-grid">
+            <div><%= form.label :project_url, "Lovable project URL" %><%= form.url_field :project_url, value: pipeline["lovable_project_url"], placeholder: "https://lovable.dev/projects/..." %></div>
+            <div><%= form.label :result_repository, "生成結果Repository" %><%= form.url_field :result_repository, value: pipeline["lovable_result_repository"], placeholder: "https://github.com/owner/repository" %></div>
+            <div><%= form.label :result_branch, "Branch" %><%= form.text_field :result_branch, value: pipeline["lovable_result_branch"].presence || "main" %></div>
+            <div><%= form.label :preview_url, "Preview URL（任意）" %><%= form.url_field :preview_url, value: pipeline["preview_url"], placeholder: "https://...lovable.app" %></div>
+          </div>
+          <%= form.submit "登録して生成結果を取得", class: "button" %>
+        <% end %>
+        <div class="compact-actions">
+          <%= link_to "Lovableを開く", pipeline["build_url"], class: "button secondary", target: "_blank", rel: "noopener" %>
+          <% if pipeline["lovable_result_repository"].present? %>
+            <%= button_to "生成結果を取得", fetch_result_version_business_lovable_landing_page_path(@business, generation_run_id: @pipeline_version.id), method: :post, class: "button secondary" %>
+          <% end %>
+          <% if pipeline["pipeline_status"] == "waiting_manual_fix" %>
+            <%= button_to "手動修正済みとして再開", resume_result_version_business_lovable_landing_page_path(@business, generation_run_id: @pipeline_version.id), method: :post, class: "button secondary" %>
+          <% end %>
+        </div>
+      <% end %>
     </section>
   <% end %>
 
@@ -126,8 +219,8 @@
       </div>
     <% elsif @current_version&.metadata.to_h&.dig("build_url").present? %>
       <div class="aicoo-notice status-warning">
-        <strong>Lovableで生成後、Previewを登録してください</strong>
-        <p>公式Build with URLでPromptを入力済みのLovableが開きます。</p>
+        <strong>Lovableで生成後、project URLと生成結果Repositoryを登録してください</strong>
+        <p>公式Build with URLでPromptを入力済みのLovableが開きます。成果物の取得と公開は上のLovable連携から進めます。</p>
         <%= link_to "Lovableをもう一度開く", @current_version.metadata.to_h["build_url"], class: "button", target: "_blank", rel: "noopener" %>
       </div>
       <%= form_with url: register_preview_version_business_lovable_landing_page_path(@business, generation_run_id: @current_version.id), method: :patch, class: "form lovable-register-form" do |form| %>
@@ -175,7 +268,7 @@
   <% end %>
 
   <section class="dashboard-section" id="lovable-versions">
-    <div class="section-heading"><div><h2>Version履歴</h2><p>Prompt、変更理由、Preview、Codex公開状態をVersion単位で保持します。</p></div></div>
+    <div class="section-heading"><div><h2>Version履歴</h2><p>Prompt、変更理由、Preview、GitHub・Cloudflare公開状態をVersion単位で保持します。</p></div></div>
     <div class="table-wrap">
       <table>
         <thead><tr><th>Version</th><th>生成</th><th>変更理由</th><th>実績</th><th>Preview</th><th>公開</th><th>Commit / Deploy</th><th>操作</th></tr></thead>

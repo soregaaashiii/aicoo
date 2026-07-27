@@ -43,7 +43,7 @@ module Aicoo
         configuration = Configuration.new(env: {})
 
         assert_not configuration.configured?
-        assert_equal "build_url", configuration.connection_mode
+        assert_equal "lovable_api", configuration.connection_mode
         url = BuildUrl.call("吸えログのLPを作る", base_url: configuration.build_url)
         assert_includes url, "autosubmit=true"
         assert_includes url, "prompt="

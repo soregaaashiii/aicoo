@@ -154,6 +154,11 @@ class AutoRevisionTask < ApplicationRecord
   end
 
   def approve!
+    if metadata.to_h["workflow_type"] == "external_lp_creation"
+      Aicoo::Lovable::ApprovedTaskStarter.new(self).call
+      return true
+    end
+
     unless Aicoo::ActionCandidateExecutionReadiness.call(action_candidate).ready?
       update!(
         status: "waiting_approval",

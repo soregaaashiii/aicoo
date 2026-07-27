@@ -38,8 +38,12 @@ module Aicoo
         access_token.present?
       end
 
+      def mcp_enabled?
+        ActiveModel::Type::Boolean.new.cast(env["LOVABLE_MCP_ENABLED"]) && configured?
+      end
+
       def connection_mode
-        "build_url"
+        mcp_enabled? ? "lovable_mcp" : "lovable_api"
       end
 
       def diagnostic_snapshot
@@ -48,8 +52,10 @@ module Aicoo
           "mcp_url" => mcp_url,
           "workspace_id_configured" => workspace_id.present?,
           "access_token_configured" => access_token.present?,
+          "mcp_enabled" => mcp_enabled?,
           "build_url" => build_url,
-          "official_launch_route" => "build_with_url"
+          "official_launch_route" => "build_with_url",
+          "automatic_result_retrieval" => mcp_enabled?
         }
       end
 

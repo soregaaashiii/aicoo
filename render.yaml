@@ -36,6 +36,8 @@ services:
         sync: false
       - key: LOVABLE_MCP_ACCESS_TOKEN
         sync: false
+      - key: LOVABLE_MCP_ENABLED
+        sync: false
       - key: LOVABLE_WORKSPACE_ID
         sync: false
       - key: AICOO_GITHUB_TOKEN

@@ -67,7 +67,12 @@ class AutoRevisionTasksController < ApplicationController
 
   def approve
     result = Aicoo::ApprovalService.approve(@auto_revision_task, operator: "owner", source: "auto_revision_task_detail")
-    redirect_to @auto_revision_task, notice: result.message
+    build_url = result.metadata.to_h[:build_url].presence || result.metadata.to_h["build_url"].presence
+    if @auto_revision_task.metadata.to_h["workflow_type"] == "external_lp_creation" && build_url.present?
+      redirect_to build_url, allow_other_host: true, notice: result.message
+    else
+      redirect_to @auto_revision_task, notice: result.message
+    end
   end
 
   def enqueue

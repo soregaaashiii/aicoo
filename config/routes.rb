@@ -205,6 +205,9 @@ Rails.application.routes.draw do
       post "versions/:generation_run_id/launch", action: :launch, as: :launch_version
       post "versions/:generation_run_id/retry", action: :retry, as: :retry_version
       patch "versions/:generation_run_id/register_preview", action: :register_preview, as: :register_preview_version
+      patch "versions/:generation_run_id/register_result", action: :register_result, as: :register_result_version
+      post "versions/:generation_run_id/fetch_result", action: :fetch_result, as: :fetch_result_version
+      post "versions/:generation_run_id/resume_result", action: :resume_result, as: :resume_result_version
       post "versions/:generation_run_id/restore", action: :restore, as: :restore_version
       post "versions/:generation_run_id/publish", action: :publish, as: :publish_version
     end

@@ -8,6 +8,24 @@ module Aicoo
   module CloudflarePages
     class GithubRepositoryClient
       Result = Data.define(:commit_sha, :commit_url, :changed_paths)
+      RepositorySnapshot = Data.define(:commit_sha, :files)
+      MAX_SOURCE_FILES = 500
+      MAX_SOURCE_BYTES = 15.megabytes
+      EXCLUDED_SOURCE_PATHS = %r{
+        \A(?:
+          node_modules/|
+          \.git/|
+          \.env(?:\.|$)|
+          supabase/|
+          functions/|
+          api/|
+          server/|
+          backend/|
+          coverage/|
+          tmp/|
+          log/
+        )
+      }ix
 
       def initialize(repository_url:, branch:, token:, http_adapter: nil)
         @repository_slug = normalize_repository(repository_url)
@@ -17,7 +35,7 @@ module Aicoo
       end
 
       def commit!(files:, deleted_paths: [], message:)
-        validate!
+        validate!(write: true)
         ref = get("/git/ref/heads/#{escape(branch)}")
         parent_sha = ref.dig("object", "sha")
         parent = get("/git/commits/#{parent_sha}")
@@ -42,7 +60,7 @@ module Aicoo
       end
 
       def paths_under(prefix)
-        validate!
+        validate!(write: true)
         ref = get("/git/ref/heads/#{escape(branch)}")
         parent = get("/git/commits/#{ref.dig('object', 'sha')}")
         tree = get("/git/trees/#{parent.dig('tree', 'sha')}?recursive=1")
@@ -53,12 +71,41 @@ module Aicoo
         end
       end
 
+      def snapshot!
+        validate!(write: false)
+        ref = get("/git/ref/heads/#{escape(branch)}")
+        commit_sha = ref.dig("object", "sha")
+        parent = get("/git/commits/#{commit_sha}")
+        tree = get("/git/trees/#{parent.dig('tree', 'sha')}?recursive=1")
+        raise ArgumentError, "生成結果Repositoryのtreeが大きすぎてGitHub APIで省略されました。" if tree["truncated"] == true
+
+        entries = Array(tree["tree"]).select do |entry|
+          entry["type"] == "blob" && source_path_allowed?(entry["path"])
+        end
+        raise ArgumentError, "生成結果Repositoryのファイル数が上限#{MAX_SOURCE_FILES}件を超えています。" if entries.size > MAX_SOURCE_FILES
+
+        total_bytes = entries.sum { |entry| entry["size"].to_i }
+        raise ArgumentError, "生成結果Repositoryが安全な取得上限#{MAX_SOURCE_BYTES / 1.megabyte}MBを超えています。" if total_bytes > MAX_SOURCE_BYTES
+
+        files = entries.to_h do |entry|
+          blob = get("/git/blobs/#{entry.fetch('sha')}")
+          content = Base64.decode64(blob.fetch("content").to_s.delete("\n"))
+          [ entry.fetch("path"), content ]
+        end
+        if files.sum { |_path, content| content.bytesize } > MAX_SOURCE_BYTES
+          raise ArgumentError, "生成結果Repositoryが安全な取得上限#{MAX_SOURCE_BYTES / 1.megabyte}MBを超えています。"
+        end
+        RepositorySnapshot.new(commit_sha:, files:)
+      end
+
       private
 
       attr_reader :repository_slug, :branch, :token, :http_adapter
 
-      def validate!
-        raise ArgumentError, "AICOO_GITHUB_TOKENまたはGITHUB_TOKENが未設定です。" if token.blank?
+      def validate!(write:)
+        if write && token.blank?
+          raise ArgumentError, "AICOO_GITHUB_TOKENが未設定です。LP公開先aicoo-lpへ書き込めません。"
+        end
         raise ArgumentError, "LP専用GitHub Repositoryが未設定です。" if repository_slug.blank?
       end
 
@@ -78,7 +125,7 @@ module Aicoo
         uri = URI("https://api.github.com/repos/#{repository_slug}#{path}")
         request = request_class.new(uri)
         request["Accept"] = "application/vnd.github+json"
-        request["Authorization"] = "Bearer #{token}"
+        request["Authorization"] = "Bearer #{token}" if token.present?
         request["X-GitHub-Api-Version"] = "2022-11-28"
         request["User-Agent"] = "aicoo-lp-publisher"
         request["Content-Type"] = "application/json"
@@ -87,7 +134,7 @@ module Aicoo
         body = JSON.parse(response.body.presence || "{}")
         return body if response.is_a?(Net::HTTPSuccess)
 
-        raise ArgumentError, body["message"].presence || "GitHub APIに失敗しました。HTTP #{response.code}"
+        raise ArgumentError, github_error_message(response.code.to_i, body["message"])
       rescue JSON::ParserError
         raise ArgumentError, "GitHub APIから不正なレスポンスが返りました。"
       end
@@ -109,6 +156,24 @@ module Aicoo
 
       def escape(value)
         CGI.escape(value.to_s).tr("+", "%20")
+      end
+
+      def source_path_allowed?(path)
+        value = path.to_s
+        value.present? && !value.match?(EXCLUDED_SOURCE_PATHS)
+      end
+
+      def github_error_message(status, message)
+        return message.presence || "GitHub APIに失敗しました。HTTP #{status}" unless status.in?([ 401, 403, 404 ])
+
+        <<~MESSAGE.squish
+          GitHub Repository #{repository_slug} へアクセスできません。
+          RenderのAICOO_GITHUB_TOKENには、GitHubのFine-grained personal access tokenを使い、
+          Repository accessでsoregaaashiii/aicoo-lp（およびLovable生成結果Repository）を選択し、
+          Repository permissionsのContentsをRead and writeにしてください。
+          GitHubで権限を保存後、Renderの同環境変数を更新してこの処理を再試行してください。
+          GitHub応答: #{message.presence || status}
+        MESSAGE
       end
     end
   end

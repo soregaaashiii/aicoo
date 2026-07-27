@@ -54,6 +54,72 @@ module Aicoo
         assert_equal "cloudflare_pages", result.task.metadata.to_h["target_deploy_target"]
       end
 
+      test "approval creates one official Build URL and keeps retry idempotent" do
+        result = LandingPageCreationFlow.new(
+          business: @business,
+          campaign: @campaign,
+          attributes: { purpose: "google_ads" },
+          strategy_builder_class: fake_strategy_builder
+        ).call
+
+        assert_nil result.generation_run.metadata.to_h["build_url"]
+        assert result.task.approve!
+        first_url = result.generation_run.reload.metadata.to_h["build_url"]
+        assert_includes first_url, "https://lovable.dev/?autosubmit=true#prompt="
+        assert_equal "lovable_handoff_ready", result.generation_run.metadata.to_h["pipeline_status"]
+        assert_equal "approved", result.task.reload.status
+
+        assert result.task.approve!
+        assert_equal first_url, result.generation_run.reload.metadata.to_h["build_url"]
+      end
+
+      test "imports validated static result once and reuses the published commit on retry" do
+        @business.update!(metadata: @business.metadata.to_h.merge("lp_ga4_measurement_id" => "G-ABC123"))
+        @business.business_services.create!(
+          name: "AI受付 Service",
+          status: "production",
+          url: "https://service.example.com"
+        )
+        flow = LandingPageCreationFlow.new(
+          business: @business,
+          campaign: @campaign,
+          attributes: { purpose: "google_ads" },
+          strategy_builder_class: fake_strategy_builder
+        ).call
+        flow.landing_page.update!(metadata: flow.landing_page.metadata.to_h.merge("ga4_page_path" => "/ai-reception"))
+        flow.task.approve!
+        Aicoo::Lovable::LandingPagePipeline.new.register_result!(
+          business: @business,
+          generation_run: flow.generation_run,
+          project_url: "https://lovable.dev/projects/project-123",
+          result_repository: "https://github.com/example/lovable-result",
+          result_branch: "main"
+        )
+
+        source_client_class = fake_source_client_class
+        publisher = FakePublisher.new
+        importer = Aicoo::Lovable::ResultRepositoryImporter.new(
+          source_client_class:,
+          publisher:,
+          configuration: Aicoo::CloudflarePages::Configuration.new(
+            env: {
+              "AICOO_GITHUB_TOKEN" => "token",
+              "CLOUDFLARE_PAGES_PRODUCTION_URL" => "https://aicoo-lp.pages.dev"
+            }
+          )
+        )
+
+        first = importer.call(generation_run: flow.generation_run)
+        second = importer.call(generation_run: flow.generation_run.reload)
+
+        assert_equal false, first.idempotent
+        assert_equal true, second.idempotent
+        assert_equal 1, publisher.calls
+        assert_equal "cloudflare_deploying", flow.generation_run.reload.metadata.to_h["pipeline_status"]
+        assert_equal "succeeded", flow.generation_run.metadata.to_h["static_validation_status"]
+        assert flow.generation_run.metadata.to_h["publication_files"].key?("index.html")
+      end
+
       private
 
       def fake_strategy_builder
@@ -86,6 +152,56 @@ module Aicoo
         Class.new do
           define_method(:initialize) { |**| }
           define_method(:call) { strategy }
+        end
+      end
+
+      def fake_source_client_class
+        Class.new do
+          def initialize(**)
+          end
+
+          def snapshot!
+            Aicoo::CloudflarePages::GithubRepositoryClient::RepositorySnapshot.new(
+              commit_sha: "lovable-source-sha",
+              files: {
+                "index.html" => <<~HTML,
+                  <!doctype html>
+                  <html>
+                    <head><title>AI受付</title><meta name="description" content="電話受付を自動化"></head>
+                    <body><a class="cta" href="https://service.example.com">相談する</a></body>
+                  </html>
+                HTML
+                "styles.css" => "body { margin: 0; }"
+              }
+            )
+          end
+        end
+      end
+
+      class FakePublisher
+        attr_reader :calls
+
+        def initialize
+          @calls = 0
+        end
+
+        def publish!(landing_page:, generation_run:)
+          @calls += 1
+          publication = generation_run.metadata.to_h.fetch("publication", {}).merge(
+            "status" => "github_pushed",
+            "commit_sha" => "aicoo-lp-sha",
+            "production_url" => "https://aicoo-lp.pages.dev/ai-reception/"
+          )
+          generation_run.update!(metadata: generation_run.metadata.to_h.merge("publication" => publication))
+          Aicoo::CloudflarePages::LandingPagePublisher::Result.new(
+            landing_page:,
+            commit_sha: "aicoo-lp-sha",
+            commit_url: "https://github.com/soregaaashiii/aicoo-lp/commit/aicoo-lp-sha",
+            github_path: "public/ai-reception/",
+            cloudflare_url: "https://aicoo-lp.pages.dev/ai-reception/",
+            asset_source: "lovable_output",
+            deleted: false
+          )
         end
       end
     end

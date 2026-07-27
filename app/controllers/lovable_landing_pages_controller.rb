@@ -1,6 +1,9 @@
 class LovableLandingPagesController < ApplicationController
   before_action :set_business
-  before_action :set_generation_run, only: %i[update_prompt regenerate_prompt launch retry register_preview restore publish]
+  before_action :set_generation_run, only: %i[
+    update_prompt regenerate_prompt launch retry register_preview register_result
+    fetch_result resume_result restore publish
+  ]
 
   def show
     load_page_context
@@ -119,6 +122,50 @@ class LovableLandingPagesController < ApplicationController
     redirect_to business_lovable_landing_page_path(@business), alert: "Previewを登録できませんでした: #{e.message}"
   end
 
+  def register_result
+    result = Aicoo::Lovable::LandingPagePipeline.new.register_result!(
+      business: @business,
+      generation_run: @generation_run,
+      project_url: params[:project_url],
+      project_id: params[:project_id],
+      result_repository: params[:result_repository],
+      result_branch: params[:result_branch],
+      preview_url: params[:preview_url]
+    )
+    enqueue_result_import(result.generation_run) if result.generation_run.metadata.to_h["lovable_result_repository"].present?
+    redirect_to studio_path, notice: result.message
+  rescue StandardError => e
+    redirect_to studio_path, alert: "Lovable生成結果を登録できませんでした: #{e.message}"
+  end
+
+  def fetch_result
+    raise ArgumentError, "生成結果Repositoryを先に登録してください。" if @generation_run.metadata.to_h["lovable_result_repository"].blank?
+
+    enqueue_result_import(@generation_run)
+    redirect_to studio_path, notice: "Lovable生成結果の取得・静的検証・公開処理を開始しました。"
+  rescue StandardError => e
+    redirect_to studio_path, alert: "Lovable生成結果を取得できませんでした: #{e.message}"
+  end
+
+  def resume_result
+    raise ArgumentError, "生成結果Repositoryを先に登録してください。" if @generation_run.metadata.to_h["lovable_result_repository"].blank?
+
+    @generation_run.update!(
+      error_message: nil,
+      metadata: @generation_run.metadata.to_h.merge(
+        "pipeline_status" => "lovable_result_waiting",
+        "lovable_status" => "result_registered",
+        "lovable_error_code" => nil,
+        "lovable_error_message" => nil,
+        "manual_fix_resumed_at" => Time.current.iso8601
+      )
+    )
+    enqueue_result_import(@generation_run)
+    redirect_to studio_path, notice: "手動修正済みとしてLovable生成結果の取得を再開しました。"
+  rescue StandardError => e
+    redirect_to studio_path, alert: "処理を再開できませんでした: #{e.message}"
+  end
+
   def restore
     result = Aicoo::Lovable::LandingPagePipeline.new.restore!(business: @business, generation_run: @generation_run)
     redirect_to studio_path, notice: result.message
@@ -129,6 +176,10 @@ class LovableLandingPagesController < ApplicationController
   def publish
     prototype = external_landing_page
     if prototype
+      unless @generation_run.metadata.to_h["publication_files"].present? &&
+          @generation_run.metadata.to_h["static_validation_status"] == "succeeded"
+        raise ArgumentError, "Lovable生成結果の取得と静的検証を先に完了してください。"
+      end
       result = Aicoo::CloudflarePages::LandingPagePublisher.new.publish!(
         landing_page: prototype,
         generation_run: @generation_run
@@ -176,6 +227,10 @@ class LovableLandingPagesController < ApplicationController
     @published_version = @repository.published
     @landing_page = @current_version&.metadata.to_h&.dig("landing_page_id")&.then { |id| AicooLabLandingPage.find_by(id:) }
     @configuration = Aicoo::Lovable::Configuration.new
+    @pipeline_version = @prompt_version || @current_version
+    @lovable_task = @pipeline_version&.metadata.to_h&.dig("auto_revision_task_id")&.then do |id|
+      @business.auto_revision_tasks.find_by(id:)
+    end
     source_candidate_id = params[:action_candidate_id].presence || @prompt_version&.metadata.to_h&.dig("action_candidate_id")
     @source_action_candidate = @business.action_candidates.active_for_ranking.find_by(id: source_candidate_id)
     @current_learning = @published_version && Aicoo::Lovable::LearningSummary.new(business: @business, generation_run: @published_version).call
@@ -195,5 +250,9 @@ class LovableLandingPagesController < ApplicationController
   def studio_path(anchor: nil)
     prototype_id = @generation_run&.metadata.to_h&.dig("landing_page_prototype_id") || params[:landing_page_id]
     business_lovable_landing_page_path(@business, landing_page_id: prototype_id, anchor:)
+  end
+
+  def enqueue_result_import(generation_run)
+    Aicoo::LovableResultImportJob.perform_later(generation_run.id)
   end
 end

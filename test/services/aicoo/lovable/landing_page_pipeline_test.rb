@@ -33,9 +33,9 @@ module Aicoo
         run = @pipeline.prepare_create!(business: @business).generation_run
         result = @pipeline.launch!(business: @business, generation_run: run)
 
-        assert_equal "build_url", result.mode
+        assert_equal "lovable_api", result.mode
         assert_equal "succeeded", run.reload.status
-        assert_equal "lovable_handoff_required", run.metadata["pipeline_status"]
+        assert_equal "lovable_handoff_ready", run.metadata["pipeline_status"]
         assert_equal "build_with_url", run.metadata["launcher"]
         assert_equal "official_build_with_url", run.metadata["handoff_reason"]
         assert_includes run.metadata["build_url"], "https://lovable.dev/?autosubmit=true#prompt="
@@ -113,6 +113,24 @@ module Aicoo
 
         assert_equal "preview_ready", result.generation_run.reload.metadata["pipeline_status"]
         assert_equal "manual-project", result.generation_run.metadata["project_id"]
+      end
+
+      test "registers project and result repository without pretending Lovable API completion" do
+        result = @pipeline.enqueue_create!(business: @business)
+
+        registered = @pipeline.register_result!(
+          business: @business,
+          generation_run: result.generation_run,
+          project_url: "https://lovable.dev/projects/project-123",
+          result_repository: "https://github.com/example/lovable-result",
+          result_branch: "main"
+        )
+
+        metadata = registered.generation_run.reload.metadata
+        assert_equal "lovable_result_waiting", metadata["pipeline_status"]
+        assert_equal "project-123", metadata["lovable_project_id"]
+        assert_equal "https://github.com/example/lovable-result", metadata["lovable_result_repository"]
+        assert_equal "lovable_api", registered.mode
       end
 
       test "restores a successful version as a new current version" do

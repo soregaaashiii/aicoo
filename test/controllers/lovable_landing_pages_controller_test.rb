@@ -24,7 +24,7 @@ class LovableLandingPagesControllerTest < ActionDispatch::IntegrationTest
 
     run = AicooLabGenerationRun.last
     assert_redirected_to run.metadata["build_url"]
-    assert_equal "lovable_handoff_required", run.metadata["pipeline_status"]
+    assert_equal "lovable_handoff_ready", run.metadata["pipeline_status"]
     assert_equal "build_with_url", run.metadata["launcher"]
   end
 

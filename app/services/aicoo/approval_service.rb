@@ -282,6 +282,31 @@ module Aicoo
     end
 
     def approve_auto_revision_task!
+      if record.metadata.to_h["workflow_type"] == "external_lp_creation"
+        if record.metadata.to_h["lovable_build_url"].present? || record.metadata.to_h["lovable_mcp_task_id"].present?
+          return operation(
+            "Lovable作成開始は承認済みです。既存の連携処理から続行できます。",
+            metadata: {
+              idempotent: true,
+              build_url: record.metadata.to_h["lovable_build_url"],
+              lovable_mcp_task_id: record.metadata.to_h["lovable_mcp_task_id"]
+            }.compact,
+            redirect_record: record
+          )
+        end
+
+        record.approve!
+        return operation(
+          "LP戦略を承認し、Lovable作成を開始しました。",
+          metadata: {
+            auto_revision_task_status: record.status,
+            build_url: record.metadata.to_h["lovable_build_url"],
+            lovable_mcp_task_id: record.metadata.to_h["lovable_mcp_task_id"]
+          }.compact,
+          redirect_record: record
+        )
+      end
+
       if record.status.in?(%w[ready_for_codex approved queued sent_to_codex running completed succeeded partial_succeeded])
         return operation("AutoRevisionTaskはすでにCodex準備済みです。", metadata: { idempotent: true })
       end

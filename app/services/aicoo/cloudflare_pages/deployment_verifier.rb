@@ -100,7 +100,12 @@ module Aicoo
           "published_at" => Time.current.iso8601,
           "last_synced_at" => Time.current.iso8601
         ).compact
-        run.update!(metadata: run.metadata.to_h.merge("publication" => publication))
+        run.update!(metadata: run.metadata.to_h.merge(
+          "publication" => publication,
+          "pipeline_status" => "improvement_waiting",
+          "lovable_status" => "completed",
+          "measurement_started_at" => Time.current.iso8601
+        ))
       end
 
       def failed(deployment, status)

@@ -208,6 +208,16 @@ module Aicoo
       def launch!(business:, generation_run:)
         validate_run_business!(generation_run, business)
         metadata = generation_run.metadata.to_h.deep_stringify_keys
+        ensure_external_run_approved!(business, metadata)
+        if metadata["build_url"].present?
+          return Result.new(
+            landing_page: AicooLabLandingPage.find(metadata.fetch("landing_page_id")),
+            generation_run:,
+            mode: metadata["lovable_execution_mode"].presence || "lovable_api",
+            message: "既存のLovable Build with URLを利用します。"
+          )
+        end
+
         launch = launch_service.call(prompt: generation_run.prompt, image_urls: reference_image_urls(business))
         launched_at = Time.current
         generation_run.update!(
@@ -216,12 +226,16 @@ module Aicoo
           finished_at: launched_at,
           error_message: nil,
           metadata: metadata.merge(
-            "pipeline_status" => "lovable_handoff_required",
-            "connection_mode" => "build_url",
+            "pipeline_status" => "lovable_handoff_ready",
+            "connection_mode" => "lovable_api",
+            "lovable_execution_mode" => "lovable_api",
+            "lovable_status" => "user_action_waiting",
             "launcher" => launch.launcher_name,
             "build_url" => launch.url,
+            "lovable_execution_url" => launch.url,
             "build_url_generated_at" => launched_at.iso8601,
             "launched_at" => launched_at.iso8601,
+            "lovable_started_at" => launched_at.iso8601,
             "prompt_length" => launch.prompt_length,
             "reference_image_count" => launch.image_count,
             "handoff_reason" => "official_build_with_url"
@@ -231,7 +245,7 @@ module Aicoo
         Result.new(
           landing_page: AicooLabLandingPage.find(metadata.fetch("landing_page_id")),
           generation_run:,
-          mode: "build_url",
+          mode: "lovable_api",
           message: "Lovable Build with URLを作成しました。"
         )
       end
@@ -292,6 +306,53 @@ module Aicoo
         mark_preview_ready!(landing_page, generation_run)
         stamp_external_preview!(business, metadata, preview_url)
         Result.new(landing_page:, generation_run:, mode: "registered", message: "Lovable Previewを登録しました。")
+      end
+
+      def register_result!(
+        business:,
+        generation_run:,
+        project_url: nil,
+        project_id: nil,
+        result_repository: nil,
+        result_branch: nil,
+        preview_url: nil
+      )
+        validate_run_business!(generation_run, business)
+        validate_optional_http_url!(project_url, "Lovable project URL")
+        validate_optional_http_url!(result_repository, "生成結果Repository")
+        validate_optional_http_url!(preview_url, "Preview URL")
+        validate_github_repository_url!(result_repository)
+        raise ArgumentError, "Lovable project URLまたは生成結果Repositoryを入力してください。" if project_url.blank? && result_repository.blank?
+
+        metadata = generation_run.metadata.to_h.deep_stringify_keys
+        now = Time.current
+        project_identifier = project_id.presence || lovable_project_id(project_url)
+        next_status = result_repository.present? ? "lovable_result_waiting" : "lovable_generation_waiting"
+        generation_run.update!(
+          status: "succeeded",
+          generated_count: preview_url.present? ? 1 : generation_run.generated_count,
+          metadata: metadata.merge(
+            "pipeline_status" => next_status,
+            "lovable_status" => result_repository.present? ? "result_registered" : "generation_waiting",
+            "lovable_project_url" => project_url.presence || metadata["lovable_project_url"],
+            "lovable_project_id" => project_identifier.presence || metadata["lovable_project_id"],
+            "project_id" => project_identifier.presence || metadata["project_id"],
+            "preview_url" => preview_url.presence || metadata["preview_url"],
+            "lovable_result_repository" => result_repository.presence || metadata["lovable_result_repository"],
+            "lovable_result_branch" => result_branch.presence || metadata["lovable_result_branch"] || "main",
+            "lovable_completed_at" => result_repository.present? ? now.iso8601 : metadata["lovable_completed_at"],
+            "lovable_result_registered_at" => now.iso8601,
+            "lovable_error_code" => nil,
+            "lovable_error_message" => nil
+          ).compact
+        )
+        stamp_external_result!(business, generation_run)
+        Result.new(
+          landing_page: AicooLabLandingPage.find(metadata.fetch("landing_page_id")),
+          generation_run:,
+          mode: generation_run.metadata.to_h["lovable_execution_mode"].presence || configuration.connection_mode,
+          message: result_repository.present? ? "Lovable生成結果Repositoryを登録しました。" : "Lovable project URLを登録しました。"
+        )
       end
 
       def restore!(business:, generation_run:)
@@ -379,7 +440,9 @@ module Aicoo
             "change_request" => change_request,
             "previous_run_id" => previous_run&.id,
             "retry_of_run_id" => retry_of&.id,
-            "connection_mode" => "build_url",
+            "connection_mode" => configuration.connection_mode,
+            "lovable_execution_mode" => configuration.connection_mode,
+            "lovable_status" => "waiting_approval",
             "launcher" => "build_with_url",
             "prompt_revision" => 1,
             "prompt_version" => prompt_version(version, 1),
@@ -444,15 +507,71 @@ module Aicoo
 
         task = business.auto_revision_tasks.find_by(id: metadata["auto_revision_task_id"])
         task&.update!(metadata: task.metadata.to_h.merge(
-          "pipeline_stage" => "lovable_handoff",
+          "pipeline_stage" => "lovable_handoff_ready",
           "lovable_prompt_approved_at" => Time.current.iso8601,
-          "build_url_generated_at" => metadata["build_url_generated_at"]
+          "build_url_generated_at" => metadata["build_url_generated_at"],
+          "lovable_build_url" => metadata["build_url"],
+          "lovable_execution_mode" => metadata["lovable_execution_mode"],
+          "lovable_status" => metadata["lovable_status"]
         ))
         prototype.update!(metadata: prototype.metadata.to_h.merge(
-          "planning_status" => "lovable_handoff",
+          "planning_status" => "lovable_handoff_ready",
           "lovable_build_url" => metadata["build_url"],
-          "lovable_build_url_generated_at" => metadata["build_url_generated_at"]
+          "lovable_build_url_generated_at" => metadata["build_url_generated_at"],
+          "lovable_execution_mode" => metadata["lovable_execution_mode"],
+          "lovable_status" => metadata["lovable_status"]
         ))
+      end
+
+      def stamp_external_result!(business, generation_run)
+        metadata = generation_run.metadata.to_h
+        prototype = business.business_prototypes.find_by(id: metadata["landing_page_prototype_id"])
+        return unless prototype
+
+        prototype.update!(metadata: prototype.metadata.to_h.merge(
+          "planning_status" => metadata["pipeline_status"],
+          "lovable_project_url" => metadata["lovable_project_url"],
+          "lovable_project_id" => metadata["lovable_project_id"],
+          "lovable_result_repository" => metadata["lovable_result_repository"],
+          "lovable_result_branch" => metadata["lovable_result_branch"],
+          "lovable_status" => metadata["lovable_status"],
+          "lovable_last_sync_at" => metadata["lovable_result_registered_at"]
+        ).compact)
+      end
+
+      def ensure_external_run_approved!(business, metadata)
+        return if metadata["landing_page_prototype_id"].blank?
+
+        task = business.auto_revision_tasks.find_by(id: metadata["auto_revision_task_id"])
+        unless task&.approved_at.present? && !task.status.in?(%w[draft waiting_approval])
+          raise ArgumentError, "Lovableへ渡す前にAutoRevisionTaskを承認してください。"
+        end
+      end
+
+      def validate_optional_http_url!(value, label)
+        return if value.blank? || valid_http_url?(value)
+
+        raise ArgumentError, "#{label}はhttps://またはhttp://で入力してください。"
+      end
+
+      def lovable_project_id(value)
+        return if value.blank?
+
+        uri = URI.parse(value)
+        uri.path.to_s.split("/").reject(&:blank?).last
+      rescue URI::InvalidURIError
+        nil
+      end
+
+      def validate_github_repository_url!(value)
+        return if value.blank?
+
+        uri = URI.parse(value)
+        return if uri.host.to_s.casecmp("github.com").zero? && uri.path.to_s.split("/").reject(&:blank?).size >= 2
+
+        raise ArgumentError, "生成結果RepositoryはGitHub Repository URLを入力してください。"
+      rescue URI::InvalidURIError
+        raise ArgumentError, "生成結果RepositoryはGitHub Repository URLを入力してください。"
       end
 
       def stamp_external_preview!(business, metadata, preview_url)
