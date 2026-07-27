@@ -97,10 +97,14 @@
         </nav>
 
         <div class="aicoo-flash-stack" aria-live="polite">
-          <div id="aicoo-loading-feedback" class="flash-message flash-info is-hidden">
-            <span class="aicoo-spinner" aria-hidden="true"></span>
-            <span>実行中...</span>
-          </div>
+          <% if content_for?(:aicoo_primary_status) %>
+            <%= yield :aicoo_primary_status %>
+          <% else %>
+            <div id="aicoo-loading-feedback" class="flash-message flash-info is-hidden">
+              <span class="aicoo-spinner" aria-hidden="true"></span>
+              <span>実行中...</span>
+            </div>
+          <% end %>
           <% flash.each do |type, message| %>
             <% next if message.blank? %>
             <% flash_level = case type.to_s
@@ -114,9 +118,11 @@
           <% end %>
         </div>
 
-        <%= render "shared/operation_status_panel",
-                   monitor: @long_running_operation_monitor,
-                   daily_run_status: @daily_run_execution_status %>
+        <% unless content_for?(:hide_operation_status_panel) %>
+          <%= render "shared/operation_status_panel",
+                     monitor: @long_running_operation_monitor,
+                     daily_run_status: @daily_run_execution_status %>
+        <% end %>
 
         <%= yield %>
       </main>

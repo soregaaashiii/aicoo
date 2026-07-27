@@ -1,0 +1,8 @@
+<ol class="daily-run-step-list" aria-label="Daily Run Step一覧">
+  <% progress.step_rows.each do |step| %>
+    <li class="daily-run-step daily-run-step-<%= step.status %> <%= 'is-current' if step.current? %>">
+      <span aria-hidden="true"><%= step.current? ? "▶" : (step.status.in?(%w[success skipped]) ? "✓" : (step.status == "failed" ? "!" : "□")) %></span>
+      <strong><%= step.label %></strong>
+    </li>
+  <% end %>
+</ol>

@@ -321,6 +321,8 @@ class AicooDailyRunsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "done"
     assert_includes response.body, "完了"
     assert_includes response.body, "100%"
+    assert_includes response.body, "daily-run-progress-status-bar"
+    assert_equal 1, response.body.scan("data-daily-run-progress=\"#{daily_run.id}\"").size
   end
 
   test "shows running banner on daily run detail" do
@@ -347,11 +349,49 @@ class AicooDailyRunsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "現在実行中"
     assert_includes response.body, "Daily Runはまだ完了していません"
     assert_includes response.body, "Business Playbook"
-    assert_includes response.body, "吸えログ 12 / 20"
-    assert_includes response.body, "ETA"
+    assert_includes response.body, "12 / 20"
+    assert_includes response.body, "現在処理中"
+    assert_includes response.body, "吸えログ"
+    assert_includes response.body, "終了予定"
     assert_includes response.body, "Daily Run Step一覧"
     assert_includes response.body, "data-daily-run-progress-key=\"detail-#{daily_run.id}\""
+    assert_includes response.body, "data-aicoo-auto-refresh=\"5000\""
+    assert_includes response.body, "daily-run-progress-status-bar"
+    assert_not_includes response.body, "id=\"aicoo-loading-feedback\""
+    assert_not_includes response.body, "id=\"aicoo-operation-status-panel\""
+    assert_equal 1, response.body.scan("data-daily-run-progress=\"#{daily_run.id}\"").size
+    assert_operator response.body.index("daily-run-progress-status-bar"), :<, response.body.index("aicoo-page")
+    assert_includes response.body, "currentProgress.replaceWith(replacementProgress)"
+    assert_not_includes response.body, "document.body.replaceWith"
     assert_includes response.body, "同じ対象日の再実行はスキップされます"
+  end
+
+  test "shows candidate progress in the top status bar only during action generation" do
+    daily_run = AicooDailyRun.create!(
+      target_date: Date.yesterday,
+      status: "running",
+      source: "manual",
+      started_at: 10.minutes.ago
+    )
+    daily_run.aicoo_daily_run_steps.create!(
+      step_name: "action_generation",
+      status: "running",
+      started_at: 1.minute.ago,
+      metadata: {
+        current_business_name: "吸えログ",
+        current_business_index: 127,
+        total_business_count: 183,
+        current_candidate_count: 412,
+        total_candidate_count: 801
+      }
+    )
+
+    get aicoo_daily_run_url(daily_run)
+
+    assert_response :success
+    assert_includes response.body, "ActionCandidate"
+    assert_includes response.body, "412 / 約801"
+    assert_equal 1, response.body.scan("data-daily-run-progress=\"#{daily_run.id}\"").size
   end
 
   test "shows retained progress and failure details on failed daily run" do
@@ -389,6 +429,8 @@ class AicooDailyRunsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "原因: Timeout"
     assert_includes response.body, "Retry: 2"
     assert_match(/data-progress-percent="[1-9]\d*"/, response.body)
+    assert_includes response.body, "daily-run-progress-status-bar"
+    assert_not_includes response.body, "data-aicoo-auto-refresh=\"5000\""
   end
 
   test "shows partial failed as an amber completed execution instead of success" do
@@ -418,6 +460,8 @@ class AicooDailyRunsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "実行終了・一部失敗"
     assert_includes response.body, "daily-run-completion-summary-partial"
     assert_not_includes response.body, "daily-run-progress-success"
+    assert_includes response.body, "daily-run-progress-status-bar"
+    assert_not_includes response.body, "data-aicoo-auto-refresh=\"5000\""
   end
 
   test "shows stuck run with retained progress instead of one hundred percent" do
@@ -443,6 +487,8 @@ class AicooDailyRunsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "data-progress-percent=\"64\""
     assert_includes response.body, "停止中"
     assert_not_includes response.body, "data-progress-percent=\"100\""
+    assert_includes response.body, "daily-run-progress-status-bar"
+    assert_not_includes response.body, "data-aicoo-auto-refresh=\"5000\""
   end
 
   test "creates daily run from form" do

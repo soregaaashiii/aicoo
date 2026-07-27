@@ -1,4 +1,13 @@
 <% content_for :title, "AICOO Daily Run詳細" %>
+<% content_for :hide_operation_status_panel, "true" %>
+<% content_for :aicoo_primary_status do %>
+  <%= render "shared/daily_run_progress",
+             progress: @daily_run_progress,
+             refresh_key: "detail-#{@daily_run.id}",
+             status_bar: true,
+             show_step_list: false,
+             auto_refresh: @daily_run_progress.active? %>
+<% end %>
 
 <% header_actions = capture do %>
   <%= link_to "Daily Run一覧", aicoo_daily_runs_path, class: "button secondary" %>
@@ -21,9 +30,15 @@
   <%= render "shared/aicoo_execution_tabs", active: :dashboard %>
 
   <section class="dashboard-section">
-    <%= render "shared/daily_run_progress",
-               progress: @daily_run_progress,
-               refresh_key: "detail-#{@daily_run.id}" %>
+    <div class="aicoo-card">
+      <div class="section-heading">
+        <div>
+          <h2>Daily Run Step一覧</h2>
+          <p>完了済み、実行中、待機中のStepを確認します。</p>
+        </div>
+      </div>
+      <%= render "shared/daily_run_step_list", progress: @daily_run_progress %>
+    </div>
   </section>
 
   <section class="dashboard-section">

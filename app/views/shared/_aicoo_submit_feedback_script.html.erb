@@ -102,16 +102,18 @@
     }
 
     function refreshOperationPanel() {
-      var panel = document.querySelector("[data-aicoo-operation-panel]");
-      if (!panel) return;
+      var refreshTarget = document.querySelector("[data-aicoo-auto-refresh]");
+      if (!refreshTarget) return;
 
-      var interval = parseInt(panel.dataset.aicooAutoRefresh || "0", 10);
+      var interval = parseInt(refreshTarget.dataset.aicooAutoRefresh || "0", 10);
       if (!interval || window.__aicooOperationPanelRefreshBound) return;
       window.__aicooOperationPanelRefreshBound = true;
 
       window.setInterval(function () {
+        var currentRefreshTarget = document.querySelector("[data-aicoo-auto-refresh]");
+        if (!currentRefreshTarget) return;
+
         var currentPanel = document.querySelector("[data-aicoo-operation-panel]");
-        if (!currentPanel || !currentPanel.dataset.aicooAutoRefresh) return;
 
         fetch(window.location.href, {
           headers: { "Accept": "text/html", "X-Requested-With": "XMLHttpRequest" },
@@ -131,7 +133,7 @@
               if (replacementProgress) currentProgress.replaceWith(replacementProgress);
             });
             var replacement = doc.querySelector("[data-aicoo-operation-panel]");
-            if (replacement && currentPanel) currentPanel.replaceWith(replacement);
+            if (currentPanel && replacement) currentPanel.replaceWith(replacement);
           })
           .catch(function () {});
       }, interval);

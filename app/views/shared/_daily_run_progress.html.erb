@@ -1,13 +1,17 @@
 <% progress = local_assigns.fetch(:progress) %>
 <% compact = local_assigns.fetch(:compact, false) %>
 <% refresh_key = local_assigns[:refresh_key] || "daily-run-#{progress.run.id}" %>
+<% status_bar = local_assigns.fetch(:status_bar, false) %>
+<% show_step_list = local_assigns.fetch(:show_step_list, !compact) %>
+<% auto_refresh = local_assigns.fetch(:auto_refresh, false) %>
 
 <div
-  class="aicoo-card daily-run-progress daily-run-progress-<%= progress.state %> <%= 'daily-run-progress-compact' if compact %>"
+  class="aicoo-card daily-run-progress daily-run-progress-<%= progress.state %> <%= 'daily-run-progress-compact' if compact %> <%= 'daily-run-progress-status-bar' if status_bar %>"
   data-daily-run-progress="<%= progress.run.id %>"
   data-daily-run-progress-key="<%= refresh_key %>"
   data-daily-run-state="<%= progress.state %>"
-  data-progress-percent="<%= progress.progress_percent %>">
+  data-progress-percent="<%= progress.progress_percent %>"
+  <%= 'data-aicoo-auto-refresh="5000"'.html_safe if auto_refresh %>>
   <div class="section-heading">
     <div>
       <p><span class="pill"><%= progress.active? ? "現在実行中" : progress.status_label %></span></p>
@@ -26,45 +30,50 @@
     <span style="width: <%= progress.progress_percent %>%"></span>
   </div>
 
-  <div class="metric-grid daily-run-progress-metrics">
-    <div class="metric-card">
-      <span>現在Step</span>
-      <strong><%= progress.current_step_label %></strong>
-      <% if progress.current_step_name.present? %>
-        <small><%= progress.current_step_name %></small>
-      <% end %>
-      <% if progress.active? %>
-        <small>Step内進捗 <%= progress.current_step_percent %>%</small>
-      <% end %>
-    </div>
-    <div class="metric-card">
-      <span><%= progress.active? ? "残り時間" : "所要時間" %></span>
-      <strong><%= progress.active? ? progress.remaining_label : progress.elapsed_label %></strong>
-      <% if progress.estimated_finish_at %>
-        <small>ETA <%= progress.estimated_finish_at.strftime("%H:%M") %></small>
-      <% end %>
-    </div>
-    <div class="metric-card">
-      <span>Business</span>
-      <strong><%= progress.business_label %></strong>
-    </div>
-    <% if progress.current_step_name == "action_generation" || progress.completed? %>
+  <% unless status_bar && (progress.successful? || progress.partial_failed?) %>
+    <div class="metric-grid daily-run-progress-metrics">
       <div class="metric-card">
-        <span>ActionCandidate</span>
-        <strong><%= progress.active? ? progress.candidate_label : "#{progress.candidate_count}件" %></strong>
+        <span>現在Step</span>
+        <strong><%= progress.current_step_label %></strong>
+        <% if progress.current_step_name.present? %>
+          <small><%= progress.current_step_name %></small>
+        <% end %>
+        <% if progress.active? %>
+          <small>Step内進捗 <%= progress.current_step_percent %>%</small>
+        <% end %>
       </div>
-    <% end %>
-  </div>
-
-  <% unless compact %>
-    <ol class="daily-run-step-list" aria-label="Daily Run Step一覧">
-      <% progress.step_rows.each do |step| %>
-        <li class="daily-run-step daily-run-step-<%= step.status %> <%= 'is-current' if step.current? %>">
-          <span aria-hidden="true"><%= step.current? ? "▶" : (step.status.in?(%w[success skipped]) ? "✓" : (step.status == "failed" ? "!" : "□")) %></span>
-          <strong><%= step.label %></strong>
-        </li>
+      <div class="metric-card">
+        <span><%= progress.active? ? "残り時間" : "所要時間" %></span>
+        <strong><%= progress.active? ? progress.remaining_label : progress.elapsed_label %></strong>
+        <% if progress.estimated_finish_at %>
+          <small><%= status_bar ? "終了予定" : "ETA" %> <%= progress.estimated_finish_at.strftime("%H:%M") %></small>
+        <% end %>
+      </div>
+      <div class="metric-card">
+        <span>Business</span>
+        <% if status_bar && progress.total_business_count.to_i.positive? %>
+          <strong><%= progress.current_business_index.to_i %> / <%= progress.total_business_count.to_i %></strong>
+        <% else %>
+          <strong><%= progress.business_label %></strong>
+        <% end %>
+      </div>
+      <% if progress.current_step_name == "action_generation" || progress.completed? %>
+        <div class="metric-card">
+          <span>ActionCandidate</span>
+          <strong><%= progress.active? ? progress.candidate_label : "#{progress.candidate_count}件" %></strong>
+        </div>
       <% end %>
-    </ol>
+      <% if status_bar && progress.current_business_name.present? %>
+        <div class="metric-card">
+          <span>現在処理中</span>
+          <strong><%= progress.current_business_name %></strong>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+
+  <% if show_step_list %>
+    <%= render "shared/daily_run_step_list", progress: %>
   <% end %>
 
   <% if progress.partial_failed? %>
