@@ -120,51 +120,6 @@
   </section>
 
   <section class="dashboard-section">
-    <div class="section-heading">
-      <h2>実行サマリー</h2>
-      <p>主要カテゴリごとの件数、成功、warning、失敗を確認します。</p>
-    </div>
-    <div class="metric-grid">
-      <% @daily_run_history.summary_cards.each do |card| %>
-        <div class="metric-card">
-          <span><%= card.label %></span>
-          <strong><%= card.count %></strong>
-          <small><span class="pill"><%= card.status %></span> <%= card.detail %></small>
-        </div>
-      <% end %>
-    </div>
-  </section>
-
-  <section class="dashboard-section">
-    <div class="metric-grid">
-      <div class="metric-card"><span>状態</span><strong><%= @daily_run.status %></strong></div>
-      <div class="metric-card"><span>source</span><strong><%= @daily_run.source %></strong></div>
-      <div class="metric-card"><span>retry</span><strong><%= @daily_run.retry_count %></strong></div>
-      <div class="metric-card"><span>Analytics取得</span><strong><%= @daily_run.analytics_fetch_count %></strong></div>
-      <div class="metric-card"><span>DataHub Snapshot</span><strong><%= @daily_run.snapshot_count %></strong></div>
-      <div class="metric-card"><span>Insight生成</span><strong><%= @daily_run.insight_generated_count %></strong></div>
-      <div class="metric-card"><span>代理指標取り込み</span><strong><%= @daily_run.business_metrics_imported_count %></strong></div>
-      <div class="metric-card"><span>重み補正</span><strong><%= @daily_run.proxy_weights_adjusted_count %></strong></div>
-      <div class="metric-card"><span>候補生成</span><strong><%= @daily_run.action_candidates_generated_count %></strong></div>
-      <div class="metric-card"><span>結果評価</span><strong><%= @daily_run.action_results_evaluated_count %></strong></div>
-      <div class="metric-card"><span>補正ログ作成</span><strong><%= @daily_run.score_snapshots_created_count %></strong></div>
-      <div class="metric-card"><span>順位上昇</span><strong><%= @daily_run.score_snapshot_rank_up_count %></strong></div>
-      <div class="metric-card"><span>順位低下</span><strong><%= @daily_run.score_snapshot_rank_down_count %></strong></div>
-      <div class="metric-card"><span>補正なし</span><strong><%= @daily_run.score_snapshot_no_adjustment_count %></strong></div>
-      <div class="metric-card"><span>データ整備候補</span><strong><%= @daily_run.data_preparation_candidates_count %></strong></div>
-      <div class="metric-card"><span>自動投入</span><strong><%= @daily_run.data_preparation_auto_queued_count %></strong></div>
-      <div class="metric-card"><span>評価関数補正</span><strong><%= @daily_run.calibration_ran? ? "実行済み" : "未実行" %></strong></div>
-      <div class="metric-card"><span>補正更新</span><strong><%= @daily_run.updated_calibration_count %></strong></div>
-      <div class="metric-card"><span>補正ログ</span><strong><%= @daily_run.calibration_log_count %></strong></div>
-      <div class="metric-card"><span>反映待ち補正</span><strong><%= @daily_run.pending_calibration_count %></strong></div>
-      <div class="metric-card"><span>Auto Revision Queue</span><strong><%= @auto_revision_queue_run ? "実行済み" : "未実行" %></strong></div>
-      <div class="metric-card"><span>Auto Revision生成</span><strong><%= @auto_revision_queue_run&.generated_tasks_count.to_i %></strong></div>
-      <div class="metric-card"><span>Auto Revision高risk</span><strong><%= @auto_revision_queue_run&.high_risk_candidates_count.to_i %></strong></div>
-      <div class="metric-card"><span>Auto Revisionスキップ</span><strong><%= @auto_revision_queue_run&.skipped_candidates_count.to_i %></strong></div>
-    </div>
-  </section>
-
-  <section class="dashboard-section">
     <dl class="detail-list">
       <dt>対象日</dt>
       <dd><%= @daily_run.target_date %></dd>
