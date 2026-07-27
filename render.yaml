@@ -38,6 +38,14 @@ services:
         sync: false
       - key: LOVABLE_WORKSPACE_ID
         sync: false
+      - key: AICOO_GITHUB_TOKEN
+        sync: false
+      - key: CLOUDFLARE_ACCOUNT_ID
+        sync: false
+      - key: CLOUDFLARE_API_TOKEN
+        sync: false
+      - key: CLOUDFLARE_PROJECT_NAME
+        value: aicoo-lp
   - type: cron
     name: aicoo-daily-run
     runtime: ruby

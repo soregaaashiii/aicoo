@@ -10,6 +10,7 @@ module Aicoo
         @landing_page = landing_page
         @snapshots = snapshots
         @analysis = analysis
+        @cloudflare_configuration = Aicoo::CloudflarePages::Configuration.new
       end
 
       def call
@@ -36,7 +37,7 @@ module Aicoo
       def validate!
         landing_page.reload if landing_page.persisted?
         raise ArgumentError, "公開中のLPだけが改善対象です。" unless landing_page.landing_page_public_status == "published"
-        raise ArgumentError, "LPのGitHubリポジトリを設定してください。" if landing_page.landing_page_repository_url.blank?
+        raise ArgumentError, "LP専用GitHubリポジトリを設定してください。" if cloudflare_configuration.repository_url.blank?
       end
 
       def active_task_for(candidate)
@@ -61,8 +62,8 @@ module Aicoo
             "landing_page_prototype_id" => variant.id,
             "source_landing_page_prototype_id" => landing_page.id,
             "campaign_id" => landing_page.business_campaign_id,
-            "target_repository_url" => landing_page.landing_page_repository_url,
-            "target_branch" => landing_page.landing_page_branch,
+            "target_repository_url" => cloudflare_configuration.repository_url,
+            "target_branch" => cloudflare_configuration.branch,
             "target_deploy_target" => "cloudflare_pages",
             "target_url" => variant.landing_page_url,
             "ga4_page_path" => variant.landing_page_ga4_path,
@@ -132,9 +133,13 @@ module Aicoo
       end
 
       def repository_name
-        File.basename(URI.parse(landing_page.landing_page_repository_url).path, ".git")
+        File.basename(URI.parse(cloudflare_configuration.repository_url).path, ".git")
       rescue URI::InvalidURIError
-        landing_page.landing_page_repository_url.to_s.split("/").last
+        cloudflare_configuration.repository_url.to_s.split("/").last
+      end
+
+      def cloudflare_configuration
+        @cloudflare_configuration
       end
     end
   end

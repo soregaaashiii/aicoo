@@ -175,6 +175,8 @@ Rails.application.routes.draw do
       post "landing_page_plans/:plan_id/execute", action: :execute_landing_page_plan, as: :execute_landing_page_plan
       patch :landing_page, action: :update_landing_page
       post "landing_pages/:landing_page_id/sync", action: :create_landing_page_task, as: :landing_page_task
+      post "landing_pages/:landing_page_id/publish", action: :publish_landing_page, as: :publish_landing_page
+      post "landing_pages/:landing_page_id/verify", action: :verify_landing_page_publication, as: :verify_landing_page
       post "landing_pages/:landing_page_id/improve", action: :improve_landing_page, as: :improve_landing_page
       patch "landing_pages/:landing_page_id/status", action: :update_landing_page_status, as: :landing_page_status
       delete "landing_pages/:landing_page_id", action: :destroy_landing_page, as: :remove_landing_page
@@ -221,6 +223,7 @@ Rails.application.routes.draw do
 
   namespace :admin do
     get "lovable", to: "lovable#show", as: :lovable
+    patch "lovable/cloudflare", to: "lovable#update_cloudflare", as: :lovable_cloudflare
     get "explore", to: "explore#index", as: :explore
     get "explore/import", to: "explore_imports#new", as: :explore_import
     post "explore/import", to: "explore_imports#create"

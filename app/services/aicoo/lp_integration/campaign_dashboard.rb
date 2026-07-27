@@ -6,6 +6,7 @@ module Aicoo
       end
 
       def call
+        load_variant_counts
         rows = business.business_campaigns.active.includes(:landing_pages).map do |campaign|
           landing_pages = campaign.landing_pages.active.map { |landing_page| landing_page_row(landing_page) }
             .sort_by { |row| [ -row[:expected_profit_yen], row[:landing_page].id ] }
@@ -64,6 +65,7 @@ module Aicoo
           expected_cv: numeric(metadata["expected_cv"]),
           expected_hourly_value_yen: numeric(metadata["expected_hourly_value_yen"]),
           improvement_candidate_count: candidates.size,
+          variant_count: variant_counts.fetch(landing_page.id, 0),
           last_deploy_at: history.find { |row| row[:deploy_status] == "deployed" }&.dig(:occurred_at),
           improvement_history: history
         }
@@ -77,6 +79,17 @@ module Aicoo
 
       def improvement_history
         @improvement_history ||= LandingPageImprovementHistory.new(business).call.group_by { |row| row[:landing_page_id] }
+      end
+
+      def load_variant_counts
+        @variant_counts = business.business_prototypes.active.external_landing_pages.each_with_object(Hash.new(0)) do |landing_page, counts|
+          source_id = landing_page.metadata.to_h["ab_source_landing_page_id"].to_i
+          counts[source_id] += 1 if source_id.positive?
+        end
+      end
+
+      def variant_counts
+        @variant_counts || {}
       end
 
       def numeric(value)

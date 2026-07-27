@@ -127,8 +127,17 @@ class LovableLandingPagesController < ApplicationController
   end
 
   def publish
-    result = Aicoo::Lovable::PublicationCoordinator.new.call(business: @business, generation_run: @generation_run)
-    redirect_to studio_path, notice: "#{result.message} #{result.issue_url}"
+    prototype = external_landing_page
+    if prototype
+      result = Aicoo::CloudflarePages::LandingPagePublisher.new.publish!(
+        landing_page: prototype,
+        generation_run: @generation_run
+      )
+      redirect_to studio_path, notice: "LPを#{result.github_path}へcommitし、Cloudflare Pagesの公開確認を開始しました。"
+    else
+      result = Aicoo::Lovable::PublicationCoordinator.new.call(business: @business, generation_run: @generation_run)
+      redirect_to studio_path, notice: "#{result.message} #{result.issue_url}"
+    end
   rescue StandardError => e
     redirect_to business_lovable_landing_page_path(@business), alert: "公開処理を開始できませんでした: #{e.message}"
   end

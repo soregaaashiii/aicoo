@@ -10,6 +10,7 @@ module Aicoo
         @business = business
         @landing_page = landing_page
         @generated_by = generated_by
+        @cloudflare_configuration = Aicoo::CloudflarePages::Configuration.new
       end
 
       def call
@@ -35,7 +36,7 @@ module Aicoo
         unless landing_page.business_id == business.id && landing_page.external_landing_page?
           raise ArgumentError, "このBusinessのLPではありません。"
         end
-        raise ArgumentError, "LPのGitHubリポジトリを設定してください。" if repository_url.blank?
+        raise ArgumentError, "LP専用GitHubリポジトリを設定してください。" if repository_url.blank?
         raise ArgumentError, "BusinessのExecution Profileを設定してください。" unless business.business_execution_profile&.active?
       end
 
@@ -74,7 +75,7 @@ module Aicoo
             "configuration_fingerprint" => fingerprint,
             "landing_page_prototype_id" => landing_page.id,
             "target_repository_url" => repository_url,
-            "target_branch" => landing_page.landing_page_branch,
+            "target_branch" => target_branch,
             "target_deploy_target" => "cloudflare_pages",
             "target_url" => landing_page.landing_page_url,
             "ga4_page_path" => landing_page.landing_page_ga4_path,
@@ -112,7 +113,7 @@ module Aicoo
           "ga4_page_path" => landing_page.landing_page_ga4_path,
           "gsc_url" => landing_page.metadata.to_h["gsc_url"],
           "target_repository_url" => repository_url,
-          "target_branch" => landing_page.landing_page_branch,
+          "target_branch" => target_branch,
           "target_deploy_target" => "cloudflare_pages",
           "codex_eligible" => true,
           "auto_revision" => false,
@@ -128,7 +129,7 @@ module Aicoo
           #{landing_page.landing_page_name} のLP専用リポジトリだけを更新してください。
 
           - LP Repository: #{repository_url}
-          - Branch: #{landing_page.landing_page_branch}
+          - Branch: #{target_branch}
           - Public URL: #{landing_page.landing_page_url || "未公開"}
           - GA4 Page Path: #{landing_page.landing_page_ga4_path}
           - Hosting: Cloudflare Pages
@@ -139,7 +140,11 @@ module Aicoo
       end
 
       def repository_url
-        landing_page.landing_page_repository_url
+        @cloudflare_configuration.repository_url
+      end
+
+      def target_branch
+        @cloudflare_configuration.branch
       end
 
       def repository_name
@@ -153,7 +158,7 @@ module Aicoo
           landing_page.id,
           landing_page.updated_at.to_i,
           repository_url,
-          landing_page.landing_page_branch,
+          target_branch,
           landing_page.landing_page_url,
           landing_page.landing_page_ga4_path
         ].join("|"))

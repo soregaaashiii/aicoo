@@ -23,8 +23,7 @@ module Aicoo
 
       def analyze_business(business, stats)
         landing_pages = business.business_prototypes.active.external_landing_pages.select do |landing_page|
-          landing_page.landing_page_public_status == "published" &&
-            (landing_page.landing_page_url.present? || landing_page.landing_page_ga4_path.present?)
+          landing_page.cloudflare_published?
         end
         return if landing_pages.empty?
 
@@ -52,7 +51,6 @@ module Aicoo
 
       def create_improvement_task(business, landing_page, snapshots, analysis, stats)
         return if analysis.candidate.final_expected_value_yen.to_d < minimum_expected_profit_yen
-        return if landing_page.landing_page_repository_url.blank?
 
         flow = LandingPageImprovementFlow.new(
           business:,

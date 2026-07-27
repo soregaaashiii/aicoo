@@ -94,11 +94,37 @@ class BusinessAccessSettingsController < ApplicationController
     redirect_to_access_section("LP取り込みタスクを作成できませんでした: #{error_message(e)}", alert: true)
   end
 
+  def publish_landing_page
+    landing_page = landing_page_registry.find!(params.expect(:landing_page_id))
+    generation_run = AicooLabGenerationRun.find_by(id: landing_page.metadata.to_h["lovable_generation_run_id"])
+    result = Aicoo::CloudflarePages::LandingPagePublisher.new.publish!(
+      landing_page:,
+      generation_run:
+    )
+    redirect_to_access_section("LPを#{result.github_path}へcommitし、Cloudflare Pagesの公開確認を開始しました。")
+  rescue ActiveRecord::RecordNotFound, ActiveRecord::RecordInvalid, ArgumentError => e
+    redirect_to_access_section("LPを公開できませんでした: #{error_message(e)}", alert: true)
+  end
+
+  def verify_landing_page_publication
+    landing_page = landing_page_registry.find!(params.expect(:landing_page_id))
+    result = Aicoo::CloudflarePages::DeploymentVerifier.new.call(
+      landing_page:,
+      commit_sha: landing_page.metadata.to_h["github_commit_sha"]
+    )
+    redirect_to_access_section(result.message, alert: !result.completed)
+  rescue ActiveRecord::RecordNotFound, ActiveRecord::RecordInvalid, ArgumentError => e
+    redirect_to_access_section("LPの公開を確認できませんでした: #{error_message(e)}", alert: true)
+  end
+
   def destroy_landing_page
-    landing_page_registry.archive!(params.expect(:landing_page_id))
-    redirect_to_access_section("LPを削除しました。")
-  rescue ActiveRecord::RecordNotFound
-    redirect_to_access_section("LPが見つかりません。", alert: true)
+    landing_page = landing_page_registry.find!(params.expect(:landing_page_id))
+    result = Aicoo::CloudflarePages::LandingPagePublisher.new.delete!(landing_page:)
+    landing_page_registry.archive!(landing_page.id)
+    message = result.commit_sha.present? ? "LPをGitHubから削除し、Cloudflare Pagesへの反映を開始しました。" : "未公開LPを削除しました。"
+    redirect_to_access_section(message)
+  rescue ActiveRecord::RecordNotFound, ActiveRecord::RecordInvalid, ArgumentError => e
+    redirect_to_access_section("LPを削除できませんでした: #{error_message(e)}", alert: true)
   end
 
   def improve_landing_page
@@ -190,7 +216,6 @@ class BusinessAccessSettingsController < ApplicationController
   def measurement_params
     params.expect(measurement_access: %i[
       public_url ga4_measurement_id ga4_property_id gsc_site_url activity_api_enabled
-      cloudflare_project_name cloudflare_production_url cloudflare_branch
     ])
   end
 

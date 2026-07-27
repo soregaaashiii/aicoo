@@ -99,6 +99,7 @@ class BusinessesController < ApplicationController
     @mvp_ready_check = Aicoo::MvpReadyCheck.new(@business, @lp_evaluations).call
     @business_services = @business.business_services.recent
     @business_access_overview = Aicoo::LpIntegration::Overview.new(@business)
+    @cloudflare_pages_configuration = Aicoo::CloudflarePages::Configuration.new
     @primary_business_service = @business_services.first
     @external_landing_pages = @business.business_prototypes.active.external_landing_pages
     @business_campaigns = @business.business_campaigns.active.includes(:landing_pages).recent

@@ -122,7 +122,7 @@ module Aicoo
           generation_run: @run
         )
 
-        assert_equal "https://github.com/example/seo-lp", result.auto_revision_task.effective_codex_repository_url
+        assert_equal "https://github.com/soregaaashiii/aicoo-lp", result.auto_revision_task.effective_codex_repository_url
         assert_equal "cloudflare_pages", result.auto_revision_task.effective_deploy_target
         assert_equal true, result.auto_revision_task.metadata.to_h["service_repository_protected"]
         assert_equal false, result.auto_revision_task.metadata.to_h["auto_deploy_enabled"]

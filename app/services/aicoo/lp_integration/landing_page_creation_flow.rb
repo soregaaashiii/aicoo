@@ -70,6 +70,7 @@ module Aicoo
       end
 
       def create_candidate!(landing_page, strategy, generation_run)
+        cloudflare_configuration = Aicoo::CloudflarePages::Configuration.new
         business.action_candidates.create!(
           title: "#{landing_page.landing_page_name}をLovableで生成する",
           description: "AICOOが#{strategy['reason']}Lovable Promptを生成し、Ownerレビュー後に制作します。",
@@ -101,17 +102,20 @@ module Aicoo
             "auto_merge" => false,
             "auto_deploy" => false,
             "target_deploy_target" => "cloudflare_pages",
+            "target_repository_url" => cloudflare_configuration.repository_url,
+            "target_branch" => cloudflare_configuration.branch,
             "service_repository_protected" => true
           }
         )
       end
 
       def create_task!(landing_page, strategy, generation_run, candidate)
+        cloudflare_configuration = Aicoo::CloudflarePages::Configuration.new
         AutoRevisionTask.create!(
           action_candidate: candidate,
           business:,
           target_business: business,
-          target_repository_name: "lovable-lp-#{landing_page.id}",
+          target_repository_name: "aicoo-lp",
           target_repository_type: "static_site",
           title: candidate.title,
           execution_prompt: generation_run.prompt,
@@ -132,6 +136,8 @@ module Aicoo
             "auto_merge_enabled" => false,
             "auto_deploy_enabled" => false,
             "target_deploy_target" => "cloudflare_pages",
+            "target_repository_url" => cloudflare_configuration.repository_url,
+            "target_branch" => cloudflare_configuration.branch,
             "service_repository_protected" => true,
             "expected_profit_yen" => strategy["expected_profit_yen"].to_i
           }

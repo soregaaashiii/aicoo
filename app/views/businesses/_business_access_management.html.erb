@@ -1,5 +1,6 @@
 <% access_overview = business_access_overview %>
 <% analytics_site = access_overview.analytics_site %>
+<% cloudflare_configuration = cloudflare_pages_configuration %>
 
 <section class="dashboard-section" id="business-access-urls">
   <div class="section-heading">
@@ -122,12 +123,16 @@
                   </summary>
                   <dl class="business-access-values lp-analysis-values">
                     <dt>URL</dt><dd><%= landing_page.landing_page_url.presence || "未設定" %></dd>
-                    <dt>GitHub</dt><dd><%= landing_page.landing_page_repository_url.presence || "未設定" %></dd>
+                    <dt>GitHub</dt><dd><%= landing_page.landing_page_publication_repository_url.presence || cloudflare_configuration.repository_url %></dd>
+                    <dt>GitHub Path</dt><dd><%= landing_page.landing_page_github_path.presence || "未公開" %></dd>
                     <dt>PV</dt><dd><%= number_with_delimiter(lp_row.fetch(:pageviews)) %></dd>
                     <dt>GSC</dt><dd><%= number_with_delimiter(lp_row.fetch(:impressions)) %>表示 / <%= lp_row.fetch(:clicks) %>クリック / CTR <%= lp_row[:ctr] ? number_to_percentage(lp_row[:ctr] * 100, precision: 2) : "未計測" %> / 順位 <%= lp_row[:average_position] || "未計測" %></dd>
                     <dt>商談 / 契約</dt><dd><%= lp_row.fetch(:deals).to_i %> / <%= lp_row.fetch(:contracts).to_i %></dd>
                     <dt>期待CV / 時給</dt><dd><%= lp_row.fetch(:expected_cv).to_f.round(2) %> / <%= number_to_currency(lp_row.fetch(:expected_hourly_value_yen), unit: "¥", precision: 0) %></dd>
-                    <dt>Cloudflare</dt><dd><%= metadata["cloudflare_deploy_status"].presence || "未デプロイ" %> / <%= metadata["cloudflare_preview_url"].presence || "Preview未設定" %> / 最終Deploy <%= lp_row[:last_deploy_at] ? l(lp_row[:last_deploy_at], format: :short) : "未実施" %></dd>
+                    <dt>Cloudflare</dt><dd><%= metadata["cloudflare_deploy_status"].presence || "未デプロイ" %> / <%= landing_page.landing_page_cloudflare_url.presence || "公開URL未設定" %></dd>
+                    <dt>最終Push</dt><dd><%= landing_page.landing_page_last_push_at ? l(landing_page.landing_page_last_push_at, format: :short) : "未実施" %></dd>
+                    <dt>最終公開</dt><dd><%= landing_page.landing_page_last_published_at ? l(landing_page.landing_page_last_published_at, format: :short) : "未実施" %></dd>
+                    <dt>Variant</dt><dd><%= lp_row.fetch(:variant_count) %>件</dd>
                     <dt>A/Bテスト</dt><dd><%= landing_page.landing_page_ab_test["name"].presence || "未実施" %> <%= landing_page.landing_page_ab_test["variant"].presence %> <%= landing_page.landing_page_ab_test["winner"] ? "勝者" : nil %> <%= landing_page.landing_page_ab_test["win_rate"].present? ? number_to_percentage(landing_page.landing_page_ab_test["win_rate"].to_f * 100, precision: 1) : nil %></dd>
                   </dl>
                   <div class="business-access-card-actions">
@@ -144,6 +149,17 @@
                       <%= link_to "開く", landing_page.landing_page_url, class: "button secondary", target: "_blank", rel: "noopener" %>
                     <% end %>
                     <%= button_to "同期", landing_page_task_business_access_settings_path(business, landing_page_id: landing_page.id), method: :post, class: "button secondary" %>
+                    <%= button_to "公開",
+                                  publish_landing_page_business_access_settings_path(business, landing_page_id: landing_page.id),
+                                  method: :post,
+                                  class: "button",
+                                  data: { turbo_confirm: "aicoo-lpへcommitし、Cloudflare Pagesへ公開しますか？" } %>
+                    <% if metadata["github_commit_sha"].present? %>
+                      <%= button_to "公開確認",
+                                    verify_landing_page_business_access_settings_path(business, landing_page_id: landing_page.id),
+                                    method: :post,
+                                    class: "button secondary" %>
+                    <% end %>
                     <% if landing_page.landing_page_public_status == "published" %>
                       <%= button_to "改善を開始", improve_landing_page_business_access_settings_path(business, landing_page_id: landing_page.id), method: :post, class: "button" %>
                       <%= button_to "停止", landing_page_status_business_access_settings_path(business, landing_page_id: landing_page.id), method: :patch, params: { public_status: "stopped" }, class: "button secondary" %>
@@ -201,6 +217,12 @@
               <dd><%= number_to_currency(lp_row.fetch(:expected_profit_yen), unit: "¥", precision: 0) %></dd>
               <dt>Page Path</dt>
               <dd><%= landing_page.landing_page_ga4_path.presence || "生成待ち" %></dd>
+              <dt>GitHub Path</dt>
+              <dd><%= landing_page.landing_page_github_path.presence || "未公開" %></dd>
+              <dt>Cloudflare</dt>
+              <dd><%= landing_page.metadata.to_h["cloudflare_deploy_status"].presence || "未デプロイ" %></dd>
+              <dt>Variant</dt>
+              <dd><%= lp_row.fetch(:variant_count) %>件</dd>
               <dt>Pipeline</dt>
               <dd><%= landing_page.metadata.to_h["planning_status"].presence || landing_page.landing_page_sync_status_label %></dd>
             </dl>
@@ -211,7 +233,7 @@
                             class: "button secondary" %>
               <% end %>
               <% if landing_page.landing_page_url.present? %>
-                <%= link_to "開く", landing_page.landing_page_url, class: "button secondary", target: "_blank", rel: "noopener" %>
+                <%= link_to "公開確認", landing_page.landing_page_url, class: "button secondary", target: "_blank", rel: "noopener" %>
               <% end %>
             </div>
           </article>
@@ -242,9 +264,11 @@
 
       <dl class="business-access-values">
         <dt>Cloudflare Project</dt>
-        <dd><%= business.metadata.to_h["lp_cloudflare_project_name"].presence || "未設定" %></dd>
+        <dd><%= cloudflare_configuration.project_name %></dd>
         <dt>Cloudflare Production</dt>
-        <dd><%= business.metadata.to_h["lp_cloudflare_production_url"].presence || "未設定" %></dd>
+        <dd><%= cloudflare_configuration.production_url %></dd>
+        <dt>LP GitHub</dt>
+        <dd><%= cloudflare_configuration.repository_url %> / <%= cloudflare_configuration.branch %></dd>
         <dt>GA4</dt>
         <dd><%= analytics_site&.ga4_property_id.presence || "未設定" %></dd>
         <dt>Measurement ID</dt>
@@ -267,18 +291,6 @@
             <%= form.url_field :public_url, value: analytics_site&.public_url, placeholder: "https://lp.example.com" %>
           </div>
           <div class="field">
-            <%= form.label :cloudflare_project_name, "Cloudflare Pages Project" %>
-            <%= form.text_field :cloudflare_project_name, value: business.metadata.to_h["lp_cloudflare_project_name"], placeholder: "business-lps" %>
-          </div>
-          <div class="field">
-            <%= form.label :cloudflare_production_url, "Cloudflare Production URL" %>
-            <%= form.url_field :cloudflare_production_url, value: business.metadata.to_h["lp_cloudflare_production_url"], placeholder: "https://lp.example.com" %>
-          </div>
-          <div class="field">
-            <%= form.label :cloudflare_branch, "Cloudflare Branch" %>
-            <%= form.text_field :cloudflare_branch, value: business.metadata.to_h["lp_cloudflare_branch"] || "main" %>
-          </div>
-          <div class="field">
             <%= form.label :ga4_measurement_id, "GA4 Measurement ID" %>
             <%= form.text_field :ga4_measurement_id, value: access_overview.ga4_measurement_id, placeholder: "G-XXXXXXXXXX" %>
           </div>
@@ -296,6 +308,7 @@
           </div>
           <div class="actions compact-actions">
             <%= form.submit "保存", class: "button" %>
+            <%= link_to "Cloudflare設定", admin_lovable_path(anchor: "cloudflare-pages-settings"), class: "button secondary" %>
             <%= link_to "Google接続", admin_analytics_sites_path, class: "button secondary" %>
             <%= link_to "Activity API詳細", admin_source_app_connections_path, class: "button secondary" %>
           </div>

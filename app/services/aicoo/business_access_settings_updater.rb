@@ -92,9 +92,6 @@ module Aicoo
         update_activity_connection!(values)
         business.update!(metadata: business.metadata.to_h.merge(
           "lp_ga4_measurement_id" => values["ga4_measurement_id"].presence,
-          "lp_cloudflare_project_name" => values["cloudflare_project_name"].presence,
-          "lp_cloudflare_production_url" => values["cloudflare_production_url"].presence,
-          "lp_cloudflare_branch" => values["cloudflare_branch"].presence || "main",
           "lp_measurement_updated_at" => Time.current.iso8601
         ).compact)
       end

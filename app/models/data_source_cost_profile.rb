@@ -1,5 +1,6 @@
 class DataSourceCostProfile < ApplicationRecord
   EXECUTION_MODES = %w[auto smart manual].freeze
+  CONFIGURATION_KEYS = %w[cloudflare_pages].freeze
   SOURCE_DEFINITIONS = {
     "gsc" => { name: "Google Search Console", execution_mode: "auto", average_cost_yen: 0, average_expected_profit_yen: 0 },
     "ga4" => { name: "Google Analytics 4", execution_mode: "auto", average_cost_yen: 0, average_expected_profit_yen: 0 },
@@ -36,7 +37,10 @@ class DataSourceCostProfile < ApplicationRecord
 
   before_validation :set_defaults
 
-  scope :ordered, -> { order(Arel.sql("CASE execution_mode WHEN 'auto' THEN 1 WHEN 'smart' THEN 2 ELSE 3 END"), :source_key) }
+  scope :ordered, -> {
+    where.not(source_key: CONFIGURATION_KEYS)
+      .order(Arel.sql("CASE execution_mode WHEN 'auto' THEN 1 WHEN 'smart' THEN 2 ELSE 3 END"), :source_key)
+  }
   scope :enabled, -> { where(enabled: true) }
 
   def self.ensure_defaults!

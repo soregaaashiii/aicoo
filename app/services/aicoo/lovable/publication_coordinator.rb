@@ -15,16 +15,12 @@ module Aicoo
         landing_page_prototype = external_landing_page(business, generation_run)
         profile = business.business_execution_profile
         raise ArgumentError, "BusinessExecutionProfileが未設定です。Codex/Git/Render接続を先に設定してください。" unless profile&.active?
-        if landing_page_prototype && landing_page_prototype.landing_page_repository_url.blank?
-          raise ArgumentError, "LPのGitHubリポジトリを登録してください。"
-        end
-
         candidate = find_or_create_candidate!(business, landing_page, generation_run, profile, landing_page_prototype)
         task = candidate.auto_revision_tasks.active.first || AutoRevisionTask.from_action_candidate(candidate, generated_by: "lovable_publish_button")
         raise ArgumentError, "Codex公開Taskを作成できませんでした。" unless task
 
         task.update!(
-          target_repository_name: landing_page_prototype ? repository_name(landing_page_prototype.landing_page_repository_url) : task.target_repository_name,
+          target_repository_name: landing_page_prototype ? repository_name(cloudflare_configuration.repository_url) : task.target_repository_name,
           target_repository_type: landing_page_prototype ? "static_site" : task.target_repository_type,
           execution_prompt: candidate.execution_prompt,
           status: "ready_for_codex",
@@ -152,8 +148,8 @@ module Aicoo
       end
 
       def codex_execution_prompt(business, run, profile, file_changes, completion_criteria, landing_page_prototype)
-        repository_url = landing_page_prototype&.landing_page_repository_url || profile.effective_codex_repository_url
-        branch = landing_page_prototype&.landing_page_branch || profile.effective_codex_base_branch
+        repository_url = landing_page_prototype ? cloudflare_configuration.repository_url : profile.effective_codex_repository_url
+        branch = landing_page_prototype ? cloudflare_configuration.branch : profile.effective_codex_base_branch
         deploy_target = landing_page_prototype ? "Cloudflare Pages" : "Render"
         <<~PROMPT
           #{business.name}のLPをLovable Previewから公開Repositoryへ反映してください。
@@ -196,8 +192,8 @@ module Aicoo
         {
           "landing_page_id" => prototype.id,
           "campaign_id" => prototype.business_campaign_id,
-          "target_repository_url" => prototype.landing_page_repository_url,
-          "target_branch" => prototype.landing_page_branch,
+          "target_repository_url" => cloudflare_configuration.repository_url,
+          "target_branch" => cloudflare_configuration.branch,
           "target_deploy_target" => "cloudflare_pages",
           "target_url" => prototype.landing_page_url,
           "service_repository_protected" => true,
@@ -222,6 +218,10 @@ module Aicoo
         File.basename(URI.parse(url).path, ".git")
       rescue URI::InvalidURIError
         url.to_s.split("/").last
+      end
+
+      def cloudflare_configuration
+        @cloudflare_configuration ||= Aicoo::CloudflarePages::Configuration.new
       end
 
       def previous_preview(run)

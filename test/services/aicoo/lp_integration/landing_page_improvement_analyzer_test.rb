@@ -19,6 +19,10 @@ module Aicoo
           ga4_page_path: "/lp/ad",
           public_status: "published"
         )
+        @landing_page.update!(metadata: @landing_page.metadata.merge(
+          "cloudflare_url" => "https://aicoo-lp.pages.dev/lp/ad/",
+          "cloudflare_deploy_status" => "deployed"
+        ))
         @business.business_metric_dailies.create!(
           recorded_on: Date.current,
           sessions: 100,
@@ -54,7 +58,7 @@ module Aicoo
         expected_value = candidate.metadata.to_h.fetch("lp_expected_value")
         assert_equal "external_lp_improvement", candidate.metadata.to_h["workflow_type"]
         assert_equal @landing_page.id, candidate.metadata.to_h["landing_page_id"]
-        assert_equal "https://github.com/example/ad-lp", candidate.metadata.to_h["target_repository_url"]
+        assert_equal "https://github.com/soregaaashiii/aicoo-lp", candidate.metadata.to_h["target_repository_url"]
         assert_equal "cloudflare_pages", candidate.metadata.to_h["target_deploy_target"]
         assert_operator expected_value.fetch("expected_profit_yen"), :>, 0
         assert_operator expected_value.fetch("expected_cv").to_d, :>, 2
@@ -72,6 +76,13 @@ module Aicoo
       end
 
       test "batch analyzer uses shared snapshots and analyzes published landing pages" do
+        LandingPageRegistry.new(business: @business).save!(
+          name: "旧公開LP",
+          source_type: "public_url",
+          url: "https://lp.example.com/legacy",
+          ga4_page_path: "/legacy",
+          public_status: "published"
+        )
         LandingPageRegistry.new(business: @business).save!(
           name: "下書きLP",
           source_type: "public_url",

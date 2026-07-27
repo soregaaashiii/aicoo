@@ -45,6 +45,32 @@ class BusinessPrototype < ApplicationRecord
       (location if prototype_type == "github")
   end
 
+  def landing_page_publication_repository_url
+    metadata.to_h["lp_publication_repository_url"].presence
+  end
+
+  def landing_page_github_path
+    metadata.to_h["github_path"].presence
+  end
+
+  def landing_page_cloudflare_url
+    metadata.to_h["cloudflare_url"].presence || landing_page_url
+  end
+
+  def cloudflare_published?
+    landing_page_public_status == "published" &&
+      metadata.to_h["cloudflare_deploy_status"] == "deployed" &&
+      landing_page_cloudflare_url.present?
+  end
+
+  def landing_page_last_push_at
+    parsed_metadata_time("last_push_at")
+  end
+
+  def landing_page_last_published_at
+    parsed_metadata_time("last_published_at")
+  end
+
   def landing_page_branch
     metadata.to_h["lp_branch"].presence || metadata.to_h["lp_source_branch"].presence || "main"
   end
@@ -114,6 +140,12 @@ class BusinessPrototype < ApplicationRecord
   end
 
   private
+
+  def parsed_metadata_time(key)
+    Time.zone.parse(metadata.to_h[key].to_s) if metadata.to_h[key].present?
+  rescue ArgumentError
+    nil
+  end
 
   def set_defaults
     self.status = "active" if status.blank?

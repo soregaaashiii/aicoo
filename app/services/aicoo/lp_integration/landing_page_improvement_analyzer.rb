@@ -132,7 +132,6 @@ module Aicoo
       end
 
       def create_candidate!(opportunity, metrics)
-        repository_url = landing_page.landing_page_repository_url
         candidate = business.action_candidates.create!(
           title: "#{landing_page.landing_page_name}の#{improvement_label(opportunity.fetch('type'))}を行う",
           description: "LP単位のGA4/GSC実績から生成。#{opportunity.fetch('reason')}",
@@ -147,12 +146,13 @@ module Aicoo
           confidence_score: confidence_score(metrics),
           data_confidence_score: confidence_score(metrics),
           execution_prompt: execution_prompt(opportunity),
-          metadata: candidate_metadata(opportunity, metrics, repository_url)
+          metadata: candidate_metadata(opportunity, metrics)
         )
         candidate
       end
 
-      def candidate_metadata(opportunity, metrics, repository_url)
+      def candidate_metadata(opportunity, metrics)
+        cloudflare_configuration = Aicoo::CloudflarePages::Configuration.new
         {
           "workflow_type" => "external_lp_improvement",
           "execution_mode" => "code_revision",
@@ -173,16 +173,16 @@ module Aicoo
           "file_changes" => [ "LP repository root" ],
           "before" => "#{opportunity.fetch('target_metric')}=#{opportunity.fetch('current_value')} ",
           "after" => "#{opportunity.fetch('target_metric')}=#{opportunity.fetch('target_value')} を目標",
-          "target_repository_name" => repository_name(repository_url),
+          "target_repository_name" => repository_name(cloudflare_configuration.repository_url),
           "target_repository_type" => "static_site",
-          "target_repository_url" => repository_url,
-          "target_branch" => landing_page.landing_page_branch,
+          "target_repository_url" => cloudflare_configuration.repository_url,
+          "target_branch" => cloudflare_configuration.branch,
           "target_deploy_target" => "cloudflare_pages",
           "ga4_page_path" => landing_page.landing_page_ga4_path,
           "gsc_url" => landing_page.metadata.to_h["gsc_url"],
           "lp_expected_value" => opportunity,
           "lp_analytics" => metrics,
-          "codex_eligible" => repository_url.present?,
+          "codex_eligible" => cloudflare_configuration.repository_url.present?,
           "auto_revision" => false,
           "auto_merge" => false,
           "auto_deploy" => false,
@@ -193,12 +193,13 @@ module Aicoo
       end
 
       def execution_prompt(opportunity)
+        cloudflare_configuration = Aicoo::CloudflarePages::Configuration.new
         <<~PROMPT
           #{landing_page.landing_page_name} の#{improvement_label(opportunity.fetch('type'))}を行ってください。
           根拠: #{opportunity.fetch('reason')}
           対象: #{landing_page.landing_page_url}
-          Repository: #{landing_page.landing_page_repository_url}
-          Branch: #{landing_page.landing_page_branch}
+          Repository: #{cloudflare_configuration.repository_url}
+          Branch: #{cloudflare_configuration.branch}
           Hosting: Cloudflare Pages
 
           Service本体、Render、DBは変更せず、LP専用リポジトリだけを変更してください。

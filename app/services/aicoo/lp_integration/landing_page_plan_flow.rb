@@ -119,6 +119,7 @@ module Aicoo
 
       def create_generation_run!(items)
         totals = aggregate(items)
+        cloudflare_configuration = Aicoo::CloudflarePages::Configuration.new
         AicooLabGenerationRun.create!(
           generation_type: "lp_generation",
           status: "draft",
@@ -139,7 +140,7 @@ module Aicoo
             "manual_approval_required" => true,
             "auto_submit_enabled" => false,
             "auto_deploy_enabled" => false,
-            "cloudflare_project_name" => business.metadata.to_h["lp_cloudflare_project_name"],
+            "cloudflare_project_name" => cloudflare_configuration.project_name,
             "ga4_property_id" => shared_analytics_site&.ga4_property_id,
             "gsc_site_url" => shared_analytics_site&.gsc_site_url,
             "created_by" => "aicoo_lp_planner",

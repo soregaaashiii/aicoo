@@ -96,6 +96,13 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
     assert_equal campaign, landing_page.business_campaign
     assert_equal "published", landing_page.landing_page_public_status
     assert_nil @other_business.business_campaigns.find_by(name: "Google Ads")
+
+    get business_url(@business)
+    assert_response :success
+    assert_select "#external-lp-#{landing_page.id}" do
+      assert_select "dt", text: "GitHub Path"
+      assert_select "form[action='#{publish_landing_page_business_access_settings_path(@business, landing_page_id: landing_page.id)}'] button", text: "公開"
+    end
   end
 
   test "business can store multiple services and primary service configures execution profile" do
@@ -135,16 +142,17 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to business_url(@business, anchor: "business-access-urls")
     task = @business.auto_revision_tasks.order(:created_at).last
     assert_equal "external_lp_sync", task.metadata.to_h["workflow_type"]
-    assert_equal "https://github.com/example/lp-top", task.effective_codex_repository_url
+    assert_equal "https://github.com/soregaaashiii/aicoo-lp", task.effective_codex_repository_url
     assert_equal "cloudflare_pages", task.effective_deploy_target
     assert task.metadata.to_h["service_repository_protected"]
     assert_not_equal @business.business_execution_profile.github_repository, task.effective_codex_repository_url
     submission = Aicoo::CodexSubmissionBuilder.new(task, force: true).call.submission
-    assert_equal "https://github.com/example/lp-top", submission.repository_url
+    assert_equal "https://github.com/soregaaashiii/aicoo-lp", submission.repository_url
     assert_equal "main", submission.base_branch
     assert_equal "lp-top", submission.project_folder
     assert_not_includes submission.prompt, "api-web"
     assert_includes submission.prompt, "Cloudflare Pages"
+    assert_includes submission.prompt, "aicoo-lp"
     assert_includes submission.prompt, "Auto Deploy: 不可"
   end
 
@@ -155,9 +163,6 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
         ga4_measurement_id: "G-TEST123",
         ga4_property_id: "123456789",
         gsc_site_url: "https://lp.example.com",
-        cloudflare_project_name: "all-business-lps",
-        cloudflare_production_url: "https://lp.example.com",
-        cloudflare_branch: "main",
         activity_api_enabled: "1"
       }
     }
@@ -185,7 +190,7 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, site.analytics_source_settings.where(source_type: "ga4").count
     assert_equal 1, site.analytics_source_settings.where(source_type: "gsc").count
     assert Aicoo::LpIntegration::Overview.new(@business.reload).activity_api_enabled?
-    assert_equal "all-business-lps", @business.reload.metadata.to_h["lp_cloudflare_project_name"]
+    assert_equal "aicoo-lp", Aicoo::CloudflarePages::Configuration.new(env: {}).project_name
     assert_equal 100, @business.business_prototypes.active.external_landing_pages.distinct.count
     assert_equal 1, @business.business_campaigns.count
   end
