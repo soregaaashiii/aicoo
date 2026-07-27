@@ -22,6 +22,34 @@ module Aicoo
         assert_equal ads_lp, rows.second.fetch(:landing_pages).first.fetch(:landing_page)
       end
 
+      test "new candidate expected profit is not hidden by an earlier daily snapshot" do
+        business = Business.create!(name: "Campaign最新期待値", status: "launched", business_type: "landing_page")
+        campaign = business.business_campaigns.create!(name: "SEO", campaign_type: "seo")
+        page = landing_page(business, campaign, "SEO LP", 100, 1, 0)
+        AicooDataSnapshot.create!(
+          source_type: "landing_page_analytics",
+          source_id: page.id,
+          captured_at: Time.current,
+          payload: {
+            "business_id" => business.id,
+            "landing_page_id" => page.id,
+            "evaluation" => { "expected_profit_yen" => 0 }
+          }
+        )
+        business.action_candidates.create!(
+          title: "SEO LPのCTAを改善",
+          action_type: "ui_improvement",
+          generation_source: "lp_learning",
+          immediate_value_yen: 40_000,
+          success_probability: 1,
+          metadata: { "landing_page_id" => page.id }
+        )
+
+        row = CampaignDashboard.new(business).call.first.fetch(:landing_pages).first
+
+        assert_equal 40_000, row.fetch(:expected_profit_yen)
+      end
+
       private
 
       def landing_page(business, campaign, name, pageviews, conversions, expected_profit_yen)

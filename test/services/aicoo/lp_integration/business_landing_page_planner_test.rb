@@ -53,6 +53,24 @@ module Aicoo
         assert_equal "expected_profit_yen", planner.fetch("ranking_metric")
         assert planner.fetch("total_missing_count").positive?
       end
+
+      test "ranks lp additions and measured improvements together by expected profit yen" do
+        candidate = @business.action_candidates.create!(
+          title: "Current SEO LPのCTAを改善",
+          action_type: "ui_improvement",
+          generation_source: "lp_learning",
+          immediate_value_yen: 80_000,
+          success_probability: 1,
+          metadata: { "landing_page_id" => @landing_page.id }
+        )
+
+        result = BusinessLandingPagePlanner.new(@business).call
+
+        assert_equal "improve_landing_page", result.ranked_actions.first.fetch("planner_action")
+        assert_equal candidate.id, result.ranked_actions.first.fetch("action_candidate_id")
+        assert_equal result.ranked_actions.sort_by { |row| -row.fetch("expected_profit_yen").to_i },
+          result.ranked_actions
+      end
     end
   end
 end

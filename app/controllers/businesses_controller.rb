@@ -104,6 +104,10 @@ class BusinessesController < ApplicationController
     @external_landing_pages = @business.business_prototypes.active.external_landing_pages
     @business_campaigns = @business.business_campaigns.active.includes(:landing_pages).recent
     @campaign_dashboard = Aicoo::LpIntegration::CampaignDashboard.new(@business).call
+    @landing_page_dashboard = Aicoo::LpIntegration::BusinessLandingPageDashboard.new(
+      business: @business,
+      campaign_dashboard: @campaign_dashboard
+    ).call
     @landing_page_planner = Aicoo::LpIntegration::BusinessLandingPagePlanner.new(@business).call
     @mvp_evaluations = Aicoo::MvpEvaluationSummary.for_business(@business)
     @mvp_evaluations_by_service_id = @mvp_evaluations.index_by { |row| row.business_service.id }

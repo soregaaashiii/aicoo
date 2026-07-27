@@ -4,6 +4,8 @@ module Aicoo
       Result = Data.define(
         :business,
         :recommendations,
+        :improvement_recommendations,
+        :ranked_actions,
         :total_missing_count,
         :total_expected_profit_yen,
         :generated_at
@@ -41,10 +43,17 @@ module Aicoo
       def call(persist: false)
         recommendations = planning_purposes.filter_map { |purpose| recommendation_for(purpose) }
           .sort_by { |row| -row.fetch("expected_profit_yen") }
+        improvement_recommendations = improvement_recommendations_for_business
+        ranked_actions = (
+          recommendations.map { |row| row.merge("planner_action" => "create_landing_page") } +
+          improvement_recommendations
+        ).sort_by { |row| [ -row.fetch("expected_profit_yen").to_i, row.fetch("planner_action"), row.fetch("landing_page_id", 0).to_i ] }
         generated_at = Time.current
         result = Result.new(
           business:,
           recommendations:,
+          improvement_recommendations:,
+          ranked_actions:,
           total_missing_count: recommendations.sum { |row| row.fetch("missing_count") },
           total_expected_profit_yen: recommendations.sum { |row| row.fetch("expected_profit_yen") },
           generated_at:
@@ -95,6 +104,27 @@ module Aicoo
           "expected_value_source" => expected_profit_per_lp.positive? ? "existing_lp_expected_profit" : "insufficient_profit_evidence",
           "reason" => recommendation_reason(purpose, count_source, pages.size, desired_count)
         }
+      end
+
+      def improvement_recommendations_for_business
+        landing_pages = business.business_prototypes.active.external_landing_pages.index_by(&:id)
+        business.action_candidates.active_for_ranking.where(generation_source: "lp_learning").filter_map do |candidate|
+          landing_page = landing_pages[candidate.metadata.to_h["landing_page_id"].to_i]
+          expected_profit_yen = candidate.final_expected_value_yen.to_i
+          next unless landing_page && expected_profit_yen.positive?
+
+          {
+            "planner_action" => "improve_landing_page",
+            "landing_page_id" => landing_page.id,
+            "landing_page_name" => landing_page.landing_page_name,
+            "campaign_id" => landing_page.business_campaign_id,
+            "campaign_name" => landing_page.business_campaign&.name,
+            "action_candidate_id" => candidate.id,
+            "title" => candidate.title,
+            "expected_profit_yen" => expected_profit_yen,
+            "reason" => candidate.evaluation_reason.presence || candidate.description
+          }
+        end.sort_by { |row| [ -row.fetch("expected_profit_yen"), row.fetch("landing_page_id") ] }
       end
 
       def desired_count_for(campaign, purpose, pages)
@@ -205,6 +235,8 @@ module Aicoo
           "lp_improvement_planner" => {
             "generated_at" => result.generated_at.iso8601,
             "recommendations" => result.recommendations,
+            "improvement_recommendations" => result.improvement_recommendations,
+            "ranked_actions" => result.ranked_actions,
             "total_missing_count" => result.total_missing_count,
             "total_expected_profit_yen" => result.total_expected_profit_yen,
             "ranking_metric" => "expected_profit_yen"

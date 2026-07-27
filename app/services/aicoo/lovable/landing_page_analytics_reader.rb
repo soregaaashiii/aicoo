@@ -43,15 +43,32 @@ module Aicoo
           decimal(value(row, "userEngagementDuration", "engagement_seconds", "averageEngagementTime", "average_engagement_time_seconds", metric_index: 4))
         end
         bounce_values = rows.filter_map { |row| optional_decimal(value(row, "bounceRate", "bounce_rate")) }
+        event_counts = rows.each_with_object(Hash.new(0)) do |row, counts|
+          name = event_name(row)
+          counts[name] += decimal(value(row, "eventCount", "event_count", metric_index: 3)).to_i if name.present?
+        end
+        pageviews = rows.sum { |row| decimal(value(row, "screenPageViews", "pageviews", "page_views", "views", metric_index: 0)) }.to_i
+        active_users = rows.sum { |row| decimal(value(row, "activeUsers", "active_users", "users", metric_index: 1)) }.to_i
+        conversions = rows.sum { |row| decimal(value(row, "keyEvents", "conversions", "conversion_count")) }.to_i
+        cta_clicks = rows.sum { |row| decimal(value(row, "ctaClicks", "cta_clicks", "cta_click_count")) }.to_i
+        scrolls = rows.sum do |row|
+          explicit = decimal(value(row, "scrolls", "scroll_count"))
+          explicit.positive? ? explicit : (event_name(row).to_s.match?(/scroll/i) ? decimal(value(row, "eventCount", "event_count", metric_index: 3)) : 0)
+        end.to_i
         {
           "available" => true,
-          "pageviews" => rows.sum { |row| decimal(value(row, "screenPageViews", "pageviews", "page_views", "views", metric_index: 0)) }.to_i,
-          "active_users" => rows.sum { |row| decimal(value(row, "activeUsers", "active_users", "users", metric_index: 1)) }.to_i,
+          "pageviews" => pageviews,
+          "active_users" => active_users,
+          "users" => active_users,
           "sessions" => sessions.to_i,
           "engagement_seconds" => sessions.positive? ? (engagement_total / sessions).round(2).to_f : nil,
           "event_count" => rows.sum { |row| decimal(value(row, "eventCount", "event_count", metric_index: 3)) }.to_i,
-          "conversions" => rows.sum { |row| decimal(value(row, "keyEvents", "conversions", "conversion_count")) }.to_i,
-          "cta_clicks" => rows.sum { |row| decimal(value(row, "ctaClicks", "cta_clicks", "cta_click_count")) }.to_i,
+          "events" => event_counts.sort.to_h,
+          "conversions" => conversions,
+          "conversion_rate" => sessions.positive? ? (conversions.to_d / sessions).round(6).to_f : nil,
+          "cta_clicks" => cta_clicks,
+          "scrolls" => scrolls,
+          "scroll_rate" => pageviews.positive? ? (scrolls.to_d / pageviews).round(4).to_f : nil,
           "landing_page_views" => rows.sum { |row| decimal(value(row, "landingPageViews", "landing_page_views")) }.to_i,
           "bounce_rate" => average(bounce_values),
           "page_paths" => rows.map { |row| page_value(row) }.uniq.first(20),
@@ -66,6 +83,29 @@ module Aicoo
         return unavailable("gsc") if source_rows.empty?
 
         rows = gsc_daily_rows(source_rows)
+        queries = source_rows.filter_map do |row|
+          query = query_value(row)
+          next if query.blank?
+
+          {
+            "query" => query,
+            "impressions" => decimal(value(row, "impressions")).to_i,
+            "clicks" => decimal(value(row, "clicks")).to_i,
+            "position" => optional_decimal(value(row, "position", "average_position"))&.to_f
+          }
+        end
+        query_totals = queries.group_by { |row| row.fetch("query") }.map do |query, query_rows|
+          impressions = query_rows.sum { |row| row.fetch("impressions") }
+          clicks = query_rows.sum { |row| row.fetch("clicks") }
+          weighted_position = query_rows.sum { |row| row.fetch("position").to_d * row.fetch("impressions") }
+          {
+            "query" => query,
+            "impressions" => impressions,
+            "clicks" => clicks,
+            "ctr" => impressions.positive? ? (clicks.to_d / impressions).round(4).to_f : 0.0,
+            "average_position" => impressions.positive? ? (weighted_position / impressions).round(2).to_f : nil
+          }
+        end.sort_by { |row| [ -row.fetch("impressions"), row.fetch("query") ] }
 
         impressions = rows.sum { |row| decimal(value(row, "impressions")) }
         clicks = rows.sum { |row| decimal(value(row, "clicks")) }
@@ -78,6 +118,8 @@ module Aicoo
           "clicks" => clicks.to_i,
           "ctr" => impressions.positive? ? (clicks / impressions).round(4).to_f : 0.0,
           "average_position" => impressions.positive? ? (weighted_position / impressions).round(2).to_f : nil,
+          "query_count" => query_totals.size,
+          "queries" => query_totals.first(20),
           "page_paths" => rows.map { |row| page_value(row) }.uniq.first(20),
           "source" => "aicoo_data_snapshot",
           "source_id" => latest_snapshot("gsc")&.id,
@@ -108,6 +150,16 @@ module Aicoo
           row["query"],
           row["keyword"],
           Array(row["keys"]).find { |candidate| candidate.present? && !candidate.to_s.start_with?("/") && !candidate.to_s.match?(%r{\Ahttps?://}i) }
+        )
+      end
+
+      def event_name(row)
+        first_present(
+          row["eventName"],
+          row["event_name"],
+          Array(row["dimensionValues"]).filter_map { |item| item.to_h["value"].presence }.find do |candidate|
+            !candidate.start_with?("/") && !candidate.match?(%r{\Ahttps?://}i)
+          end
         )
       end
 

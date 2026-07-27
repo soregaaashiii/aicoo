@@ -82,6 +82,7 @@ module Aicoo
           "improvement_history" => business.action_candidates.where(generation_source: "lp_learning").order(created_at: :desc).limit(20).map { |candidate|
             { "title" => candidate.title, "reason" => candidate.evaluation_reason, "expected_profit_yen" => candidate.final_expected_value_yen }
           },
+          "winning_patterns" => LandingPageWinningPatterns.new(business:).call,
           "recent_activity" => business.business_activity_logs.recent.limit(50).pluck(:activity_type).tally,
           "measurement" => {
             "ga4_connected" => AicooAnalyticsSite.where(business:).where.not(ga4_property_id: [ nil, "" ]).exists?,

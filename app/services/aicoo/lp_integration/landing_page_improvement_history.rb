@@ -13,6 +13,7 @@ module Aicoo
           task = tasks_by_candidate[candidate.id]
           execution = task&.auto_revision_executions&.max_by(&:created_at)
           {
+            action_candidate_id: candidate.id,
             landing_page_id:,
             occurred_at: execution&.finished_at || task&.finished_at || candidate.created_at,
             change_content: candidate.metadata.to_h["change_content"].presence || candidate.title,

@@ -21,7 +21,7 @@ module AicooDataHub
     end
 
     def collect_all
-      collect_data_imports + collect_landing_pages + collect_revenue
+      collect_data_imports + collect_landing_pages + collect_external_landing_page_analytics + collect_revenue
     end
 
     def collect_data_imports
@@ -43,6 +43,34 @@ module AicooDataHub
           source_id: landing_page.id
         ) { landing_page_payload(landing_page) }
       end
+    end
+
+    def collect_external_landing_page_analytics
+      result = Result.empty
+      target_businesses.find_each do |business|
+        snapshots = Aicoo::Lovable::LandingPageAnalyticsReader.latest_snapshots_for(business)
+        activity_logs = business.business_activity_logs.where(occurred_at: 120.days.ago..Time.current).to_a
+        revenue_events = business.revenue_events.includes(:action_candidate).where(occurred_on: 120.days.ago.to_date..Date.current).to_a
+        business.business_prototypes.active.external_landing_pages.find_each do |landing_page|
+          next unless landing_page.cloudflare_published?
+
+          result += collect_one do
+            create_snapshot_unless_exists(
+              source_type: "landing_page_analytics",
+              source_id: landing_page.id
+            ) do
+              Aicoo::LpIntegration::LandingPageAnalyzer.new(
+                business:,
+                landing_page:,
+                snapshots:,
+                activity_logs:,
+                revenue_events:
+              ).call.payload
+            end
+          end
+        end
+      end
+      result
     end
 
     def collect_revenue
@@ -69,6 +97,10 @@ module AicooDataHub
     end
 
     private
+
+    def target_businesses
+      Business.where(id: BusinessPrototype.active.external_landing_pages.select(:business_id))
+    end
 
     def collect_data_imports_for(source_type)
       scope = DataImport.joins(:data_source).where(data_sources: { source_type: })

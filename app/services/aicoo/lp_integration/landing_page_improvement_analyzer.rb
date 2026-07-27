@@ -40,21 +40,17 @@ module Aicoo
       end
 
       def analytics
-        result = Aicoo::Lovable::LandingPageAnalyticsReader.new(
+        measured = LandingPageAnalyzer.new(
           business:,
-          started_at: 90.days.ago,
-          ended_at: Time.current,
-          target_paths: [ landing_page.landing_page_url, landing_page.landing_page_ga4_path ],
+          landing_page:,
           snapshots:
-        ).call
-        {
-          "ga4" => result.ga4,
-          "gsc" => result.gsc,
-          "current_conversion_rate" => current_conversion_rate(result.ga4),
+        ).call.payload
+        measured.merge(
+          "current_conversion_rate" => current_conversion_rate(measured.fetch("ga4")),
           "business_conversion_rate" => business_conversion_rate,
           "business_gsc_ctr" => business_gsc_ctr,
           "analyzed_at" => Time.current.iso8601
-        }
+        )
       end
 
       def improvement_opportunity(metrics)
@@ -182,6 +178,8 @@ module Aicoo
           "gsc_url" => landing_page.metadata.to_h["gsc_url"],
           "lp_expected_value" => opportunity,
           "lp_analytics" => metrics,
+          "lp_learning" => metrics["learning"],
+          "lp_evaluation" => metrics["evaluation"],
           "codex_eligible" => cloudflare_configuration.repository_url.present?,
           "auto_revision" => false,
           "auto_merge" => false,

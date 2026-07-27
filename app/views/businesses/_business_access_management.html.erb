@@ -10,6 +10,19 @@
     </div>
   </div>
 
+  <div class="metric-grid" id="business-lp-analyzer-dashboard">
+    <div class="metric-card"><span>利益実績</span><strong><%= number_to_currency(landing_page_dashboard.fetch(:actual_profit_yen), unit: "¥", precision: 0) %></strong></div>
+    <div class="metric-card"><span>期待利益</span><strong><%= number_to_currency(landing_page_dashboard.fetch(:expected_profit_yen), unit: "¥", precision: 0) %></strong></div>
+    <div class="metric-card"><span>公開LP</span><strong><%= landing_page_dashboard.fetch(:published_landing_page_count) %>件</strong></div>
+    <div class="metric-card"><span>改善承認待ち</span><strong><%= landing_page_dashboard.fetch(:waiting_improvement_count) %>件</strong></div>
+    <div class="metric-card"><span>改善勝率</span><strong><%= landing_page_dashboard[:win_rate] ? number_to_percentage(landing_page_dashboard[:win_rate] * 100, precision: 1) : "未学習" %></strong></div>
+    <div class="metric-card"><span>平均CV率</span><strong><%= landing_page_dashboard[:average_conversion_rate] ? number_to_percentage(landing_page_dashboard[:average_conversion_rate] * 100, precision: 2) : "未計測" %></strong></div>
+    <div class="metric-card"><span>平均CTR</span><strong><%= landing_page_dashboard[:average_ctr] ? number_to_percentage(landing_page_dashboard[:average_ctr] * 100, precision: 2) : "未計測" %></strong></div>
+    <div class="metric-card"><span>問い合わせ</span><strong><%= landing_page_dashboard.fetch(:inquiry_count) %>件</strong></div>
+    <div class="metric-card"><span>今週の改善 / 利益増加</span><strong><%= landing_page_dashboard.fetch(:weekly_improvement_count) %>件 / <%= number_to_currency(landing_page_dashboard.fetch(:weekly_profit_delta_yen), unit: "¥", precision: 0) %></strong></div>
+    <div class="metric-card"><span>次に改善すべきLP</span><strong><%= landing_page_dashboard[:next_landing_page]&.landing_page_name || "候補なし" %></strong><small><%= number_to_currency(landing_page_dashboard.fetch(:next_expected_profit_yen), unit: "¥", precision: 0) %></small></div>
+  </div>
+
   <div class="metric-grid business-access-grid">
     <div class="metric-card business-access-card" id="business-service-access-card">
       <div class="business-access-card-heading">
@@ -178,6 +191,49 @@
                       <p>改善履歴はまだありません。</p>
                     <% end %>
                   </details>
+                  <details class="lp-analyzer" id="lp-analyzer-<%= landing_page.id %>">
+                    <summary>LP Analyzer</summary>
+                    <dl class="business-access-values lp-analysis-values">
+                      <dt>GA4</dt>
+                      <dd>Session <%= lp_row.fetch(:sessions) %> / User <%= lp_row.fetch(:users) %> / CV <%= lp_row.fetch(:conversions) %> / CV率 <%= lp_row[:conversion_rate] ? number_to_percentage(lp_row[:conversion_rate] * 100, precision: 2) : "未計測" %></dd>
+                      <dt>行動</dt>
+                      <dd>滞在 <%= lp_row[:engagement_seconds] || "未計測" %>秒 / 直帰 <%= lp_row[:bounce_rate] ? number_to_percentage(lp_row[:bounce_rate] * 100, precision: 1) : "未計測" %> / Scroll <%= lp_row[:scroll_rate] ? number_to_percentage(lp_row[:scroll_rate] * 100, precision: 1) : "未計測" %> / Event <%= lp_row.fetch(:event_count) %></dd>
+                      <dt>GSC</dt>
+                      <dd><%= lp_row.fetch(:impressions) %>表示 / <%= lp_row.fetch(:clicks) %>クリック / CTR <%= lp_row[:ctr] ? number_to_percentage(lp_row[:ctr] * 100, precision: 2) : "未計測" %> / 順位 <%= lp_row[:average_position] || "未計測" %> / Query <%= lp_row.fetch(:query_count) %></dd>
+                      <dt>成果</dt>
+                      <dd>問い合わせ <%= lp_row.fetch(:inquiries).to_i %> / 商談 <%= lp_row.fetch(:deals).to_i %> / 契約 <%= lp_row.fetch(:contracts).to_i %> / 売上 <%= number_to_currency(lp_row.fetch(:revenue_yen), unit: "¥", precision: 0) %></dd>
+                      <dt>利益</dt>
+                      <dd>期待 <%= number_to_currency(lp_row.fetch(:expected_profit_yen), unit: "¥", precision: 0) %> / 実績 <%= number_to_currency(lp_row.fetch(:actual_profit_yen), unit: "¥", precision: 0) %></dd>
+                      <dt>改善</dt>
+                      <dd><%= lp_row.fetch(:improvement_count) %>回 / 成功率 <%= lp_row[:improvement_success_rate] ? number_to_percentage(lp_row[:improvement_success_rate] * 100, precision: 1) : "未学習" %> / 最終 <%= lp_row[:last_improvement_at] ? l(lp_row[:last_improvement_at], format: :short) : "未実施" %></dd>
+                      <dt>A/B</dt>
+                      <dd><%= landing_page.landing_page_ab_test["status"].presence || "未実施" %> / 勝率 <%= landing_page.landing_page_ab_test["win_rate"].present? ? number_to_percentage(landing_page.landing_page_ab_test["win_rate"].to_f * 100, precision: 1) : "未計測" %></dd>
+                      <dt>Learning</dt>
+                      <dd><%= lp_row.dig(:learning, "status").presence || "改善後データ待ち" %><% if lp_row.dig(:learning, "profit_delta_yen").present? %> / 利益差 <%= number_to_currency(lp_row.dig(:learning, "profit_delta_yen"), unit: "¥", precision: 0) %><% end %></dd>
+                    </dl>
+                    <% if lp_row.fetch(:queries).any? %>
+                      <p><strong>検索クエリ:</strong> <%= lp_row.fetch(:queries).first(8).map { |query| "#{query['query']} (#{query['impressions']})" }.join(" / ") %></p>
+                    <% end %>
+                    <% if lp_row.fetch(:analyzer_timeline).any? %>
+                      <div class="table-wrap">
+                        <table>
+                          <thead><tr><th>計測日</th><th>利益</th><th>CV率</th><th>CTR</th><th>順位</th><th>問い合わせ</th></tr></thead>
+                          <tbody>
+                            <% lp_row.fetch(:analyzer_timeline).first(8).each do |point| %>
+                              <tr>
+                                <td><%= l(point.fetch(:captured_at), format: :short) %></td>
+                                <td><%= number_to_currency(point.fetch(:profit_yen), unit: "¥", precision: 0) %></td>
+                                <td><%= point[:conversion_rate] ? number_to_percentage(point[:conversion_rate] * 100, precision: 2) : "-" %></td>
+                                <td><%= point[:ctr] ? number_to_percentage(point[:ctr] * 100, precision: 2) : "-" %></td>
+                                <td><%= point[:average_position] || "-" %></td>
+                                <td><%= point.fetch(:inquiries) %></td>
+                              </tr>
+                            <% end %>
+                          </tbody>
+                        </table>
+                      </div>
+                    <% end %>
+                  </details>
                 </details>
               <% end %>
             </div>
@@ -326,12 +382,18 @@
       </div>
 
       <div class="business-access-item-list">
-        <% landing_page_planner.recommendations.each_with_index do |recommendation, index| %>
+        <% landing_page_planner.ranked_actions.each_with_index do |recommendation, index| %>
           <article class="business-access-list-item lp-planner-recommendation">
             <div class="business-access-item-heading">
               <div>
                 <span><%= index + 1 %>位</span>
-                <strong><%= recommendation.fetch("purpose_label") %> あと<%= recommendation.fetch("missing_count") %>件</strong>
+                <% if recommendation.fetch("planner_action") == "improve_landing_page" %>
+                  <strong><%= recommendation.fetch("title") %></strong>
+                  <small>LP改善 / <%= recommendation.fetch("landing_page_name") %></small>
+                <% else %>
+                  <strong><%= recommendation.fetch("purpose_label") %> あと<%= recommendation.fetch("missing_count") %>件</strong>
+                  <small>LP追加</small>
+                <% end %>
               </div>
               <strong><%= number_to_currency(recommendation.fetch("expected_profit_yen"), unit: "¥", precision: 0) %></strong>
             </div>

@@ -26,11 +26,32 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
     assert_select "#business-lp-access-card", text: /LP/
     assert_select "#business-measurement-access-card", text: /計測/
     assert_select "#business-lp-planner-card", text: /改善Planner/
+    assert_select "#business-lp-analyzer-dashboard", text: /利益実績/
     assert_select "summary", text: "+ Service追加"
     assert_select "summary", text: "+ Campaign追加"
     assert_select "summary", text: "共通計測を設定"
     assert_select "#business-campaign-access-card input[name='measurement_access[ga4_property_id]']", count: 0
     assert_select "#business-campaign-access-card input[name='measurement_access[gsc_site_url]']", count: 0
+  end
+
+  test "business detail shows the lp analyzer inside the selected landing page" do
+    campaign = @business.business_campaigns.create!(name: "SEO", campaign_type: "seo", status: "active")
+    landing_page = Aicoo::LpIntegration::LandingPageRegistry.new(business: @business).save!(
+      campaign_id: campaign.id,
+      name: "計測LP",
+      source_type: "public_url",
+      url: "https://lp.example.com/analyzer",
+      ga4_page_path: "/analyzer",
+      public_status: "published"
+    )
+
+    get business_url(@business)
+
+    assert_response :success
+    assert_select "#lp-analyzer-#{landing_page.id}", text: /LP Analyzer/
+    assert_select "#lp-analyzer-#{landing_page.id}", text: /GA4/
+    assert_select "#lp-analyzer-#{landing_page.id}", text: /GSC/
+    assert_select "#lp-analyzer-#{landing_page.id}", text: /Learning/
   end
 
   test "landing page creation asks only for purpose and hides optional controls in details" do
