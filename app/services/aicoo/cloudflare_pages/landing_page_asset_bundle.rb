@@ -32,7 +32,7 @@ module Aicoo
       end
 
       def parsed_response(payload)
-        JSON.parse(generation_run.response.to_s.presence || "{}")
+        JSON.parse(generation_run&.response.to_s.presence || "{}")
       rescue JSON::ParserError
         payload["lovable_response"].to_h
       end
