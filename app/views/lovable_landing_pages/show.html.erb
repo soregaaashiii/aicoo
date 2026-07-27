@@ -110,23 +110,38 @@
       "prompt_ready" => "Promptレビュー待ち",
       "lovable_handoff_ready" => "Lovableでのユーザー操作待ち",
       "lovable_generation_waiting" => "Lovable生成待ち",
-      "lovable_result_waiting" => "生成結果取得待ち",
+      "lovable_result_waiting" => "GitHub Push待ち（旧Version）",
+      "github_webhook_waiting" => "GitHub Push待ち",
+      "github_webhook_received" => "Webhook受信済み",
+      "artifact_fetching" => "成果物取得中",
       "lovable_result_received" => "生成結果取得済み",
-      "static_build_started" => "静的build中",
+      "static_build_started" => "静的化中",
+      "static_building" => "静的化中",
       "waiting_manual_fix" => "手動修正待ち",
       "github_commit_waiting" => "GitHub commit待ち",
       "cloudflare_deploying" => "Cloudflare公開待ち",
+      "cloudflare_waiting" => "Cloudflare公開待ち",
+      "cloudflare_failed" => "Cloudflare公開失敗",
+      "cloudflare_verification_timeout" => "Cloudflare確認タイムアウト",
+      "public_url_verification_timeout" => "公開URL確認失敗",
       "cloudflare_published" => "Cloudflare公開済み",
+      "measurement_waiting" => "GA4・GSC計測待ち",
+      "learning_waiting" => "Learning待ち",
       "improvement_waiting" => "改善待ち"
     } %>
     <% next_action =
       case pipeline["pipeline_status"]
       when "prompt_ready" then "LP戦略とPromptを確認して承認"
       when "lovable_handoff_ready", "lovable_generation_waiting" then "Lovableで生成し、project URLと結果Repositoryを登録"
-      when "lovable_result_waiting" then "生成結果を取得"
-      when "waiting_manual_fix" then "表示された理由を修正して再開"
+      when "lovable_result_waiting", "github_webhook_waiting" then "LovableからGitHubへPushされるのを待つ"
+      when "github_webhook_received", "artifact_fetching", "static_build_started", "static_building" then "AICOOの自動処理を待つ"
+      when "waiting_manual_fix" then "表示された理由を修正してGitHubへ再Push"
       when "github_commit_waiting" then "GitHub Token権限を確認して再試行"
-      when "cloudflare_deploying" then "Cloudflare Pagesの反映を待つ"
+      when "cloudflare_deploying", "cloudflare_waiting" then "Cloudflare Pagesの反映を待つ"
+      when "cloudflare_failed", "cloudflare_verification_timeout", "public_url_verification_timeout" then "公開エラーを確認して修正する"
+      when "measurement_waiting" then "GA4・GSCの初回計測を待つ"
+      when "learning_waiting" then "Learningの完了を待つ"
+      when "improvement_waiting" then "Daily Runの改善判断を待つ"
       else "現在の状態を確認"
       end %>
     <section class="dashboard-section" id="lovable-pipeline">
@@ -152,6 +167,7 @@
         <dt>生成状態</dt><dd><%= status_labels.fetch(pipeline["pipeline_status"], pipeline["pipeline_status"]) %></dd>
         <dt>最終同期</dt><dd><%= pipeline["lovable_last_sync_at"].presence || pipeline["lovable_result_registered_at"].presence || "-" %></dd>
         <dt>生成結果Repository</dt><dd><%= pipeline["lovable_result_repository"].presence || "未登録" %> / <%= pipeline["lovable_result_branch"].presence || "main" %></dd>
+        <dt>Webhook commit SHA</dt><dd><%= pipeline["github_webhook_commit_sha"].presence || "-" %></dd>
         <dt>静的build</dt><dd><%= pipeline["static_build_status"].presence || "未実行" %><% if pipeline["static_build_type"].present? %>（<%= pipeline["static_build_type"] %>）<% end %></dd>
         <dt>GitHub commit SHA</dt><dd><%= pipeline["github_commit_sha"].presence || publication["commit_sha"].presence || "-" %></dd>
         <dt>Cloudflare公開URL</dt><dd><%= pipeline["cloudflare_url"].present? ? link_to(pipeline["cloudflare_url"], pipeline["cloudflare_url"], target: "_blank", rel: "noopener") : publication["production_url"].presence || "-" %></dd>
@@ -173,16 +189,10 @@
             <div><%= form.label :result_branch, "Branch" %><%= form.text_field :result_branch, value: pipeline["lovable_result_branch"].presence || "main" %></div>
             <div><%= form.label :preview_url, "Preview URL（任意）" %><%= form.url_field :preview_url, value: pipeline["preview_url"], placeholder: "https://...lovable.app" %></div>
           </div>
-          <%= form.submit "登録して生成結果を取得", class: "button" %>
+          <%= form.submit "保存してGitHub Pushを待つ", class: "button" %>
         <% end %>
         <div class="compact-actions">
           <%= link_to "Lovableを開く", pipeline["build_url"], class: "button secondary", target: "_blank", rel: "noopener" %>
-          <% if pipeline["lovable_result_repository"].present? %>
-            <%= button_to "生成結果を取得", fetch_result_version_business_lovable_landing_page_path(@business, generation_run_id: @pipeline_version.id), method: :post, class: "button secondary" %>
-          <% end %>
-          <% if pipeline["pipeline_status"] == "waiting_manual_fix" %>
-            <%= button_to "手動修正済みとして再開", resume_result_version_business_lovable_landing_page_path(@business, generation_run_id: @pipeline_version.id), method: :post, class: "button secondary" %>
-          <% end %>
         </div>
       <% end %>
     </section>

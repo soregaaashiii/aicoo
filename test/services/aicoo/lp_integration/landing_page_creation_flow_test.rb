@@ -115,7 +115,7 @@ module Aicoo
         assert_equal false, first.idempotent
         assert_equal true, second.idempotent
         assert_equal 1, publisher.calls
-        assert_equal "cloudflare_deploying", flow.generation_run.reload.metadata.to_h["pipeline_status"]
+        assert_equal "cloudflare_waiting", flow.generation_run.reload.metadata.to_h["pipeline_status"]
         assert_equal "succeeded", flow.generation_run.metadata.to_h["static_validation_status"]
         assert flow.generation_run.metadata.to_h["publication_files"].key?("index.html")
       end
@@ -160,9 +160,9 @@ module Aicoo
           def initialize(**)
           end
 
-          def snapshot!
+          def snapshot!(commit_sha: nil)
             Aicoo::CloudflarePages::GithubRepositoryClient::RepositorySnapshot.new(
-              commit_sha: "lovable-source-sha",
+              commit_sha: commit_sha || "lovable-source-sha",
               files: {
                 "index.html" => <<~HTML,
                   <!doctype html>

@@ -327,13 +327,13 @@ module Aicoo
         metadata = generation_run.metadata.to_h.deep_stringify_keys
         now = Time.current
         project_identifier = project_id.presence || lovable_project_id(project_url)
-        next_status = result_repository.present? ? "lovable_result_waiting" : "lovable_generation_waiting"
+        next_status = result_repository.present? ? "github_webhook_waiting" : "lovable_generation_waiting"
         generation_run.update!(
           status: "succeeded",
           generated_count: preview_url.present? ? 1 : generation_run.generated_count,
           metadata: metadata.merge(
             "pipeline_status" => next_status,
-            "lovable_status" => result_repository.present? ? "result_registered" : "generation_waiting",
+            "lovable_status" => result_repository.present? ? "webhook_waiting" : "generation_waiting",
             "lovable_project_url" => project_url.presence || metadata["lovable_project_url"],
             "lovable_project_id" => project_identifier.presence || metadata["lovable_project_id"],
             "project_id" => project_identifier.presence || metadata["project_id"],
@@ -351,7 +351,7 @@ module Aicoo
           landing_page: AicooLabLandingPage.find(metadata.fetch("landing_page_id")),
           generation_run:,
           mode: generation_run.metadata.to_h["lovable_execution_mode"].presence || configuration.connection_mode,
-          message: result_repository.present? ? "Lovable生成結果Repositoryを登録しました。" : "Lovable project URLを登録しました。"
+          message: result_repository.present? ? "Lovable生成結果Repositoryを登録しました。GitHub Pushを待ちます。" : "Lovable project URLを登録しました。"
         )
       end
 

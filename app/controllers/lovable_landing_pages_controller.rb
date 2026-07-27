@@ -132,7 +132,6 @@ class LovableLandingPagesController < ApplicationController
       result_branch: params[:result_branch],
       preview_url: params[:preview_url]
     )
-    enqueue_result_import(result.generation_run) if result.generation_run.metadata.to_h["lovable_result_repository"].present?
     redirect_to studio_path, notice: result.message
   rescue StandardError => e
     redirect_to studio_path, alert: "Lovable生成結果を登録できませんでした: #{e.message}"

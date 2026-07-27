@@ -1,6 +1,6 @@
 class DataSourceCostProfile < ApplicationRecord
   EXECUTION_MODES = %w[auto smart manual].freeze
-  CONFIGURATION_KEYS = %w[cloudflare_pages].freeze
+  CONFIGURATION_KEYS = %w[cloudflare_pages github_lovable_webhook].freeze
   SOURCE_DEFINITIONS = {
     "gsc" => { name: "Google Search Console", execution_mode: "auto", average_cost_yen: 0, average_expected_profit_yen: 0 },
     "ga4" => { name: "Google Analytics 4", execution_mode: "auto", average_cost_yen: 0, average_expected_profit_yen: 0 },

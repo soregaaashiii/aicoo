@@ -4,6 +4,9 @@ module Aicoo
       STAGES = [
         [ "prompt_pending", "Prompt生成待ち" ],
         [ "lovable_pending", "HTML生成待ち" ],
+        [ "github_webhook_pending", "GitHub Push待ち" ],
+        [ "artifact_fetch_pending", "成果物取得待ち" ],
+        [ "static_build_pending", "静的化待ち" ],
         [ "github_save_pending", "GitHub保存待ち" ],
         [ "git_commit_pending", "Git Commit待ち" ],
         [ "git_push_pending", "Git Push待ち" ],
@@ -11,6 +14,7 @@ module Aicoo
         [ "publication_check_pending", "公開確認待ち" ],
         [ "ga4_pending", "GA4待ち" ],
         [ "gsc_pending", "GSC待ち" ],
+        [ "learning_pending", "Learning待ち" ],
         [ "improvement_pending", "改善待ち" ],
         [ "completed", "完了" ]
       ].freeze

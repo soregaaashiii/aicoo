@@ -71,11 +71,14 @@ module Aicoo
         end
       end
 
-      def snapshot!
+      def snapshot!(commit_sha: nil)
         validate!(write: false)
-        ref = get("/git/ref/heads/#{escape(branch)}")
-        commit_sha = ref.dig("object", "sha")
-        parent = get("/git/commits/#{commit_sha}")
+        resolved_commit_sha = commit_sha.presence
+        unless resolved_commit_sha
+          ref = get("/git/ref/heads/#{escape(branch)}")
+          resolved_commit_sha = ref.dig("object", "sha")
+        end
+        parent = get("/git/commits/#{escape(resolved_commit_sha)}")
         tree = get("/git/trees/#{parent.dig('tree', 'sha')}?recursive=1")
         raise ArgumentError, "生成結果Repositoryのtreeが大きすぎてGitHub APIで省略されました。" if tree["truncated"] == true
 
@@ -95,7 +98,7 @@ module Aicoo
         if files.sum { |_path, content| content.bytesize } > MAX_SOURCE_BYTES
           raise ArgumentError, "生成結果Repositoryが安全な取得上限#{MAX_SOURCE_BYTES / 1.megabyte}MBを超えています。"
         end
-        RepositorySnapshot.new(commit_sha:, files:)
+        RepositorySnapshot.new(commit_sha: resolved_commit_sha, files:)
       end
 
       private

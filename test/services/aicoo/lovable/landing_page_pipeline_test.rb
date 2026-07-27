@@ -127,7 +127,7 @@ module Aicoo
         )
 
         metadata = registered.generation_run.reload.metadata
-        assert_equal "lovable_result_waiting", metadata["pipeline_status"]
+        assert_equal "github_webhook_waiting", metadata["pipeline_status"]
         assert_equal "project-123", metadata["lovable_project_id"]
         assert_equal "https://github.com/example/lovable-result", metadata["lovable_result_repository"]
         assert_equal "lovable_api", registered.mode

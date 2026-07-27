@@ -20,18 +20,18 @@ module Aicoo
         @configuration = configuration
       end
 
-      def call(generation_run:)
+      def call(generation_run:, source_commit_sha: nil)
         metadata = generation_run.metadata.to_h.deep_stringify_keys
         landing_page = BusinessPrototype.find(metadata.fetch("landing_page_prototype_id"))
         business = landing_page.business
         validate!(generation_run, landing_page, metadata)
-        stamp!(generation_run, "lovable_result_waiting", "result_fetch_started_at")
+        stamp!(generation_run, "artifact_fetching", "result_fetch_started_at")
         source_client = source_client_class.new(
           repository_url: metadata.fetch("lovable_result_repository"),
           branch: metadata["lovable_result_branch"].presence || "main",
           token: configuration.github_token
         )
-        snapshot = source_client.snapshot!
+        snapshot = source_commit_sha.present? ? source_client.snapshot!(commit_sha: source_commit_sha) : source_client.snapshot!
         if committed_for_current_result?(metadata, snapshot.commit_sha)
           return Result.new(
             generation_run:,
@@ -49,7 +49,7 @@ module Aicoo
           "lovable_last_synced_commit_sha" => snapshot.commit_sha
         })
         page_path = page_path_for(landing_page)
-        stamp!(generation_run, "static_build_started", "static_build_started_at")
+        stamp!(generation_run, "static_building", "static_build_started_at")
         build = builder_class.new(files: snapshot.files, page_path:).call
         validation = validator_class.new(
           files: build.files,
@@ -109,7 +109,7 @@ module Aicoo
         stamp!(run, "github_commit_waiting", "github_commit_started_at")
         result = publisher.publish!(landing_page:, generation_run: run)
         run.reload.update!(metadata: run.metadata.to_h.merge(
-          "pipeline_status" => "cloudflare_deploying",
+          "pipeline_status" => "cloudflare_waiting",
           "lovable_status" => "completed",
           "lovable_last_synced_commit_sha" => source_commit_sha,
           "github_commit_sha" => result.commit_sha,
@@ -162,9 +162,15 @@ module Aicoo
       def mark_retryable_failure(run, error)
         return unless run&.persisted?
 
-        code = github_permission_error?(error.message) ? "github_permission_error" : "result_import_failed"
         current = run.metadata.to_h["pipeline_status"]
-        status = current == "github_commit_waiting" ? "github_commit_waiting" : "lovable_result_waiting"
+        code = if github_permission_error?(error.message)
+          "github_permission_error"
+        elsif current == "artifact_fetching"
+          "artifact_fetch_failed"
+        else
+          "result_import_failed"
+        end
+        status = current == "github_commit_waiting" ? "github_commit_waiting" : "github_webhook_waiting"
         run.update!(
           error_message: error.message,
           metadata: run.metadata.to_h.merge(

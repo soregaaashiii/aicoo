@@ -12,6 +12,7 @@ Rails.application.routes.draw do
       post "codex_submissions/:id/github_tracking", to: "codex_submissions#github_tracking"
     end
   end
+  post "webhooks/github", to: "webhooks/github#create", as: :github_webhook
   root "public_landing_pages#index"
   get "lp", to: "public_landing_pages#index", as: :public_landing_pages
   get "public_lp", to: "public_landing_pages#index", as: :public_lp_index
@@ -227,6 +228,7 @@ Rails.application.routes.draw do
   namespace :admin do
     get "lovable", to: "lovable#show", as: :lovable
     patch "lovable/cloudflare", to: "lovable#update_cloudflare", as: :lovable_cloudflare
+    patch "lovable/github_webhook", to: "lovable#update_github_webhook", as: :lovable_github_webhook
     get "explore", to: "explore#index", as: :explore
     get "explore/import", to: "explore_imports#new", as: :explore_import
     post "explore/import", to: "explore_imports#create"

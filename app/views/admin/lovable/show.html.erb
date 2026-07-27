@@ -61,6 +61,37 @@
     <p class="aicoo-help-text">HTMLはCloudflare APIへ送信しません。AICOOはGitHubへcommit/pushし、Cloudflare PagesのGitHub連携で公開します。</p>
   </section>
 
+  <section class="dashboard-section" id="github-webhook-settings">
+    <div class="section-heading">
+      <div>
+        <h2>Lovable成果物 GitHub Webhook</h2>
+        <p>Lovable成果物RepositoryのPushを受信し、静的化とCloudflare Pages公開を自動開始します。</p>
+      </div>
+    </div>
+    <div class="metric-grid">
+      <div class="metric-card"><span>Webhook Secret</span><strong><%= @github_webhook_configuration.configured? ? "設定済み" : "未設定" %></strong><small>AICOO_GITHUB_WEBHOOK_SECRET</small></div>
+      <div class="metric-card"><span>接続確認</span><strong><%= @github_webhook_diagnostics["last_status"].presence || "未受信" %></strong><small>署名済みPush / ping</small></div>
+      <div class="metric-card"><span>最終受信</span><strong><%= @github_webhook_diagnostics["last_received_at"].presence || "-" %></strong><small><%= @github_webhook_diagnostics["repository"].presence || "Repository未受信" %></small></div>
+      <div class="metric-card"><span>最終Push</span><strong><%= @github_webhook_diagnostics["last_push_at"].presence || "-" %></strong><small><%= @github_webhook_diagnostics["commit_sha"].to_s.first(12).presence || "Commit未受信" %></small></div>
+      <div class="metric-card"><span>失敗</span><strong><%= @github_webhook_diagnostics["failure_count"].to_i %></strong><small><%= @github_webhook_diagnostics["error"].presence || @github_webhook_diagnostics["last_status"].presence || "-" %></small></div>
+    </div>
+    <dl class="detail-list">
+      <dt>Webhook URL</dt><dd><code><%= @github_webhook_url %></code></dd>
+      <dt>Content type</dt><dd><code>application/json</code></dd>
+      <dt>対象Event</dt><dd><code>Push</code>のみ</dd>
+    </dl>
+    <%= form_with url: admin_lovable_github_webhook_path, method: :patch, scope: :github_webhook, class: "business-access-form" do |form| %>
+      <div class="field">
+        <%= form.label :secret, "Webhook Secret" %>
+        <%= form.password_field :secret, value: nil, placeholder: @github_webhook_configuration.configured? ? "設定済み" : "GitHubに登録するSecret" %>
+      </div>
+      <div class="actions compact-actions">
+        <%= form.submit "Webhook設定を保存", class: "button" %>
+      </div>
+    <% end %>
+    <p class="aicoo-help-text">GitHub Repository SettingsのWebhooksへ上記URLと同じSecretを登録してください。署名不一致のPayloadは処理しません。</p>
+  </section>
+
   <section class="dashboard-section">
     <div class="section-heading"><div><h2>Business別状態</h2><p>最後の送信、Preview、Version、公開・Deploy・Learningを確認します。</p></div></div>
     <div class="table-wrap">

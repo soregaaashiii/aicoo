@@ -52,4 +52,47 @@ class LovableLandingPagesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Promptを見る"
     assert_includes response.body, business_lovable_landing_page_path(@business)
   end
+
+  test "result repository waits for github webhook without a manual fetch button" do
+    campaign = @business.business_campaigns.create!(name: "Webhook Campaign", campaign_type: "seo", status: "active")
+    landing_page = @business.business_prototypes.create!(
+      business_campaign: campaign,
+      name: "Webhook LP",
+      prototype_type: "github",
+      location: "https://github.com/example/lovable-result",
+      status: "active",
+      metadata: {
+        "role" => BusinessPrototype::EXTERNAL_LANDING_PAGE_ROLE,
+        "lp_name" => "Webhook LP",
+        "lp_public_status" => "testing",
+        "ga4_page_path" => "/webhook-lp"
+      }
+    )
+    run = AicooLabGenerationRun.create!(
+      generation_type: "lp_generation",
+      status: "succeeded",
+      prompt: "Create LP",
+      metadata: {
+        "pipeline" => "lovable",
+        "pipeline_status" => "github_webhook_waiting",
+        "business_id" => @business.id,
+        "landing_page_id" => 1,
+        "landing_page_prototype_id" => landing_page.id,
+        "version" => 1,
+        "version_label" => "v1",
+        "build_url" => "https://lovable.dev/?autosubmit=true#prompt=test",
+        "lovable_result_repository" => "https://github.com/example/lovable-result",
+        "lovable_result_branch" => "main",
+        "publication" => {}
+      }
+    )
+    landing_page.update!(metadata: landing_page.metadata.to_h.merge("lovable_generation_run_id" => run.id))
+
+    get business_lovable_landing_page_url(@business, landing_page_id: landing_page.id)
+
+    assert_response :success
+    assert_includes response.body, "GitHub Push待ち"
+    assert_includes response.body, "保存してGitHub Pushを待つ"
+    assert_not_includes response.body, ">生成結果を取得<"
+  end
 end

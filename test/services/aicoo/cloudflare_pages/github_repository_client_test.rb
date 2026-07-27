@@ -101,6 +101,35 @@ module Aicoo
         assert_equal [ "dist/index.html" ], snapshot.files.keys
       end
 
+      test "reads the webhook commit instead of a newer branch head" do
+        requests = []
+        adapter = lambda do |uri, request|
+          requests << uri.path
+          body = case [ request.method, uri.path ]
+          when [ "GET", "/repos/example/lovable-result/git/commits/webhook-sha" ]
+            { tree: { sha: "webhook-tree" } }
+          when [ "GET", "/repos/example/lovable-result/git/trees/webhook-tree" ]
+            { tree: [ { path: "index.html", type: "blob", sha: "html", size: 20 } ] }
+          when [ "GET", "/repos/example/lovable-result/git/blobs/html" ]
+            { content: Base64.strict_encode64("<title>Webhook LP</title>"), encoding: "base64" }
+          else
+            raise "unexpected request #{request.method} #{uri}"
+          end
+          response(Net::HTTPOK, body.to_json)
+        end
+        client = GithubRepositoryClient.new(
+          repository_url: "https://github.com/example/lovable-result",
+          branch: "main",
+          token: nil,
+          http_adapter: adapter
+        )
+
+        snapshot = client.snapshot!(commit_sha: "webhook-sha")
+
+        assert_equal "webhook-sha", snapshot.commit_sha
+        assert_not_includes requests, "/repos/example/lovable-result/git/ref/heads/main"
+      end
+
       private
 
       def response(klass, body, code: "200", message: "OK")

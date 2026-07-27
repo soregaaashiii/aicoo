@@ -68,10 +68,10 @@ module Aicoo
           "last_published_at" => now.iso8601,
           "last_sync_at" => now.iso8601,
           "sync_status" => "synced",
-          "planning_status" => deleted ? "archived" : "improvement_pending",
-          "pipeline_stage" => deleted ? "completed" : "improvement_pending",
+          "planning_status" => deleted ? "archived" : "measurement_pending",
+          "pipeline_stage" => deleted ? "completed" : "ga4_pending",
           "pipeline_stages" => Aicoo::LpIntegration::LandingPagePipelineState.build(
-            current: deleted ? "completed" : "improvement_pending",
+            current: deleted ? "completed" : "ga4_pending",
             approval_required: false
           )
         ).compact
@@ -102,7 +102,7 @@ module Aicoo
         ).compact
         run.update!(metadata: run.metadata.to_h.merge(
           "publication" => publication,
-          "pipeline_status" => "improvement_waiting",
+          "pipeline_status" => "measurement_waiting",
           "lovable_status" => "completed",
           "measurement_started_at" => Time.current.iso8601
         ))
