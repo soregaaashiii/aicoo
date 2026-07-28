@@ -3,10 +3,11 @@ module Aicoo
     DEFAULT_DAYS = BusinessAnalyticsSummary::DEFAULT_DAYS
     MAX_DAYS = BusinessAnalyticsSummary::PERIODS.max
 
-    def initialize(businesses, today: Date.current)
+    def initialize(businesses, today: Date.current, include_details: true)
       @businesses = Array(businesses)
       @business_ids = @businesses.filter_map(&:id)
       @today = today
+      @include_details = include_details
       load_data
     end
 
@@ -70,7 +71,7 @@ module Aicoo
 
     private
 
-    attr_reader :business_ids, :today
+    attr_reader :business_ids, :today, :include_details
 
     def load_data
       @metrics_by_business_id = BusinessMetricDaily
@@ -99,6 +100,21 @@ module Aicoo
         .where.not(status: ActionCandidate::INACTIVE_STATUSES)
         .group(:business_id)
         .count
+      if include_details
+        load_detail_data
+      else
+        @candidates_by_business_id = {}
+        @execution_counts_by_business_id = {}
+        @result_counts_by_business_id = {}
+        @decision_counts_by_business_id = {}
+        @analysis_candidates_by_business_id = {}
+        @business_data_source_settings = {}
+        @analytics_sites_by_business_id = {}
+        @analytics_source_settings = []
+      end
+    end
+
+    def load_detail_data
       @candidates_by_business_id = ActionCandidate
         .where(business_id: business_ids, created_at: time_range(DEFAULT_DAYS))
         .to_a

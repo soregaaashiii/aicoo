@@ -18,21 +18,41 @@ class BusinessesController < ApplicationController
   # GET /businesses or /businesses.json
   def index
     Aicoo::MemoryDiagnostics.measure("BusinessesController#index", context: memory_diagnostics_context) do
+      @active_tab = params[:tab].presence_in(%w[businesses serp_candidates]) || "businesses"
+      @deletion_reasons = DELETION_REASONS
+
+      if @active_tab == "serp_candidates" && request.format.html?
+        @serp_new_business_board = Aicoo::NewBusinessCandidateBoard.call(limit: 50)
+        @serp_new_business_pending_count = @serp_new_business_board.pending_count
+        next
+      end
+
       @businesses = Aicoo::MemoryDiagnostics.measure("BusinessesController#index.business_list", context: memory_diagnostics_context) do
         businesses = Business.real_businesses.includes(
-          :action_candidates,
           :business_execution_profile,
           :business_playbook
         ).order(:name)
         businesses = businesses.where(status: "exploring") if params[:filter] == "exploring"
-        businesses = businesses.select(&:serp_generated?) if params[:filter] == "serp"
-        businesses
+        businesses.to_a
       end
-      @active_tab = params[:tab].presence_in(%w[businesses serp_candidates]) || "businesses"
-      @deletion_reasons = DELETION_REASONS
-      @serp_new_business_board = Aicoo::NewBusinessCandidateBoard.call(limit: 50)
+
+      serp_candidate_business_ids = ActionCandidate
+        .where(
+          business_id: @businesses.map(&:id),
+          generation_source: "serp",
+          department: "new_business"
+        )
+        .distinct
+        .pluck(:business_id)
+        .index_with(true)
+      @business_serp_generated_by_id = @businesses.index_with do |business|
+        business.serp_generated?(candidate_business_ids: serp_candidate_business_ids)
+      end
+      @businesses.select! { |business| @business_serp_generated_by_id.fetch(business) } if params[:filter] == "serp"
+
+      @serp_new_business_pending_count = Aicoo::NewBusinessCandidateBoard.pending_count
       @business_integration_health = Aicoo::MemoryDiagnostics.measure("Aicoo::BusinessIntegrationHealth#call", context: memory_diagnostics_context) do
-        Aicoo::BusinessIntegrationHealth.new.call
+        Aicoo::BusinessIntegrationHealth.new(businesses: @businesses).call
       end
       @data_source_settings_presenter = Aicoo::DataSourceSettingsPresenter.new
       @business_data_source_statuses_by_id = @businesses.index_with do |business|
@@ -41,19 +61,25 @@ class BusinessesController < ApplicationController
       @business_codex_statuses_by_id = @businesses.index_with do |business|
         @data_source_settings_presenter.codex_status(business)
       end
-      analytics_context = Aicoo::BusinessAnalyticsBatchContext.new(@businesses)
+      analytics_context = Aicoo::BusinessAnalyticsBatchContext.new(@businesses, include_details: false)
       @business_analytics_summaries = Aicoo::MemoryDiagnostics.measure("Aicoo::BusinessAnalyticsSummary.for_businesses", context: memory_diagnostics_context(business_count: @businesses.size)) do
         Aicoo::BusinessAnalyticsSummary.for_businesses(
           @businesses,
           health_result: @business_integration_health,
           cost_source_keys: %w[serp],
           ensure_cost_defaults: false,
+          include_details: false,
           context: analytics_context
         )
       end
       @business_expected_values = Aicoo::MemoryDiagnostics.measure("BusinessesController#index.business_expected_values", context: memory_diagnostics_context(business_count: @businesses.size)) do
+        active_candidates_by_business_id = ActionCandidate
+          .where(business_id: @businesses.map(&:id))
+          .where("status IS NULL OR status NOT IN (?)", ActionCandidate::INACTIVE_STATUSES)
+          .to_a
+          .group_by(&:business_id)
         @businesses.index_with do |business|
-          candidates = business.action_candidates.reject { |candidate| candidate.status.in?(ActionCandidate::INACTIVE_STATUSES) }
+          candidates = active_candidates_by_business_id.fetch(business.id, [])
           Aicoo::BusinessExpectedValue.call(business, candidates:, persist: false, context: analytics_context)
         end
       end

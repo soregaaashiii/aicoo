@@ -97,4 +97,11 @@ class BusinessTest < ActiveSupport::TestCase
     assert_equal "seo_media", businesses(:suelog).business_type
     assert_equal "saas", businesses(:cards).business_type
   end
+
+  test "serp generated lookup accepts a preloaded candidate business set" do
+    business = Business.create!(name: "SERP一括判定", status: "exploring")
+
+    assert business.serp_generated?(candidate_business_ids: { business.id => true })
+    assert_not business.serp_generated?(candidate_business_ids: {})
+  end
 end

@@ -16,7 +16,7 @@
 
 <nav class="tabs">
   <%= link_to "事業一覧", businesses_path(tab: "businesses"), class: @active_tab == "businesses" ? "active" : nil %>
-  <%= link_to "SERP新規事業候補 #{@serp_new_business_board.pending_count}", businesses_path(tab: "serp_candidates"), class: @active_tab == "serp_candidates" ? "active" : nil %>
+  <%= link_to "SERP新規事業候補 #{@serp_new_business_pending_count}", businesses_path(tab: "serp_candidates"), class: @active_tab == "serp_candidates" ? "active" : nil %>
   <%= link_to "削除済み", deleted_businesses_path %>
 </nav>
 
@@ -163,7 +163,7 @@
           <td><%= check_box_tag "business_ids[]", business.id, false, id: "business_ids_#{business.id}", form: "bulk-business-delete-form" %></td>
           <td>
             <%= link_to business.name, business %>
-            <% if business.serp_generated? %>
+            <% if @business_serp_generated_by_id.fetch(business) %>
               <br><span class="pill">SERP由来</span>
             <% end %>
           </td>

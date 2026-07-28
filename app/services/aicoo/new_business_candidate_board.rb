@@ -35,6 +35,10 @@ module Aicoo
       new(...).call
     end
 
+    def self.pending_count
+      new.pending_count
+    end
+
     def initialize(limit: 10, today: Time.zone.today)
       @limit = limit
       @today = today
@@ -46,10 +50,14 @@ module Aicoo
         candidates: rows,
         top_candidates: rows.first(5),
         today_count: candidate_base.where(created_at: today.all_day).count,
-        pending_count: candidate_base.where(status: PENDING_STATUSES).count,
+        pending_count:,
         approved_count: candidate_base.where(status: "approved").count,
         zero_reasons: rows.empty? ? zero_reasons : []
       )
+    end
+
+    def pending_count
+      candidate_base.where(status: PENDING_STATUSES).count
     end
 
     private

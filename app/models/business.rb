@@ -104,7 +104,7 @@ class Business < ApplicationRecord
       ActiveModel::Type::Boolean.new.cast(metadata.to_h["do_not_recreate"])
   end
 
-  def serp_generated?
+  def serp_generated?(candidate_business_ids: nil)
     source.to_s.include?("serp") ||
       metadata.to_h.values_at(
         "generation_source",
@@ -113,7 +113,11 @@ class Business < ApplicationRecord
         "source_serp_run_id",
         "discovery_fingerprint"
       ).compact.any? { |value| value.to_s.include?("serp") } ||
-      action_candidates.where(generation_source: "serp", department: "new_business").exists?
+      if candidate_business_ids
+        candidate_business_ids.include?(id)
+      else
+        action_candidates.where(generation_source: "serp", department: "new_business").exists?
+      end
   end
 
   def soft_delete!(reason:, actor: "owner", source: "businesses")

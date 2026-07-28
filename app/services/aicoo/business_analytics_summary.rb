@@ -41,7 +41,14 @@ module Aicoo
     PERIODS = [ 7, 30, 90 ].freeze
     DEFAULT_DAYS = 30
 
-    def self.for_businesses(businesses, health_result: nil, cost_source_keys: nil, ensure_cost_defaults: true, context: nil)
+    def self.for_businesses(
+      businesses,
+      health_result: nil,
+      cost_source_keys: nil,
+      ensure_cost_defaults: true,
+      include_details: true,
+      context: nil
+    )
       context ||= Aicoo::BusinessAnalyticsBatchContext.new(businesses)
       health_by_business_id = Array(health_result&.business_healths).index_by { |row| row.business.id }
       businesses.index_with do |business|
@@ -50,6 +57,7 @@ module Aicoo
           health: health_by_business_id[business.id],
           cost_source_keys:,
           ensure_cost_defaults:,
+          include_details:,
           context:
         ).call
       end
@@ -61,6 +69,7 @@ module Aicoo
       today: Date.current,
       cost_source_keys: nil,
       ensure_cost_defaults: true,
+      include_details: true,
       context: nil
     )
       @business = business
@@ -68,6 +77,7 @@ module Aicoo
       @today = today
       @cost_source_keys = cost_source_keys
       @ensure_cost_defaults = ensure_cost_defaults
+      @include_details = include_details
       @context = context
     end
 
@@ -79,26 +89,35 @@ module Aicoo
         warning_count: health&.warning_count.to_i,
         warnings: Array(health&.warnings),
         periods: period_summaries,
-        gsc_series: metric_series(:gsc),
-        ga4_series: metric_series(:ga4),
-        engagement_series: engagement_series,
-        revenue_series: revenue_series,
-        action_series: action_series,
-        learning_series: learning_series,
-        analysis_candidates: analysis_candidates,
-        cost_estimates: Aicoo::CostEngine.new(
-          business:,
-          source_keys: cost_source_keys,
-          ensure_defaults: ensure_cost_defaults
-        ).call.estimates,
-        settings: settings_summary,
-        data_status: data_status
+        gsc_series: include_details ? metric_series(:gsc) : [],
+        ga4_series: include_details ? metric_series(:ga4) : [],
+        engagement_series: include_details ? engagement_series : [],
+        revenue_series: include_details ? revenue_series : [],
+        action_series: include_details ? action_series : [],
+        learning_series: include_details ? learning_series : [],
+        analysis_candidates: include_details ? analysis_candidates : [],
+        cost_estimates: cost_estimates,
+        settings: include_details ? settings_summary : {},
+        data_status: include_details ? data_status : {}
       )
     end
 
     private
 
-    attr_reader :business, :health, :today, :cost_source_keys, :ensure_cost_defaults, :context
+    attr_reader :business, :health, :today, :cost_source_keys, :ensure_cost_defaults, :include_details, :context
+
+    def cost_estimates
+      engine = Aicoo::CostEngine.new(
+        business:,
+        source_keys: cost_source_keys,
+        ensure_defaults: ensure_cost_defaults
+      )
+      return engine.call.estimates unless cost_source_keys.present? && !ensure_cost_defaults
+
+      cost_source_keys.map do |source_key|
+        engine.estimate(source_key, profile: DataSourceCostProfile.for_source(source_key))
+      end
+    end
 
     def period_summaries
       PERIODS.index_with do |days|

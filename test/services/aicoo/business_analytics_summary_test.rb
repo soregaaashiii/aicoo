@@ -125,5 +125,29 @@ module Aicoo
       assert_equal direct.analysis_candidates.map(&:id), batched.analysis_candidates.map(&:id)
       assert_equal direct.cost_estimates.map(&:source_key), batched.cost_estimates.map(&:source_key)
     end
+
+    test "compact batch context preserves list values without loading detail series" do
+      context = BusinessAnalyticsBatchContext.new([ @business ], include_details: false)
+      result = BusinessAnalyticsSummary.for_businesses(
+        [ @business ],
+        cost_source_keys: %w[serp],
+        ensure_cost_defaults: false,
+        include_details: false,
+        context:
+      ).fetch(@business)
+
+      assert_equal 50, result.periods.fetch(7).gsc_clicks
+      assert_equal 1_000, result.periods.fetch(30).gsc_impressions
+      assert_equal 200, result.periods.fetch(7).ga4_sessions
+      assert_equal 30_000, result.periods.fetch(30).revenue_yen
+      assert_equal "serp", result.cost_estimates.first.source_key
+      assert_empty result.gsc_series
+      assert_empty result.ga4_series
+      assert_empty result.action_series
+      assert_empty result.learning_series
+      assert_empty result.analysis_candidates
+      assert_empty result.settings
+      assert_empty result.data_status
+    end
   end
 end

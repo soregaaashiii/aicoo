@@ -1087,6 +1087,64 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_no_match(%r{owner/new_business_pipeline|approve|create_lp|publish|pipeline_e2e_check/repair}, form_html)
   end
 
+  test "business index renders an empty list without related data" do
+    Business.real_businesses.update_all(deleted_at: Time.current)
+
+    get businesses_url
+
+    assert_response :success
+    assert_select "tbody tr", count: 0
+    assert_includes response.body, "＋ 新しい事業"
+  end
+
+  test "business index keeps names ordered when related data is missing" do
+    first = Business.create!(name: "一覧速度 A", status: "exploring")
+    second = Business.create!(name: "一覧速度 B", status: "exploring")
+
+    get businesses_url
+
+    assert_response :success
+    body = response.body
+    assert_operator body.index(first.name), :<, body.index(second.name)
+    assert_includes body, business_path(first)
+    assert_includes body, business_path(second)
+  end
+
+  test "business index batches action candidate loading as businesses grow" do
+    5.times do |index|
+      business = Business.create!(name: "一覧SQL計測 #{index}", status: "exploring")
+      business.action_candidates.create!(
+        title: "一覧SQL計測候補 #{index}",
+        action_type: "seo_improvement",
+        generation_source: "business_analyzer",
+        status: "proposal"
+      )
+    end
+
+    sql = capture_select_sql { get businesses_url }
+
+    assert_response :success
+    candidate_record_loads = sql.select { |statement| statement.match?(/\ASELECT "action_candidates"\.\* FROM "action_candidates"/) }
+    per_business_serp_checks = sql.select do |statement|
+      statement.include?('"action_candidates"."business_id" =') &&
+        statement.include?('"action_candidates"."generation_source"') &&
+        statement.include?("LIMIT")
+    end
+    assert_equal 1, candidate_record_loads.size
+    assert_empty per_business_serp_checks
+  end
+
+  test "business index does not build the full SERP candidate board on the business tab" do
+    full_board = ->(*) { raise "full SERP candidate board must not run on the business tab" }
+
+    Aicoo::NewBusinessCandidateBoard.stub(:call, full_board) do
+      get businesses_url(tab: "businesses")
+    end
+
+    assert_response :success
+    assert_includes response.body, "SERP新規事業候補"
+  end
+
   test "permanent delete requires soft deleted business name confirmation" do
     business = Business.create!(name: "完全削除対象", status: "exploring")
     business.soft_delete!(reason: "誤登録", actor: "owner", source: "test")
@@ -1103,6 +1161,20 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
   end
 
   private
+
+  def capture_select_sql
+    statements = []
+    subscriber = lambda do |_name, _started, _finished, _id, payload|
+      next if payload[:name].to_s.in?(%w[SCHEMA TRANSACTION])
+      next if payload[:cached]
+
+      sql = payload[:sql].to_s
+      statements << sql if sql.match?(/\ASELECT/i)
+    end
+
+    ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") { yield }
+    statements
+  end
 
   def create_promising_landing_page(business, slug: "business-controller-mvp-lp")
     experiment = AicooLabExperiment.create!(

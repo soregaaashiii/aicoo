@@ -28,6 +28,7 @@ module Aicoo
       assert_equal "警備 AI", row.source_query
       assert_equal "上位にSaaS競合あり", row.market_memo
       assert_operator result.pending_count, :>=, 1
+      assert_equal result.pending_count, Aicoo::NewBusinessCandidateBoard.pending_count
     end
 
     test "returns zero reasons when no candidates exist" do
