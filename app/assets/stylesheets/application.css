@@ -820,6 +820,7 @@ details.revenue-card > summary {
 .business-access-item-heading {
   align-items: flex-start;
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 12px;
 }
@@ -842,6 +843,67 @@ details.revenue-card > summary {
 .business-campaign-list:has(.business-access-editor[open]) {
   max-height: none;
   overflow-y: visible;
+}
+
+.business-campaign-developer-settings {
+  grid-column: 1 / -1;
+  order: 5;
+}
+
+.business-campaign-developer-settings > summary {
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.business-campaign-developer-settings[open] > summary {
+  margin-bottom: 12px;
+}
+
+#business-service-access-card {
+  order: 1;
+}
+
+#business-lp-access-card {
+  order: 2;
+}
+
+#business-measurement-access-card {
+  order: 3;
+}
+
+#business-lp-planner-card {
+  order: 4;
+}
+
+.business-access-card-heading .lp-add-editor {
+  flex: 0 0 auto;
+  width: auto;
+}
+
+.business-access-card-heading .lp-add-editor[open] {
+  flex-basis: 100%;
+  width: 100%;
+}
+
+.business-lp-list:has(.business-access-editor[open]) {
+  max-height: none;
+  overflow-y: visible;
+}
+
+.business-lp-row > summary strong,
+.business-lp-row > summary small {
+  display: block;
+}
+
+.lp-winning-patterns {
+  margin-top: 0.75rem;
+}
+
+.lp-winning-patterns p {
+  font-size: 0.78rem;
+  margin: 0.4rem 0;
 }
 
 .business-access-list-item {

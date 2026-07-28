@@ -47,6 +47,19 @@ module Aicoo
         assert_equal "lp_plan_approval", result.candidate.execution_mode
       end
 
+      test "purpose reuses an existing internal campaign when the UI omits campaign id" do
+        result = LandingPagePlanFlow.new(
+          business: @business,
+          attributes: { purpose: "seo" },
+          strategy_builder_class: fake_strategy_builder
+        ).call
+
+        item = result.items.first
+        assert_equal @campaign.id, item.fetch("campaign_id")
+        assert_equal @campaign.name, item.fetch("campaign_name")
+        assert_equal @campaign.campaign_type, item.fetch("campaign_type")
+      end
+
       test "owner execution materializes prompts then stops every child task before lovable" do
         plan = LandingPagePlanFlow.new(
           business: @business,

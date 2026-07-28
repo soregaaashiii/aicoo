@@ -44,6 +44,9 @@ module Aicoo
         source_rows.flat_map do |row|
           values = normalize_utf8(row.to_h.deep_stringify_keys)
           planning_campaign = resolve_planning_campaign(values)
+          values["campaign_id"] = planning_campaign.id if planning_campaign.persisted?
+          values["campaign_name"] = planning_campaign.name
+          values["campaign_type"] = planning_campaign.campaign_type
           strategy = normalize_utf8(strategy_builder_class.new(
             business:,
             campaign: planning_campaign,
@@ -59,14 +62,14 @@ module Aicoo
       end
 
       def single_recommendation
-        raise ArgumentError, "このBusinessのCampaignではありません。" unless campaign&.business_id == business.id
         purpose = attributes.fetch("purpose").to_s
         raise ArgumentError, "作成目的を選択してください。" unless purpose.in?(LandingPageStrategyBuilder::PURPOSES)
+        raise ArgumentError, "このBusinessのCampaignではありません。" if campaign && campaign.business_id != business.id
 
         {
-          "campaign_id" => campaign.id,
-          "campaign_name" => campaign.name,
-          "campaign_type" => campaign.campaign_type,
+          "campaign_id" => campaign&.id,
+          "campaign_name" => campaign&.name || BusinessLandingPagePlanner::PURPOSE_CAMPAIGN_NAMES.fetch(purpose),
+          "campaign_type" => campaign&.campaign_type || BusinessLandingPagePlanner::PURPOSE_CAMPAIGN_TYPES.fetch(purpose),
           "purpose" => purpose,
           "missing_count" => 1,
           "name" => attributes["name"],
@@ -77,6 +80,7 @@ module Aicoo
 
       def resolve_planning_campaign(values)
         existing = business.business_campaigns.active.find_by(id: values["campaign_id"])
+        existing ||= existing_campaign_for(values.fetch("purpose"))
         return existing if existing
 
         BusinessCampaign.new(
@@ -86,6 +90,21 @@ module Aicoo
           status: "active",
           metadata: { "planner_purpose" => values.fetch("purpose") }
         )
+      end
+
+      def existing_campaign_for(purpose)
+        campaigns = business.business_campaigns.active.order(:id).to_a
+        if purpose == "regional"
+          campaigns.find do |record|
+            record.metadata.to_h["planner_purpose"] == "regional" || record.name.include?("地域")
+          end
+        else
+          campaign_type = BusinessLandingPagePlanner::PURPOSE_CAMPAIGN_TYPES.fetch(purpose)
+          campaigns.find do |record|
+            record.campaign_type == campaign_type &&
+              !(purpose == "seo" && record.metadata.to_h["planner_purpose"] == "regional")
+          end
+        end
       end
 
       def build_item(values, strategy, index, count)

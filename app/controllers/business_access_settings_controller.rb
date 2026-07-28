@@ -23,7 +23,9 @@ class BusinessAccessSettingsController < ApplicationController
 
   def create_landing_page_plan
     values = landing_page_plan_params
-    campaign = @business.business_campaigns.active.find(values.fetch(:campaign_id))
+    campaign = @business.business_campaigns.active.find_by(id: values[:campaign_id]) if values[:campaign_id].present?
+    raise ActiveRecord::RecordNotFound, "Campaignが見つかりません。" if values[:campaign_id].present? && campaign.nil?
+
     result = Aicoo::LpIntegration::LandingPagePlanFlow.new(
       business: @business,
       campaign:,

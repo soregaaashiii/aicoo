@@ -23,6 +23,16 @@ module Aicoo
         "email" => "email",
         "other" => "other"
       }.freeze
+      PURPOSE_CAMPAIGN_NAMES = {
+        "seo" => "SEO",
+        "google_ads" => "Google Ads",
+        "meta_ads" => "Meta",
+        "comparison" => "Comparison",
+        "regional" => "Regional",
+        "sns" => "SNS",
+        "email" => "Email",
+        "other" => "Other"
+      }.freeze
       QUERY_CLUSTER_SIZE = 5
       MAX_SEARCH_LP_COUNT = 20
 
@@ -87,7 +97,7 @@ module Aicoo
           "purpose" => purpose,
           "purpose_label" => LandingPageStrategyBuilder::PURPOSES.fetch(purpose),
           "campaign_id" => campaign&.id,
-          "campaign_name" => campaign&.name || LandingPageStrategyBuilder::PURPOSES.fetch(purpose),
+          "campaign_name" => campaign&.name || PURPOSE_CAMPAIGN_NAMES.fetch(purpose),
           "campaign_type" => campaign&.campaign_type || PURPOSE_CAMPAIGN_TYPES.fetch(purpose),
           "existing_count" => pages.size,
           "recommended_count" => desired_count,

@@ -16,19 +16,24 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
     )
   end
 
-  test "business detail shows service campaign and shared measurement cards" do
+  test "business detail makes landing pages primary and keeps campaigns in developer details" do
     get business_url(@business)
 
     assert_response :success
     assert_select "#business-access-urls"
     assert_select "#business-service-access-card", text: /Service/
-    assert_select "#business-campaign-access-card", text: /Campaign/
     assert_select "#business-lp-access-card", text: /LP/
     assert_select "#business-measurement-access-card", text: /計測/
     assert_select "#business-lp-planner-card", text: /改善Planner/
     assert_select "#business-lp-analyzer-dashboard", text: /利益実績/
     assert_select "summary", text: "+ Service追加"
-    assert_select "summary", text: "+ Campaign追加"
+    assert_select "#business-lp-access-card summary", text: "＋LP追加", count: 1
+    assert_select "summary", text: "＋LP追加", count: 1
+    assert_select "details.business-campaign-developer-settings:not([open])" do
+      assert_select "summary", text: "開発者向け"
+      assert_select "#business-campaign-access-card", text: /Campaign/
+      assert_select "summary", text: "+ 内部施策追加"
+    end
     assert_select "summary", text: "共通計測を設定"
     assert_select "#business-campaign-access-card input[name='measurement_access[ga4_property_id]']", count: 0
     assert_select "#business-campaign-access-card input[name='measurement_access[gsc_site_url]']", count: 0
@@ -48,20 +53,22 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
     get business_url(@business)
 
     assert_response :success
-    assert_select "#lp-analyzer-#{landing_page.id}", text: /LP Analyzer/
+    assert_select "#external-lp-#{landing_page.id}", count: 1
+    assert_select "#lp-analyzer-#{landing_page.id}", count: 1, text: /LP Analyzer/
     assert_select "#lp-analyzer-#{landing_page.id}", text: /GA4/
     assert_select "#lp-analyzer-#{landing_page.id}", text: /GSC/
     assert_select "#lp-analyzer-#{landing_page.id}", text: /Learning/
   end
 
-  test "landing page creation asks only for purpose and hides optional controls in details" do
-    campaign = @business.business_campaigns.create!(name: "SEO", campaign_type: "seo", status: "active")
-
+  test "landing page creation asks only for purpose and does not ask for campaign" do
     get business_url(@business)
 
     assert_response :success
-    assert_select "form.lp-creation-form" do
+    assert_select "form.lp-creation-form", count: 1 do
       assert_select "select[name='lp_plan[purpose]']"
+      Aicoo::LpIntegration::LandingPageStrategyBuilder::PURPOSES.each do |value, label|
+        assert_select "option[value='#{value}']", text: label
+      end
       assert_select ".lp-creation-core-fields input[name='lp_plan[name]']", count: 0
       assert_select ".lp-creation-core-fields textarea[name='lp_plan[notes]']", count: 0
       assert_select "details.lp-advanced-settings", text: /補足・詳細設定/ do
@@ -70,19 +77,18 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
       end
       assert_select "input[name='lp_plan[keywords]']", count: 0
       assert_select "input[name='lp_plan[advanced][keywords]']", count: 1
-      assert_select "input[name='lp_plan[campaign_id]'][value='#{campaign.id}']"
+      assert_select "input[name='lp_plan[campaign_id]']", count: 0
       assert_select "input[type='submit'][value='生成開始']"
     end
   end
 
-  test "landing page generation reviews the plan before materializing a prompt task" do
-    campaign = @business.business_campaigns.create!(name: "SEO", campaign_type: "seo", status: "active")
+  test "landing page generation resolves its campaign from purpose and waits for approval" do
     plan = nil
 
-    assert_no_difference [ "BusinessPrototype.count", "AicooAnalyticsSite.count", "AnalyticsSourceSetting.count" ] do
+    assert_no_difference [ "BusinessPrototype.count", "BusinessCampaign.count", "AicooAnalyticsSite.count", "AnalyticsSourceSetting.count" ] do
       assert_difference [ "AicooLabGenerationRun.count", "ActionCandidate.count", "AutoRevisionTask.count" ], 1 do
         post landing_page_plan_business_access_settings_url(@business), params: {
-          lp_plan: { campaign_id: campaign.id, purpose: "seo" }
+          lp_plan: { purpose: "regional" }
         }
       end
       plan = AicooLabGenerationRun.order(:created_at).last
@@ -96,10 +102,17 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
     assert_select ".lp-pipeline-stage", minimum: 9
     assert_includes response.body, "Lovable、GitHub、Cloudflareへは送信しません"
 
-    assert_difference -> { @business.business_prototypes.active.external_landing_pages.count }, 1 do
+    assert_difference [
+      -> { @business.business_campaigns.count },
+      -> { @business.business_prototypes.active.external_landing_pages.count }
+    ], 1 do
       post execute_landing_page_plan_business_access_settings_url(@business, plan_id: plan.id)
     end
     assert_redirected_to business_url(@business, anchor: "business-access-urls")
+    campaign = @business.business_campaigns.find_by!(name: "Regional")
+    assert_equal "seo", campaign.campaign_type
+    assert_equal "regional", campaign.metadata.to_h["planner_purpose"]
+    assert_equal campaign, @business.business_prototypes.active.external_landing_pages.order(:created_at).last.business_campaign
     assert_equal "waiting_approval", @business.auto_revision_tasks.order(:created_at).last.status
     assert_nil @business.auto_revision_tasks.order(:created_at).last.sent_to_codex_at
   end

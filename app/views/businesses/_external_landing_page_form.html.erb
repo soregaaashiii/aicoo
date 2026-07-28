@@ -2,15 +2,7 @@
 <% source_options = Aicoo::LpIntegration::Overview::SOURCE_TYPES.map { |value, label| [label, value] } %>
 <%= form_with url: landing_page_business_access_settings_path(business), method: :patch, scope: :lp_access, class: "business-access-form" do |form| %>
   <%= form.hidden_field :landing_page_id, value: landing_page&.id %>
-  <div class="field">
-    <%= form.label :campaign_id, "Campaign" %>
-    <%= form.collection_select :campaign_id,
-                               business.business_campaigns.active.order(:name),
-                               :id,
-                               :name,
-                               { selected: landing_page&.business_campaign_id || local_assigns[:campaign]&.id },
-                               { required: true } %>
-  </div>
+  <%= form.hidden_field :campaign_id, value: landing_page&.business_campaign_id %>
   <div class="field">
     <%= form.label :name, "LP名" %>
     <%= form.text_field :name, value: landing_page&.landing_page_name, placeholder: "広告LP" %>

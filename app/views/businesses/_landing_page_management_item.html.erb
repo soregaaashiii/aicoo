@@ -1,0 +1,138 @@
+<% landing_page = lp_row.fetch(:landing_page) %>
+<% metadata = landing_page.metadata.to_h %>
+<% purpose_label = metadata["creation_purpose_label"].presence ||
+  Aicoo::LpIntegration::LandingPageStrategyBuilder::PURPOSES[metadata["creation_purpose"].to_s] ||
+  "その他" %>
+
+<details class="campaign-lp-row business-lp-row" id="external-lp-<%= landing_page.id %>">
+  <summary>
+    <span>
+      <strong><%= display_rank %>位 <%= landing_page.landing_page_name %></strong>
+      <small><%= purpose_label %></small>
+    </span>
+    <span><%= landing_page.landing_page_public_status_label %></span>
+    <span>CV <%= lp_row[:conversion_rate] ? number_to_percentage(lp_row[:conversion_rate] * 100, precision: 2) : "未計測" %></span>
+    <span>期待利益 <%= number_to_currency(lp_row.fetch(:expected_profit_yen), unit: "¥", precision: 0) %></span>
+    <span><%= landing_page.landing_page_sync_status_label %></span>
+  </summary>
+
+  <dl class="business-access-values lp-analysis-values">
+    <dt>目的</dt><dd><%= purpose_label %></dd>
+    <dt>公開URL</dt><dd><%= landing_page.landing_page_url.presence || "未設定" %></dd>
+    <dt>Cloudflare</dt><dd><%= metadata["cloudflare_deploy_status"].presence || "未デプロイ" %> / <%= landing_page.landing_page_cloudflare_url.presence || "公開URL未設定" %></dd>
+    <dt>GitHub</dt><dd><%= landing_page.landing_page_repository_url.presence || landing_page.landing_page_publication_repository_url.presence || cloudflare_configuration.repository_url %></dd>
+    <dt>GitHub Path</dt><dd><%= landing_page.landing_page_github_path.presence || "未公開" %></dd>
+    <dt>状態</dt><dd><%= landing_page.landing_page_public_status_label %> / <%= landing_page.landing_page_sync_status_label %></dd>
+    <dt>期待利益</dt><dd><%= number_to_currency(lp_row.fetch(:expected_profit_yen), unit: "¥", precision: 0) %></dd>
+    <dt>CV率 / CTR</dt><dd><%= lp_row[:conversion_rate] ? number_to_percentage(lp_row[:conversion_rate] * 100, precision: 2) : "未計測" %> / <%= lp_row[:ctr] ? number_to_percentage(lp_row[:ctr] * 100, precision: 2) : "未計測" %></dd>
+    <dt>順位</dt><dd><%= lp_row[:average_position] || "未計測" %></dd>
+    <dt>改善</dt><dd><%= lp_row.fetch(:improvement_count) %>回 / 候補 <%= lp_row.fetch(:improvement_candidate_count) %>件</dd>
+    <dt>Learning</dt><dd><%= lp_row.dig(:learning, "status").presence || "改善後データ待ち" %></dd>
+    <dt>最終更新</dt><dd><%= l(landing_page.updated_at, format: :short) %></dd>
+    <dt>公開日</dt><dd><%= landing_page.landing_page_last_published_at ? l(landing_page.landing_page_last_published_at, format: :short) : "未公開" %></dd>
+    <dt>Pipeline</dt><dd><%= metadata["planning_status"].presence || landing_page.landing_page_sync_status_label %></dd>
+    <dt>Commit SHA</dt><dd><%= metadata["github_commit_sha"].presence || "未作成" %></dd>
+    <dt>Variant</dt><dd><%= lp_row.fetch(:variant_count) %>件 / <%= landing_page.landing_page_ab_test["variant"].presence || "未設定" %></dd>
+    <dt>Lovable</dt><dd><%= metadata["lovable_project_url"].presence || "未接続" %></dd>
+  </dl>
+
+  <div class="business-access-card-actions">
+    <% if metadata["lovable_generation_run_id"].present? %>
+      <%= link_to "Promptレビュー",
+                  business_lovable_landing_page_path(business, landing_page_id: landing_page.id, anchor: "lovable-prompt"),
+                  class: "button" %>
+    <% end %>
+    <details class="business-access-editor">
+      <summary class="button secondary">編集</summary>
+      <%= render "external_landing_page_form", business:, landing_page: %>
+    </details>
+    <% if landing_page.landing_page_url.present? %>
+      <%= link_to "開く", landing_page.landing_page_url, class: "button secondary", target: "_blank", rel: "noopener" %>
+    <% end %>
+    <%= button_to "同期", landing_page_task_business_access_settings_path(business, landing_page_id: landing_page.id), method: :post, class: "button secondary" %>
+    <%= button_to "公開",
+                  publish_landing_page_business_access_settings_path(business, landing_page_id: landing_page.id),
+                  method: :post,
+                  class: "button",
+                  data: { turbo_confirm: "aicoo-lpへcommitし、Cloudflare Pagesへ公開しますか？" } %>
+    <% if metadata["github_commit_sha"].present? %>
+      <%= button_to "公開確認",
+                    verify_landing_page_business_access_settings_path(business, landing_page_id: landing_page.id),
+                    method: :post,
+                    class: "button secondary" %>
+    <% end %>
+    <% if landing_page.landing_page_public_status == "published" %>
+      <%= button_to "改善を開始", improve_landing_page_business_access_settings_path(business, landing_page_id: landing_page.id), method: :post, class: "button" %>
+      <%= button_to "停止", landing_page_status_business_access_settings_path(business, landing_page_id: landing_page.id), method: :patch, params: { public_status: "stopped" }, class: "button secondary" %>
+    <% else %>
+      <%= button_to "公開中にする", landing_page_status_business_access_settings_path(business, landing_page_id: landing_page.id), method: :patch, params: { public_status: "published" }, class: "button secondary" %>
+    <% end %>
+    <%= button_to "削除", remove_landing_page_business_access_settings_path(business, landing_page_id: landing_page.id), method: :delete, class: "button danger", data: { turbo_confirm: "#{landing_page.landing_page_name}を削除しますか？" } %>
+  </div>
+
+  <details class="lp-analyzer" id="lp-analyzer-<%= landing_page.id %>">
+    <summary>LP Analyzer</summary>
+    <dl class="business-access-values lp-analysis-values">
+      <dt>GA4</dt>
+      <dd>Session <%= lp_row.fetch(:sessions) %> / User <%= lp_row.fetch(:users) %> / CV <%= lp_row.fetch(:conversions) %> / CV率 <%= lp_row[:conversion_rate] ? number_to_percentage(lp_row[:conversion_rate] * 100, precision: 2) : "未計測" %></dd>
+      <dt>行動</dt>
+      <dd>滞在 <%= lp_row[:engagement_seconds] || "未計測" %>秒 / 直帰 <%= lp_row[:bounce_rate] ? number_to_percentage(lp_row[:bounce_rate] * 100, precision: 1) : "未計測" %> / Scroll <%= lp_row[:scroll_rate] ? number_to_percentage(lp_row[:scroll_rate] * 100, precision: 1) : "未計測" %> / Event <%= lp_row.fetch(:event_count) %></dd>
+      <dt>GSC</dt>
+      <dd><%= lp_row.fetch(:impressions) %>表示 / <%= lp_row.fetch(:clicks) %>クリック / CTR <%= lp_row[:ctr] ? number_to_percentage(lp_row[:ctr] * 100, precision: 2) : "未計測" %> / 順位 <%= lp_row[:average_position] || "未計測" %> / Query <%= lp_row.fetch(:query_count) %></dd>
+      <dt>成果</dt>
+      <dd>問い合わせ <%= lp_row.fetch(:inquiries).to_i %> / 商談 <%= lp_row.fetch(:deals).to_i %> / 契約 <%= lp_row.fetch(:contracts).to_i %> / 売上 <%= number_to_currency(lp_row.fetch(:revenue_yen), unit: "¥", precision: 0) %></dd>
+      <dt>利益</dt>
+      <dd>期待 <%= number_to_currency(lp_row.fetch(:expected_profit_yen), unit: "¥", precision: 0) %> / 実績 <%= number_to_currency(lp_row.fetch(:actual_profit_yen), unit: "¥", precision: 0) %></dd>
+      <dt>改善</dt>
+      <dd><%= lp_row.fetch(:improvement_count) %>回 / 成功率 <%= lp_row[:improvement_success_rate] ? number_to_percentage(lp_row[:improvement_success_rate] * 100, precision: 1) : "未学習" %> / 最終 <%= lp_row[:last_improvement_at] ? l(lp_row[:last_improvement_at], format: :short) : "未実施" %></dd>
+      <dt>A/B</dt>
+      <dd><%= landing_page.landing_page_ab_test["status"].presence || "未実施" %> / 勝率 <%= landing_page.landing_page_ab_test["win_rate"].present? ? number_to_percentage(landing_page.landing_page_ab_test["win_rate"].to_f * 100, precision: 1) : "未計測" %></dd>
+      <dt>Learning</dt>
+      <dd><%= lp_row.dig(:learning, "status").presence || "改善後データ待ち" %><% if lp_row.dig(:learning, "profit_delta_yen").present? %> / 利益差 <%= number_to_currency(lp_row.dig(:learning, "profit_delta_yen"), unit: "¥", precision: 0) %><% end %></dd>
+    </dl>
+    <% if lp_row.fetch(:queries).any? %>
+      <p><strong>検索クエリ:</strong> <%= lp_row.fetch(:queries).first(8).map { |query| "#{query['query']} (#{query['impressions']})" }.join(" / ") %></p>
+    <% end %>
+    <% if lp_row.fetch(:analyzer_timeline).any? %>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>計測日</th><th>利益</th><th>CV率</th><th>CTR</th><th>順位</th><th>問い合わせ</th></tr></thead>
+          <tbody>
+            <% lp_row.fetch(:analyzer_timeline).first(8).each do |point| %>
+              <tr>
+                <td><%= l(point.fetch(:captured_at), format: :short) %></td>
+                <td><%= number_to_currency(point.fetch(:profit_yen), unit: "¥", precision: 0) %></td>
+                <td><%= point[:conversion_rate] ? number_to_percentage(point[:conversion_rate] * 100, precision: 2) : "-" %></td>
+                <td><%= point[:ctr] ? number_to_percentage(point[:ctr] * 100, precision: 2) : "-" %></td>
+                <td><%= point[:average_position] || "-" %></td>
+                <td><%= point.fetch(:inquiries) %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% end %>
+  </details>
+
+  <details class="lp-improvement-history">
+    <summary>改善履歴 <%= lp_row.fetch(:improvement_history).size %>件</summary>
+    <% if lp_row.fetch(:improvement_history).any? %>
+      <% lp_row.fetch(:improvement_history).first(10).each do |history| %>
+        <p><%= l(history.fetch(:occurred_at), format: :short) %> / <%= history.fetch(:change_content) %> / 期待 <%= number_to_currency(history.fetch(:expected_profit_yen), unit: "¥", precision: 0) %> / 実績 <%= number_to_currency(history.fetch(:actual_profit_yen), unit: "¥", precision: 0) %> / <%= history.fetch(:result) %></p>
+      <% end %>
+    <% else %>
+      <p>改善履歴はまだありません。</p>
+    <% end %>
+  </details>
+
+  <details class="lp-winning-patterns">
+    <summary>勝ちパターン</summary>
+    <% if winning_patterns.any? %>
+      <% winning_patterns.first(5).each do |pattern| %>
+        <p><%= pattern.to_h["label"].presence || pattern.to_h["action_type"].presence || pattern.to_h["improvement_type"].presence || pattern.to_s %></p>
+      <% end %>
+    <% else %>
+      <p>勝ちパターンはまだありません。</p>
+    <% end %>
+  </details>
+</details>

@@ -1,11 +1,16 @@
 <%= form_with url: landing_page_plan_business_access_settings_path(business), method: :post, scope: :lp_plan, class: "business-access-form lp-creation-form" do |form| %>
-  <%= form.hidden_field :campaign_id, value: campaign.id %>
+  <% if local_assigns[:campaign] %>
+    <%= form.hidden_field :campaign_id, value: campaign.id %>
+  <% end %>
 
   <div class="lp-creation-core-fields">
     <div class="field">
       <%= form.label :purpose, "作成目的" %>
       <%= form.select :purpose,
-                      options_for_select(Aicoo::LpIntegration::LandingPageStrategyBuilder::PURPOSES.map { |value, label| [label, value] }, campaign.campaign_type),
+                      options_for_select(
+                        Aicoo::LpIntegration::LandingPageStrategyBuilder::PURPOSES.map { |value, label| [label, value] },
+                        local_assigns[:campaign]&.campaign_type
+                      ),
                       { include_blank: "選択してください" },
                       { required: true } %>
     </div>
@@ -36,6 +41,6 @@
 
   <div class="actions compact-actions">
     <%= form.submit "生成開始", class: "button" %>
-    <%= link_to "キャンセル", business_path(business, anchor: "business-campaign-#{campaign.id}"), class: "button secondary" %>
+    <%= link_to "キャンセル", business_path(business, anchor: "business-lp-access-card"), class: "button secondary" %>
   </div>
 <% end %>
