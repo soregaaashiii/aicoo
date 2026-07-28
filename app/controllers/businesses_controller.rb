@@ -73,22 +73,7 @@ class BusinessesController < ApplicationController
         )
       end
       @business_expected_values = Aicoo::MemoryDiagnostics.measure("BusinessesController#index.business_expected_values", context: memory_diagnostics_context(business_count: @businesses.size)) do
-        active_candidates_by_business_id = ActionCandidate
-          .where(business_id: @businesses.map(&:id))
-          .where("status IS NULL OR status NOT IN (?)", ActionCandidate::INACTIVE_STATUSES)
-          .select(
-            :id,
-            :business_id,
-            :action_type,
-            :title,
-            :metadata,
-            :expected_profit_yen,
-            :expected_learning_value_yen,
-            :cost_yen,
-            :success_probability
-          )
-          .to_a
-          .group_by(&:business_id)
+        active_candidates_by_business_id = Aicoo::BusinessIndexCandidateLoader.call(@businesses)
         @businesses.index_with do |business|
           candidates = active_candidates_by_business_id.fetch(business.id, [])
           Aicoo::BusinessExpectedValue.call(business, candidates:, persist: false, context: analytics_context)

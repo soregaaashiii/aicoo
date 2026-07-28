@@ -1135,6 +1135,7 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
         statement.include?("LIMIT")
     end
     assert_equal 1, candidate_record_loads.size
+    assert_includes candidate_record_loads.first, "jsonb_to_record"
     assert_empty per_business_serp_checks
   end
 
