@@ -1,5 +1,7 @@
 module Aicoo
   class LongRunningOperationMonitor
+    RUNNING_STATUSES = %w[queued running sent_to_codex].freeze
+
     Operation = Data.define(
       :key,
       :kind,
@@ -66,13 +68,17 @@ module Aicoo
 
     include Rails.application.routes.url_helpers
 
+    def initialize(running_only: false, include_daily_runs: true)
+      @running_only = running_only
+      @include_daily_runs = include_daily_runs
+    end
+
     def call
       operations = google_api_operations +
-        daily_run_operations +
+        (include_daily_runs ? daily_run_operations : []) +
         codex_operations +
-        serp_operations +
-        data_import_operations +
-        landing_page_operations
+        serp_operations
+      operations += data_import_operations + landing_page_operations unless running_only
 
       running = operations.select(&:running?).sort_by { |operation| operation.started_at || Time.current }.reverse
       recent = operations.reject(&:running?).sort_by { |operation| operation.finished_at || operation.started_at || Time.current }.reverse.first(8)
@@ -82,10 +88,14 @@ module Aicoo
 
     private
 
+    attr_reader :running_only, :include_daily_runs
+
     def google_api_operations
-      GoogleApiImportRun.includes(:business)
+      scope = GoogleApiImportRun.includes(:business)
         .joins(:business)
         .merge(Business.real_businesses)
+      scope = scope.where(status: RUNNING_STATUSES) if running_only
+      scope
         .recent
         .limit(10)
         .map do |run|
@@ -107,7 +117,9 @@ module Aicoo
     end
 
     def daily_run_operations
-      AicooDailyRun.includes(:aicoo_daily_run_steps).recent.limit(8).map do |run|
+      scope = AicooDailyRun.includes(:aicoo_daily_run_steps)
+      scope = scope.where(status: RUNNING_STATUSES) if running_only
+      scope.recent.limit(8).map do |run|
         current_step = run.current_step
         Operation.new(
           key: "daily-run-#{run.id}",
@@ -127,7 +139,8 @@ module Aicoo
     end
 
     def codex_operations
-      AutoRevisionTask.where(status: %w[sent_to_codex running failed canceled])
+      statuses = running_only ? RUNNING_STATUSES : %w[sent_to_codex running failed canceled]
+      AutoRevisionTask.where(status: statuses)
         .includes(:business)
         .recent
         .limit(8)
@@ -150,9 +163,11 @@ module Aicoo
     end
 
     def serp_operations
-      SerpAnalysis.includes(:business)
+      scope = SerpAnalysis.includes(:business)
         .joins(:business)
         .merge(Business.real_businesses)
+      scope = scope.where(status: RUNNING_STATUSES) if running_only
+      scope
         .order(analyzed_at: :desc, created_at: :desc)
         .limit(5)
         .map do |analysis|

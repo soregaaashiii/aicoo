@@ -36,21 +36,14 @@ class BusinessesController < ApplicationController
         businesses.to_a
       end
 
-      serp_candidate_business_ids = ActionCandidate
-        .where(
-          business_id: @businesses.map(&:id),
-          generation_source: "serp",
-          department: "new_business"
-        )
-        .distinct
-        .pluck(:business_id)
-        .index_with(true)
+      candidate_overview = Aicoo::BusinessIndexCandidateOverview.call(@businesses)
+      serp_candidate_business_ids = candidate_overview.serp_business_ids.index_with(true)
       @business_serp_generated_by_id = @businesses.index_with do |business|
         business.serp_generated?(candidate_business_ids: serp_candidate_business_ids)
       end
       @businesses.select! { |business| @business_serp_generated_by_id.fetch(business) } if params[:filter] == "serp"
 
-      @serp_new_business_pending_count = Aicoo::NewBusinessCandidateBoard.pending_count
+      @serp_new_business_pending_count = candidate_overview.new_business_pending_count
       @business_integration_health = Aicoo::MemoryDiagnostics.measure("Aicoo::BusinessIntegrationHealth#call", context: memory_diagnostics_context) do
         Aicoo::BusinessIntegrationHealth.new(businesses: @businesses).call
       end

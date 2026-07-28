@@ -64,7 +64,15 @@ class ApplicationController < ActionController::Base
     return if execution_runs_path?
     return unless request.format.html?
 
-    @long_running_operation_monitor = Aicoo::LongRunningOperationMonitor.new.call
+    options = if business_index_request?
+      {
+        running_only: true,
+        include_daily_runs: @daily_run_execution_status.nil?
+      }
+    else
+      {}
+    end
+    @long_running_operation_monitor = Aicoo::LongRunningOperationMonitor.new(**options).call
   rescue StandardError => e
     Rails.logger.warn("Long running operation monitor unavailable: #{e.class}: #{e.message}")
     @long_running_operation_monitor = nil
@@ -74,10 +82,16 @@ class ApplicationController < ActionController::Base
     return if public_render_path?
     return unless request.format.html?
 
-    @daily_run_execution_status = Aicoo::DailyRunExecutionStatus.call
+    @daily_run_execution_status = Aicoo::DailyRunExecutionStatus.call(
+      include_latest: !business_index_request?
+    )
   rescue StandardError => e
     Rails.logger.warn("Daily run execution status unavailable: #{e.class}: #{e.message}")
     @daily_run_execution_status = nil
+  end
+
+  def business_index_request?
+    controller_path == "businesses" && action_name == "index"
   end
 
   def owner_focus_path?

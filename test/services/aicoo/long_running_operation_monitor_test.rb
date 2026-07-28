@@ -47,5 +47,29 @@ module Aicoo
       assert_equal "失敗", failed_operation.status_label
       assert_equal "GA4 Property IDが未設定です", failed_operation.error_message
     end
+
+    test "running only mode skips history queries without changing running operations" do
+      running = GoogleApiImportRun.create!(
+        business: @business,
+        status: "running",
+        source_types: %w[gsc],
+        fetched_days: 1,
+        started_at: 5.minutes.ago
+      )
+      query_names = []
+      callback = lambda do |_name, _start, _finish, _id, payload|
+        query_names << payload[:name]
+      end
+
+      result = ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+        LongRunningOperationMonitor.new(running_only: true, include_daily_runs: false).call
+      end
+
+      assert_includes result.running_operations.map(&:key), "google-api-#{running.id}"
+      assert_empty result.recent_operations
+      assert_not_includes query_names, "DataImport Eager Load"
+      assert_not_includes query_names, "AicooDailyRunStep Load"
+      assert_not_includes query_names, "AicooLabLandingPagePublicationEvent Load"
+    end
   end
 end

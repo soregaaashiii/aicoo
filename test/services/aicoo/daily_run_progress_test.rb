@@ -495,7 +495,25 @@ module Aicoo
 
       assert progress.completed?
       assert_equal 100, progress.progress_percent
+      assert_equal run, status.latest_run
       assert_not status.rows.any? { |item| item.run_id == run.id }
+    end
+
+    test "execution status can omit unused latest run history" do
+      run = create_run(status: "success", finished_at: @now)
+      create_step(run, "analytics_fetch", status: "success", duration_seconds: 30)
+      queries = []
+      callback = lambda do |_name, _start, _finish, _id, payload|
+        queries << payload[:name] if payload[:name] == "AicooDailyRunStep Load"
+      end
+
+      status = ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+        Aicoo::DailyRunExecutionStatus.call(include_latest: false)
+      end
+
+      assert_empty status.rows
+      assert_nil status.latest_run
+      assert_empty queries
     end
 
     private

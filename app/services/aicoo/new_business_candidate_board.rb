@@ -39,6 +39,10 @@ module Aicoo
       new.pending_count
     end
 
+    def self.pending_scope
+      new.send(:pending_scope)
+    end
+
     def initialize(limit: 10, today: Time.zone.today)
       @limit = limit
       @today = today
@@ -57,7 +61,7 @@ module Aicoo
     end
 
     def pending_count
-      candidate_base.where(status: PENDING_STATUSES).count
+      pending_scope.count
     end
 
     private
@@ -74,6 +78,10 @@ module Aicoo
         )
         .where.not(status: %w[rejected archived])
         .order(Arel.sql("final_score DESC NULLS LAST, expected_hourly_value_yen DESC NULLS LAST, expected_profit_yen DESC NULLS LAST, created_at DESC"))
+    end
+
+    def pending_scope
+      candidate_base.where(status: PENDING_STATUSES)
     end
 
     def candidate_base

@@ -46,15 +46,21 @@ module Aicoo
 
     include Rails.application.routes.url_helpers
 
-    def self.call
-      new.call
+    def self.call(...)
+      new(...).call
+    end
+
+    def initialize(include_latest: true)
+      @include_latest = include_latest
     end
 
     def call
-      Result.new(rows: running_rows, latest_run:)
+      Result.new(rows: running_rows, latest_run: include_latest ? latest_run : nil)
     end
 
     private
+
+    attr_reader :include_latest
 
     def running_rows
       @running_rows ||= active_runs
