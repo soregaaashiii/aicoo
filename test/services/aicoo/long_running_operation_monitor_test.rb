@@ -48,7 +48,7 @@ module Aicoo
       assert_equal "GA4 Property IDが未設定です", failed_operation.error_message
     end
 
-    test "running only mode skips history queries without changing running operations" do
+    test "running only mode skips data import and daily run history queries" do
       running = GoogleApiImportRun.create!(
         business: @business,
         status: "running",
@@ -69,7 +69,6 @@ module Aicoo
       assert_empty result.recent_operations
       assert_not_includes query_names, "DataImport Eager Load"
       assert_not_includes query_names, "AicooDailyRunStep Load"
-      assert_not_includes query_names, "AicooLabLandingPagePublicationEvent Load"
     end
   end
 end

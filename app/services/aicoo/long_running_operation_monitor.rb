@@ -78,7 +78,11 @@ module Aicoo
         (include_daily_runs ? daily_run_operations : []) +
         codex_operations +
         serp_operations
-      operations += data_import_operations + landing_page_operations unless running_only
+      if running_only
+        landing_page_operations
+      else
+        operations += data_import_operations + landing_page_operations
+      end
 
       running = operations.select(&:running?).sort_by { |operation| operation.started_at || Time.current }.reverse
       recent = operations.reject(&:running?).sort_by { |operation| operation.finished_at || operation.started_at || Time.current }.reverse.first(8)
