@@ -1124,7 +1124,11 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     sql = capture_select_sql { get businesses_url }
 
     assert_response :success
-    candidate_record_loads = sql.select { |statement| statement.match?(/\ASELECT "action_candidates"\.\* FROM "action_candidates"/) }
+    candidate_record_loads = sql.select do |statement|
+      statement.match?(/\ASELECT .* FROM "action_candidates"/) &&
+        statement.include?('"action_candidates"."metadata"') &&
+        statement.include?('"action_candidates"."expected_profit_yen"')
+    end
     per_business_serp_checks = sql.select do |statement|
       statement.include?('"action_candidates"."business_id" =') &&
         statement.include?('"action_candidates"."generation_source"') &&
