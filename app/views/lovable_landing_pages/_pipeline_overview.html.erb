@@ -7,8 +7,23 @@
   <div class="section-heading">
     <div>
       <h2>Pipeline Explorer</h2>
-      <p>工程を開くと、AIの実行内容と停止理由を確認できます。</p>
+      <p>工程を開くと、AIの実行内容、停止原因、必要設定、直し方を確認できます。</p>
     </div>
+  </div>
+
+  <div class="lovable-pipeline-diagnosis status-<%= diagnosis.level %>" data-pipeline-diagnosis>
+    <div>
+      <span>診断結果</span>
+      <strong><%= diagnosis.status_label %></strong>
+    </div>
+    <ul aria-label="Pipeline診断結果">
+      <% diagnosis.components.each do |component| %>
+        <li class="status-<%= component.level %>">
+          <span><%= component.label %></span>
+          <strong><%= component.status_label %></strong>
+        </li>
+      <% end %>
+    </ul>
   </div>
 
   <div class="lovable-current-location status-<%= overview.failed? ? "failed" : (overview.completed? ? "completed" : "active") %>">
@@ -36,6 +51,8 @@
   <div class="lovable-pipeline-layout">
     <ol class="lovable-pipeline-timeline" aria-label="LP Pipeline">
       <% overview.stages.each do |stage| %>
+        <% component_key = Aicoo::Lovable::PipelineDiagnosis.component_for_stage(stage.key) %>
+        <% component = diagnosis.component(component_key) if component_key %>
         <li class="lovable-pipeline-step status-<%= stage.status %>" data-pipeline-stage="<%= stage.key %>">
           <span class="lovable-pipeline-marker" aria-hidden="true">
             <%= stage.status == "completed" ? "✓" : stage.number %>
@@ -57,6 +74,55 @@
                 <% end %>
               </span>
             </summary>
+
+            <% if component %>
+              <div class="lovable-pipeline-self-diagnosis status-<%= component.level %>">
+                <dl>
+                  <% component.details.each do |label, value| %>
+                    <div>
+                      <dt><%= label %></dt>
+                      <dd>
+                        <% if value.blank? %>
+                          <span class="muted">未記録</span>
+                        <% elsif value.is_a?(Array) %>
+                          <%= value.join(", ") %>
+                        <% else %>
+                          <%= value %>
+                        <% end %>
+                      </dd>
+                    </div>
+                  <% end %>
+                  <div><dt>接続状態</dt><dd><strong><%= component.connection_status %></strong></dd></div>
+                  <div><dt>原因</dt><dd><%= component.cause %></dd></div>
+                  <% if component.required_setting.present? %>
+                    <div><dt>必要設定</dt><dd><%= component.required_setting %></dd></div>
+                  <% end %>
+                  <% if component.settings_location.present? %>
+                    <div><dt>設定場所</dt><dd><%= component.settings_location %></dd></div>
+                  <% end %>
+                  <% if component.fix_steps.any? %>
+                    <div>
+                      <dt>直し方</dt>
+                      <dd><ol><% component.fix_steps.each do |step| %><li><%= step %></li><% end %></ol></dd>
+                    </div>
+                  <% end %>
+                </dl>
+                <% if component.recheckable && generation_run %>
+                  <%= button_to "再確認",
+                                recheck_pipeline_business_lovable_landing_page_path(
+                                  business,
+                                  landing_page_id: landing_page&.id
+                                ),
+                                method: :post,
+                                params: { component: component.key },
+                                class: "button secondary" %>
+                <% elsif component.key.in?(%i[ga4 gsc]) && component.level.in?(%w[settings error]) %>
+                  <%= link_to "Google再認証",
+                              google_settings_business_path(business),
+                              class: "button secondary" %>
+                <% end %>
+              </div>
+            <% end %>
 
             <details class="lovable-pipeline-developer-details">
               <summary>開発者向け詳細</summary>
@@ -93,10 +159,10 @@
     <div class="lovable-pipeline-guidance">
       <div class="aicoo-notice <%= "status-warning" if overview.failed? %>">
         <strong>次にやること</strong>
-        <p><%= overview.next_action_text %></p>
+        <p><%= diagnosis.next_action.text %></p>
 
         <div class="compact-actions">
-          <% if generation_run.nil? && landing_page %>
+          <% if diagnosis.next_action.kind == :create && landing_page %>
             <details class="business-access-editor lovable-inline-lp-creation">
               <summary class="button">＋LP作成</summary>
               <%= render "businesses/landing_page_creation_form",
@@ -105,7 +171,7 @@
                          form_url: start_creation_business_lovable_landing_page_path(business),
                          show_cancel: false %>
             </details>
-          <% elsif overview.approval_waiting? && task %>
+          <% elsif diagnosis.next_action.kind == :approve && task %>
             <%= button_to "承認",
                           approve_business_lovable_landing_page_path(
                             business,
@@ -115,22 +181,24 @@
                           method: :patch,
                           class: "button",
                           data: { turbo_confirm: "LP戦略とPromptを承認します。よろしいですか？" } %>
-          <% elsif overview.current_position == 3 && overview.build_url.present? %>
+          <% elsif diagnosis.next_action.kind == :generate && overview.build_url.present? %>
             <%= link_to "Lovableを開いてGenerate", overview.build_url, class: "button", target: "_blank", rel: "noopener" %>
-          <% elsif overview.retryable? && generation_run %>
-            <%= button_to "再試行",
-                          resume_result_version_business_lovable_landing_page_path(business, generation_run_id: generation_run.id, landing_page_id: landing_page&.id),
+          <% elsif diagnosis.next_action.kind == :recheck && generation_run %>
+            <%= button_to "再確認",
+                          recheck_pipeline_business_lovable_landing_page_path(
+                            business,
+                            landing_page_id: landing_page&.id
+                          ),
                           method: :post,
+                          params: { component: diagnosis.next_action.component },
                           class: "button" %>
-          <% elsif overview.settings_required? && landing_page %>
-            <%= link_to "設定を開く",
-                        business_lovable_landing_page_path(business, landing_page_id: landing_page.id, anchor: "lp-settings"),
-                        class: "button" %>
-            <% if overview.retryable? && generation_run %>
-              <%= button_to "再試行",
-                            resume_result_version_business_lovable_landing_page_path(business, generation_run_id: generation_run.id, landing_page_id: landing_page.id),
-                            method: :post,
-                            class: "button secondary" %>
+          <% elsif diagnosis.next_action.kind == :settings && landing_page %>
+            <% if diagnosis.next_action.component.in?(%i[ga4 gsc]) %>
+              <%= link_to "Google再認証", google_settings_business_path(business), class: "button" %>
+            <% else %>
+              <%= link_to "設定を開く",
+                          business_lovable_landing_page_path(business, landing_page_id: landing_page.id, anchor: "lp-settings"),
+                          class: "button" %>
             <% end %>
           <% end %>
         </div>

@@ -156,6 +156,104 @@
   gap: 18px;
 }
 
+.lovable-pipeline-diagnosis {
+  align-items: center;
+  background: #f7fafb;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: 6px;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(120px, auto) minmax(0, 1fr);
+  padding: 14px 16px;
+}
+
+.lovable-pipeline-diagnosis.status-error,
+.lovable-pipeline-diagnosis.status-settings {
+  border-left-color: var(--danger);
+}
+
+.lovable-pipeline-diagnosis > div {
+  display: grid;
+}
+
+.lovable-pipeline-diagnosis > div span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.lovable-pipeline-diagnosis > div strong {
+  font-size: 1.25rem;
+}
+
+.lovable-pipeline-diagnosis ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.lovable-pipeline-diagnosis li {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  display: grid;
+  font-size: 0.76rem;
+  gap: 1px;
+  min-width: 92px;
+  padding: 6px 8px;
+}
+
+.lovable-pipeline-diagnosis li.status-error,
+.lovable-pipeline-diagnosis li.status-settings {
+  border-color: #f1b5ae;
+}
+
+.lovable-pipeline-self-diagnosis {
+  background: #f7fafb;
+  border-left: 3px solid #28846b;
+  margin: 8px 0;
+  padding: 10px 12px;
+}
+
+.lovable-pipeline-self-diagnosis.status-error,
+.lovable-pipeline-self-diagnosis.status-settings {
+  background: #fff4f2;
+  border-left-color: var(--danger);
+}
+
+.lovable-pipeline-self-diagnosis dl {
+  display: grid;
+  gap: 7px;
+  margin: 0 0 10px;
+}
+
+.lovable-pipeline-self-diagnosis dl > div {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(88px, 0.32fr) minmax(0, 1fr);
+}
+
+.lovable-pipeline-self-diagnosis dt,
+.lovable-pipeline-self-diagnosis dd {
+  font-size: 0.78rem;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.lovable-pipeline-self-diagnosis dt {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.lovable-pipeline-self-diagnosis ol {
+  margin: 0;
+  padding-left: 18px;
+}
+
 .lovable-current-location {
   align-items: stretch;
   background: #f7fafb;
@@ -476,7 +574,8 @@
   }
 
   .lovable-current-location,
-  .lovable-pipeline-layout {
+  .lovable-pipeline-layout,
+  .lovable-pipeline-diagnosis {
     grid-template-columns: 1fr;
   }
 
@@ -485,6 +584,10 @@
   }
 
   .lovable-pipeline-diagnostics > div {
+    grid-template-columns: 1fr;
+  }
+
+  .lovable-pipeline-self-diagnosis dl > div {
     grid-template-columns: 1fr;
   }
 }

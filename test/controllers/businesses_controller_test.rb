@@ -1114,6 +1114,8 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_operator body.index(first.name), :<, body.index(second.name)
     assert_includes body, business_path(first)
     assert_includes body, business_path(second)
+    assert_select "th", text: "Pipeline Summary"
+    assert_includes body, "LP未登録"
   end
 
   test "business index batches action candidate loading as businesses grow" do

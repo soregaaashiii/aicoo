@@ -147,6 +147,45 @@ module Aicoo
         assert_not_includes requests, "/repos/example/lovable-result/git/ref/heads/main"
       end
 
+      test "checks the latest commit without fetching the repository tree or blobs" do
+        requests = []
+        adapter = lambda do |uri, _request|
+          requests << uri.path
+          payload = case uri.path
+          when "/repos/example/lovable-result/git/ref/heads/main"
+            { object: { sha: "latest123" } }
+          when "/repos/example/lovable-result/commits/latest123"
+            {
+              html_url: "https://github.com/example/lovable-result/commit/latest123",
+              author: { login: "owner" },
+              commit: { committer: { date: "2026-07-29T10:00:00Z" } },
+              files: [ { filename: "index.html" }, { filename: "app.css" } ]
+            }
+          else
+            raise "unexpected request #{uri.path}"
+          end
+          Struct.new(:body, :code) do
+            def is_a?(klass)
+              klass == Net::HTTPSuccess || super
+            end
+          end.new(payload.to_json, "200")
+        end
+        client = GithubRepositoryClient.new(
+          repository_url: "https://github.com/example/lovable-result",
+          branch: "main",
+          token: "token",
+          http_adapter: adapter
+        )
+
+        commit = client.latest_commit!
+
+        assert_equal "latest123", commit.commit_sha
+        assert_equal "owner", commit.author
+        assert_equal %w[index.html app.css], commit.changed_paths
+        assert_equal 2, requests.size
+        assert requests.none? { |path| path.include?("/trees/") || path.include?("/blobs/") }
+      end
+
       test "falls back to anonymous reads for a public source repository without weakening writes" do
         requests = []
         adapter = lambda do |uri, request|

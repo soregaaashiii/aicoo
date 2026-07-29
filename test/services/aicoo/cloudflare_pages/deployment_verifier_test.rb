@@ -74,6 +74,32 @@ module Aicoo
         assert_equal "testing", @landing_page.reload.landing_page_public_status
       end
 
+      test "diagnoses an invalid cloudflare token without changing a landing page" do
+        adapter = lambda do |_uri, _request|
+          Struct.new(:body, :code) do
+            def is_a?(klass)
+              klass == Net::HTTPSuccess ? false : super
+            end
+          end.new({ success: false, errors: [ { message: "Forbidden" } ] }.to_json, "403")
+        end
+        verifier = DeploymentVerifier.new(
+          configuration: Configuration.new(
+            env: {
+              "CLOUDFLARE_ACCOUNT_ID" => "account",
+              "CLOUDFLARE_API_TOKEN" => "expired",
+              "CLOUDFLARE_PROJECT_NAME" => "aicoo-lp"
+            }
+          ),
+          http_adapter: adapter
+        )
+
+        result = verifier.check_connection
+
+        assert_not result.ok
+        assert_equal "api_token_invalid", result.code
+        assert_equal 403, result.http_status
+      end
+
       private
 
       def response(klass, body)

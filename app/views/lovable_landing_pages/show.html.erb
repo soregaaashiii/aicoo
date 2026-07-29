@@ -19,7 +19,8 @@
              landing_page: @landing_page_prototype,
              generation_run: @pipeline_version,
              task: @lovable_task,
-             overview: @pipeline_overview %>
+             overview: @pipeline_overview,
+             diagnosis: @pipeline_diagnosis %>
   <%= render "pipeline_refresh_script" %>
 
   <% if @landing_page_prototype %>

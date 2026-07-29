@@ -15,6 +15,35 @@ class LovableLandingPagesController < ApplicationController
     render partial: "pipeline_overview", locals: pipeline_locals
   end
 
+  def recheck_pipeline
+    load_pipeline_context
+    raise ArgumentError, "診断対象のPipelineがありません。" unless @pipeline_version
+
+    component = params.expect(:component)
+    result = Aicoo::Lovable::PipelineRechecker.new(
+      cloudflare_configuration: @pipeline_cloudflare_configuration,
+      webhook_configuration: @pipeline_webhook_configuration
+    ).call(
+      component:,
+      landing_page: @landing_page_prototype,
+      generation_run: @pipeline_version
+    )
+    persist_pipeline_diagnosis!(result)
+    recover_after_recheck!(result) if result.ok
+    redirect_to business_lovable_landing_page_path(
+      @business,
+      landing_page_id: @landing_page_prototype&.id,
+      anchor: "lovable-pipeline-live"
+    ), notice: result.ok ? "#{result.component.upcase}の再確認に成功しました。" : nil,
+       alert: result.ok ? nil : result.cause
+  rescue ActiveRecord::RecordNotFound, ArgumentError => e
+    redirect_to business_lovable_landing_page_path(
+      @business,
+      landing_page_id: params[:landing_page_id],
+      anchor: "lovable-pipeline-live"
+    ), alert: "Pipelineを再確認できませんでした: #{e.message}"
+  end
+
   def start_creation
     landing_page = external_landing_page || raise(ActiveRecord::RecordNotFound)
     if landing_page.metadata.to_h["lovable_generation_run_id"].present?
@@ -313,6 +342,9 @@ class LovableLandingPagesController < ApplicationController
         .recent
         .first
     end
+    @pipeline_webhook_configuration = Aicoo::Lovable::GithubWebhookConfiguration.new
+    @pipeline_webhook_diagnostics = @pipeline_webhook_configuration.diagnostics
+    @pipeline_cloudflare_configuration = Aicoo::CloudflarePages::Configuration.new
     @pipeline_overview = Aicoo::Lovable::PipelineOverview.new(
       generation_run: @pipeline_version,
       landing_page: @landing_page_prototype,
@@ -320,10 +352,25 @@ class LovableLandingPagesController < ApplicationController
       business: @business,
       analytics_site: @pipeline_analytics_site,
       learning_snapshot: @pipeline_learning_snapshot,
-      webhook_diagnostics: Aicoo::Lovable::GithubWebhookConfiguration.new.diagnostics,
-      cloudflare_configuration: Aicoo::CloudflarePages::Configuration.new,
+      webhook_diagnostics: @pipeline_webhook_diagnostics,
+      cloudflare_configuration: @pipeline_cloudflare_configuration,
       webhook_url: github_webhook_url
     )
+    @pipeline_connection_statuses = %w[ga4 gsc].index_with do |source|
+      Aicoo::BusinessConnectionStatus.new(@business, source_key: source).call
+    end
+    @pipeline_diagnosis = Aicoo::Lovable::PipelineDiagnosis.new(
+      overview: @pipeline_overview,
+      business: @business,
+      landing_page: @landing_page_prototype,
+      generation_run: @pipeline_version,
+      analytics_site: @pipeline_analytics_site,
+      connection_statuses: @pipeline_connection_statuses,
+      webhook_configuration: @pipeline_webhook_configuration,
+      webhook_diagnostics: @pipeline_webhook_diagnostics,
+      cloudflare_configuration: @pipeline_cloudflare_configuration,
+      webhook_url: github_webhook_url
+    ).call
   end
 
   def latest_pipeline_version
@@ -343,8 +390,65 @@ class LovableLandingPagesController < ApplicationController
       landing_page: @landing_page_prototype,
       generation_run: @pipeline_version,
       task: @lovable_task,
-      overview: @pipeline_overview
+      overview: @pipeline_overview,
+      diagnosis: @pipeline_diagnosis
     }
+  end
+
+  def persist_pipeline_diagnosis!(result)
+    raise ArgumentError, "診断対象のPipelineがありません。" unless @pipeline_version
+
+    snapshot = result.to_h.deep_stringify_keys.merge("checked_at" => Time.current.iso8601)
+    current = @pipeline_version.metadata.to_h["pipeline_diagnosis"].to_h
+    @pipeline_version.update!(
+      metadata: @pipeline_version.metadata.to_h.merge(
+        "pipeline_diagnosis" => current.merge(result.component => snapshot)
+      )
+    )
+  end
+
+  def recover_after_recheck!(result)
+    case result.component
+    when "github"
+      return unless @pipeline_overview.error_code.to_s.in?(
+        Aicoo::Lovable::PipelineDiagnosis::GITHUB_ERROR_CODES
+      )
+
+      source_commit_sha = @pipeline_version.metadata.to_h["github_webhook_commit_sha"].presence
+      @pipeline_version.update!(
+        error_message: nil,
+        metadata: @pipeline_version.metadata.to_h.merge(
+          "pipeline_status" => "artifact_fetching",
+          "lovable_error_code" => nil,
+          "lovable_error_message" => nil,
+          "pipeline_recovery_status" => "retrying",
+          "pipeline_last_retry_at" => Time.current.iso8601
+        )
+      )
+      Aicoo::LovableResultImportJob.perform_later(@pipeline_version.id, source_commit_sha)
+    when "cloudflare"
+      return unless @pipeline_overview.error_code.to_s.in?(
+        Aicoo::Lovable::PipelineDiagnosis::CLOUDFLARE_ERROR_CODES
+      )
+
+      commit_sha = @pipeline_overview.commit_sha
+      return if commit_sha.blank?
+
+      @pipeline_version.update!(
+        error_message: nil,
+        metadata: @pipeline_version.metadata.to_h.merge(
+          "pipeline_status" => "cloudflare_waiting",
+          "lovable_error_code" => nil,
+          "lovable_error_message" => nil,
+          "pipeline_recovery_status" => "retrying",
+          "pipeline_last_retry_at" => Time.current.iso8601
+        )
+      )
+      Aicoo::CloudflarePagesDeploymentVerificationJob.perform_later(
+        @landing_page_prototype.id,
+        commit_sha
+      )
+    end
   end
 
   def external_landing_page

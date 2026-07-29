@@ -8,6 +8,7 @@ module Aicoo
   module CloudflarePages
     class GithubRepositoryClient
       Result = Data.define(:commit_sha, :commit_url, :changed_paths)
+      RepositoryCommit = Data.define(:commit_sha, :commit_url, :committed_at, :author, :changed_paths)
       RepositorySnapshot = Data.define(
         :commit_sha,
         :files,
@@ -133,6 +134,24 @@ module Aicoo
           author: commit_details.dig("author", "login").presence ||
             commit_details.dig("commit", "author", "name").presence,
           changed_paths: Array(commit_details["files"]).filter_map { |file| file.to_h["filename"].presence }
+        )
+      end
+
+      def latest_commit!
+        validate!(write: false)
+        ref = get("/git/ref/heads/#{escape(branch)}")
+        commit_sha = ref.dig("object", "sha")
+        raise ArgumentError, "GitHub Branch #{branch} の最新Commitを取得できません。" if commit_sha.blank?
+
+        details = get("/commits/#{escape(commit_sha)}")
+        RepositoryCommit.new(
+          commit_sha:,
+          commit_url: details["html_url"].presence || "https://github.com/#{repository_slug}/commit/#{commit_sha}",
+          committed_at: details.dig("commit", "committer", "date").presence ||
+            details.dig("commit", "author", "date").presence,
+          author: details.dig("author", "login").presence ||
+            details.dig("commit", "author", "name").presence,
+          changed_paths: Array(details["files"]).filter_map { |file| file.to_h["filename"].presence }
         )
       end
 

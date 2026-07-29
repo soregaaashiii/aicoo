@@ -56,6 +56,29 @@ class BusinessesController < ApplicationController
       @business_codex_statuses_by_id = @businesses.index_with do |business|
         @data_source_settings_presenter.codex_status(business)
       end
+      index_landing_pages = BusinessPrototype.active.external_landing_pages
+        .where(business_id: @businesses.map(&:id))
+        .select(:id, :business_id, :metadata)
+        .to_a
+      index_landing_pages_by_business_id = index_landing_pages.group_by(&:business_id)
+      pipeline_run_ids = index_landing_pages.filter_map do |landing_page|
+        landing_page.metadata.to_h["lovable_generation_run_id"]
+      end
+      pipeline_runs_by_id = AicooLabGenerationRun
+        .where(id: pipeline_run_ids)
+        .select(:id, :status, :error_message, :metadata)
+        .index_by(&:id)
+      pipeline_cloudflare_configuration = Aicoo::CloudflarePages::Configuration.new
+      @business_pipeline_summaries = @businesses.index_with do |business|
+        statuses = @business_data_source_statuses_by_id.fetch(business).index_by(&:source_key)
+        Aicoo::Lovable::PipelineDiagnosis.summary_for(
+          landing_pages: index_landing_pages_by_business_id.fetch(business.id, []),
+          generation_runs_by_id: pipeline_runs_by_id,
+          ga4_status: statuses["ga4"],
+          gsc_status: statuses["gsc"],
+          cloudflare_configuration: pipeline_cloudflare_configuration
+        )
+      end
       analytics_context = Aicoo::BusinessAnalyticsBatchContext.new(@businesses, include_details: false)
       @business_analytics_summaries = Aicoo::MemoryDiagnostics.measure("Aicoo::BusinessAnalyticsSummary.for_businesses", context: memory_diagnostics_context(business_count: @businesses.size)) do
         Aicoo::BusinessAnalyticsSummary.for_businesses(

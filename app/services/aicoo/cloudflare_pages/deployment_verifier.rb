@@ -6,6 +6,7 @@ module Aicoo
   module CloudflarePages
     class DeploymentVerifier
       Result = Data.define(:completed, :status, :deployment_id, :url, :message)
+      ConnectionResult = Data.define(:ok, :code, :project_name, :http_status, :message)
 
       def initialize(configuration: Configuration.new, http_adapter: nil)
         @configuration = configuration
@@ -30,6 +31,35 @@ module Aicoo
         complete!(landing_page, deployment, url, response:, deleted:)
       rescue StandardError => e
         pending("公開確認に失敗しました: #{e.message}")
+      end
+
+      def check_connection
+        return connection_failure("account_id_missing", "CLOUDFLARE_ACCOUNT_IDが未設定です。") if configuration.account_id.blank?
+        return connection_failure("api_token_missing", "CLOUDFLARE_API_TOKENが未設定です。") if configuration.api_token.blank?
+        return connection_failure("project_missing", "CLOUDFLARE_PROJECT_NAMEが未設定です。") if configuration.project_name.blank?
+
+        uri = URI("https://api.cloudflare.com/client/v4/accounts/#{configuration.account_id}/pages/projects/#{configuration.project_name}")
+        request = Net::HTTP::Get.new(uri)
+        request["Authorization"] = "Bearer #{configuration.api_token}"
+        request["Content-Type"] = "application/json"
+        response = http_adapter.call(uri, request)
+        body = JSON.parse(response.body.presence || "{}")
+        if response.is_a?(Net::HTTPSuccess) && body["success"] != false
+          return ConnectionResult.new(
+            ok: true,
+            code: "ok",
+            project_name: configuration.project_name,
+            http_status: response.code.to_i,
+            message: "Cloudflare Pages Projectへ接続できました。"
+          )
+        end
+
+        code, message = cloudflare_connection_error(response.code.to_i, body)
+        connection_failure(code, message, http_status: response.code.to_i)
+      rescue JSON::ParserError
+        connection_failure("invalid_response", "Cloudflare APIの応答を解析できませんでした。")
+      rescue StandardError => e
+        connection_failure("connection_failed", "Cloudflare接続確認に失敗しました: #{e.message}")
       end
 
       private
@@ -127,6 +157,24 @@ module Aicoo
 
       def pending(message)
         Result.new(completed: false, status: "pending", deployment_id: nil, url: nil, message:)
+      end
+
+      def connection_failure(code, message, http_status: nil)
+        ConnectionResult.new(
+          ok: false,
+          code:,
+          project_name: configuration.project_name,
+          http_status:,
+          message:
+        )
+      end
+
+      def cloudflare_connection_error(status, body)
+        return [ "api_token_invalid", "Cloudflare API Tokenが無効または期限切れです。" ] if status.in?([ 401, 403 ])
+        return [ "project_not_found", "Cloudflare Pages Project #{configuration.project_name} が存在しません。" ] if status == 404
+
+        message = Array(body["errors"]).filter_map { |error| error.to_h["message"].presence }.join(" / ")
+        [ "connection_failed", message.presence || "Cloudflare APIへ接続できませんでした。HTTP #{status}" ]
       end
 
       def perform_http(uri, request)

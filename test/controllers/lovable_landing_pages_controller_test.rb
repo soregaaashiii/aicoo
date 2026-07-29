@@ -27,6 +27,13 @@ class LovableLandingPagesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "GSC"
     assert_includes response.body, "Learning"
     assert_includes response.body, "Pipeline Explorer"
+    assert_select "[data-pipeline-diagnosis]", 1
+    assert_includes response.body, "診断結果"
+    assert_includes response.body, "接続状態"
+    assert_includes response.body, "原因"
+    assert_includes response.body, "必要設定"
+    assert_includes response.body, "設定場所"
+    assert_includes response.body, "直し方"
     assert_select "details[data-pipeline-explorer-stage]", 13
     assert_select "details[data-pipeline-explorer-stage='github_source_push'] summary", text: /GitHub Push/
     assert_select "details[data-pipeline-explorer-stage='webhook']", text: /Webhook URL/
@@ -46,6 +53,50 @@ class LovableLandingPagesControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, "lovable-phase-strip"
     assert_includes response.body, "openStages"
     assert_includes response.body, "data-pipeline-explorer-stage"
+  end
+
+  test "pipeline diagnosis explains github permissions and offers one next action" do
+    campaign = @business.business_campaigns.create!(name: "Diagnosis Campaign", campaign_type: "seo", status: "active")
+    landing_page = @business.business_prototypes.create!(
+      business_campaign: campaign,
+      name: "Diagnosis LP",
+      prototype_type: "github",
+      location: "https://github.com/example/private-lp",
+      status: "active",
+      metadata: {
+        "role" => BusinessPrototype::EXTERNAL_LANDING_PAGE_ROLE,
+        "lp_name" => "Diagnosis LP",
+        "lp_public_status" => "testing"
+      }
+    )
+    run = AicooLabGenerationRun.create!(
+      generation_type: "lp_generation",
+      status: "failed",
+      prompt: "Import LP",
+      error_message: "GitHub Repository example/private-lp へアクセスできません。",
+      metadata: {
+        "pipeline" => "lovable",
+        "pipeline_status" => "github_webhook_waiting",
+        "business_id" => @business.id,
+        "landing_page_prototype_id" => landing_page.id,
+        "version" => 1,
+        "repository_import" => true,
+        "lovable_result_repository" => "https://github.com/example/private-lp",
+        "lovable_result_branch" => "main",
+        "lovable_error_code" => "github_permission_error",
+        "lovable_error_message" => "GitHub Repository example/private-lp へアクセスできません。"
+      }
+    )
+    landing_page.update!(metadata: landing_page.metadata.to_h.merge("lovable_generation_run_id" => run.id))
+
+    get business_lovable_landing_page_url(@business, landing_page_id: landing_page.id)
+
+    assert_response :success
+    assert_select "[data-pipeline-diagnosis]", text: /GitHub.*要設定/
+    assert_select "[data-pipeline-explorer-stage='github_source_push']", text: /Fine-grained Token/
+    assert_select "[data-pipeline-explorer-stage='github_source_push']", text: /Contents Read/
+    assert_select ".lovable-pipeline-guidance form[action^='#{recheck_pipeline_business_lovable_landing_page_path(@business)}']", 1
+    assert_select ".lovable-pipeline-guidance .compact-actions .button", 1
   end
 
   test "starts and approves an unstarted landing page without leaving its detail" do
@@ -289,6 +340,7 @@ class LovableLandingPagesControllerTest < ActionDispatch::IntegrationTest
     assert_select "details[data-pipeline-explorer-stage]", 13
     assert_select "details[data-pipeline-explorer-stage='artifact_fetch'][open]", 1
     assert_select "details[data-pipeline-explorer-stage='artifact_fetch']", text: /取得ファイル数/
+    assert_select "[data-pipeline-diagnosis]", 1
     assert_not_includes response.body, "<html"
     assert_not_includes response.body, "LP Studio"
   end
