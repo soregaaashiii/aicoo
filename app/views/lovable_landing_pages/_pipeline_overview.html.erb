@@ -226,6 +226,16 @@
         <div class="lovable-pipeline-error">
           <strong><%= overview.error_code.presence || "pipeline_error" %></strong>
           <p><%= overview.error_message.presence || "処理を継続できませんでした。" %></p>
+          <% if overview.error_code.to_s.start_with?("static_build") && generation_run %>
+            <%= button_to "静的buildを再試行",
+                          resume_result_version_business_lovable_landing_page_path(
+                            business,
+                            generation_run,
+                            landing_page_id: landing_page&.id
+                          ),
+                          method: :post,
+                          class: "button" %>
+          <% end %>
         </div>
       <% end %>
 
