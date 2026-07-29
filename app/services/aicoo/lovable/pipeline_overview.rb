@@ -144,6 +144,7 @@ module Aicoo
         return "完了" if stage.status == "completed"
         return "失敗" if stage.status == "failed"
         return "待機" if stage.status == "waiting"
+        return "未開始" unless generation_run
         return "承認待ち" if stage.key == :approval
         return "Generate待ち" if stage.key == :generate
         return "GitHub Push待ち" if stage.key == :github_source_push

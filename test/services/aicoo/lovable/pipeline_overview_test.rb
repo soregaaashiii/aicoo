@@ -27,6 +27,14 @@ module Aicoo
         assert_equal "実行中", overview.stage_status_label(overview.current_stage)
       end
 
+      test "labels an LP without a generation run as not started" do
+        overview = PipelineOverview.new(generation_run: nil, landing_page: nil, task: nil)
+
+        assert_equal "未開始", overview.headline_status
+        assert_equal "未開始", overview.stage_status_label(overview.current_stage)
+        assert_not overview.refresh?
+      end
+
       test "keeps owner approval as the only action before lovable launch" do
         task = Task.new("waiting_approval", nil, {})
         overview = build_overview(status: "prompt_ready", task:)
