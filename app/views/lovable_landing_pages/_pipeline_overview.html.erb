@@ -71,7 +71,7 @@
                       </ul>
                     <% elsif diagnostic.value.is_a?(Hash) %>
                       <%= diagnostic.value.to_json %>
-                    <% elsif diagnostic.value.respond_to?(:in_time_zone) %>
+                    <% elsif diagnostic.value.is_a?(Time) || diagnostic.value.is_a?(Date) || diagnostic.value.is_a?(ActiveSupport::TimeWithZone) %>
                       <time datetime="<%= diagnostic.value.in_time_zone.iso8601 %>"><%= l(diagnostic.value.in_time_zone, format: :short) %></time>
                     <% elsif diagnostic.url.present? %>
                       <%= link_to diagnostic.value, diagnostic.url, target: "_blank", rel: "noopener" %>

@@ -187,6 +187,20 @@ module Aicoo
         assert_equal "cta_improvement（成功）", learning.fetch("勝ちパターン").value
       end
 
+      test "renders a business common setting label for binary encoded Japanese names" do
+        business_name = "AI受付".dup.force_encoding(Encoding::ASCII_8BIT)
+        overview = build_overview(
+          status: "ga4_pending",
+          business: Business.new(business_name, {})
+        )
+
+        ga4 = overview.stages.find { |stage| stage.key == :ga4 }.diagnostics.index_by(&:label)
+        landing_page = overview.stages.find { |stage| stage.key == :landing_page }.diagnostics.index_by(&:label)
+
+        assert_equal "Business共通設定（AI受付）", ga4.fetch("設定元").value
+        assert_equal "AI受付", landing_page.fetch("Business").value
+      end
+
       test "does not mark missing measurement sources complete" do
         overview = build_overview(
           status: "improvement_waiting",

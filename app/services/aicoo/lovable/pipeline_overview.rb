@@ -606,9 +606,10 @@ module Aicoo
       end
 
       def normalized_diagnostic_value(value)
-        return value if value.respond_to?(:in_time_zone)
-        return value.compact if value.is_a?(Array)
+        return value if value.is_a?(Time) || value.is_a?(Date) || value.is_a?(ActiveSupport::TimeWithZone)
+        return value.compact.map { |item| normalized_diagnostic_value(item) } if value.is_a?(Array)
         return value if value.is_a?(Hash)
+        return value.dup.force_encoding(Encoding::UTF_8).scrub.presence if value.is_a?(String)
 
         value.presence
       end
@@ -645,7 +646,10 @@ module Aicoo
       end
 
       def business_common_setting_label
-        business ? "Business共通設定（#{business.name}）" : "Business共通設定"
+        return "Business共通設定" unless business
+
+        business_name = business.name.to_s.dup.force_encoding(Encoding::UTF_8).scrub
+        "Business共通設定（#{business_name}）"
       end
 
       def cloudflare_project_name
