@@ -163,18 +163,40 @@ module Aicoo
         uri = URI("https://api.github.com/repos/#{repository_slug}#{path}")
         request = request_class.new(uri)
         request["Accept"] = "application/vnd.github+json"
-        request["Authorization"] = "Bearer #{token}" if token.present?
+        request["Authorization"] = "Bearer #{token}" if token.present? && !anonymous_read?(request_class)
         request["X-GitHub-Api-Version"] = "2022-11-28"
         request["User-Agent"] = "aicoo-lp-publisher"
         request["Content-Type"] = "application/json"
         request.body = JSON.generate(payload) if payload
         response = http_adapter.call(uri, request)
-        body = JSON.parse(response.body.presence || "{}")
+        body = parse_response_body(response)
         return body if response.is_a?(Net::HTTPSuccess)
+        if anonymous_read_fallback?(request_class, response)
+          @anonymous_read = true
+          request.delete("Authorization")
+          response = http_adapter.call(uri, request)
+          body = parse_response_body(response)
+          return body if response.is_a?(Net::HTTPSuccess)
+        end
 
         raise ArgumentError, github_error_message(response.code.to_i, body["message"])
       rescue JSON::ParserError
         raise ArgumentError, "GitHub APIから不正なレスポンスが返りました。"
+      end
+
+      def parse_response_body(response)
+        JSON.parse(response.body.presence || "{}")
+      end
+
+      def anonymous_read?(request_class)
+        request_class == Net::HTTP::Get && @anonymous_read == true
+      end
+
+      def anonymous_read_fallback?(request_class, response)
+        request_class == Net::HTTP::Get &&
+          token.present? &&
+          response.code.to_i.in?([ 403, 404 ]) &&
+          !anonymous_read?(request_class)
       end
 
       def perform_http(uri, request)

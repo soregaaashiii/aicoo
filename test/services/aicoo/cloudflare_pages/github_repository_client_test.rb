@@ -147,6 +147,45 @@ module Aicoo
         assert_not_includes requests, "/repos/example/lovable-result/git/ref/heads/main"
       end
 
+      test "falls back to anonymous reads for a public source repository without weakening writes" do
+        requests = []
+        adapter = lambda do |uri, request|
+          requests << [ uri.path, request["Authorization"] ]
+          if request["Authorization"].present?
+            next response(Net::HTTPNotFound, { message: "Not Found" }.to_json, code: "404", message: "Not Found")
+          end
+
+          body = case uri.path
+          when "/repos/example/public-result/git/ref/heads/main"
+            { object: { sha: "public-sha" } }
+          when "/repos/example/public-result/git/commits/public-sha"
+            { tree: { sha: "public-tree" } }
+          when "/repos/example/public-result/commits/public-sha"
+            { files: [ { filename: "index.html" } ] }
+          when "/repos/example/public-result/git/trees/public-tree"
+            { tree: [ { path: "index.html", type: "blob", sha: "html", size: 20 } ] }
+          when "/repos/example/public-result/git/blobs/html"
+            { content: Base64.strict_encode64("<title>Public LP</title>"), encoding: "base64" }
+          else
+            raise "unexpected request #{request.method} #{uri}"
+          end
+          response(Net::HTTPOK, body.to_json)
+        end
+        client = GithubRepositoryClient.new(
+          repository_url: "https://github.com/example/public-result",
+          branch: "main",
+          token: "token-without-source-access",
+          http_adapter: adapter
+        )
+
+        snapshot = client.snapshot!
+
+        assert_equal "public-sha", snapshot.commit_sha
+        assert_equal [ "index.html" ], snapshot.files.keys
+        assert_equal "Bearer token-without-source-access", requests.first.last
+        assert requests.drop(1).all? { |_path, authorization| authorization.nil? }
+      end
+
       private
 
       def response(klass, body, code: "200", message: "OK")
