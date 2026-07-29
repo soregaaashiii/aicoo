@@ -77,49 +77,67 @@
 
             <% if component %>
               <div class="lovable-pipeline-self-diagnosis status-<%= component.level %>">
-                <dl>
-                  <% component.details.each do |label, value| %>
-                    <div>
-                      <dt><%= label %></dt>
-                      <dd>
-                        <% if value.blank? %>
-                          <span class="muted">未記録</span>
-                        <% elsif value.is_a?(Array) %>
-                          <%= value.join(", ") %>
-                        <% else %>
-                          <%= value %>
-                        <% end %>
-                      </dd>
-                    </div>
-                  <% end %>
+                <dl class="lovable-pipeline-diagnosis-summary">
                   <div><dt>接続状態</dt><dd><strong><%= component.connection_status %></strong></dd></div>
                   <div><dt>原因</dt><dd><%= component.cause %></dd></div>
                   <% if component.required_setting.present? %>
                     <div><dt>必要設定</dt><dd><%= component.required_setting %></dd></div>
                   <% end %>
-                  <% if component.settings_location.present? %>
-                    <div><dt>設定場所</dt><dd><%= component.settings_location %></dd></div>
-                  <% end %>
-                  <% if component.fix_steps.any? %>
-                    <div>
-                      <dt>直し方</dt>
-                      <dd><ol><% component.fix_steps.each do |step| %><li><%= step %></li><% end %></ol></dd>
-                    </div>
-                  <% end %>
                 </dl>
-                <% if component.recheckable && generation_run %>
-                  <%= button_to "再確認",
-                                recheck_pipeline_business_lovable_landing_page_path(
-                                  business,
-                                  landing_page_id: landing_page&.id
-                                ),
-                                method: :post,
-                                params: { component: component.key },
-                                class: "button secondary" %>
-                <% elsif component.key.in?(%i[ga4 gsc]) && component.level.in?(%w[settings error]) %>
-                  <%= link_to "Google再認証",
-                              google_settings_business_path(business),
-                              class: "button secondary" %>
+
+                <% settings_link = pipeline_diagnosis_settings_link(component, landing_page:) %>
+                <% if settings_link || (component.recheckable && generation_run) %>
+                  <div class="lovable-pipeline-diagnosis-actions">
+                    <% if settings_link %>
+                      <%= link_to settings_link.fetch(:label),
+                                  settings_link.fetch(:url),
+                                  class: "button",
+                                  target: "_blank",
+                                  rel: "noopener",
+                                  data: { pipeline_setting_link: component.key } %>
+                    <% end %>
+                    <% if component.recheckable && generation_run %>
+                      <%= button_to "再確認",
+                                    recheck_pipeline_business_lovable_landing_page_path(
+                                      business,
+                                      landing_page_id: landing_page&.id
+                                    ),
+                                    method: :post,
+                                    params: { component: component.key },
+                                    class: "button secondary" %>
+                    <% end %>
+                  </div>
+                <% end %>
+
+                <% if component.details.any? || component.settings_location.present? || component.fix_steps.any? %>
+                  <details class="lovable-pipeline-diagnosis-details">
+                    <summary>詳細を見る</summary>
+                    <dl>
+                      <% component.details.each do |label, value| %>
+                        <div>
+                          <dt><%= label %></dt>
+                          <dd>
+                            <% if value.blank? %>
+                              <span class="muted">未記録</span>
+                            <% elsif value.is_a?(Array) %>
+                              <%= value.join(", ") %>
+                            <% else %>
+                              <%= value %>
+                            <% end %>
+                          </dd>
+                        </div>
+                      <% end %>
+                      <% if component.settings_location.present? %>
+                        <div><dt>設定場所</dt><dd><%= component.settings_location %></dd></div>
+                      <% end %>
+                      <% if component.fix_steps.any? %>
+                        <div>
+                          <dt>直し方</dt>
+                          <dd><ol><% component.fix_steps.each do |step| %><li><%= step %></li><% end %></ol></dd>
+                        </div>
+                      <% end %>
+                    </dl>
+                  </details>
                 <% end %>
               </div>
             <% end %>

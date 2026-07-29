@@ -254,6 +254,38 @@
   padding-left: 18px;
 }
 
+.lovable-pipeline-diagnosis-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.lovable-pipeline-diagnosis-actions form {
+  margin: 0;
+}
+
+.lovable-pipeline-diagnosis-details {
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+.lovable-pipeline-diagnosis-details > summary {
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.lovable-pipeline-diagnosis-details[open] > summary {
+  margin-bottom: 10px;
+}
+
+.lovable-pipeline-diagnosis-details dl {
+  margin-bottom: 0;
+}
+
 .lovable-current-location {
   align-items: stretch;
   background: #f7fafb;

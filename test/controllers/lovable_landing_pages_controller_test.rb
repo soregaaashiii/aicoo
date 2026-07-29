@@ -88,13 +88,85 @@ class LovableLandingPagesControllerTest < ActionDispatch::IntegrationTest
       }
     )
     landing_page.update!(metadata: landing_page.metadata.to_h.merge("lovable_generation_run_id" => run.id))
+    issue_component = lambda do |key, label, required_setting, details = {}|
+      Aicoo::Lovable::PipelineDiagnosis::Component.new(
+        key:,
+        label:,
+        level: "settings",
+        status_label: "要設定",
+        connection_status: "NG",
+        cause: "#{label}の設定が不足しています。",
+        required_setting:,
+        settings_location: "#{label}の設定手順",
+        fix_steps: [ "#{label}を設定する", "再確認する" ],
+        recheckable: key.in?(%i[github webhook cloudflare]),
+        details:
+      )
+    end
+    components = [
+      issue_component.call(:github, "GitHub", "Contents Read", { "Repository" => "example/private-lp" }),
+      issue_component.call(:webhook, "Webhook", "Push event", { "Repository" => "example/private-lp" }),
+      issue_component.call(:cloudflare, "Cloudflare", "API Token", { "Project" => "aicoo-lp" }),
+      issue_component.call(:ga4, "GA4", "Property ID"),
+      issue_component.call(:gsc, "GSC", "Site URL"),
+      Aicoo::Lovable::PipelineDiagnosis::Component.new(
+        key: :learning,
+        label: "Learning",
+        level: "healthy",
+        status_label: "正常",
+        connection_status: "OK",
+        cause: "Learningを取得済みです。",
+        required_setting: nil,
+        settings_location: nil,
+        fix_steps: [],
+        recheckable: false,
+        details: { "Snapshot" => "保存済み" }
+      )
+    ]
+    Aicoo::Lovable::PipelineDiagnosisSnapshot.write!(
+      generation_run: run,
+      result: Aicoo::Lovable::PipelineDiagnosis::Result.new(
+        level: "settings",
+        status_label: "要設定",
+        components:,
+        next_action: Aicoo::Lovable::PipelineDiagnosis::NextAction.new(
+          text: "GitHubを設定してください。",
+          kind: :recheck,
+          component: :github
+        )
+      ),
+      source: :test
+    )
 
     get business_lovable_landing_page_url(@business, landing_page_id: landing_page.id)
 
     assert_response :success
     assert_select "[data-pipeline-diagnosis]", text: /GitHub.*要設定/
-    assert_select "[data-pipeline-explorer-stage='github_source_push']", text: /Fine-grained Token/
     assert_select "[data-pipeline-explorer-stage='github_source_push']", text: /Contents Read/
+    assert_select "[data-pipeline-setting-link='github'][href='https://github.com/settings/personal-access-tokens'][target='_blank']", minimum: 1,
+      text: "GitHub設定を開く"
+    assert_select "[data-pipeline-setting-link='cloudflare'][href='https://dash.cloudflare.com/'][target='_blank']", minimum: 1,
+      text: "Cloudflareを開く"
+    assert_select "[data-pipeline-setting-link='webhook'][href='https://github.com/example/private-lp/settings/hooks'][target='_blank']", 1,
+      text: "Webhook設定を開く"
+    assert_select "[data-pipeline-setting-link='ga4'][href='https://analytics.google.com/analytics/web/'][target='_blank']", 1,
+      text: "GA4を開く"
+    assert_select "[data-pipeline-setting-link='gsc'][href='https://search.google.com/search-console'][target='_blank']", 1,
+      text: "Search Consoleを開く"
+    assert_select "[data-pipeline-setting-link='learning']", 0
+    assert_select ".lovable-pipeline-diagnosis-summary" do
+      assert_select "dt", text: "接続状態", minimum: 1
+      assert_select "dt", text: "原因", minimum: 1
+      assert_select "dt", text: "必要設定", minimum: 1
+      assert_select "dt", text: "設定場所", count: 0
+      assert_select "dt", text: "直し方", count: 0
+    end
+    assert_select "details.lovable-pipeline-diagnosis-details:not([open])", minimum: 5
+    assert_select "details.lovable-pipeline-diagnosis-details" do
+      assert_select "summary", text: "詳細を見る", minimum: 5
+      assert_select "dt", text: "設定場所", minimum: 5
+      assert_select "dt", text: "直し方", minimum: 5
+    end
     assert_select ".lovable-pipeline-guidance form[action^='#{recheck_pipeline_business_lovable_landing_page_path(@business)}']", 1
     assert_select ".lovable-pipeline-guidance .compact-actions .button", 1
   end
