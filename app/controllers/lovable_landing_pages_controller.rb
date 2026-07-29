@@ -15,6 +15,58 @@ class LovableLandingPagesController < ApplicationController
     render partial: "pipeline_overview", locals: pipeline_locals
   end
 
+  def start_creation
+    landing_page = external_landing_page || raise(ActiveRecord::RecordNotFound)
+    if landing_page.metadata.to_h["lovable_generation_run_id"].present?
+      raise ArgumentError, "このLPの作成は開始済みです。"
+    end
+
+    values = landing_page_creation_params
+    purpose = values.fetch(:purpose)
+    unless purpose.in?(Aicoo::LpIntegration::LandingPageStrategyBuilder::PURPOSES)
+      raise ArgumentError, "作成目的を選択してください。"
+    end
+
+    Aicoo::LpIntegration::LandingPageCreationFlow.new(
+      business: @business,
+      campaign: campaign_for(landing_page, purpose),
+      landing_page:,
+      attributes: values
+    ).call
+    redirect_to business_lovable_landing_page_path(
+      @business,
+      landing_page_id: landing_page.id,
+      anchor: "lovable-pipeline-live"
+    ), notice: "AICOOがLP戦略とPromptを生成しました。内容を確認して承認してください。"
+  rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotFound, ArgumentError => e
+    redirect_to business_lovable_landing_page_path(
+      @business,
+      landing_page_id: params[:landing_page_id],
+      anchor: "lovable-pipeline-live"
+    ), alert: "LP作成を開始できませんでした: #{e.message}"
+  end
+
+  def approve
+    landing_page = external_landing_page || raise(ActiveRecord::RecordNotFound)
+    task = @business.auto_revision_tasks.find(params.expect(:auto_revision_task_id))
+    unless task.metadata.to_h["landing_page_prototype_id"].to_i == landing_page.id
+      raise ActiveRecord::RecordNotFound
+    end
+
+    result = Aicoo::ApprovalService.approve(task, operator: "owner", source: "lovable_landing_page_detail")
+    redirect_to business_lovable_landing_page_path(
+      @business,
+      landing_page_id: landing_page.id,
+      anchor: "lovable-pipeline-live"
+    ), notice: result.message
+  rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotFound, ArgumentError => e
+    redirect_to business_lovable_landing_page_path(
+      @business,
+      landing_page_id: params[:landing_page_id],
+      anchor: "lovable-pipeline-live"
+    ), alert: "LP戦略を承認できませんでした: #{e.message}"
+  end
+
   def create
     candidate = @business.action_candidates.find_by(id: params[:action_candidate_id])
     pipeline = Aicoo::Lovable::LandingPagePipeline.new
@@ -311,5 +363,31 @@ class LovableLandingPagesController < ApplicationController
 
   def enqueue_result_import(generation_run)
     Aicoo::LovableResultImportJob.perform_later(generation_run.id)
+  end
+
+  def landing_page_creation_params
+    params.require(:lp_plan).permit(
+      :name,
+      :purpose,
+      :notes,
+      advanced: %i[keywords persona cta design_direction brand_colors image_instructions excluded_keywords output_format]
+    )
+  end
+
+  def campaign_for(landing_page, purpose)
+    campaign_type = Aicoo::LpIntegration::BusinessLandingPagePlanner::PURPOSE_CAMPAIGN_TYPES.fetch(purpose)
+    name = Aicoo::LpIntegration::BusinessLandingPagePlanner::PURPOSE_CAMPAIGN_NAMES.fetch(purpose)
+    existing = landing_page.business_campaign
+    return existing if existing&.metadata.to_h&.dig("planner_purpose") == purpose
+    return existing if purpose != "regional" && existing&.campaign_type == campaign_type
+
+    @business.business_campaigns.active.find_by("metadata ->> 'planner_purpose' = ?", purpose) ||
+      (purpose == "regional" ? nil : @business.business_campaigns.active.find_by(campaign_type:)) ||
+      @business.business_campaigns.create!(
+        name:,
+        campaign_type:,
+        status: "active",
+        metadata: { "planner_purpose" => purpose }
+      )
   end
 end

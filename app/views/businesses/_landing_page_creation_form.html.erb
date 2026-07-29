@@ -1,6 +1,10 @@
-<%= form_with url: landing_page_plan_business_access_settings_path(business), method: :post, scope: :lp_plan, class: "business-access-form lp-creation-form" do |form| %>
+<% creation_form_url = local_assigns[:form_url] || landing_page_plan_business_access_settings_path(business) %>
+<%= form_with url: creation_form_url, method: :post, scope: :lp_plan, class: "business-access-form lp-creation-form" do |form| %>
   <% if local_assigns[:campaign] %>
     <%= form.hidden_field :campaign_id, value: campaign.id %>
+  <% end %>
+  <% if local_assigns[:landing_page] %>
+    <%= hidden_field_tag :landing_page_id, landing_page.id %>
   <% end %>
 
   <div class="lp-creation-core-fields">
@@ -41,6 +45,10 @@
 
   <div class="actions compact-actions">
     <%= form.submit "生成開始", class: "button" %>
-    <%= link_to "キャンセル", business_path(business, anchor: "business-lp-access-card"), class: "button secondary" %>
+    <% if local_assigns.fetch(:show_cancel, true) %>
+      <%= link_to "キャンセル",
+                  local_assigns[:cancel_path] || business_path(business, anchor: "business-lp-access-card"),
+                  class: "button secondary" %>
+    <% end %>
   </div>
 <% end %>

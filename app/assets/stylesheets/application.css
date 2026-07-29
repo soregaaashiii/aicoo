@@ -390,6 +390,18 @@
   margin: 0;
 }
 
+.lovable-inline-lp-creation {
+  width: 100%;
+}
+
+.lovable-inline-lp-creation > summary {
+  width: fit-content;
+}
+
+.lovable-inline-lp-creation .lp-creation-form {
+  margin-top: 12px;
+}
+
 .lovable-pipeline-error {
   background: #fff4f2;
   border: 1px solid #f1b5ae;

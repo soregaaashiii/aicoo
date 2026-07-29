@@ -96,15 +96,27 @@
         <p><%= overview.next_action_text %></p>
 
         <div class="compact-actions">
-          <% if overview.approval_waiting? && task %>
-            <%= button_to "承認してLovableを開く",
-                          approve_auto_revision_task_path(task),
+          <% if generation_run.nil? && landing_page %>
+            <details class="business-access-editor lovable-inline-lp-creation">
+              <summary class="button">＋LP作成</summary>
+              <%= render "businesses/landing_page_creation_form",
+                         business:,
+                         landing_page:,
+                         form_url: start_creation_business_lovable_landing_page_path(business),
+                         show_cancel: false %>
+            </details>
+          <% elsif overview.approval_waiting? && task %>
+            <%= button_to "承認",
+                          approve_business_lovable_landing_page_path(
+                            business,
+                            landing_page_id: landing_page&.id,
+                            auto_revision_task_id: task.id
+                          ),
                           method: :patch,
                           class: "button",
-                          form: { target: "_blank" },
-                          data: { turbo_confirm: "LP戦略とPromptを承認し、公式Lovable Build with URLを開きます。よろしいですか？" } %>
-          <% elsif overview.current_position.in?([ 3, 4 ]) && overview.build_url.present? %>
-            <%= link_to "Lovableを開く", overview.build_url, class: "button", target: "_blank", rel: "noopener" %>
+                          data: { turbo_confirm: "LP戦略とPromptを承認します。よろしいですか？" } %>
+          <% elsif overview.current_position == 3 && overview.build_url.present? %>
+            <%= link_to "Lovableを開いてGenerate", overview.build_url, class: "button", target: "_blank", rel: "noopener" %>
           <% elsif overview.retryable? && generation_run %>
             <%= button_to "再試行",
                           resume_result_version_business_lovable_landing_page_path(business, generation_run_id: generation_run.id, landing_page_id: landing_page&.id),

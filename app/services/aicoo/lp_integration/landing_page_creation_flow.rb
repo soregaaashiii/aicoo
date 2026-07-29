@@ -3,10 +3,18 @@ module Aicoo
     class LandingPageCreationFlow
       Result = Data.define(:landing_page, :strategy, :generation_run, :candidate, :task)
 
-      def initialize(business:, campaign:, attributes:, strategy_builder_class: LandingPageStrategyBuilder, strategy: nil)
+      def initialize(
+        business:,
+        campaign:,
+        attributes:,
+        landing_page: nil,
+        strategy_builder_class: LandingPageStrategyBuilder,
+        strategy: nil
+      )
         @business = business
         @campaign = campaign
         @attributes = attributes.to_h.deep_stringify_keys
+        @landing_page = landing_page
         @strategy_builder_class = strategy_builder_class
         @provided_strategy = strategy&.to_h&.deep_stringify_keys
       end
@@ -39,15 +47,18 @@ module Aicoo
 
       private
 
-      attr_reader :business, :campaign, :attributes, :strategy_builder_class, :provided_strategy
+      attr_reader :business, :campaign, :attributes, :landing_page, :strategy_builder_class, :provided_strategy
 
       def validate!
         raise ArgumentError, "このBusinessのCampaignではありません。" unless campaign.business_id == business.id
+        if landing_page && (!landing_page.external_landing_page? || landing_page.business_id != business.id)
+          raise ArgumentError, "このBusinessのLPではありません。"
+        end
         raise ArgumentError, "作成目的を選択してください。" unless attributes["purpose"].in?(LandingPageStrategyBuilder::PURPOSES)
       end
 
       def create_landing_page!(strategy)
-        landing_page = LandingPageRegistry.new(business:).save!(
+        record = landing_page || LandingPageRegistry.new(business:).save!(
           campaign_id: campaign.id,
           name: attributes["name"].presence || generated_name,
           source_type: "manual",
@@ -55,18 +66,26 @@ module Aicoo
           cta: strategy["cta"],
           improvement_target: strategy["reason"]
         )
-        landing_page.update!(metadata: landing_page.metadata.to_h.merge(
+        metadata = record.metadata.to_h.merge(
           "creation_purpose" => attributes.fetch("purpose"),
           "creation_purpose_label" => LandingPageStrategyBuilder::PURPOSES.fetch(attributes.fetch("purpose")),
           "creation_notes" => attributes["notes"].presence,
+          "cta" => strategy["cta"],
           "lp_strategy" => strategy,
           "expected_profit_yen" => strategy["expected_profit_yen"].to_i,
           "expected_cv" => strategy["expected_cv"].to_f,
           "expected_hourly_value_yen" => strategy["expected_hourly_value_yen"].to_i,
+          "improvement_target" => strategy["reason"],
           "improvement_status" => "prompt_review",
           "planning_status" => "prompt_ready"
-        ).compact)
-        landing_page
+        ).compact
+        metadata["lp_name"] = attributes["name"] if attributes["name"].present?
+        record.update!(
+          name: metadata["lp_name"].presence || record.name,
+          business_campaign: campaign,
+          metadata:
+        )
+        record
       end
 
       def create_candidate!(landing_page, strategy, generation_run)

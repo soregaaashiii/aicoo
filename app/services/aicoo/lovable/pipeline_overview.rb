@@ -187,7 +187,7 @@ module Aicoo
         return "完了" if completed?
         return "未開始" unless generation_run
         return "承認待ち" if approval_waiting?
-        return "ユーザー操作待ち" if current_stage_index.in?([ 3, 4 ])
+        return "ユーザー操作待ち" if current_stage_index == 3
 
         "実行中"
       end
@@ -195,10 +195,10 @@ module Aicoo
       def user_operation
         return failure_guidance if failed?
         return "なし" if auto_recovering?
-        return "BusinessのLP一覧から「＋LP追加」を選んでください" unless generation_run
+        return "この画面で「＋LP作成」を選んでください" unless generation_run
         return "LP戦略とPromptを確認して承認してください" if approval_waiting?
         return "LovableでGenerateしてください" if current_stage_index == 3
-        return "LovableでGenerate後、GitHubへPushしてください" if current_stage_index == 4
+        return "なし" if current_stage_index == 4
         return "なし" unless completed?
 
         "なし"
@@ -207,10 +207,10 @@ module Aicoo
       def next_action_text
         return failure_guidance if failed?
         return "一時エラーを検知しました。AICOOが自動で再試行しています。操作は不要です。" if auto_recovering?
-        return "BusinessのLP一覧から「＋LP追加」を選び、作成目的を指定してください。" unless generation_run
+        return "この画面で「＋LP作成」を開き、作成目的を指定してください。" unless generation_run
         return "LP戦略とPromptを確認して承認してください。" if approval_waiting?
         return "Lovableを開いてGenerateしてください。" if current_stage_index == 3
-        return "LovableでGenerateしてください。GitHub Push後はAICOOが自動で進めます。" if current_stage_index == 4
+        return "GitHub Pushを待っています。Generate後は操作不要です。" if current_stage_index == 4
         return "公開・計測・Learningが完了しました。AICOOが次の改善を判断します。" if completed?
 
         "現在AIが処理中です。操作は不要です。"

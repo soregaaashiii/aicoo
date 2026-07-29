@@ -73,6 +73,31 @@ module Aicoo
         assert_equal first_url, result.generation_run.reload.metadata.to_h["build_url"]
       end
 
+      test "starts an existing unstarted landing page without creating a duplicate" do
+        landing_page = LandingPageRegistry.new(business: @business).save!(
+          campaign_id: @campaign.id,
+          name: "既存LP",
+          source_type: "manual",
+          public_status: "testing"
+        )
+
+        result = nil
+        assert_no_difference("BusinessPrototype.count") do
+          result = LandingPageCreationFlow.new(
+            business: @business,
+            campaign: @campaign,
+            landing_page:,
+            attributes: { purpose: "google_ads" },
+            strategy_builder_class: fake_strategy_builder
+          ).call
+        end
+
+        assert_equal landing_page, result.landing_page
+        assert_equal "waiting_approval", landing_page.reload.metadata["planning_status"]
+        assert_equal landing_page.id, result.generation_run.metadata["landing_page_prototype_id"]
+        assert_equal "waiting_approval", result.task.status
+      end
+
       test "imports validated static result once and reuses the published commit on retry" do
         @business.update!(metadata: @business.metadata.to_h.merge("lp_ga4_measurement_id" => "G-ABC123"))
         @business.business_services.create!(

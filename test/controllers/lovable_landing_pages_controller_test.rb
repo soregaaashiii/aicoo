@@ -34,7 +34,11 @@ class LovableLandingPagesControllerTest < ActionDispatch::IntegrationTest
     assert_select "details[data-pipeline-explorer-stage='ga4']", text: /Business共通設定/
     assert_select "details[data-pipeline-explorer-stage='learning']", text: /Snapshot/
     assert_includes response.body, "次にやること"
-    assert_includes response.body, "BusinessのLP一覧へ"
+    assert_includes response.body, "＋LP作成"
+    assert_select "form[action='#{start_creation_business_lovable_landing_page_path(@business)}']", 1
+    assert_select ".aicoo-breadcrumb", text: /CEO.*#{Regexp.escape(@business.name)}.*LP/
+    assert_not_includes response.body, "BusinessのLP一覧へ"
+    assert_not_includes response.body, "Businessへ戻る"
     assert_includes response.body, "5000"
     assert_not_includes response.body, ">Lovableで作成<"
     assert_not_includes response.body, ">Promptを見る<"
@@ -42,6 +46,65 @@ class LovableLandingPagesControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, "lovable-phase-strip"
     assert_includes response.body, "openStages"
     assert_includes response.body, "data-pipeline-explorer-stage"
+  end
+
+  test "starts and approves an unstarted landing page without leaving its detail" do
+    campaign = @business.business_campaigns.create!(name: "Detail SEO", campaign_type: "seo", status: "active")
+    landing_page = @business.business_prototypes.create!(
+      business_campaign: campaign,
+      name: "Detail LP",
+      prototype_type: "other",
+      location: "手動指定（未設定）",
+      status: "active",
+      metadata: {
+        "role" => BusinessPrototype::EXTERNAL_LANDING_PAGE_ROLE,
+        "lp_name" => "Detail LP",
+        "lp_public_status" => "testing"
+      }
+    )
+
+    assert_no_difference("BusinessPrototype.count") do
+      assert_difference([ "AicooLabGenerationRun.count", "ActionCandidate.count", "AutoRevisionTask.count" ], 1) do
+        post start_creation_business_lovable_landing_page_url(@business), params: {
+          landing_page_id: landing_page.id,
+          lp_plan: { purpose: "seo" }
+        }
+      end
+    end
+
+    assert_redirected_to business_lovable_landing_page_url(
+      @business,
+      landing_page_id: landing_page.id,
+      anchor: "lovable-pipeline-live"
+    )
+    landing_page.reload
+    task = @business.auto_revision_tasks.find(landing_page.metadata.fetch("auto_revision_task_id"))
+    run = AicooLabGenerationRun.find(landing_page.metadata.fetch("lovable_generation_run_id"))
+    assert_equal "waiting_approval", landing_page.metadata["planning_status"]
+    assert_equal "waiting_approval", task.status
+    assert_equal "prompt_ready", run.metadata["pipeline_status"]
+
+    get business_lovable_landing_page_url(@business, landing_page_id: landing_page.id)
+    assert_response :success
+    assert_select "li[data-pipeline-stage='landing_page'].status-completed", 1
+    assert_select "#lovable-pipeline-live form[action^='#{approve_business_lovable_landing_page_path(@business)}']", 1
+    assert_not_includes response.body, "BusinessのLP一覧へ"
+
+    patch approve_business_lovable_landing_page_url(@business), params: {
+      landing_page_id: landing_page.id,
+      auto_revision_task_id: task.id
+    }
+    assert_redirected_to business_lovable_landing_page_url(
+      @business,
+      landing_page_id: landing_page.id,
+      anchor: "lovable-pipeline-live"
+    )
+    assert_equal "approved", task.reload.status
+    assert_equal "lovable_handoff_ready", run.reload.metadata["pipeline_status"]
+
+    get business_lovable_landing_page_url(@business, landing_page_id: landing_page.id)
+    assert_select "#lovable-pipeline-live a", text: "Lovableを開いてGenerate", count: 1
+    assert_select "#lovable-pipeline-live form[action^='#{approve_business_lovable_landing_page_path(@business)}']", 0
   end
 
   test "creates an official Build URL version regardless of MCP configuration" do
@@ -132,7 +195,7 @@ class LovableLandingPagesControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, ">生成結果を取得<"
   end
 
-  test "approval opens lovable separately while the same LP detail keeps updating" do
+  test "approval remains on the same LP detail until lovable is ready" do
     campaign = @business.business_campaigns.create!(name: "Approval Campaign", campaign_type: "seo", status: "active")
     landing_page = @business.business_prototypes.create!(
       business_campaign: campaign,
@@ -181,7 +244,8 @@ class LovableLandingPagesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.body, "2 / 13"
     assert_includes response.body, "承認待ち"
-    assert_select "#lovable-pipeline-live form[target='_blank'][action='#{approve_auto_revision_task_path(task)}']", 1
+    assert_select "#lovable-pipeline-live form[action^='#{approve_business_lovable_landing_page_path(@business)}']", 1
+    assert_select "#lovable-pipeline-live form[target='_blank']", 0
     assert_select "#lovable-pipeline-live[data-refresh-url*='landing_page_id=#{landing_page.id}']", 1
   end
 

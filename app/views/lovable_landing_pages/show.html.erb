@@ -11,9 +11,8 @@
 <div class="aicoo-page lovable-workspace">
   <%= render "shared/aicoo_header",
              title: "#{@business.name} / LP詳細",
-             description: "#{lp_title}の設定、公開状態、Pipeline、Analyzer、Learningをこの画面で確認します。",
-             active_main: :businesses,
-             actions: link_to("Businessへ戻る", business_path(@business, anchor: "business-lp-access-card"), class: "button secondary") %>
+             description: "#{lp_title}の生成、承認、公開、計測、Learning、改善をこの画面で進めます。",
+             active_main: :businesses %>
 
   <%= render "pipeline_overview",
              business: @business,
@@ -199,8 +198,7 @@
     <% elsif @current_version&.metadata.to_h&.dig("build_url").present? %>
       <div class="aicoo-notice status-warning">
         <strong>LovableでGenerateしてください</strong>
-        <p>Generate後のGitHub Push、成果物取得、静的化、Cloudflare公開、計測開始はAICOOが自動で進めます。</p>
-        <%= link_to "Lovableをもう一度開く", @current_version.metadata.to_h["build_url"], class: "button", target: "_blank", rel: "noopener" %>
+        <p>上部Pipelineの「Lovableを開いてGenerate」から進めます。Generate後の処理はAICOOが自動で進めます。</p>
       </div>
     <% elsif @current_version %>
       <div class="aicoo-empty-state">
@@ -208,10 +206,7 @@
       </div>
     <% else %>
       <div class="aicoo-empty-state">
-        <p>Business詳細の「＋LP追加」で目的を選ぶと、AICOOがPromptと承認待ちタスクを生成します。</p>
-        <div class="compact-actions">
-          <%= link_to "BusinessのLP一覧へ", business_path(@business, anchor: "business-access-urls"), class: "button secondary" %>
-        </div>
+        <p>上部Pipelineの「＋LP作成」で目的を選ぶと、AICOOがPromptと承認待ちタスクを生成します。</p>
       </div>
     <% end %>
   </section>

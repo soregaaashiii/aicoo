@@ -50,6 +50,15 @@ module Aicoo
         assert_includes overview.next_action_text, "承認"
       end
 
+      test "requires no owner action while waiting for the github push" do
+        overview = build_overview(status: "github_webhook_waiting")
+
+        assert_equal 4, overview.current_position
+        assert_equal "実行中", overview.headline_status
+        assert_equal "なし", overview.user_operation
+        assert_includes overview.next_action_text, "操作不要"
+      end
+
       test "marks published and analyzed pipeline complete with history" do
         overview = build_overview(
           status: "improvement_waiting",

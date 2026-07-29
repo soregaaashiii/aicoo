@@ -163,6 +163,15 @@ module AicooNavigationHelper
 
   def aicoo_business_context_breadcrumb_items
     business = aicoo_context_business
+    if request.path == business_lovable_landing_page_path(business)
+      landing_page = instance_variable_get(:@landing_page_prototype)
+      return [
+        { label: "CEO", path: owner_dashboard_path },
+        { label: business.name, path: business_path(business) },
+        { label: landing_page&.landing_page_name || "LP", path: request.path }
+      ]
+    end
+
     return [
       { label: "事業", path: businesses_path },
       { label: business.name, path: business_path(business) }

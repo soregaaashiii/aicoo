@@ -199,6 +199,8 @@ Rails.application.routes.draw do
     resources :data_imports, only: :create
     resource :lovable_landing_page, only: %i[show create], controller: "lovable_landing_pages" do
       get :pipeline_status
+      post :start_creation
+      patch :approve
       post :prepare
       post :revise
       get :compare
