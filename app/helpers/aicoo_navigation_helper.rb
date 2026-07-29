@@ -17,7 +17,7 @@ module AicooNavigationHelper
   end
 
   def aicoo_mode_home_path
-    aicoo_ceo_mode? ? owner_focus_path : aicoo_daily_runs_path
+    aicoo_ceo_mode? ? owner_dashboard_path : aicoo_daily_runs_path
   end
 
   def aicoo_sidebar_items

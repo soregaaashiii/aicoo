@@ -20,6 +20,8 @@ module Owner
       end
 
       assert_response :success
+      assert_select "h2", text: "Business一覧"
+      assert_select "a[href='#{business_path(businesses(:suelog))}']", minimum: 1
     end
 
     test "owner dashboard uses the same TodayActionBoard items as focus" do

@@ -5,11 +5,12 @@ class LovableLandingPagesControllerTest < ActionDispatch::IntegrationTest
     @business = businesses(:suelog)
   end
 
-  test "shows the LP Studio with the separated workflow" do
+  test "shows the canonical LP detail with the embedded pipeline explorer" do
     get business_lovable_landing_page_url(@business)
 
     assert_response :success
-    assert_includes response.body, "LP Studio"
+    assert_includes response.body, "LP詳細"
+    assert_not_includes response.body, "LP Studio"
     assert_includes response.body, "lovable-pipeline-live"
     assert_includes response.body, "1 / 13"
     assert_includes response.body, "LP作成"

@@ -13,12 +13,16 @@ class BusinessAccessSettingsController < ApplicationController
     if params[:commit_action] == "create_task"
       result = Aicoo::LpIntegration::LandingPageTaskCreator.new(business: @business, landing_page:).call
       message = result.created ? "LP設定を保存し、LP取り込みタスクを作成しました。" : "LP設定を保存しました。同じ設定の未完了タスクがあります。"
-      redirect_to_access_section(message)
+      redirect_to_landing_page(landing_page, message)
     else
-      redirect_to_access_section("LP設定を保存しました。")
+      redirect_to_landing_page(landing_page, "LP設定を保存しました。")
     end
   rescue ActiveRecord::RecordInvalid, ArgumentError => e
-    redirect_to_access_section("LP設定を保存できませんでした: #{error_message(e)}", alert: true)
+    redirect_to_landing_page_id(
+      params.dig(:lp_access, :landing_page_id),
+      "LP設定を保存できませんでした: #{error_message(e)}",
+      alert: true
+    )
   end
 
   def create_landing_page_plan
@@ -235,6 +239,19 @@ class BusinessAccessSettingsController < ApplicationController
   def redirect_to_access_section(message, alert: false)
     options = alert ? { alert: message } : { notice: message }
     redirect_to business_path(@business, anchor: "business-access-urls"), options
+  end
+
+  def redirect_to_landing_page(landing_page, message)
+    redirect_to_landing_page_id(landing_page.id, message)
+  end
+
+  def redirect_to_landing_page_id(landing_page_id, message, alert: false)
+    options = alert ? { alert: message } : { notice: message }
+    redirect_to business_lovable_landing_page_path(
+      @business,
+      landing_page_id:,
+      anchor: "lp-settings"
+    ), options
   end
 
   def error_message(error)

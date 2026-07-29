@@ -286,8 +286,8 @@
 
   <section class="dashboard-section">
     <div class="section-heading">
-      <h2>事業ランキング</h2>
-      <p>事業別に、収益価値と学習価値を合算して見ます。</p>
+      <h2>Business一覧</h2>
+      <p>各Businessを開き、LPと改善状況を確認します。</p>
     </div>
     <div class="table-wrap">
       <table>
@@ -304,7 +304,7 @@
         <tbody>
           <% @dashboard_summary.business_rankings.each do |ranking| %>
             <tr>
-              <td><%= ranking.business.name %></td>
+              <td><%= link_to ranking.business.name, business_path(ranking.business) %></td>
               <td><%= number_to_currency(ranking.expected_total_value_yen, unit: "¥", precision: 0) %></td>
               <td><%= number_to_currency(ranking.raw_candidate_sum_yen, unit: "¥", precision: 0) %></td>
               <td>

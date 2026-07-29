@@ -1,11 +1,19 @@
-<% content_for :title, "#{@business.name} Lovable LP" %>
+<% lp_metadata = @landing_page_prototype&.metadata.to_h || {} %>
+<% lp_analytics = @landing_page_analytics.to_h %>
+<% lp_ga4 = lp_analytics.fetch("ga4", {}) %>
+<% lp_gsc = lp_analytics.fetch("gsc", {}) %>
+<% lp_activity = lp_analytics.fetch("activity", {}) %>
+<% lp_evaluation = lp_analytics.fetch("evaluation", {}) %>
+<% lp_learning = lp_analytics.fetch("learning", {}) %>
+<% lp_title = @landing_page_prototype&.landing_page_name || "LP" %>
+<% content_for :title, "#{@business.name} / LP詳細" %>
 
 <div class="aicoo-page lovable-workspace">
   <%= render "shared/aicoo_header",
-             title: "#{@business.name} / LP Studio",
-             description: "AICOOがPromptを作り、公式Build with URLでLovableを開き、検証済み静的成果物をLP専用GitHubへ公開します。",
+             title: "#{@business.name} / LP詳細",
+             description: "#{lp_title}の設定、公開状態、Pipeline、Analyzer、Learningをこの画面で確認します。",
              active_main: :businesses,
-             actions: link_to("Businessへ戻る", business_path(@business, anchor: "business-lp"), class: "button secondary") %>
+             actions: link_to("Businessへ戻る", business_path(@business, anchor: "business-lp-access-card"), class: "button secondary") %>
 
   <%= render "pipeline_overview",
              business: @business,
@@ -14,6 +22,92 @@
              task: @lovable_task,
              overview: @pipeline_overview %>
   <%= render "pipeline_refresh_script" %>
+
+  <% if @landing_page_prototype %>
+    <section class="dashboard-section" id="lp-overview">
+      <div class="section-heading">
+        <div>
+          <h2>LP概要</h2>
+          <p>公開・計測・学習情報はAICOOが自動更新します。</p>
+        </div>
+        <span class="pill"><%= @landing_page_prototype.landing_page_public_status_label %></span>
+      </div>
+      <dl class="business-access-values lp-analysis-values lp-readonly-values">
+        <dt>公開URL</dt>
+        <dd><%= @landing_page_prototype.landing_page_url.presence || "未公開" %></dd>
+        <dt>Cloudflare</dt>
+        <dd><%= @landing_page_prototype.landing_page_cloudflare_url.presence || lp_metadata["cloudflare_deploy_status"].presence || "未公開" %></dd>
+        <dt>GitHub</dt>
+        <dd><%= @landing_page_prototype.landing_page_repository_url.presence || @landing_page_prototype.landing_page_publication_repository_url.presence || "未設定" %></dd>
+        <dt>Branch</dt>
+        <dd><%= @landing_page_prototype.landing_page_branch %></dd>
+        <dt>Lovable</dt>
+        <dd><%= lp_metadata["lovable_project_url"].presence || "未設定" %></dd>
+        <dt>Pipeline</dt>
+        <dd><%= @pipeline_overview.current_label %> / <%= @pipeline_overview.headline_status %></dd>
+        <dt>Commit SHA</dt>
+        <dd><%= @pipeline_overview.commit_sha.presence || lp_metadata["github_commit_sha"].presence || "未作成" %></dd>
+        <dt>公開日時</dt>
+        <dd><%= @landing_page_prototype.landing_page_last_published_at ? l(@landing_page_prototype.landing_page_last_published_at, format: :short) : "未公開" %></dd>
+        <dt>Variant</dt>
+        <dd><%= @landing_page_prototype.landing_page_ab_test["variant"].presence || "未設定" %> / <%= @landing_page_prototype.landing_page_ab_test["status"].presence || "未実施" %></dd>
+      </dl>
+      <div class="business-access-card-actions">
+        <% if @landing_page_prototype.landing_page_url.present? %>
+          <%= link_to "公開URLを開く", @landing_page_prototype.landing_page_url, class: "button secondary", target: "_blank", rel: "noopener" %>
+        <% end %>
+      </div>
+    </section>
+
+    <section class="dashboard-section" id="lp-settings">
+      <div class="section-heading">
+        <div>
+          <h2>設定</h2>
+          <p>人が編集するのはLP名、Lovable、GitHub、Branch、CTAリンク先だけです。</p>
+        </div>
+      </div>
+      <%= render "businesses/external_landing_page_form",
+                 business: @business,
+                 landing_page: @landing_page_prototype,
+                 cancel_path: business_lovable_landing_page_path(@business, landing_page_id: @landing_page_prototype.id, anchor: "lp-overview") %>
+    </section>
+
+    <section class="dashboard-section" id="lp-analyzer">
+      <div class="section-heading">
+        <div>
+          <h2>Analyzer</h2>
+          <p>Daily Runが保存した最新のGA4・GSC・成果Snapshotを表示します。</p>
+        </div>
+        <span class="pill"><%= @pipeline_learning_snapshot ? "取得済み" : "計測待ち" %></span>
+      </div>
+      <div class="metric-grid">
+        <div class="metric-card"><span>Session</span><strong><%= number_with_delimiter(lp_ga4["sessions"].to_i) %></strong></div>
+        <div class="metric-card"><span>CV</span><strong><%= number_with_delimiter(lp_ga4["conversions"].to_i) %></strong></div>
+        <div class="metric-card"><span>CV率</span><strong><%= lp_evaluation["conversion_rate"] ? number_to_percentage(lp_evaluation["conversion_rate"].to_f * 100, precision: 2) : "未計測" %></strong></div>
+        <div class="metric-card"><span>CTR</span><strong><%= lp_gsc["ctr"] ? number_to_percentage(lp_gsc["ctr"].to_f * 100, precision: 2) : "未計測" %></strong></div>
+        <div class="metric-card"><span>平均順位</span><strong><%= lp_gsc["average_position"] || "未計測" %></strong></div>
+        <div class="metric-card"><span>問い合わせ</span><strong><%= lp_activity["inquiries"].to_i %>件</strong></div>
+        <div class="metric-card"><span>利益実績</span><strong><%= number_to_currency(lp_evaluation["actual_profit_yen"].to_i, unit: "¥", precision: 0) %></strong></div>
+        <div class="metric-card"><span>期待利益</span><strong><%= number_to_currency(lp_evaluation["expected_profit_yen"].to_i, unit: "¥", precision: 0) %></strong></div>
+      </div>
+    </section>
+
+    <section class="dashboard-section" id="lp-learning">
+      <div class="section-heading">
+        <div>
+          <h2>Learning</h2>
+          <p>改善前後の保存済み評価を次のPromptと改善候補へ引き継ぎます。</p>
+        </div>
+      </div>
+      <dl class="business-access-values lp-analysis-values">
+        <dt>状態</dt><dd><%= lp_learning["status"].presence || "改善後データ待ち" %></dd>
+        <dt>改善内容</dt><dd><%= lp_learning["change_content"].presence || lp_learning["improvement_type"].presence || "未学習" %></dd>
+        <dt>利益差</dt><dd><%= lp_learning["profit_delta_yen"].present? ? number_to_currency(lp_learning["profit_delta_yen"], unit: "¥", precision: 0) : "未学習" %></dd>
+        <dt>Confidence</dt><dd><%= lp_learning["confidence"].present? ? number_to_percentage(lp_learning["confidence"].to_f * 100, precision: 0) : "未学習" %></dd>
+        <dt>最終更新</dt><dd><%= @pipeline_learning_snapshot ? l(@pipeline_learning_snapshot.captured_at, format: :short) : "未学習" %></dd>
+      </dl>
+    </section>
+  <% end %>
 
   <section class="dashboard-section">
     <% if @source_action_candidate&.generation_source == "lp_learning" %>
@@ -123,7 +217,7 @@
   </section>
 
   <section class="dashboard-section" id="lovable-versions">
-    <div class="section-heading"><div><h2>Version履歴</h2><p>Prompt、変更理由、Preview、GitHub・Cloudflare公開状態をVersion単位で保持します。</p></div></div>
+    <div class="section-heading"><div><h2>改善履歴・Version</h2><p>Prompt、変更理由、Preview、GitHub・Cloudflare公開状態をVersion単位で保持します。</p></div></div>
     <div class="table-wrap">
       <table>
         <thead><tr><th>Version</th><th>生成</th><th>変更理由</th><th>実績</th><th>Preview</th><th>公開</th><th>Commit / Deploy</th><th>操作</th></tr></thead>

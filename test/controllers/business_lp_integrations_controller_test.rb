@@ -10,22 +10,16 @@ class BusinessLpIntegrationsControllerTest < ActionDispatch::IntegrationTest
     )
   end
 
-  test "opens the LP integration page for a registered business" do
+  test "redirects the retired LP integration page to the canonical business detail" do
     get business_lp_integration_url(@business)
 
+    assert_redirected_to business_url(@business, anchor: "business-access-urls")
+    follow_redirect!
     assert_response :success
-    assert_includes response.body, "LP・公開・計測セットアップ"
-    assert_includes response.body, "aria-valuenow=\"0\""
-    assert_includes response.body, "GitHubを登録"
-    assert_includes response.body, "Lovableを接続"
-    assert_includes response.body, "Renderを登録"
-    assert_includes response.body, "GA4を接続"
-    assert_includes response.body, "GSCを接続"
-    assert_includes response.body, "Activity APIを接続"
-    assert_includes response.body, new_admin_business_execution_profile_path(business_id: @business.id).gsub("&", "&amp;")
-    assert_includes response.body, google_settings_business_path(@business, anchor: "business-google-settings")
-    assert_includes response.body, "次にやること"
-    assert_includes response.body, "AICOOは設定・タスク・匿名化した成果だけを保持します"
+    assert_select "#business-service-access-card"
+    assert_select "#business-lp-access-card"
+    assert_select "#business-measurement-access-card"
+    assert_not_includes response.body, "LP・公開・計測セットアップ"
   end
 
   test "saves external repository source analytics and activity settings per business" do
@@ -33,7 +27,7 @@ class BusinessLpIntegrationsControllerTest < ActionDispatch::IntegrationTest
 
     patch business_lp_integration_url(@business), params: { lp_integration: valid_settings }
 
-    assert_redirected_to business_lp_integration_url(@business)
+    assert_redirected_to business_url(@business, anchor: "business-access-urls")
     profile = @business.reload.business_execution_profile
     assert_equal "external_repo", profile.execution_type
     assert_equal "https://github.com/soregaaashiii/ai-reception", profile.codex_repository_url
@@ -95,34 +89,27 @@ class BusinessLpIntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to auto_revision_task_url(task)
   end
 
-  test "shows analytics states and sync history" do
+  test "keeps legacy task actions available without restoring the retired screen" do
     patch business_lp_integration_url(@business), params: { lp_integration: valid_settings }
     post create_task_business_lp_integration_url(@business)
 
     get business_lp_integration_url(@business)
 
-    assert_response :success
-    assert_includes response.body, "GA4"
-    assert_includes response.body, "GSC"
-    assert_includes response.body, "Activity API"
-    assert_includes response.body, "同期履歴"
-    assert_includes response.body, "https://github.com/soregaaashiii/ai-reception"
-    assert_includes response.body, "承認待ち"
+    assert_redirected_to business_url(@business, anchor: "business-access-urls")
+    assert_equal "waiting_approval", @business.auto_revision_tasks.order(:created_at).last.status
   end
 
-  test "shows only the operational actions when setup is complete" do
+  test "completed legacy settings remain visible from the business detail" do
     patch business_lp_integration_url(@business), params: { lp_integration: valid_settings }
 
     get business_lp_integration_url(@business)
 
+    assert_redirected_to business_url(@business, anchor: "business-access-urls")
+    follow_redirect!
     assert_response :success
-    assert_includes response.body, "セットアップ完了"
-    assert_includes response.body, "aria-valuenow=\"100\""
-    assert_includes response.body, "LP生成後のGitHub同期、公開確認、GA4・GSC計測はAICOOが自動で進めます"
-    assert_not_includes response.body, "LP同期を始める"
-    assert_not_includes response.body, ">本番確認<"
-    assert_not_includes response.body, ">分析開始<"
-    assert_not_includes response.body, "GitHubを登録"
+    assert_includes response.body, "https://github.com/soregaaashiii/ai-reception"
+    assert_includes response.body, "123456789"
+    assert_not_includes response.body, "LP・公開・計測セットアップ"
   end
 
   private

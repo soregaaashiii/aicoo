@@ -39,7 +39,7 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
     assert_select "#business-campaign-access-card input[name='measurement_access[gsc_site_url]']", count: 0
   end
 
-  test "business detail shows the lp analyzer inside the selected landing page" do
+  test "business detail links each landing page to its canonical analyzer detail" do
     campaign = @business.business_campaigns.create!(name: "SEO", campaign_type: "seo", status: "active")
     landing_page = Aicoo::LpIntegration::LandingPageRegistry.new(business: @business).save!(
       campaign_id: campaign.id,
@@ -54,10 +54,15 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select "#external-lp-#{landing_page.id}", count: 1
-    assert_select "#lp-analyzer-#{landing_page.id}", count: 1, text: /LP Analyzer/
-    assert_select "#lp-analyzer-#{landing_page.id}", text: /GA4/
-    assert_select "#lp-analyzer-#{landing_page.id}", text: /GSC/
-    assert_select "#lp-analyzer-#{landing_page.id}", text: /Learning/
+    assert_select "#external-lp-#{landing_page.id} a[href='#{business_lovable_landing_page_path(@business, landing_page_id: landing_page.id)}']", minimum: 1
+    assert_select "#external-lp-#{landing_page.id} form", count: 0
+
+    get business_lovable_landing_page_url(@business, landing_page_id: landing_page.id)
+
+    assert_response :success
+    assert_select "#lp-analyzer", text: /Analyzer/
+    assert_select "#lp-analyzer", text: /Session/
+    assert_select "#lp-learning", text: /Learning/
   end
 
   test "landing page settings expose only owner managed fields and keep ai managed fields read only" do
@@ -85,11 +90,10 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
       )
     ))
 
-    get business_url(@business)
+    get business_lovable_landing_page_url(@business, landing_page_id: landing_page.id)
 
     assert_response :success
-    assert_select "#external-lp-#{landing_page.id}" do
-      assert_select "summary", text: "設定"
+    assert_select "#lp-settings" do
       assert_select "input[name='lp_access[name]']", count: 1
       assert_select "input[name='lp_access[lovable_project_url]']", count: 1
       assert_select "input[name='lp_access[repository_url]']", count: 1
@@ -103,15 +107,15 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
       assert_select "[name='lp_access[cloudflare_deploy_status]']", count: 0
       assert_select "[name='lp_access[ab_win_rate]']", count: 0
       assert_select "[name='lp_access[ab_winner]']", count: 0
-      assert_select ".lp-management-pipeline .lp-pipeline-stage", minimum: 1
-      assert_select ".lp-analyzer form", count: 0
-      assert_select ".lp-learning-readonly form", count: 0
       assert_select "form[action='#{publish_landing_page_business_access_settings_path(@business, landing_page_id: landing_page.id)}']", count: 0
       assert_select "form[action='#{landing_page_task_business_access_settings_path(@business, landing_page_id: landing_page.id)}']", count: 0
       assert_select "form[action='#{landing_page_status_business_access_settings_path(@business, landing_page_id: landing_page.id)}']", count: 0
       assert_select "button", text: "公開中にする", count: 0
       assert_select "label", text: "このVariantを勝者にする", count: 0
     end
+    assert_select "#lp-analyzer form", count: 0
+    assert_select "#lp-learning form", count: 0
+    assert_select "#lovable-pipeline-live"
   end
 
   test "owner setting update preserves analyzer pipeline and publication values" do
@@ -176,7 +180,7 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
       }
     }
 
-    assert_redirected_to business_url(@business, anchor: "business-access-urls")
+    assert_redirected_to business_lovable_landing_page_url(@business, landing_page_id: landing_page.id, anchor: "lp-settings")
     landing_page.reload
     assert_equal "設定更新後LP", landing_page.landing_page_name
     assert_equal "https://github.com/example/updated", landing_page.landing_page_repository_url
@@ -264,10 +268,9 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
     get business_url(@business)
     assert_response :success
     assert_select "#external-lp-#{landing_page.id}" do
-      assert_select "summary", text: /次:/
-      assert_select "dt", text: "GitHub Path"
+      assert_select "dt", text: "GitHub"
       assert_select "form[action='#{publish_landing_page_business_access_settings_path(@business, landing_page_id: landing_page.id)}']", count: 0
-      assert_select ".aicoo-notice", text: /次にやること/
+      assert_select "a", text: "LP詳細"
     end
   end
 

@@ -2,7 +2,7 @@ class BusinessLpIntegrationsController < ApplicationController
   before_action :set_business
 
   def show
-    load_overview
+    redirect_to canonical_business_path
   end
 
   def update
@@ -10,15 +10,11 @@ class BusinessLpIntegrationsController < ApplicationController
       business: @business,
       attributes: lp_integration_params
     ).call
-    redirect_to business_lp_integration_path(@business), notice: "LP・計測連携設定を保存しました。"
+    redirect_to canonical_business_path, notice: "LP・計測連携設定を保存しました。"
   rescue ActiveRecord::RecordInvalid => e
-    load_overview
-    flash.now[:alert] = "設定を保存できませんでした: #{e.record.errors.full_messages.to_sentence}"
-    render :show, status: :unprocessable_content
+    redirect_to canonical_business_path, alert: "設定を保存できませんでした: #{e.record.errors.full_messages.to_sentence}"
   rescue ArgumentError => e
-    load_overview
-    flash.now[:alert] = e.message
-    render :show, status: :unprocessable_content
+    redirect_to canonical_business_path, alert: e.message
   end
 
   def create_task
@@ -26,14 +22,14 @@ class BusinessLpIntegrationsController < ApplicationController
     notice = result.created ? "LP取り込みタスクを作成しました。Codexへの送信はまだ行っていません。" : "同じ設定の未完了タスクがあるため、既存タスクを表示します。"
     redirect_to auto_revision_task_path(result.task), notice:
   rescue ActiveRecord::RecordInvalid => e
-    redirect_to business_lp_integration_path(@business), alert: "タスクを作成できませんでした: #{e.record.errors.full_messages.to_sentence}"
+    redirect_to canonical_business_path, alert: "タスクを作成できませんでした: #{e.record.errors.full_messages.to_sentence}"
   rescue ArgumentError => e
-    redirect_to business_lp_integration_path(@business), alert: e.message
+    redirect_to canonical_business_path, alert: e.message
   end
 
   def verify_production
     result = Aicoo::LpIntegration::ProductionVerifier.new(business: @business).call
-    redirect_to business_lp_integration_path(@business), result.success ? { notice: result.message } : { alert: result.message }
+    redirect_to canonical_business_path, result.success ? { notice: result.message } : { alert: result.message }
   end
 
   private
@@ -42,8 +38,8 @@ class BusinessLpIntegrationsController < ApplicationController
     @business = Business.real_businesses.find(params.expect(:business_id))
   end
 
-  def load_overview
-    @lp_integration = Aicoo::LpIntegration::Overview.new(@business)
+  def canonical_business_path
+    business_path(@business, anchor: "business-access-urls")
   end
 
   def lp_integration_params

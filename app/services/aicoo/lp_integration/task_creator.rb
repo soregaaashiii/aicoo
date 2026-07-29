@@ -58,7 +58,7 @@ module Aicoo
           expected_total_value_yen: 0,
           final_expected_value_yen: 0,
           execution_prompt: prompt,
-          evaluation_reason: "OwnerがLP・計測連携画面から明示的に作成した外部リポジトリ向けタスクです。",
+          evaluation_reason: "OwnerがBusiness詳細から明示的に作成した外部リポジトリ向けタスクです。",
           metadata: candidate_metadata
         )
       end

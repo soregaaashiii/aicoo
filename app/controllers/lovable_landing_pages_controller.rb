@@ -233,6 +233,11 @@ class LovableLandingPagesController < ApplicationController
     @landing_page = @current_version&.metadata.to_h&.dig("landing_page_id")&.then { |id| AicooLabLandingPage.find_by(id:) }
     @configuration = Aicoo::Lovable::Configuration.new
     load_pipeline_context(repository: @repository)
+    @landing_page_analytics = if @pipeline_learning_snapshot
+      @pipeline_learning_snapshot.payload.to_h
+    else
+      @landing_page_prototype&.metadata.to_h&.fetch("lp_analytics", {}) || {}
+    end
     source_candidate_id = params[:action_candidate_id].presence || @prompt_version&.metadata.to_h&.dig("action_candidate_id")
     @source_action_candidate = @business.action_candidates.active_for_ranking.find_by(id: source_candidate_id)
     @current_learning = @published_version && Aicoo::Lovable::LearningSummary.new(business: @business, generation_run: @published_version).call
@@ -292,9 +297,11 @@ class LovableLandingPagesController < ApplicationController
 
   def external_landing_page
     prototype_id = params[:landing_page_id].presence || @generation_run&.metadata.to_h&.dig("landing_page_prototype_id")
+    scope = @business.business_prototypes.active.external_landing_pages
+    return scope.first if prototype_id.blank? && action_name.in?(%w[show pipeline_status])
     return if prototype_id.blank?
 
-    @business.business_prototypes.active.external_landing_pages.find_by(id: prototype_id)
+    scope.find_by(id: prototype_id)
   end
 
   def studio_path(anchor: nil)

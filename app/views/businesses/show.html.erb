@@ -2,7 +2,6 @@
 
 <% header_actions = capture do %>
     <%= link_to "Edit", edit_business_path(@business), class: "button secondary" %>
-    <%= link_to "LP・計測連携", business_lp_integration_path(@business), class: "button secondary" %>
     <%= link_to "Codex接続を開く", admin_codex_connection_path(business_id: @business.id, anchor: "codex-businesses"), class: "button secondary" %>
     <%= link_to "収益記録を追加", new_revenue_event_path(revenue_event: { business_id: @business.id }), class: "button secondary" %>
     <%= link_to "代理指標を追加", new_business_metric_daily_path(business_metric_daily: { business_id: @business.id }), class: "button secondary" %>
@@ -347,7 +346,7 @@
     <div class="actions compact-actions">
       <%= link_to "Google", "#business-google", class: "button secondary" %>
       <%= link_to "SERP", "#business-serp", class: "button secondary" %>
-      <%= link_to "LP", "#business-lp", class: "button secondary" %>
+      <%= link_to "LP", "#business-lp-access-card", class: "button secondary" %>
       <%= link_to "Service", "#business-services", class: "button secondary" %>
       <%= link_to "Timeline", "#business-timeline", class: "button secondary" %>
       <%= link_to "Daily Run", "#business-daily-run", class: "button secondary" %>
@@ -1102,17 +1101,17 @@
   </div>
 </section>
 
-<section class="dashboard-section" id="business-lp">
+<details class="dashboard-section business-developer-section" id="business-internal-lp">
+  <summary>開発者向け: 内部LP検証</summary>
+<section>
   <div class="section-heading">
     <div>
-      <h2>LP</h2>
-      <p>このBusinessの公開LP、計測結果、改善状態を確認します。</p>
+      <h2>内部LP検証</h2>
+      <p>AICOO内部の旧LP検証レコードを確認します。通常のLP管理は上部のLP一覧から行います。</p>
     </div>
     <div class="actions compact-actions">
-      <%= link_to "LP Studio", business_lovable_landing_page_path(@business), class: "button secondary" %>
       <% if @lovable_current_version %>
         <%= link_to "Version比較", compare_business_lovable_landing_page_path(@business), class: "button secondary" %>
-        <%= link_to "履歴", business_lovable_landing_page_path(@business, anchor: "lovable-versions"), class: "button secondary" %>
       <% end %>
     </div>
   </div>
@@ -1226,6 +1225,7 @@
     LPの公開状態は draft / scheduled / published / paused / archived で管理します。公開中LPだけが / と /lp と sitemap.xml に反映されます。
   </p>
 </section>
+</details>
 
 <section class="dashboard-section" id="business-services">
   <div class="section-heading">

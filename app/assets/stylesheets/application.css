@@ -371,6 +371,16 @@
   padding-left: 18px;
 }
 
+.lovable-pipeline-developer-details {
+  margin: 8px 0 0;
+  padding-top: 8px;
+}
+
+.lovable-pipeline-developer-details > summary {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
 .lovable-pipeline-guidance {
   display: grid;
   gap: 14px;
@@ -1156,6 +1166,15 @@ details.revenue-card > summary {
 }
 
 .business-campaign-developer-settings[open] > summary {
+  margin-bottom: 12px;
+}
+
+.business-developer-section > summary {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.business-developer-section[open] > summary {
   margin-bottom: 12px;
 }
 

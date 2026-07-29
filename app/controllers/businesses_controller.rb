@@ -510,12 +510,12 @@ class BusinessesController < ApplicationController
     redirect_to business_path(result.business, anchor: "business-services"),
                 notice: "MVP開発へ進めました。AutoRevisionTask ##{result.auto_revision_task.id} を作成しました。"
   rescue ActiveRecord::RecordNotFound => e
-    redirect_to business_path(@business, anchor: "business-lp"), alert: "MVP昇格に失敗しました: #{e.message}"
+    redirect_to business_path(@business, anchor: "business-internal-lp"), alert: "MVP昇格に失敗しました: #{e.message}"
   rescue ActiveRecord::RecordInvalid => e
-    redirect_to business_path(@business, anchor: "business-lp"),
+    redirect_to business_path(@business, anchor: "business-internal-lp"),
                 alert: "MVP昇格に失敗しました: #{e.record.errors.full_messages.to_sentence.presence || e.message}"
   rescue StandardError => e
-    redirect_to business_path(@business, anchor: "business-lp"), alert: "MVP昇格に失敗しました: #{e.message}"
+    redirect_to business_path(@business, anchor: "business-internal-lp"), alert: "MVP昇格に失敗しました: #{e.message}"
   end
 
   def promote_to_production

@@ -58,30 +58,33 @@
               </span>
             </summary>
 
-            <dl class="lovable-pipeline-diagnostics">
-              <% stage.diagnostics.each do |diagnostic| %>
-                <div>
-                  <dt><%= diagnostic.label %></dt>
-                  <dd>
-                    <% if diagnostic.value.blank? %>
-                      <span class="muted">未記録</span>
-                    <% elsif diagnostic.value.is_a?(Array) %>
-                      <ul>
-                        <% diagnostic.value.each do |value| %><li><%= value %></li><% end %>
-                      </ul>
-                    <% elsif diagnostic.value.is_a?(Hash) %>
-                      <%= diagnostic.value.to_json %>
-                    <% elsif diagnostic.value.is_a?(Time) || diagnostic.value.is_a?(Date) || diagnostic.value.is_a?(ActiveSupport::TimeWithZone) %>
-                      <time datetime="<%= diagnostic.value.in_time_zone.iso8601 %>"><%= l(diagnostic.value.in_time_zone, format: :short) %></time>
-                    <% elsif diagnostic.url.present? %>
-                      <%= link_to diagnostic.value, diagnostic.url, target: "_blank", rel: "noopener" %>
-                    <% else %>
-                      <%= diagnostic.value %>
-                    <% end %>
-                  </dd>
-                </div>
-              <% end %>
-            </dl>
+            <details class="lovable-pipeline-developer-details">
+              <summary>開発者向け詳細</summary>
+              <dl class="lovable-pipeline-diagnostics">
+                <% stage.diagnostics.each do |diagnostic| %>
+                  <div>
+                    <dt><%= diagnostic.label %></dt>
+                    <dd>
+                      <% if diagnostic.value.blank? %>
+                        <span class="muted">未記録</span>
+                      <% elsif diagnostic.value.is_a?(Array) %>
+                        <ul>
+                          <% diagnostic.value.each do |value| %><li><%= value %></li><% end %>
+                        </ul>
+                      <% elsif diagnostic.value.is_a?(Hash) %>
+                        <%= diagnostic.value.to_json %>
+                      <% elsif diagnostic.value.is_a?(Time) || diagnostic.value.is_a?(Date) || diagnostic.value.is_a?(ActiveSupport::TimeWithZone) %>
+                        <time datetime="<%= diagnostic.value.in_time_zone.iso8601 %>"><%= l(diagnostic.value.in_time_zone, format: :short) %></time>
+                      <% elsif diagnostic.url.present? %>
+                        <%= link_to diagnostic.value, diagnostic.url, target: "_blank", rel: "noopener" %>
+                      <% else %>
+                        <%= diagnostic.value %>
+                      <% end %>
+                    </dd>
+                  </div>
+                <% end %>
+              </dl>
+            </details>
           </details>
         </li>
       <% end %>
@@ -108,7 +111,9 @@
                           method: :post,
                           class: "button" %>
           <% elsif overview.settings_required? && landing_page %>
-            <%= link_to "設定を開く", business_path(business, anchor: "external-lp-#{landing_page.id}"), class: "button" %>
+            <%= link_to "設定を開く",
+                        business_lovable_landing_page_path(business, landing_page_id: landing_page.id, anchor: "lp-settings"),
+                        class: "button" %>
           <% end %>
         </div>
       </div>
@@ -132,7 +137,7 @@
       <% end %>
 
       <details class="lovable-pipeline-history">
-        <summary>Pipeline履歴</summary>
+        <summary>開発者向け: Pipeline履歴</summary>
         <% if overview.history.any? %>
           <ol>
             <% overview.history.each do |entry| %>

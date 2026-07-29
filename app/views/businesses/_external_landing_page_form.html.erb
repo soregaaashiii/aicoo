@@ -1,4 +1,5 @@
 <% metadata = landing_page&.metadata.to_h || {} %>
+<% cancel_path = local_assigns.fetch(:cancel_path, business_path(business, anchor: "business-access-urls")) %>
 <%= form_with url: landing_page_business_access_settings_path(business), method: :patch, scope: :lp_access, class: "business-access-form" do |form| %>
   <%= form.hidden_field :landing_page_id, value: landing_page&.id %>
   <div class="field">
@@ -23,6 +24,6 @@
   </div>
   <div class="actions compact-actions">
     <%= form.submit "設定を保存", class: "button" %>
-    <%= link_to "キャンセル", business_path(business, anchor: "business-access-urls"), class: "button secondary" %>
+    <%= link_to "キャンセル", cancel_path, class: "button secondary" %>
   </div>
 <% end %>
