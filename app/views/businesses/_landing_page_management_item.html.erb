@@ -18,6 +18,25 @@
   "pending" => "待機",
   "blocked" => "前工程待ち"
 } %>
+<% planning_status = metadata["planning_status"].presence || metadata["pipeline_stage"].presence %>
+<% next_action =
+  if landing_page.landing_page_repository_url.blank?
+    "初回設定でGitHub RepositoryとBranchを登録"
+  elsif landing_page.cloudflare_published?
+    "操作不要。AICOOが計測・Learning・改善判断を継続"
+  elsif metadata["lovable_generation_run_id"].blank?
+    "操作不要。AICOOの改善候補生成を待つ"
+  elsif planning_status == "waiting_approval"
+    "Promptを確認して承認"
+  elsif planning_status == "lovable_handoff_ready"
+    "Lovableを開いてGenerate"
+  elsif planning_status.in?(%w[github_webhook_received artifact_fetching static_building github_commit_waiting cloudflare_waiting measurement_pending ga4_pending gsc_pending learning_pending])
+    "操作不要。AICOOが自動処理中"
+  elsif planning_status.to_s.include?("failed") || landing_page.landing_page_sync_status == "failed"
+    "エラー内容を確認"
+  else
+    "Promptレビューで現在の状態を確認"
+  end %>
 
 <details class="campaign-lp-row business-lp-row" id="external-lp-<%= landing_page.id %>">
   <summary>
@@ -29,6 +48,7 @@
     <span>CV <%= lp_row[:conversion_rate] ? number_to_percentage(lp_row[:conversion_rate] * 100, precision: 2) : "未計測" %></span>
     <span>期待利益 <%= number_to_currency(lp_row.fetch(:expected_profit_yen), unit: "¥", precision: 0) %></span>
     <span><%= landing_page.landing_page_sync_status_label %></span>
+    <span>次: <%= next_action %></span>
   </summary>
 
   <h4>LP概要</h4>
@@ -74,23 +94,6 @@
     </ol>
   </section>
 
-  <% planning_status = metadata["planning_status"].presence || metadata["pipeline_stage"].presence %>
-  <% next_action =
-    if landing_page.landing_page_repository_url.blank?
-      "初回設定でGitHub RepositoryとBranchを登録"
-    elsif landing_page.cloudflare_published?
-      "操作不要。AICOOが計測・Learning・改善判断を継続"
-    elsif planning_status == "waiting_approval"
-      "Promptを確認して承認"
-    elsif planning_status == "lovable_handoff_ready"
-      "Lovableを開いてGenerate"
-    elsif planning_status.in?(%w[github_webhook_received artifact_fetching static_building github_commit_waiting cloudflare_waiting measurement_pending ga4_pending gsc_pending learning_pending])
-      "操作不要。AICOOが自動処理中"
-    elsif planning_status.to_s.include?("failed") || landing_page.landing_page_sync_status == "failed"
-      "エラー内容を確認"
-    else
-      "Promptレビューで現在の状態を確認"
-    end %>
   <div class="aicoo-notice">
     <strong>次にやること</strong>
     <p><%= next_action %></p>

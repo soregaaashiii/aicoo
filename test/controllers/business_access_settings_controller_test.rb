@@ -264,6 +264,7 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
     get business_url(@business)
     assert_response :success
     assert_select "#external-lp-#{landing_page.id}" do
+      assert_select "summary", text: /次:/
       assert_select "dt", text: "GitHub Path"
       assert_select "form[action='#{publish_landing_page_business_access_settings_path(@business, landing_page_id: landing_page.id)}']", count: 0
       assert_select ".aicoo-notice", text: /次にやること/
