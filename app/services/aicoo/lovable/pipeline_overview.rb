@@ -72,12 +72,14 @@ module Aicoo
         "static_build_script_missing" => 7,
         "static_build_script_unsupported" => 7,
         "static_build_vite_missing" => 7,
+        "static_build_framework_executable_missing" => 7,
         "static_build_package_manager_missing" => 7,
         "static_build_lockfile_generation_failed" => 7,
         "static_build_npm_ci_failed" => 7,
         "static_build_dependency_install_failed" => 7,
         "static_build_command_failed" => 7,
         "static_build_output_directory_missing" => 7,
+        "static_build_output_ambiguous" => 7,
         "static_build_output_missing" => 7,
         "static_validation_failed" => 7,
         "github_permission_error" => 8,
@@ -502,13 +504,21 @@ module Aicoo
       def static_build_diagnostics
         [
           diagnostic("Build開始", metadata["static_build_started_at"]),
-          diagnostic("Build終了", metadata["static_validation_completed_at"]),
+          diagnostic("Build終了", metadata["static_build_command_finished_at"] ||
+            metadata["static_validation_completed_at"]),
           diagnostic("処理時間", duration_ms(metadata["static_build_duration_ms"]) ||
             duration_between(metadata["static_build_started_at"], metadata["static_validation_completed_at"])),
+          diagnostic("Framework", metadata["static_build_framework"]),
           diagnostic("Package manager", metadata["static_build_package_manager"]),
           diagnostic("実行コマンド", metadata["static_build_commands"]),
           diagnostic("Lockfile", metadata["static_build_lockfile_message"]),
+          diagnostic("一時build設定", metadata["static_build_temporary_config_adjustments"]),
+          diagnostic("終了コード", metadata["static_build_exit_code"]),
+          diagnostic("stdout", metadata["static_build_stdout"]),
+          diagnostic("stderr", metadata["static_build_stderr"]),
+          diagnostic("検出候補", metadata["static_build_output_candidates"]),
           diagnostic("出力ディレクトリ", metadata["static_build_output_directory"]),
+          diagnostic("build後ファイル", metadata["static_build_post_build_files"]),
           diagnostic("生成ファイル数", metadata["static_build_generated_file_count"]),
           diagnostic("Build Log", metadata["static_build_log"]),
           diagnostic("結果", metadata["static_build_status"] || stage_result(:static_build))

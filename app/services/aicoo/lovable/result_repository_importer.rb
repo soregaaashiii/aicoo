@@ -168,9 +168,11 @@ module Aicoo
       def build_log_for(build)
         [
           "Build type: #{build.build_type}",
+          ("Framework: #{build.framework}" if build.framework.present?),
           ("Package manager: #{build.package_manager}" if build.package_manager.present?),
           ("Commands: #{build.commands.join(' / ')}" if build.commands.present?),
           ("Output directory: #{build.output_directory}" if build.output_directory.present?),
+          ("Exit code: #{build.build_exit_code}" unless build.build_exit_code.nil?),
           "Static build succeeded",
           *Array(build.warnings)
         ].compact
@@ -181,14 +183,24 @@ module Aicoo
           "static_build_status" => "succeeded",
           "static_build_type" => build.build_type,
           "static_build_warnings" => build.warnings,
+          "static_build_framework" => build.framework,
           "static_build_package_manager" => build.package_manager,
           "static_build_commands" => build.commands,
           "static_build_output_directory" => build.output_directory,
+          "static_build_output_candidates" => build.output_candidates,
+          "static_build_post_build_files" => build.post_build_files,
+          "static_build_temporary_config_adjustments" => build.temporary_config_adjustments,
           "static_build_lockfile_generated" => build.lockfile_generated,
           "static_build_lockfile_generated_at" => build.lockfile_generated ? build_completed_at.iso8601 : nil,
           "static_build_lockfile_message" => build.lockfile_generated ?
             "package-lock.jsonがなかったため一時生成しました" : nil,
-          "static_build_duration_ms" => elapsed_ms(build_started_at, build_completed_at),
+          "static_build_command_started_at" => build.build_started_at,
+          "static_build_command_finished_at" => build.build_finished_at,
+          "static_build_duration_ms" => build.build_duration_ms ||
+            elapsed_ms(build_started_at, build_completed_at),
+          "static_build_stdout" => build.build_stdout,
+          "static_build_stderr" => build.build_stderr,
+          "static_build_exit_code" => build.build_exit_code,
           "static_build_log" => build_log_for(build)
         }
       end
@@ -283,13 +295,23 @@ module Aicoo
         {
           "static_build_status" => "failed",
           "static_build_failure_code" => error.code,
+          "static_build_framework" => details["framework"],
           "static_build_package_manager" => details["package_manager"],
           "static_build_commands" => details["commands"],
           "static_build_output_directory" => details["output_directory"],
+          "static_build_output_candidates" => details["output_candidates"],
+          "static_build_post_build_files" => details["post_build_files"],
+          "static_build_temporary_config_adjustments" => details["temporary_config_adjustments"],
           "static_build_lockfile_generated" => lockfile_generated,
           "static_build_lockfile_generated_at" => lockfile_generated ? Time.current.iso8601 : nil,
           "static_build_lockfile_message" => lockfile_generated ?
-            "package-lock.jsonがなかったため一時生成しました" : nil
+            "package-lock.jsonがなかったため一時生成しました" : nil,
+          "static_build_command_started_at" => details["build_started_at"],
+          "static_build_command_finished_at" => details["build_finished_at"],
+          "static_build_duration_ms" => details["build_duration_ms"],
+          "static_build_stdout" => details["build_stdout"],
+          "static_build_stderr" => details["build_stderr"],
+          "static_build_exit_code" => details["build_exit_code"]
         }
       end
 

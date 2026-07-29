@@ -41,8 +41,21 @@ module Aicoo
 
         build_command = runner.commands.find { |argv| argv[1, 2] == %w[run build] }
         assert_not_includes build_command, "--config"
-        assert_includes build_command, "--base"
+        assert_includes build_command, "--base=/ai-reception/"
         assert_equal files["vite.config.ts"], "export default { build: { outDir: 'dist' } }"
+      end
+
+      test "does not add Vite base when the repository config already defines it" do
+        runner = FakeBuildRunner.new
+        files = package_files(
+          "package-lock.json" => "{}",
+          "vite.config.ts" => "export default { base: '/saved/', build: { outDir: 'dist' } }"
+        )
+
+        build(files:, runner:)
+
+        build_command = runner.commands.find { |argv| argv[1, 2] == %w[run build] }
+        assert_not build_command.any? { |argument| argument.start_with?("--base=") }
       end
 
       test "generates a temporary package lock before npm ci" do
@@ -139,6 +152,92 @@ module Aicoo
         assert result.files.key?("index.html")
       end
 
+      test "detects a valid generated index outside standard output directories" do
+        result = build(
+          files: package_files("package-lock.json" => "{}"),
+          runner: FakeBuildRunner.new(
+            output_directory: nil,
+            build_files: {
+              "site/public/index.html" => built_html("assets/app.js"),
+              "site/public/assets/app.js" => "console.log('built')"
+            }
+          )
+        )
+
+        assert_equal "site/public/", result.output_directory
+        assert result.files.key?("index.html")
+      end
+
+      test "uses a repository root static site when it is publicly complete" do
+        result = build(
+          files: package_files("package-lock.json" => "{}"),
+          runner: FakeBuildRunner.new(
+            output_directory: nil,
+            build_files: {
+              "index.html" => built_html("assets/app.js"),
+              "assets/app.js" => "console.log('built')"
+            }
+          )
+        )
+
+        assert_equal "/", result.output_directory
+      end
+
+      test "does not publish a source index template" do
+        error = assert_raises(StaticArtifactBuilder::UnsafeBuild) do
+          build(
+            files: package_files("package-lock.json" => "{}"),
+            runner: FakeBuildRunner.new(
+              output_directory: nil,
+              build_files: {
+                "src/index.html" => built_html("assets/app.js"),
+                "src/assets/app.js" => "console.log('source')"
+              }
+            )
+          )
+        end
+
+        assert_equal "static_build_output_missing", error.code
+        assert_empty error.details["output_candidates"]
+      end
+
+      test "does not publish an index from node modules" do
+        error = assert_raises(StaticArtifactBuilder::UnsafeBuild) do
+          build(
+            files: package_files("package-lock.json" => "{}"),
+            runner: FakeBuildRunner.new(
+              output_directory: nil,
+              build_files: {
+                "node_modules/example/index.html" => built_html("assets/app.js"),
+                "node_modules/example/assets/app.js" => "console.log('dependency')"
+              }
+            )
+          )
+        end
+
+        assert_equal "static_build_output_missing", error.code
+      end
+
+      test "fails with candidate details when multiple outputs are equally valid" do
+        error = assert_raises(StaticArtifactBuilder::UnsafeBuild) do
+          build(
+            files: package_files("package-lock.json" => "{}"),
+            runner: FakeBuildRunner.new(
+              output_directory: nil,
+              build_files: {
+                "site-a/index.html" => built_html("assets/app.js"),
+                "site-a/assets/app.js" => "console.log('a')",
+                "site-b/index.html" => built_html("assets/app.js"),
+                "site-b/assets/app.js" => "console.log('b')"
+              }
+            )
+          )
+        end
+
+        assert_equal "static_build_output_ambiguous", error.code
+        assert_equal %w[site-a/ site-b/], error.details["output_candidates"]
+      end
+
       test "prefers a saved output directory when it exists" do
         runner = FakeBuildRunner.new(output_directories: %w[dist build])
 
@@ -159,8 +258,8 @@ module Aicoo
           )
         end
 
-        assert_equal "static_build_output_directory_missing", error.code
-        assert_includes error.message, "静的成果物ディレクトリ"
+        assert_equal "static_build_output_missing", error.code
+        assert_includes error.message, "公開可能なindex.html"
       end
 
       test "fails clearly when temporary package lock generation fails" do
@@ -209,6 +308,111 @@ module Aicoo
         assert_not Dir.exist?(runner.working_directory)
       end
 
+      test "does not add Vite base to a Next static export build" do
+        runner = FakeBuildRunner.new(output_directory: "out")
+
+        result = build(files: next_package_files, runner:)
+
+        build_command = runner.commands.find { |argv| argv[1, 2] == %w[run build] }
+        assert_equal "next", result.framework
+        assert_not build_command.any? { |argument| argument.start_with?("--base=") }
+      end
+
+      test "uses the CRA build directory without Vite arguments" do
+        runner = FakeBuildRunner.new(output_directory: "build")
+        files = {
+          "package.json" => JSON.generate(
+            scripts: { build: "react-scripts build" },
+            dependencies: { "react-scripts": "5.0.1" }
+          ),
+          "package-lock.json" => "{}"
+        }
+
+        result = build(files:, runner:)
+
+        build_command = runner.commands.find { |argv| argv[1, 2] == %w[run build] }
+        assert_equal "cra", result.framework
+        assert_equal "build/", result.output_directory
+        assert_not build_command.any? { |argument| argument.start_with?("--base=") }
+      end
+
+      test "uses the Astro dist directory without Vite arguments" do
+        runner = FakeBuildRunner.new(output_directory: "dist")
+        files = {
+          "package.json" => JSON.generate(
+            scripts: { build: "astro build" },
+            dependencies: { astro: "5.0.0" }
+          ),
+          "package-lock.json" => "{}"
+        }
+
+        result = build(files:, runner:)
+
+        build_command = runner.commands.find { |argv| argv[1, 2] == %w[run build] }
+        assert_equal "astro", result.framework
+        assert_equal "dist/", result.output_directory
+        assert_not build_command.any? { |argument| argument.start_with?("--base=") }
+      end
+
+      test "records stdout stderr exit code timestamps and generated files" do
+        runner = FakeBuildRunner.new(
+          stdout: "vite build completed",
+          stderr: "vite warning",
+          exit_code: 0
+        )
+
+        result = build(files: package_files("package-lock.json" => "{}"), runner:)
+
+        assert_equal "vite build completed", result.build_stdout
+        assert_equal "vite warning", result.build_stderr
+        assert_equal 0, result.build_exit_code
+        assert_equal "2026-07-30T00:00:00Z", result.build_started_at
+        assert_equal "2026-07-30T00:00:01Z", result.build_finished_at
+        assert_equal 1_000, result.build_duration_ms
+        assert_includes result.post_build_files, "dist/index.html"
+      end
+
+      test "temporarily enables static prerender for the Lovable TanStack config" do
+        runner = FakeBuildRunner.new(
+          output_directory: nil,
+          build_files: {
+            "dist/client/index.html" => built_html("assets/app.js"),
+            "dist/client/assets/app.js" => "console.log('built')"
+          }
+        )
+        source_config = <<~TS
+          // Example only: defineConfig({ vite: { ... } })
+          import { defineConfig } from "@lovable.dev/vite-tanstack-config";
+          export default defineConfig({
+            tanstackStart: {
+              server: { entry: "server" },
+            },
+          });
+        TS
+        files = package_files(
+          "package.json" => JSON.generate(
+            scripts: { build: "vite build" },
+            dependencies: { "@tanstack/react-start": "1.0.0" },
+            devDependencies: {
+              "@lovable.dev/vite-tanstack-config": "2.7.6",
+              vite: "8.0.0"
+            }
+          ),
+          "package-lock.json" => "{}",
+          "vite.config.ts" => source_config
+        )
+
+        result = build(files:, runner:)
+
+        assert_equal "tanstack_start", result.framework
+        assert_equal "dist/client/", result.output_directory
+        assert_includes result.temporary_config_adjustments,
+          "Lovable TanStack Startを静的prerender用に一時設定"
+        assert_includes runner.config_during_build, "nitro: false"
+        assert_includes runner.config_during_build, "prerender:"
+        assert_equal source_config, files["vite.config.ts"]
+      end
+
       test "keeps lifecycle scripts disabled" do
         error = assert_raises(StaticArtifactBuilder::UnsafeBuild) do
           build(
@@ -252,16 +456,42 @@ module Aicoo
         }.merge(overrides)
       end
 
+      def next_package_files
+        {
+          "package.json" => JSON.generate(
+            scripts: { build: "next build" },
+            dependencies: { next: "15.0.0" }
+          ),
+          "package-lock.json" => "{}"
+        }
+      end
+
+      def built_html(script_path)
+        "<!doctype html><html><head></head><body><script src=\"#{script_path}\"></script></body></html>"
+      end
+
       class FakeBuildRunner
-        Result = Data.define(:stdout, :stderr, :success)
+        Result = StaticArtifactBuilder::CommandRunner::Result
 
-        attr_reader :commands, :working_directory
+        attr_reader :commands, :working_directory, :config_during_build
 
-        def initialize(output_directory: "dist", output_directories: nil, fail_command: nil)
+        def initialize(
+          output_directory: "dist",
+          output_directories: nil,
+          build_files: nil,
+          fail_command: nil,
+          stdout: "build stdout",
+          stderr: "",
+          exit_code: 0
+        )
           @commands = []
           @output_directory = output_directory
           @output_directories = output_directories || [ output_directory ].compact
+          @build_files = build_files
           @fail_command = fail_command
+          @stdout = stdout
+          @stderr = stderr
+          @exit_code = exit_code
         end
 
         def call(argv, chdir:, timeout_seconds:)
@@ -274,20 +504,43 @@ module Aicoo
           elsif install_command?(argv)
             return failure("install failed") if @fail_command == :install
 
-            vite = File.join(chdir, "node_modules", ".bin", "vite")
-            FileUtils.mkdir_p(File.dirname(vite))
-            File.write(vite, "#!/bin/sh\n")
-            FileUtils.chmod(0o755, vite)
+            %w[vite next astro remix react-scripts].each do |executable|
+              path = File.join(chdir, "node_modules", ".bin", executable)
+              FileUtils.mkdir_p(File.dirname(path))
+              File.write(path, "#!/bin/sh\n")
+              FileUtils.chmod(0o755, path)
+            end
           elsif build_command?(argv)
             return failure("build failed") if @fail_command == :build
 
-            @output_directories.each do |output_directory|
-              FileUtils.mkdir_p(File.join(chdir, output_directory, "assets"))
-              File.write(File.join(chdir, output_directory, "index.html"), "<!doctype html><title>Built LP</title>")
-              File.write(File.join(chdir, output_directory, "assets", "app.js"), "console.log('built')")
+            config_path = File.join(chdir, "vite.config.ts")
+            @config_during_build = File.read(config_path) if File.file?(config_path)
+            if @build_files
+              @build_files.each do |relative_path, content|
+                path = File.join(chdir, relative_path)
+                FileUtils.mkdir_p(File.dirname(path))
+                File.binwrite(path, content)
+              end
+            else
+              @output_directories.each do |output_directory|
+                FileUtils.mkdir_p(File.join(chdir, output_directory, "assets"))
+                File.write(
+                  File.join(chdir, output_directory, "index.html"),
+                  "<!doctype html><html><body><script src=\"assets/app.js\"></script></body></html>"
+                )
+                File.write(File.join(chdir, output_directory, "assets", "app.js"), "console.log('built')")
+              end
             end
           end
-          Result.new(stdout: timeout_seconds.to_s, stderr: "", success: true)
+          Result.new(
+            stdout: build_command?(argv) ? @stdout : timeout_seconds.to_s,
+            stderr: build_command?(argv) ? @stderr : "",
+            success: true,
+            exit_code: @exit_code,
+            started_at: "2026-07-30T00:00:00Z",
+            finished_at: "2026-07-30T00:00:01Z",
+            duration_ms: 1_000
+          )
         end
 
         private
@@ -301,7 +554,15 @@ module Aicoo
         end
 
         def failure(message)
-          Result.new(stdout: "", stderr: message, success: false)
+          Result.new(
+            stdout: "",
+            stderr: message,
+            success: false,
+            exit_code: 1,
+            started_at: "2026-07-30T00:00:00Z",
+            finished_at: "2026-07-30T00:00:01Z",
+            duration_ms: 1_000
+          )
         end
       end
     end
