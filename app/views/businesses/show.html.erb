@@ -1105,18 +1105,14 @@
   <div class="section-heading">
     <div>
       <h2>LP</h2>
-      <p>公開LPの作成と公開停止をこのBusinessの運用導線として扱います。</p>
+      <p>このBusinessの公開LP、計測結果、改善状態を確認します。</p>
     </div>
     <div class="actions compact-actions">
-      <%= button_to "Lovableで作成", business_lovable_landing_page_path(@business), method: :post, class: "button", form: { target: "_blank" } %>
-      <%= button_to "Promptを見る", prepare_business_lovable_landing_page_path(@business), method: :post, class: "button secondary" %>
       <%= link_to "LP Studio", business_lovable_landing_page_path(@business), class: "button secondary" %>
       <% if @lovable_current_version %>
         <%= link_to "Version比較", compare_business_lovable_landing_page_path(@business), class: "button secondary" %>
         <%= link_to "履歴", business_lovable_landing_page_path(@business, anchor: "lovable-versions"), class: "button secondary" %>
       <% end %>
-      <%= link_to "公開LP管理", admin_aicoo_lab_public_landing_pages_path, class: "button secondary" %>
-      <%= link_to "LPを新規作成", admin_aicoo_lab_new_public_landing_page_path, class: "button" %>
     </div>
   </div>
   <div class="lovable-business-summary">
@@ -1207,7 +1203,6 @@
               <td><%= lp_evaluation.improvement_count %>件</td>
               <td>
                 <div class="compact-actions">
-                  <%= link_to "LP編集", admin_aicoo_lab_edit_public_landing_page_path(landing_page), class: "button secondary" %>
                   <% if lp_evaluation.promotable? %>
                     <%= button_to "MVP開発へ進める",
                                   promote_to_mvp_business_path(@business),

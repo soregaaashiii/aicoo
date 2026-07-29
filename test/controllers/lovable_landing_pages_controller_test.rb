@@ -11,10 +11,12 @@ class LovableLandingPagesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.body, "LP Studio"
     assert_includes response.body, "AICOO要件"
-    assert_includes response.body, "Lovable Preview"
-    assert_includes response.body, "Codex公開"
-    assert_includes response.body, "Lovableで作成"
-    assert_includes response.body, "Promptを見る"
+    assert_includes response.body, "Lovable生成"
+    assert_includes response.body, "Cloudflare公開"
+    assert_includes response.body, "BusinessのLP一覧へ"
+    assert_not_includes response.body, ">Lovableで作成<"
+    assert_not_includes response.body, ">Promptを見る<"
+    assert_not_includes response.body, ">Lovableで編集<"
   end
 
   test "creates an official Build URL version regardless of MCP configuration" do
@@ -44,13 +46,16 @@ class LovableLandingPagesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Edited prompt", run.reload.prompt
   end
 
-  test "business detail exposes Lovable LP actions" do
+  test "business detail routes LP creation through the purpose based form" do
     get business_url(@business)
 
     assert_response :success
-    assert_includes response.body, "Lovableで作成"
-    assert_includes response.body, "Promptを見る"
+    assert_includes response.body, "＋LP追加"
     assert_includes response.body, business_lovable_landing_page_path(@business)
+    assert_not_includes response.body, ">Lovableで作成<"
+    assert_not_includes response.body, ">Promptを見る<"
+    assert_not_includes response.body, ">公開LP管理<"
+    assert_not_includes response.body, ">LP編集<"
   end
 
   test "result repository waits for github webhook without a manual fetch button" do

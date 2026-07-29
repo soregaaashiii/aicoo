@@ -24,8 +24,7 @@
       <% if @landing_page_prototype %>
         <span class="pill"><%= @landing_page_prototype.landing_page_name %> / Promptレビュー</span>
       <% else %>
-      <%= button_to(@source_action_candidate&.generation_source == "lp_learning" ? "Lovableで改善" : "Lovableで作成", business_lovable_landing_page_path(@business), method: :post, params: { action_candidate_id: @source_action_candidate&.id }, class: "button", form: { target: "_blank" }) %>
-      <%= button_to "Promptを見る", prepare_business_lovable_landing_page_path(@business), method: :post, params: { action_candidate_id: @source_action_candidate&.id }, class: "button secondary" %>
+        <span class="pill">LP一覧から生成</span>
       <% end %>
       <% if @current_version %>
         <%= link_to "Version比較", compare_business_lovable_landing_page_path(@business, landing_page_id: @landing_page_prototype&.id), class: "button secondary" %>
@@ -189,9 +188,6 @@
       </div>
       <div class="compact-actions">
         <%= link_to "Previewを別画面で開く", @current_version.metadata.to_h["preview_url"], class: "button secondary", target: "_blank", rel: "noopener" %>
-        <% if @current_version.metadata.to_h["editor_url"].present? %>
-          <%= link_to "Lovableで編集", @current_version.metadata.to_h["editor_url"], class: "button secondary", target: "_blank", rel: "noopener" %>
-        <% end %>
       </div>
     <% elsif @current_version&.metadata.to_h&.dig("build_url").present? %>
       <div class="aicoo-notice status-warning">
@@ -205,10 +201,9 @@
       </div>
     <% else %>
       <div class="aicoo-empty-state">
-        <p>Business情報からPromptを生成し、公式Build with URLでLovableを開きます。</p>
+        <p>Business詳細の「＋LP追加」で目的を選ぶと、AICOOがPromptと承認待ちタスクを生成します。</p>
         <div class="compact-actions">
-          <%= button_to "Lovableで作成", business_lovable_landing_page_path(@business), method: :post, params: { action_candidate_id: @source_action_candidate&.id }, class: "button", form: { target: "_blank" } %>
-          <%= button_to "Promptを見る", prepare_business_lovable_landing_page_path(@business), method: :post, params: { action_candidate_id: @source_action_candidate&.id }, class: "button secondary" %>
+          <%= link_to "BusinessのLP一覧へ", business_path(@business, anchor: "business-access-urls"), class: "button secondary" %>
         </div>
       </div>
     <% end %>
