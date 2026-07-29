@@ -427,10 +427,16 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
 
   test "show does not create pipeline or auto link defaults" do
     linker = ->(*) { raise "BusinessGoogleDefaultLinker must not run from businesses#show" }
+    cost_defaults = ->(*) { flunk("DataSourceCostProfile defaults must not persist from businesses#show") }
+    suelog_health = ->(*) { flunk("Suelog database health must not run from businesses#show") }
 
     Aicoo::BusinessGoogleDefaultLinker.stub(:call, linker) do
-      assert_no_difference([ "Business.count", "AicooLabLandingPage.count", "ActionCandidate.count", "AicooPipelineRun.count", "PipelineRecoveryLog.count" ]) do
-        get business_url(@business)
+      DataSourceCostProfile.stub(:ensure_defaults!, cost_defaults) do
+        Aicoo::ExternalSources::SuelogHealthCheck.stub(:call, suelog_health) do
+          assert_no_difference([ "Business.count", "AicooLabLandingPage.count", "ActionCandidate.count", "AicooPipelineRun.count", "PipelineRecoveryLog.count" ]) do
+            get business_url(@business)
+          end
+        end
       end
     end
 

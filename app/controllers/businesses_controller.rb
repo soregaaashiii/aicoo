@@ -14,6 +14,8 @@ class BusinessesController < ApplicationController
     誤登録
     その他
   ].freeze
+  BUSINESS_SHOW_COST_SOURCE_KEYS = %w[gsc ga4 serp explore x youtube openai].freeze
+  BUSINESS_SHOW_STATUS_KEYS = %w[ga4 gsc serp daily_run traffic codex].freeze
 
   # GET /businesses or /businesses.json
   def index
@@ -82,24 +84,48 @@ class BusinessesController < ApplicationController
 
   # GET /businesses/1 or /businesses/1.json
   def show
-    @business_prototypes = @business.business_prototypes.recent
-    @action_candidates = @business.action_candidates.by_recommendation
-    @ai_improvement_action_candidates = @business.action_candidates
-                                                   .active_for_ranking
-                                                   .where.not(action_type: "data_preparation")
-                                                   .by_recommendation
-                                                   .limit(10)
-    @ai_improvement_auto_revision_tasks = @business.auto_revision_tasks.active.by_priority.limit(10)
+    @business_prototypes = @business.business_prototypes.recent.to_a
+    @action_candidates = @business.action_candidates
+                                  .by_recommendation
+                                  .except(:includes)
+                                  .select(
+                                    :id,
+                                    :business_id,
+                                    :title,
+                                    :description,
+                                    :evaluation_reason,
+                                    :action_type,
+                                    :status,
+                                    :expected_profit_yen,
+                                    :expected_hourly_value_yen,
+                                    :final_score,
+                                    :created_at
+                                  )
+                                  .to_a
+    @ai_improvement_action_candidates = @action_candidates.select do |candidate|
+      candidate.status.present? &&
+        !candidate.status.in?(ActionCandidate::INACTIVE_STATUSES) &&
+        candidate.action_type.present? &&
+        candidate.action_type != "data_preparation"
+    end.first(10)
+    @home_action_candidate_count = @action_candidates.count { |candidate| candidate.status.in?(%w[idea approved]) }
+    @active_action_candidate_count = @action_candidates.count do |candidate|
+      candidate.status.present? && !candidate.status.in?(ActionCandidate::INACTIVE_STATUSES)
+    end
+    @ai_improvement_auto_revision_tasks = @business.auto_revision_tasks.active.by_priority.limit(10).to_a
     @business_codex_waiting_tasks = @business.auto_revision_tasks
                                            .where(status: %w[ready_for_codex queued approved])
                                            .by_priority
                                            .limit(5)
-    @data_sources = @business.data_sources.includes(:data_imports).order(:name)
-    @recent_data_imports = @business.data_imports.includes(:data_source).recent.limit(5)
-    @recent_serp_analyses = @business.serp_analyses.order(analyzed_at: :desc).limit(10)
+                                           .to_a
+    @recent_auto_revision_tasks = @business.auto_revision_tasks.order(created_at: :desc).limit(10).to_a
+    @auto_build_task_count = @business.auto_build_tasks.active.count
+    @data_sources = @business.data_sources.includes(:data_imports).order(:name).to_a
+    @recent_data_imports = @business.data_imports.includes(:data_source).recent.limit(5).to_a
+    @recent_serp_analyses = @business.serp_analyses.order(analyzed_at: :desc).limit(10).to_a
     @latest_daily_run = AicooDailyRun.recent.first
-    @business_landing_pages = @business.aicoo_lab_landing_pages.order(updated_at: :desc)
-    @landing_page_counts = @business.aicoo_lab_landing_pages.group(:public_status).count
+    @business_landing_pages = @business.aicoo_lab_landing_pages.order(updated_at: :desc).to_a
+    @landing_page_counts = @business_landing_pages.group_by(&:public_status).transform_values(&:size)
     @lovable_version_repository = Aicoo::Lovable::VersionRepository.new(business: @business)
     @lovable_current_version = @lovable_version_repository.current
     @lovable_published_version = @lovable_version_repository.published
@@ -109,54 +135,120 @@ class BusinessesController < ApplicationController
         generation_run: @lovable_published_version
       ).call
     end
-    @lp_evaluations = Aicoo::LpEvaluationSummary.for_business(@business)
+    @lp_evaluations = Aicoo::LpEvaluationSummary.for_business(
+      @business,
+      landing_pages: @business_landing_pages
+    )
     @lp_evaluations_by_id = @lp_evaluations.index_by { |row| row.landing_page.id }
     @mvp_ready_check = Aicoo::MvpReadyCheck.new(@business, @lp_evaluations).call
-    @business_services = @business.business_services.recent
-    @business_access_overview = Aicoo::LpIntegration::Overview.new(@business)
+    @business_services = @business.business_services.recent.to_a
+    @live_business_service_count = @business_services.count { |service| service.status == "live" }
     @cloudflare_pages_configuration = Aicoo::CloudflarePages::Configuration.new
     @primary_business_service = @business_services.first
-    @external_landing_pages = @business.business_prototypes.active.external_landing_pages
-    @business_campaigns = @business.business_campaigns.active.includes(:landing_pages).recent
+    @external_landing_pages = @business.business_prototypes.active.external_landing_pages.to_a
+    @source_app_connections = @business.source_app_connections.to_a
+    @business_analytics_site = Aicoo::RequestQueryContext.analytics_site(@business) do
+      AicooAnalyticsSite.where(business: @business).recent.to_a.first
+    end
+    @business_access_overview = Aicoo::LpIntegration::Overview.new(
+      @business,
+      source_prototype: @external_landing_pages.first,
+      analytics_site: @business_analytics_site,
+      source_app_connections: @source_app_connections
+    )
+    @business_campaigns = @business.business_campaigns.active.includes(:landing_pages).recent.to_a
     @campaign_dashboard = Aicoo::LpIntegration::CampaignDashboard.new(@business).call
     @landing_page_dashboard = Aicoo::LpIntegration::BusinessLandingPageDashboard.new(
       business: @business,
       campaign_dashboard: @campaign_dashboard
     ).call
     @landing_page_planner = Aicoo::LpIntegration::BusinessLandingPagePlanner.new(@business).call
-    @mvp_evaluations = Aicoo::MvpEvaluationSummary.for_business(@business)
+    @business_metric_rows = @business.business_metric_dailies.order(:recorded_on).to_a
+    @business_revenue_events = @business.revenue_events.to_a
+    analytics_context = Aicoo::BusinessAnalyticsBatchContext.new(
+      [ @business ],
+      metric_records: @business_metric_rows,
+      revenue_events: @business_revenue_events
+    )
+    @mvp_evaluations = Aicoo::MvpEvaluationSummary.for_business(
+      @business,
+      business_services: @business_services,
+      metrics: @business_metric_rows,
+      revenue_events: @business_revenue_events
+    )
     @mvp_evaluations_by_service_id = @mvp_evaluations.index_by { |row| row.business_service.id }
     @production_ready_check = Aicoo::ProductionReadyCheck.new(@business, @mvp_evaluations).call
-    @scaling_evaluation = Aicoo::ScalingEvaluationSummary.for_business(@business)
+    @scaling_evaluation = Aicoo::ScalingEvaluationSummary.for_business(
+      @business,
+      business_services: @business_services,
+      metrics: @business_metric_rows,
+      revenue_events: @business_revenue_events
+    )
     @scaling_ready_check = Aicoo::ScalingReadyCheck.new(@business, @scaling_evaluation).call
-    @resource_summary = Aicoo::ResourceSummary.for_business(@business)
-    @attention_score = Aicoo::AttentionScore.for_business(@business)
-    @business_timeline = Aicoo::BusinessTimeline.new(@business).call
-    @recent_activity_logs = @business.business_activity_logs.recent.limit(10)
+    @resource_summary = Aicoo::ResourceSummary.for_business(
+      @business,
+      active_candidate_count: @active_action_candidate_count,
+      business_services: @business_services,
+      metrics: @business_metric_rows,
+      revenue_events: @business_revenue_events
+    )
+    @attention_score = Aicoo::AttentionScore.for_business(
+      @business,
+      resource_summary: @resource_summary,
+      active_candidate_count: @active_action_candidate_count,
+      metrics: @business_metric_rows,
+      revenue_events: @business_revenue_events
+    )
+    @recent_activity_logs = @business.business_activity_logs.recent.limit(10).to_a
     @recent_action_executions = ActionExecution.joins(:action_candidate)
                                                .where(action_candidates: { business_id: @business.id })
+                                               .preload(:action_candidate)
                                                .recent
                                                .limit(10)
-    @recent_action_results = @business.action_results.order(created_at: :desc).limit(10)
+                                               .to_a
+    @recent_action_results = @business.action_results.preload(:action_candidate).order(created_at: :desc).limit(10).to_a
+    @business_timeline = Aicoo::BusinessTimeline.new(
+      @business,
+      landing_pages: @business_landing_pages,
+      metrics: @business_metric_rows,
+      revenue_events: @business_revenue_events,
+      action_candidates: @action_candidates,
+      action_executions: @recent_action_executions,
+      action_results: @recent_action_results,
+      auto_revision_tasks: @recent_auto_revision_tasks,
+      activity_logs: @recent_activity_logs,
+      business_services: @business_services
+    ).call
     @business_playbook = @business.business_playbook
-    @google_credential = AicooGoogleCredential.default&.reload
     @google_api_import_run = GoogleApiImportRun.latest_for(@business)
-    @google_api_import_runs = GoogleApiImportRun.where(business: @business).recent.limit(8)
+    @google_api_import_runs = GoogleApiImportRun.where(business: @business).recent.limit(8).to_a
     @integration_health = Aicoo::BusinessIntegrationHealth.new(businesses: [ @business ]).call.business_healths.first
     @ga4_connection_summary = Aicoo::BusinessGoogleConnectionSummary.new(@business, source_key: "ga4", health: @integration_health).call
     @gsc_connection_summary = Aicoo::BusinessGoogleConnectionSummary.new(@business, source_key: "gsc", health: @integration_health).call
-    @system_statuses = business_system_statuses(@business, %w[ga4 gsc serp openai codex daily_run traffic pipeline learning business_health])
+    @system_statuses = business_system_statuses(@business, BUSINESS_SHOW_STATUS_KEYS)
     @google_credential = @ga4_connection_summary.setting&.google_credential || @gsc_connection_summary.credential || AicooGoogleCredential.default
-    @business_analytics_summary = Aicoo::BusinessAnalyticsSummary.new(@business, health: @integration_health).call
-    @data_source_settings_presenter = Aicoo::DataSourceSettingsPresenter.new
+    @business_analytics_summary = Aicoo::BusinessAnalyticsSummary.new(
+      @business,
+      health: @integration_health,
+      cost_source_keys: BUSINESS_SHOW_COST_SOURCE_KEYS,
+      ensure_cost_defaults: false,
+      context: analytics_context
+    ).call
+    load_business_show_display_data
+    business_data_source_settings = @business.business_data_source_settings.to_a
+    @data_source_settings_presenter = Aicoo::DataSourceSettingsPresenter.new(
+      profiles: Aicoo::DataSourceSettingsPresenter::COMPACT_BUSINESS_SOURCES.map do |source_key|
+        DataSourceCostProfile.for_source(source_key)
+      end,
+      settings: business_data_source_settings
+    )
     @business_data_source_statuses = @data_source_settings_presenter.business_statuses(@business)
     @business_codex_status = @data_source_settings_presenter.codex_status(@business)
     @data_source_policy = Aicoo::DataSourcePolicy.for(@business)
     load_suelog_database_status
-    @auto_revision_run_logs = @business.auto_revision_run_logs.includes(:auto_revision_task).recent.limit(8)
+    @auto_revision_run_logs = @business.auto_revision_run_logs.includes(:auto_revision_task).recent.limit(8).to_a
     @pipeline_run = latest_pipeline_run_for(@business)
-    @pipeline_recovery_logs = @pipeline_run.persisted? ? @pipeline_run.pipeline_recovery_logs.recent.limit(20) : PipelineRecoveryLog.none
-    load_data_source_settings_context
+    @pipeline_recovery_logs = @pipeline_run.persisted? ? @pipeline_run.pipeline_recovery_logs.recent.limit(20).to_a : []
   end
 
   # GET /businesses/new
@@ -501,11 +593,34 @@ class BusinessesController < ApplicationController
     def load_suelog_database_status
       return unless Aicoo::CandidateGenerators::SuelogGenerator.target?(@business)
 
-      @suelog_db_health = Aicoo::ExternalSources::SuelogHealthCheck.call
+      @suelog_db_health = saved_suelog_database_health
       @suelog_db_candidate_counts = @business.action_candidates
         .where(generation_source: "suelog_db", created_at: 24.hours.ago..Time.current)
         .group(:action_type)
         .count
+    end
+
+    def saved_suelog_database_health
+      step = AicooDailyRunStep
+        .where(step_name: "suelog_database_health_check")
+        .where("metadata ->> 'business_id' = ?", @business.id.to_s)
+        .recent
+        .first
+      metadata = step&.metadata.to_h.stringify_keys
+
+      Aicoo::ExternalSources::SuelogHealthCheck::Result.new(
+        status: metadata&.fetch("status", nil).presence || (step&.status == "success" ? "success" : "warning"),
+        code: metadata&.fetch("code", nil).presence || (step ? step.status : "not_checked"),
+        message: metadata&.fetch("message", nil).presence || (step ? step.status : "Daily Runで未確認"),
+        shops_count: metadata&.fetch("shops_count", nil),
+        articles_count: metadata&.fetch("articles_count", nil),
+        shop_clicks_count: metadata&.fetch("shop_clicks_count", nil),
+        last_checked_at: metadata&.fetch("last_checked_at", nil) || step&.finished_at || step&.started_at,
+        last_shop_updated_at: metadata&.fetch("last_shop_updated_at", nil),
+        last_article_updated_at: metadata&.fetch("last_article_updated_at", nil),
+        last_shop_click_at: metadata&.fetch("last_shop_click_at", nil),
+        error_class: metadata&.fetch("error_class", nil)
+      )
     end
 
     # Use callbacks to share common setup or constraints between actions.
@@ -544,6 +659,49 @@ class BusinessesController < ApplicationController
       @business_data_source_settings_by_key = @business.business_data_source_settings.index_by(&:source_key)
       @data_source_settings_presenter = Aicoo::DataSourceSettingsPresenter.new(profiles: @data_source_cost_profiles, settings: @business.business_data_source_settings)
       @data_source_policy = Aicoo::DataSourcePolicy.for(@business)
+    end
+
+    def load_business_show_display_data
+      current_month = Date.current.beginning_of_month..Date.current.end_of_month
+      current_month_revenue_events = @business_revenue_events.select { |event| event.occurred_on.in?(current_month) }
+      @business_revenue_values = {
+        current_revenue: current_month_revenue_events.select(&:revenue?).sum(&:amount),
+        current_expense: current_month_revenue_events.select(&:expense?).sum(&:amount),
+        cumulative_revenue: @business_revenue_events.select(&:revenue?).sum(&:amount),
+        cumulative_expense: @business_revenue_events.select(&:expense?).sum(&:amount)
+      }
+      @business_revenue_values[:current_profit] =
+        @business_revenue_values[:current_revenue] - @business_revenue_values[:current_expense]
+      @business_revenue_values[:cumulative_profit] =
+        @business_revenue_values[:cumulative_revenue] - @business_revenue_values[:cumulative_expense]
+
+      @current_proxy_score_weight = @business.current_proxy_score_weight
+      @business_proxy_scores = {
+        recent_7d: proxy_score_for(@business_metric_rows, 6.days.ago.to_date..Date.current),
+        recent_30d: proxy_score_for(@business_metric_rows, 29.days.ago.to_date..Date.current),
+        current_month: proxy_score_for(@business_metric_rows, current_month),
+        cumulative: proxy_score_for(@business_metric_rows)
+      }
+      @business_evaluation_focus = @business_revenue_values[:cumulative_revenue].positive? ? "profit" : "proxy_score"
+      @proxy_score_weight_adjustment_logs = @business.proxy_score_weight_adjustment_logs.order(adjusted_at: :desc).limit(5).to_a
+      @opportunity_count = @business.opportunity_discovery_items.count
+      @recent_opportunities = @business.opportunity_discovery_items.order(created_at: :desc).limit(5).to_a
+      @codex_prompt_draft_count = @business.codex_prompt_drafts.count
+      @recent_codex_prompt_drafts = @business.codex_prompt_drafts.order(created_at: :desc).limit(5).to_a
+      @serp_keyword_active_count = @business.business_serp_keywords.active.count
+      @serp_keyword_pending_count = @business.business_serp_keywords.pending.count
+      @serp_query_enabled_count = @business.serp_queries.enabled.count
+      @serp_queries = @business.serp_queries.by_priority.limit(8).to_a
+      @serp_cost = @business_analytics_summary.cost_estimates.find { |estimate| estimate.source_key == "serp" }
+    end
+
+    def proxy_score_for(metrics, date_range = nil)
+      rows = date_range ? metrics.select { |metric| metric.recorded_on.in?(date_range) } : metrics
+      rows.sum do |metric|
+        BusinessMetricDaily::SCORE_WEIGHTS.each_key.sum do |column|
+          metric.public_send(column).to_i * @current_proxy_score_weight.weight_for(column)
+        end.to_f
+      end
     end
 
     def load_google_source_options

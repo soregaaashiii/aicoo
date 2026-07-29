@@ -83,7 +83,7 @@
     </div>
     <div class="metric-card">
       <span>改善候補</span>
-      <strong><%= @business.action_candidates.where(status: %w[idea approved]).count %>件</strong>
+      <strong><%= @home_action_candidate_count %>件</strong>
       <small>改修開始・実行待ち</small>
     </div>
     <div class="metric-card">
@@ -93,8 +93,8 @@
     </div>
     <div class="metric-card">
       <span>Service状況</span>
-      <strong><%= @business_services.where(status: "live").count %> live</strong>
-      <small>全<%= @business_services.count %>件</small>
+      <strong><%= @live_business_service_count %> live</strong>
+      <small>全<%= @business_services.size %>件</small>
     </div>
     <div class="metric-card">
       <span>学習状態</span>
@@ -500,7 +500,7 @@
         <div class="metric-card"><span>Risk</span><strong><%= @business.auto_build_risk_level %></strong></div>
         <div class="metric-card"><span>新規LP自動Deploy</span><strong><%= @business.new_lp_auto_deploy_enabled? ? "ON" : "OFF" %></strong></div>
         <div class="metric-card"><span>Deploy停止</span><strong><%= @business.auto_deploy_suspended? ? "停止中" : "稼働可" %></strong></div>
-        <div class="metric-card"><span>Build Queue</span><strong><%= @business.auto_build_tasks.active.count %>件</strong></div>
+        <div class="metric-card"><span>Build Queue</span><strong><%= @auto_build_task_count %>件</strong></div>
       </div>
       <label>
         <%= form.check_box :auto_build_enabled %>
@@ -988,12 +988,12 @@
   </div>
 
   <div class="metric-grid">
-    <div class="metric-card"><span>今月売上</span><strong><%= number_to_currency(@business.current_month_revenue, unit: "¥", precision: 0) %></strong></div>
-    <div class="metric-card"><span>今月費用</span><strong><%= number_to_currency(@business.current_month_expense, unit: "¥", precision: 0) %></strong></div>
-    <div class="metric-card"><span>今月利益</span><strong><%= number_to_currency(@business.current_month_profit, unit: "¥", precision: 0) %></strong></div>
-    <div class="metric-card"><span>累計売上</span><strong><%= number_to_currency(@business.cumulative_revenue, unit: "¥", precision: 0) %></strong></div>
-    <div class="metric-card"><span>累計費用</span><strong><%= number_to_currency(@business.cumulative_expense, unit: "¥", precision: 0) %></strong></div>
-    <div class="metric-card"><span>累計利益</span><strong><%= number_to_currency(@business.cumulative_profit, unit: "¥", precision: 0) %></strong></div>
+    <div class="metric-card"><span>今月売上</span><strong><%= number_to_currency(@business_revenue_values.fetch(:current_revenue), unit: "¥", precision: 0) %></strong></div>
+    <div class="metric-card"><span>今月費用</span><strong><%= number_to_currency(@business_revenue_values.fetch(:current_expense), unit: "¥", precision: 0) %></strong></div>
+    <div class="metric-card"><span>今月利益</span><strong><%= number_to_currency(@business_revenue_values.fetch(:current_profit), unit: "¥", precision: 0) %></strong></div>
+    <div class="metric-card"><span>累計売上</span><strong><%= number_to_currency(@business_revenue_values.fetch(:cumulative_revenue), unit: "¥", precision: 0) %></strong></div>
+    <div class="metric-card"><span>累計費用</span><strong><%= number_to_currency(@business_revenue_values.fetch(:cumulative_expense), unit: "¥", precision: 0) %></strong></div>
+    <div class="metric-card"><span>累計利益</span><strong><%= number_to_currency(@business_revenue_values.fetch(:cumulative_profit), unit: "¥", precision: 0) %></strong></div>
   </div>
 
   <div class="actions compact-actions">
@@ -1008,11 +1008,11 @@
   </div>
 
   <div class="metric-grid">
-    <div class="metric-card"><span>直近7日 proxy_score</span><strong><%= number_with_precision(@business.recent_7d_proxy_score, precision: 2) %></strong></div>
-    <div class="metric-card"><span>直近30日 proxy_score</span><strong><%= number_with_precision(@business.recent_30d_proxy_score, precision: 2) %></strong></div>
-    <div class="metric-card"><span>今月 proxy_score</span><strong><%= number_with_precision(@business.current_month_proxy_score, precision: 2) %></strong></div>
-    <div class="metric-card"><span>累計 proxy_score</span><strong><%= number_with_precision(@business.cumulative_proxy_score, precision: 2) %></strong></div>
-    <div class="metric-card"><span>評価軸</span><strong><%= @business.evaluation_focus == "profit" ? "profit重視" : "proxy_score重視" %></strong></div>
+    <div class="metric-card"><span>直近7日 proxy_score</span><strong><%= number_with_precision(@business_proxy_scores.fetch(:recent_7d), precision: 2) %></strong></div>
+    <div class="metric-card"><span>直近30日 proxy_score</span><strong><%= number_with_precision(@business_proxy_scores.fetch(:recent_30d), precision: 2) %></strong></div>
+    <div class="metric-card"><span>今月 proxy_score</span><strong><%= number_with_precision(@business_proxy_scores.fetch(:current_month), precision: 2) %></strong></div>
+    <div class="metric-card"><span>累計 proxy_score</span><strong><%= number_with_precision(@business_proxy_scores.fetch(:cumulative), precision: 2) %></strong></div>
+    <div class="metric-card"><span>評価軸</span><strong><%= @business_evaluation_focus == "profit" ? "profit重視" : "proxy_score重視" %></strong></div>
   </div>
 
   <div class="actions compact-actions">
@@ -1026,7 +1026,7 @@
     <p>この事業の代理指標計算に使っている重みです。事業別重みがなければ全体共通、さらに無ければ固定デフォルトを使います。</p>
   </div>
 
-  <% proxy_weight = @business.current_proxy_score_weight %>
+  <% proxy_weight = @current_proxy_score_weight %>
   <div class="metric-grid">
     <div class="metric-card"><span>confidence_score</span><strong><%= proxy_weight.confidence_score %></strong></div>
     <div class="metric-card"><span>source</span><strong><%= proxy_weight.persisted? ? proxy_weight.source_type : "code_default" %></strong></div>
@@ -1048,7 +1048,7 @@
         </tr>
       </thead>
       <tbody>
-        <% @business.proxy_score_weight_adjustment_logs.order(adjusted_at: :desc).limit(5).each do |log| %>
+        <% @proxy_score_weight_adjustment_logs.each do |log| %>
           <tr>
             <td><%= l(log.adjusted_at, format: :short) %></td>
             <td><%= log.start_date %>〜<%= log.end_date %></td>
@@ -1057,7 +1057,7 @@
             <td><%= log.reason %></td>
           </tr>
         <% end %>
-        <% if @business.proxy_score_weight_adjustment_logs.empty? %>
+        <% if @proxy_score_weight_adjustment_logs.empty? %>
           <tr><td colspan="5">まだ補正ログはありません。</td></tr>
         <% end %>
       </tbody>
@@ -1073,27 +1073,27 @@
   <div class="aicoo-grid aicoo-grid-3">
     <div class="aicoo-card aicoo-card-compact">
       <h3>ActionCandidate</h3>
-      <strong><%= @business.action_candidates.count %>件</strong>
+      <strong><%= @action_candidates.size %>件</strong>
       <ul class="compact-list">
-        <% @business.action_candidates.by_recommendation.limit(5).each do |candidate| %>
+        <% @action_candidates.first(5).each do |candidate| %>
           <li><%= link_to candidate.title, candidate %></li>
         <% end %>
       </ul>
     </div>
     <div class="aicoo-card aicoo-card-compact">
       <h3>Opportunity</h3>
-      <strong><%= @business.opportunity_discovery_items.count %>件</strong>
+      <strong><%= @opportunity_count %>件</strong>
       <ul class="compact-list">
-        <% @business.opportunity_discovery_items.order(created_at: :desc).limit(5).each do |opportunity| %>
+        <% @recent_opportunities.each do |opportunity| %>
           <li><%= link_to opportunity.title, owner_opportunity_path(opportunity) %></li>
         <% end %>
       </ul>
     </div>
     <div class="aicoo-card aicoo-card-compact">
       <h3>CodexPromptDraft</h3>
-      <strong><%= @business.codex_prompt_drafts.count %>件</strong>
+      <strong><%= @codex_prompt_draft_count %>件</strong>
       <ul class="compact-list">
-        <% @business.codex_prompt_drafts.order(created_at: :desc).limit(5).each do |draft| %>
+        <% @recent_codex_prompt_drafts.each do |draft| %>
           <li><%= link_to draft.title, owner_codex_prompt_draft_path(draft) %></li>
         <% end %>
       </ul>
@@ -1182,7 +1182,7 @@
           </tr>
         </thead>
         <tbody>
-          <% @business_landing_pages.limit(10).each do |landing_page| %>
+          <% @business_landing_pages.first(10).each do |landing_page| %>
             <% lp_url = landing_page.published_slug.present? ? public_lp_path(landing_page.published_slug) : nil %>
             <% lp_evaluation = @lp_evaluations_by_id.fetch(landing_page.id) %>
             <tr>
@@ -1364,7 +1364,7 @@
         <small><%= status.connection_summary %></small>
       </div>
     <% end %>
-    <% @business.source_app_connections.each do |connection| %>
+    <% @source_app_connections.each do |connection| %>
       <div class="aicoo-card aicoo-card-compact">
         <h3><%= connection.source_app %></h3>
         <p><span class="pill"><%= connection.enabled? ? connection.status : "disabled" %></span></p>
@@ -1441,10 +1441,10 @@
     <div class="aicoo-card aicoo-card-compact">
       <h3>Auto Revision</h3>
       <ul class="compact-list">
-        <% @business.auto_revision_tasks.order(created_at: :desc).limit(8).each do |task| %>
+        <% @recent_auto_revision_tasks.first(8).each do |task| %>
           <li><%= link_to task.title, auto_revision_task_path(task) %> / <%= task.status %></li>
         <% end %>
-        <% if @business.auto_revision_tasks.empty? %>
+        <% if @recent_auto_revision_tasks.empty? %>
           <li>Codex改修タスクはまだありません。</li>
         <% end %>
       </ul>
@@ -1625,7 +1625,7 @@
     <p>SERPは新規事業探索専用です。既存Business改善はGSC・GA4・内部データで判断します。</p>
   </div>
 
-  <% serp_cost = Aicoo::CostEngine.new(business: @business).estimate("serp") %>
+  <% serp_cost = @serp_cost %>
   <div class="metric-grid">
     <div class="metric-card">
       <span>SERP</span>
@@ -1633,15 +1633,15 @@
     </div>
     <div class="metric-card">
       <span>Active検索クエリ</span>
-      <strong><%= @business.business_serp_keywords.active.count %>件</strong>
+      <strong><%= @serp_keyword_active_count %>件</strong>
     </div>
     <div class="metric-card">
       <span>SERP Queries</span>
-      <strong><%= @business.serp_queries.enabled.count %>件</strong>
+      <strong><%= @serp_query_enabled_count %>件</strong>
     </div>
     <div class="metric-card">
       <span>追加待ち候補</span>
-      <strong><%= @business.business_serp_keywords.pending.count %>件</strong>
+      <strong><%= @serp_keyword_pending_count %>件</strong>
     </div>
     <div class="metric-card">
       <span>前回取得</span>
@@ -1666,7 +1666,7 @@
           </tr>
         </thead>
         <tbody>
-          <% @business.serp_queries.by_priority.limit(8).each do |query| %>
+          <% @serp_queries.each do |query| %>
             <tr>
               <td><%= query.priority %></td>
               <td class="wide-text"><%= query.query %></td>
@@ -1677,7 +1677,7 @@
               <td><%= query.failure_count %></td>
             </tr>
           <% end %>
-          <% if @business.serp_queries.empty? %>
+          <% if @serp_queries.empty? %>
             <tr><td colspan="7">SERP Queryはまだありません。</td></tr>
           <% end %>
         </tbody>

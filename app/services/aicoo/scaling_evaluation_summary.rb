@@ -27,8 +27,13 @@ module Aicoo
 
     INVESTMENTS = %w[SEO Ads Sales Feature Pricing].freeze
 
-    def self.for_business(business)
-      new(business).call
+    def self.for_business(business, business_services: nil, metrics: nil, revenue_events: nil)
+      new(
+        business,
+        business_services:,
+        metrics:,
+        revenue_events:
+      ).call
     end
 
     def self.candidates(limit: 8)
@@ -48,8 +53,11 @@ module Aicoo
       { "strong" => 3, "ready" => 2, "not_ready" => 1 }.fetch(verdict, 0)
     end
 
-    def initialize(business)
+    def initialize(business, business_services: nil, metrics: nil, revenue_events: nil)
       @business = business
+      @provided_business_services = business_services
+      @provided_metrics = metrics
+      @provided_revenue_events = revenue_events
     end
 
     def call
@@ -82,31 +90,32 @@ module Aicoo
     end
 
     def recent_metrics
-      @recent_metrics ||= business.business_metric_dailies.where(recorded_on: 30.days.ago.to_date..Date.current)
+      @recent_metrics ||= metric_rows(30.days.ago.to_date..Date.current)
     end
 
     def services_metadata
-      @services_metadata ||= business.business_services.map { |service| service.metadata.to_h }
+      services = @provided_business_services || business.business_services.to_a
+      @services_metadata ||= services.map { |service| service.metadata.to_h }
     end
 
     def monthly_revenue_yen
-      @monthly_revenue_yen ||= business.revenue_events.revenue.where(occurred_on: current_month_range).sum(:amount)
+      @monthly_revenue_yen ||= revenue_events_for("revenue", current_month_range).sum(&:amount)
     end
 
     def monthly_expense_yen
-      @monthly_expense_yen ||= business.revenue_events.expense.where(occurred_on: current_month_range).sum(:amount)
+      @monthly_expense_yen ||= revenue_events_for("expense", current_month_range).sum(&:amount)
     end
 
     def paid_users
-      @paid_users ||= metadata_integer("paid_users") || business.revenue_events.revenue.where(occurred_on: current_month_range).count
+      @paid_users ||= metadata_integer("paid_users") || revenue_events_for("revenue", current_month_range).size
     end
 
     def active_users
-      @active_users ||= metadata_integer("active_users") || recent_metrics.sum(:users)
+      @active_users ||= metadata_integer("active_users") || recent_metrics.sum { |metric| metric.users.to_i }
     end
 
     def registrations
-      @registrations ||= metadata_integer("registrations") || recent_metrics.sum(:conversions)
+      @registrations ||= metadata_integer("registrations") || recent_metrics.sum { |metric| metric.conversions.to_i }
     end
 
     def churn_count
@@ -123,8 +132,9 @@ module Aicoo
     end
 
     def cvr
-      sessions = recent_metrics.sum(:sessions)
-      @cvr ||= sessions.positive? ? recent_metrics.sum(:conversions).to_d / sessions.to_d : 0.to_d
+      sessions = recent_metrics.sum { |metric| metric.sessions.to_i }
+      conversions = recent_metrics.sum { |metric| metric.conversions.to_i }
+      @cvr ||= sessions.positive? ? conversions.to_d / sessions.to_d : 0.to_d
     end
 
     def cac_hypothesis_yen
@@ -142,14 +152,17 @@ module Aicoo
     end
 
     def trend_for(days)
+      @trends ||= {}
+      return @trends[days] if @trends.key?(days)
+
       current_start = (days - 1).days.ago.to_date
       previous_start = ((days * 2) - 1).days.ago.to_date
-      current = business.revenue_events.revenue.where(occurred_on: current_start..Date.current).sum(:amount)
-      previous = business.revenue_events.revenue.where(occurred_on: previous_start...current_start).sum(:amount)
-      return 0 if current.zero? && previous.zero?
-      return 100 if previous.zero?
+      current = revenue_events_for("revenue", current_start..Date.current).sum(&:amount)
+      previous = revenue_events_for("revenue", previous_start...current_start).sum(&:amount)
+      return @trends[days] = 0 if current.zero? && previous.zero?
+      return @trends[days] = 100 if previous.zero?
 
-      (((current - previous).to_d / previous.to_d) * 100).round
+      @trends[days] = (((current - previous).to_d / previous.to_d) * 100).round
     end
 
     def trend_label(trend)
@@ -178,7 +191,7 @@ module Aicoo
     def recommended_investment
       return "Pricing" if ltv_hypothesis_yen.positive? && cac_hypothesis_yen.positive? && ltv_hypothesis_yen < cac_hypothesis_yen * 3
       return "Feature" if retention_rate < 0.4
-      return "SEO" if recent_metrics.sum(:impressions).positive? && cvr >= 0.03
+      return "SEO" if recent_metrics.sum { |metric| metric.impressions.to_i }.positive? && cvr >= 0.03
       return "Ads" if gross_profit_yen.positive? && ltv_hypothesis_yen > cac_hypothesis_yen * 3
       return "Sales" if paid_users.positive? && monthly_revenue_yen.positive?
 
@@ -193,6 +206,20 @@ module Aicoo
     def metadata_decimal(key)
       value = services_metadata.filter_map { |metadata| metadata[key] }.first
       value.present? ? value.to_d : nil
+    end
+
+    def metric_rows(range)
+      return business.business_metric_dailies.where(recorded_on: range).to_a unless @provided_metrics
+
+      @provided_metrics.select { |metric| metric.recorded_on.in?(range) }
+    end
+
+    def revenue_events_for(event_type, range)
+      return business.revenue_events.public_send(event_type).where(occurred_on: range).to_a unless @provided_revenue_events
+
+      @provided_revenue_events.select do |event|
+        event.event_type == event_type && event.occurred_on.in?(range)
+      end
     end
   end
 end

@@ -26,11 +26,11 @@ module Aicoo
           health:,
           enabled_channel_count: enabled_profiles.count,
           today_active_channel_count: today_active_channel_count,
-          today_total_inflow_count: today_runs.to_a.sum(&:inflow_count),
-          today_conversion_count: today_runs.sum(:conversions),
-          today_revenue_yen: today_runs.sum(:revenue_yen),
-          today_hours: today_runs.sum(:hours_spent),
-          today_cost_yen: today_runs.sum(:cost_yen),
+          today_total_inflow_count: today_run_rows.sum(&:inflow_count),
+          today_conversion_count: today_run_rows.sum(&:conversions),
+          today_revenue_yen: today_run_rows.sum(&:revenue_yen),
+          today_hours: today_run_rows.sum(&:hours_spent),
+          today_cost_yen: today_run_rows.sum(&:cost_yen),
           today_roi:,
           stopped_channel_count: stopped_channel_keys.count,
           best_channel: performance_rows.first,
@@ -49,6 +49,14 @@ module Aicoo
         @today_serp_runs ||= SerpRun.today
       end
 
+      def today_run_rows
+        @today_run_rows ||= today_runs.to_a
+      end
+
+      def today_serp_run_rows
+        @today_serp_run_rows ||= today_serp_runs.to_a
+      end
+
       def enabled_profiles
         @enabled_profiles ||= begin
           profiles = DataSourceCostProfile.where(source_key: Registry.keys).index_by(&:source_key)
@@ -61,22 +69,22 @@ module Aicoo
       end
 
       def today_roi
-        cost = today_runs.sum(:cost_yen).to_d
+        cost = today_run_rows.sum(&:cost_yen).to_d
         return nil if cost.zero?
 
-        today_runs.sum(:revenue_yen).to_d / cost
+        today_run_rows.sum(&:revenue_yen).to_d / cost
       end
 
       def stopped_channel_keys
-        failed = today_runs.failed.distinct.pluck(:channel_key)
-        failed << "serp" if today_serp_runs.where(status: %w[failed partial_failed]).exists?
+        failed = today_run_rows.select { |run| run.status == "failed" }.map(&:channel_key).uniq
+        failed << "serp" if today_serp_run_rows.any? { |run| run.status.in?(%w[failed partial_failed]) }
         disabled = DataSourceCostProfile.where(source_key: Registry.keys, enabled: false).pluck(:source_key)
         (failed + disabled).uniq
       end
 
       def today_active_channel_count
-        keys = today_runs.distinct.pluck(:channel_key)
-        keys << "serp" if today_serp_runs.exists?
+        keys = today_run_rows.map(&:channel_key).uniq
+        keys << "serp" if today_serp_run_rows.any?
         keys.uniq.count
       end
 
@@ -85,9 +93,9 @@ module Aicoo
       end
 
       def health
-        return "Broken" if today_serp_runs.where(status: "failed").exists?
-        return "Warning" if today_serp_runs.where(status: "partial_failed").exists?
-        return "Broken" if today_runs.failed.exists?
+        return "Broken" if today_serp_run_rows.any? { |run| run.status == "failed" }
+        return "Warning" if today_serp_run_rows.any? { |run| run.status == "partial_failed" }
+        return "Broken" if today_run_rows.any? { |run| run.status == "failed" }
         return "Warning" if stopped_channel_keys.any?
 
         "Healthy"

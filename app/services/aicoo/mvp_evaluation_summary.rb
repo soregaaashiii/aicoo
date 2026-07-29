@@ -23,8 +23,13 @@ module Aicoo
 
     Candidate = Data.define(:business, :business_service, :summary)
 
-    def self.for_business(business)
-      new(business).call
+    def self.for_business(business, business_services: nil, metrics: nil, revenue_events: nil)
+      new(
+        business,
+        business_services:,
+        metrics:,
+        revenue_events:
+      ).call
     end
 
     def self.production_candidates(limit: 8)
@@ -57,17 +62,24 @@ module Aicoo
       { "strong" => 3, "promising" => 2, "poor" => 1 }.fetch(verdict, 0)
     end
 
-    def initialize(business)
+    def initialize(business, business_services: nil, metrics: nil, revenue_events: nil)
       @business = business
+      @provided_business_services = business_services
+      @provided_metrics = metrics
+      @provided_revenue_events = revenue_events
     end
 
     def call
-      business.business_services.recent.map { |business_service| build_row(business_service) }
+      business_services.map { |business_service| build_row(business_service) }
     end
 
     private
 
     attr_reader :business
+
+    def business_services
+      @business_services ||= @provided_business_services || business.business_services.recent.to_a
+    end
 
     def build_row(business_service)
       metadata = business_service.metadata.to_h
@@ -101,28 +113,55 @@ module Aicoo
     end
 
     def metrics
-      @metrics ||= business.business_metric_dailies.where(recorded_on: 30.days.ago.to_date..Date.current)
+      @metrics ||= if @provided_metrics
+        @provided_metrics.select { |metric| metric.recorded_on.in?(30.days.ago.to_date..Date.current) }
+      else
+        business.business_metric_dailies.where(recorded_on: 30.days.ago.to_date..Date.current).to_a
+      end
     end
 
     def metric_sum(column)
-      metrics.sum(column)
+      metric_sums.fetch(column) { 0 }
+    end
+
+    def metric_sums
+      @metric_sums ||= %i[conversions users sessions].index_with do |column|
+        metrics.sum { |metric| metric.public_send(column).to_i }
+      end
     end
 
     def recent_revenue_yen
-      business.revenue_events.revenue.where(occurred_on: 30.days.ago.to_date..Date.current).sum(:amount)
+      @recent_revenue_yen ||= recent_revenue_events.sum(&:amount)
     end
 
     def paid_users_from_revenue
-      business.revenue_events.revenue.where(occurred_on: 30.days.ago.to_date..Date.current).count
+      @paid_users_from_revenue ||= recent_revenue_events.size
     end
 
     def seven_day_trend
-      current = business.business_metric_dailies.where(recorded_on: 6.days.ago.to_date..Date.current).sum(:users)
-      previous = business.business_metric_dailies.where(recorded_on: 13.days.ago.to_date...6.days.ago.to_date).sum(:users)
+      return @seven_day_trend if defined?(@seven_day_trend)
+
+      current = metric_users_for(6.days.ago.to_date..Date.current)
+      previous = metric_users_for(13.days.ago.to_date...6.days.ago.to_date)
       return 0 if current.zero? && previous.zero?
       return 100 if previous.zero?
 
-      (((current - previous).to_d / previous.to_d) * 100).round
+      @seven_day_trend = (((current - previous).to_d / previous.to_d) * 100).round
+    end
+
+    def recent_revenue_events
+      @recent_revenue_events ||= if @provided_revenue_events
+        @provided_revenue_events.select do |event|
+          event.revenue? && event.occurred_on.in?(30.days.ago.to_date..Date.current)
+        end
+      else
+        business.revenue_events.revenue.where(occurred_on: 30.days.ago.to_date..Date.current).to_a
+      end
+    end
+
+    def metric_users_for(range)
+      rows = @provided_metrics || business.business_metric_dailies.where(recorded_on: range).to_a
+      rows.select { |metric| metric.recorded_on.in?(range) }.sum { |metric| metric.users.to_i }
     end
 
     def trend_label(trend)

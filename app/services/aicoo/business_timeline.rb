@@ -2,9 +2,30 @@ module Aicoo
   class BusinessTimeline
     Item = Struct.new(:occurred_at, :event_type, :title, :description, :path, keyword_init: true)
 
-    def initialize(business, limit: 40)
+    def initialize(
+      business,
+      limit: 40,
+      landing_pages: nil,
+      metrics: nil,
+      revenue_events: nil,
+      action_candidates: nil,
+      action_executions: nil,
+      action_results: nil,
+      auto_revision_tasks: nil,
+      activity_logs: nil,
+      business_services: nil
+    )
       @business = business
       @limit = limit
+      @landing_pages = landing_pages
+      @metrics = metrics
+      @revenue_events = revenue_events
+      @action_candidates = action_candidates
+      @action_executions = action_executions
+      @action_results = action_results
+      @auto_revision_tasks = auto_revision_tasks
+      @activity_logs = activity_logs
+      @business_services = business_services
     end
 
     def call
@@ -35,7 +56,8 @@ module Aicoo
     end
 
     def landing_page_items
-      business.aicoo_lab_landing_pages.flat_map do |landing_page|
+      rows = @landing_pages || business.aicoo_lab_landing_pages.to_a
+      rows.flat_map do |landing_page|
         items = [
           Item.new(
             occurred_at: landing_page.created_at,
@@ -59,7 +81,11 @@ module Aicoo
     end
 
     def metric_items
-      latest_metric = business.business_metric_dailies.order(recorded_on: :desc).first
+      latest_metric = if @metrics
+        @metrics.max_by(&:recorded_on)
+      else
+        business.business_metric_dailies.order(recorded_on: :desc).first
+      end
       return unless latest_metric
 
       Item.new(
@@ -72,7 +98,8 @@ module Aicoo
     end
 
     def revenue_items
-      business.revenue_events.order(created_at: :desc).limit(10).map do |event|
+      rows = @revenue_events ? @revenue_events.sort_by(&:created_at).reverse.first(10) : business.revenue_events.order(created_at: :desc).limit(10)
+      rows.map do |event|
         Item.new(
           occurred_at: event.created_at,
           event_type: event.event_type,
@@ -88,7 +115,8 @@ module Aicoo
     end
 
     def action_items
-      business.action_candidates.order(created_at: :desc).limit(10).map do |candidate|
+      rows = @action_candidates ? @action_candidates.sort_by(&:created_at).reverse.first(10) : business.action_candidates.order(created_at: :desc).limit(10)
+      rows.map do |candidate|
         Item.new(
           occurred_at: candidate.created_at,
           event_type: "proposal_created",
@@ -100,11 +128,11 @@ module Aicoo
     end
 
     def execution_items
-      ActionExecution.joins(:action_candidate)
-                     .where(action_candidates: { business_id: business.id })
-                     .recent
-                     .limit(10)
-                     .map do |execution|
+      rows = @action_executions || ActionExecution.joins(:action_candidate)
+                                                  .where(action_candidates: { business_id: business.id })
+                                                  .recent
+                                                  .limit(10)
+      rows.map do |execution|
         Item.new(
           occurred_at: execution.updated_at,
           event_type: "action_execution",
@@ -116,7 +144,8 @@ module Aicoo
     end
 
     def result_items
-      business.action_results.order(created_at: :desc).limit(10).map do |result|
+      rows = @action_results || business.action_results.order(created_at: :desc).limit(10)
+      rows.map do |result|
         Item.new(
           occurred_at: result.created_at,
           event_type: "action_result",
@@ -128,7 +157,8 @@ module Aicoo
     end
 
     def auto_revision_items
-      business.auto_revision_tasks.order(created_at: :desc).limit(10).map do |task|
+      rows = @auto_revision_tasks || business.auto_revision_tasks.order(created_at: :desc).limit(10)
+      rows.map do |task|
         Item.new(
           occurred_at: task.created_at,
           event_type: "codex_revision",
@@ -140,7 +170,8 @@ module Aicoo
     end
 
     def activity_items
-      business.business_activity_logs.recent.limit(10).map do |activity_log|
+      rows = @activity_logs || business.business_activity_logs.recent.limit(10)
+      rows.map do |activity_log|
         Item.new(
           occurred_at: activity_log.occurred_at,
           event_type: activity_log.activity_type,
@@ -152,7 +183,8 @@ module Aicoo
     end
 
     def service_items
-      business.business_services.recent.limit(10).map do |service|
+      rows = @business_services ? @business_services.first(10) : business.business_services.recent.limit(10)
+      rows.map do |service|
         Item.new(
           occurred_at: service.created_at,
           event_type: "service_registered",

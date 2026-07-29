@@ -3,11 +3,19 @@ module Aicoo
     DEFAULT_DAYS = BusinessAnalyticsSummary::DEFAULT_DAYS
     MAX_DAYS = BusinessAnalyticsSummary::PERIODS.max
 
-    def initialize(businesses, today: Date.current, include_details: true)
+    def initialize(
+      businesses,
+      today: Date.current,
+      include_details: true,
+      metric_records: nil,
+      revenue_events: nil
+    )
       @businesses = Array(businesses)
       @business_ids = @businesses.filter_map(&:id)
       @today = today
       @include_details = include_details
+      @provided_metric_records = metric_records
+      @provided_revenue_events = revenue_events
       load_data
     end
 
@@ -71,30 +79,51 @@ module Aicoo
 
     private
 
-    attr_reader :business_ids, :today, :include_details
+    attr_reader :business_ids, :today, :include_details, :provided_metric_records, :provided_revenue_events
 
     def load_data
-      @metrics_by_business_id = BusinessMetricDaily
-        .where(business_id: business_ids, recorded_on: date_range(MAX_DAYS))
-        .order(:recorded_on)
-        .to_a
-        .group_by(&:business_id)
-      @latest_metric_at_by_business_id = BusinessMetricDaily
-        .where(business_id: business_ids)
-        .group(:business_id)
-        .maximum(:recorded_on)
-      @revenue_events_by_business_id = RevenueEvent.revenue
-        .where(business_id: business_ids, occurred_on: date_range(MAX_DAYS))
-        .to_a
-        .group_by(&:business_id)
-      @expected_value_revenue_events_by_business_id = RevenueEvent
-        .where(business_id: business_ids, occurred_on: date_range(MAX_DAYS))
-        .to_a
-        .group_by(&:business_id)
-      @latest_revenue_at_by_business_id = RevenueEvent
-        .where(business_id: business_ids)
-        .group(:business_id)
-        .maximum(:occurred_on)
+      if provided_metric_records
+        all_metrics = Array(provided_metric_records).select { |row| row.business_id.in?(business_ids) }
+        @metrics_by_business_id = all_metrics
+          .select { |row| row.recorded_on.in?(date_range(MAX_DAYS)) }
+          .group_by(&:business_id)
+        @latest_metric_at_by_business_id = all_metrics
+          .group_by(&:business_id)
+          .transform_values { |rows| rows.filter_map(&:recorded_on).max }
+      else
+        @metrics_by_business_id = BusinessMetricDaily
+          .where(business_id: business_ids, recorded_on: date_range(MAX_DAYS))
+          .order(:recorded_on)
+          .to_a
+          .group_by(&:business_id)
+        @latest_metric_at_by_business_id = BusinessMetricDaily
+          .where(business_id: business_ids)
+          .group(:business_id)
+          .maximum(:recorded_on)
+      end
+
+      if provided_revenue_events
+        all_revenue_events = Array(provided_revenue_events).select { |row| row.business_id.in?(business_ids) }
+        recent_revenue_events = all_revenue_events.select { |row| row.occurred_on.in?(date_range(MAX_DAYS)) }
+        @revenue_events_by_business_id = recent_revenue_events.select(&:revenue?).group_by(&:business_id)
+        @expected_value_revenue_events_by_business_id = recent_revenue_events.group_by(&:business_id)
+        @latest_revenue_at_by_business_id = all_revenue_events
+          .group_by(&:business_id)
+          .transform_values { |rows| rows.filter_map(&:occurred_on).max }
+      else
+        @revenue_events_by_business_id = RevenueEvent.revenue
+          .where(business_id: business_ids, occurred_on: date_range(MAX_DAYS))
+          .to_a
+          .group_by(&:business_id)
+        @expected_value_revenue_events_by_business_id = RevenueEvent
+          .where(business_id: business_ids, occurred_on: date_range(MAX_DAYS))
+          .to_a
+          .group_by(&:business_id)
+        @latest_revenue_at_by_business_id = RevenueEvent
+          .where(business_id: business_ids)
+          .group(:business_id)
+          .maximum(:occurred_on)
+      end
       @pending_action_counts = ActionCandidate
         .where(business_id: business_ids)
         .where.not(status: ActionCandidate::INACTIVE_STATUSES)
@@ -117,6 +146,7 @@ module Aicoo
     def load_detail_data
       @candidates_by_business_id = ActionCandidate
         .where(business_id: business_ids, created_at: time_range(DEFAULT_DAYS))
+        .select(:id, :business_id, :created_at, :practicality_score, :metadata)
         .to_a
         .group_by(&:business_id)
       @execution_counts_by_business_id = count_pairs_by_business_and_date(

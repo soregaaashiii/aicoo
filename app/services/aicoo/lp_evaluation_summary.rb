@@ -21,8 +21,8 @@ module Aicoo
 
     Candidate = Data.define(:business, :landing_page, :summary)
 
-    def self.for_business(business)
-      new(business).call
+    def self.for_business(business, landing_pages: nil)
+      new(business, landing_pages:).call
     end
 
     def self.promotion_candidates(limit: 8)
@@ -42,26 +42,28 @@ module Aicoo
       { "strong" => 3, "promising" => 2, "poor" => 1 }.fetch(verdict, 0)
     end
 
-    def initialize(business)
+    def initialize(business, landing_pages: nil)
       @business = business
+      @provided_landing_pages = landing_pages
     end
 
     def call
+      prepare_counts
       landing_pages.map { |landing_page| build_row(landing_page) }
     end
 
     private
 
-    attr_reader :business
+    attr_reader :business, :provided_landing_pages
 
     def landing_pages
-      business.aicoo_lab_landing_pages.order(updated_at: :desc)
+      @landing_pages ||= provided_landing_pages || business.aicoo_lab_landing_pages.order(updated_at: :desc).to_a
     end
 
     def build_row(landing_page)
-      pv = landing_page.view_count
-      cta_clicks = landing_page.cta_click_count
-      cv = landing_page.signup_count
+      pv = event_counts.fetch([ landing_page.id, "view" ], 0)
+      cta_clicks = event_counts.fetch([ landing_page.id, "cta_click" ], 0)
+      cv = signup_counts.fetch(landing_page.id, 0)
       cvr = pv.positive? ? (cv.to_d / pv.to_d) : 0.to_d
       trend_7d = seven_day_trend(landing_page)
       verdict = verdict_for(pv:, cta_clicks:, cv:, cvr:)
@@ -87,16 +89,16 @@ module Aicoo
     end
 
     def gsc_clicks
-      @gsc_clicks ||= recent_metrics.sum(:clicks)
+      metric_totals.fetch("clicks", 0)
     end
 
     def gsc_impressions
-      @gsc_impressions ||= recent_metrics.sum(:impressions)
+      metric_totals.fetch("impressions", 0)
     end
 
     def seven_day_trend(landing_page)
-      current = landing_page.aicoo_lab_landing_page_events.where(event_type: "view", occurred_at: 7.days.ago..Time.current).count
-      previous = landing_page.aicoo_lab_landing_page_events.where(event_type: "view", occurred_at: 14.days.ago...7.days.ago).count
+      current = current_view_counts.fetch(landing_page.id, 0)
+      previous = previous_view_counts.fetch(landing_page.id, 0)
       return 0 if current.zero? && previous.zero?
       return 100 if previous.zero?
 
@@ -129,7 +131,44 @@ module Aicoo
     end
 
     def improvement_count(landing_page)
-      business.business_activity_logs.where(resource_type: "AicooLabLandingPage", resource_id: landing_page.id.to_s).count
+      improvement_counts.fetch(landing_page.id.to_s, 0)
+    end
+
+    def prepare_counts
+      ids = landing_pages.filter_map(&:id)
+      @event_counts = AicooLabLandingPageEvent.where(aicoo_lab_landing_page_id: ids)
+        .group(:aicoo_lab_landing_page_id, :event_type)
+        .count
+      @signup_counts = AicooLabSignup.where(aicoo_lab_landing_page_id: ids)
+        .group(:aicoo_lab_landing_page_id)
+        .count
+
+      now = Time.current
+      seven_days_ago = 7.days.ago
+      @current_view_counts = view_counts_for(ids, seven_days_ago..now)
+      @previous_view_counts = view_counts_for(ids, 14.days.ago...seven_days_ago)
+      @improvement_counts = business.business_activity_logs
+        .where(resource_type: "AicooLabLandingPage", resource_id: ids.map(&:to_s))
+        .group(:resource_id)
+        .count
+      @metric_totals = recent_metrics.pick(
+        Arel.sql("COALESCE(SUM(clicks), 0)"),
+        Arel.sql("COALESCE(SUM(impressions), 0)")
+      ).then { |clicks, impressions| { "clicks" => clicks, "impressions" => impressions } }
+    end
+
+    attr_reader :event_counts,
+                :signup_counts,
+                :current_view_counts,
+                :previous_view_counts,
+                :improvement_counts,
+                :metric_totals
+
+    def view_counts_for(ids, range)
+      AicooLabLandingPageEvent
+        .where(aicoo_lab_landing_page_id: ids, event_type: "view", occurred_at: range)
+        .group(:aicoo_lab_landing_page_id)
+        .count
     end
   end
 end

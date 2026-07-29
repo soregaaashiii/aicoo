@@ -17,8 +17,20 @@ module Aicoo
       :auto_snooze_reason
     )
 
-    def self.for_business(business)
-      new(business).call
+    def self.for_business(
+      business,
+      active_candidate_count: nil,
+      business_services: nil,
+      metrics: nil,
+      revenue_events: nil
+    )
+      new(
+        business,
+        active_candidate_count:,
+        business_services:,
+        metrics:,
+        revenue_events:
+      ).call
     end
 
     def self.default_next_review_on(resource_status)
@@ -36,8 +48,18 @@ module Aicoo
       end
     end
 
-    def initialize(business)
+    def initialize(
+      business,
+      active_candidate_count: nil,
+      business_services: nil,
+      metrics: nil,
+      revenue_events: nil
+    )
       @business = business
+      @active_candidate_count = active_candidate_count
+      @business_services = business_services
+      @metrics = metrics
+      @revenue_events = revenue_events
     end
 
     def call
@@ -76,11 +98,16 @@ module Aicoo
     end
 
     def estimated_infra_cost_yen
-      business.business_services.where(status: %w[live production]).exists? ? 1_000 : 0
+      if @business_services
+        @business_services.any? { |service| service.status.in?(%w[live production]) } ? 1_000 : 0
+      else
+        business.business_services.where(status: %w[live production]).exists? ? 1_000 : 0
+      end
     end
 
     def estimated_maintenance_minutes
-      (business.action_candidates.active_for_ranking.count * 10) + (error_count * 15) + (inquiry_count * 5)
+      candidate_count = @active_candidate_count.nil? ? business.action_candidates.active_for_ranking.count : @active_candidate_count
+      (candidate_count * 10) + (error_count * 15) + (inquiry_count * 5)
     end
 
     def error_count
@@ -108,18 +135,23 @@ module Aicoo
       @last_reaction_at ||= [
         business.aicoo_lab_landing_pages.joins(:aicoo_lab_landing_page_events).maximum("aicoo_lab_landing_page_events.occurred_at"),
         business.aicoo_lab_landing_pages.joins(:aicoo_lab_signups).maximum("aicoo_lab_signups.created_at"),
-        business.business_metric_dailies.maximum(:recorded_on)&.to_time
+        latest_metric_on&.to_time
       ].compact.max
     end
 
     def last_revenue_on
-      @last_revenue_on ||= business.revenue_events.revenue.maximum(:occurred_on)
+      @last_revenue_on ||= if @revenue_events
+        @revenue_events.select(&:revenue?).filter_map(&:occurred_on).max
+      else
+        business.revenue_events.revenue.maximum(:occurred_on)
+      end
     end
 
     def auto_snooze_recommended?
       return false unless business.resource_status == "active"
       return false if error_count.positive? || inquiry_count.positive?
-      return false if business.action_candidates.active_for_ranking.exists?
+      active_candidates = @active_candidate_count.nil? ? business.action_candidates.active_for_ranking.exists? : @active_candidate_count.positive?
+      return false if active_candidates
       return false if last_improvement_at && last_improvement_at >= 30.days.ago
       return false if revenue_changed_recently?
 
@@ -133,9 +165,21 @@ module Aicoo
     end
 
     def revenue_changed_recently?
-      current = business.revenue_events.revenue.where(occurred_on: 30.days.ago.to_date..Date.current).sum(:amount)
-      previous = business.revenue_events.revenue.where(occurred_on: 60.days.ago.to_date...30.days.ago.to_date).sum(:amount)
+      current = revenue_amount(30.days.ago.to_date..Date.current)
+      previous = revenue_amount(60.days.ago.to_date...30.days.ago.to_date)
       (current - previous).abs.positive?
+    end
+
+    def latest_metric_on
+      return @metrics.filter_map(&:recorded_on).max if @metrics
+
+      business.business_metric_dailies.maximum(:recorded_on)
+    end
+
+    def revenue_amount(range)
+      return business.revenue_events.revenue.where(occurred_on: range).sum(:amount) unless @revenue_events
+
+      @revenue_events.select { |event| event.revenue? && event.occurred_on.in?(range) }.sum(&:amount)
     end
   end
 end

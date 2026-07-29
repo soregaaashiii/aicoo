@@ -126,6 +126,33 @@ module Aicoo
       assert_equal direct.cost_estimates.map(&:source_key), batched.cost_estimates.map(&:source_key)
     end
 
+    test "batch context preserves analytics values with supplied records" do
+      direct = BusinessAnalyticsSummary.new(
+        @business,
+        cost_source_keys: %w[serp],
+        ensure_cost_defaults: false
+      ).call
+      context = BusinessAnalyticsBatchContext.new(
+        [ @business ],
+        metric_records: @business.business_metric_dailies.to_a,
+        revenue_events: @business.revenue_events.to_a
+      )
+      batched = BusinessAnalyticsSummary.new(
+        @business,
+        cost_source_keys: %w[serp],
+        ensure_cost_defaults: false,
+        context:
+      ).call
+
+      assert_equal direct.periods, batched.periods
+      assert_equal direct.gsc_series, batched.gsc_series
+      assert_equal direct.ga4_series, batched.ga4_series
+      assert_equal direct.revenue_series, batched.revenue_series
+      assert_equal direct.action_series, batched.action_series
+      assert_equal direct.learning_series, batched.learning_series
+      assert_equal direct.data_status, batched.data_status
+    end
+
     test "compact batch context preserves list values without loading detail series" do
       context = BusinessAnalyticsBatchContext.new([ @business ], include_details: false)
       result = BusinessAnalyticsSummary.for_businesses(

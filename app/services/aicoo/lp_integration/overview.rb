@@ -2,6 +2,7 @@ module Aicoo
   module LpIntegration
     class Overview
       ROLE = "external_lp_integration".freeze
+      UNSET = Object.new.freeze
       SOURCE_TYPES = {
         "lovable_github" => "Lovable GitHub",
         "github" => "GitHub",
@@ -13,8 +14,16 @@ module Aicoo
 
       attr_reader :business
 
-      def initialize(business)
+      def initialize(
+        business,
+        source_prototype: UNSET,
+        analytics_site: UNSET,
+        source_app_connections: nil
+      )
         @business = business
+        @provided_source_prototype = source_prototype
+        @provided_analytics_site = analytics_site
+        @provided_source_app_connections = source_app_connections
       end
 
       def execution_profile
@@ -22,15 +31,20 @@ module Aicoo
       end
 
       def source_prototype
+        return @provided_source_prototype unless @provided_source_prototype.equal?(UNSET)
+
         @source_prototype ||= business.business_prototypes.active.external_landing_pages.first
       end
 
       def analytics_site
+        return @provided_analytics_site unless @provided_analytics_site.equal?(UNSET)
+
         @analytics_site ||= AicooAnalyticsSite.where(business:).recent.first
       end
 
       def activity_connection
-        @activity_connection ||= business.source_app_connections.detect do |connection|
+        rows = @provided_source_app_connections || business.source_app_connections
+        @activity_connection ||= rows.detect do |connection|
           connection.metadata.to_h["role"] == ROLE
         end
       end

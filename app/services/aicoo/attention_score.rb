@@ -6,8 +6,20 @@ module Aicoo
       end
     end
 
-    def self.for_business(business)
-      new(business).call
+    def self.for_business(
+      business,
+      resource_summary: nil,
+      active_candidate_count: nil,
+      metrics: nil,
+      revenue_events: nil
+    )
+      new(
+        business,
+        resource_summary:,
+        active_candidate_count:,
+        metrics:,
+        revenue_events:
+      ).call
     end
 
     def self.ranking(limit: nil)
@@ -18,11 +30,20 @@ module Aicoo
       limit ? rows.first(limit) : rows
     end
 
-    def initialize(business)
+    def initialize(
+      business,
+      resource_summary: nil,
+      active_candidate_count: nil,
+      metrics: nil,
+      revenue_events: nil
+    )
       @business = business
       @reasons = []
       @score = 0
-      @resource_summary = Aicoo::ResourceSummary.for_business(business)
+      @resource_summary = resource_summary || Aicoo::ResourceSummary.for_business(business)
+      @active_candidate_count = active_candidate_count
+      @metrics = metrics
+      @revenue_events = revenue_events
     end
 
     def call
@@ -56,8 +77,8 @@ module Aicoo
     end
 
     def add_revenue_change
-      current = business.revenue_events.revenue.where(occurred_on: 30.days.ago.to_date..Date.current).sum(:amount)
-      previous = business.revenue_events.revenue.where(occurred_on: 60.days.ago.to_date...30.days.ago.to_date).sum(:amount)
+      current = revenue_amount(30.days.ago.to_date..Date.current)
+      previous = revenue_amount(60.days.ago.to_date...30.days.ago.to_date)
       return if current.zero? && previous.zero?
 
       change = previous.zero? ? 100 : (((current - previous).to_d / previous.to_d) * 100).round
@@ -77,7 +98,7 @@ module Aicoo
     end
 
     def add_action_candidates
-      count = business.action_candidates.active_for_ranking.count
+      count = @active_candidate_count.nil? ? business.action_candidates.active_for_ranking.count : @active_candidate_count
       return if count.zero?
 
       add([ count * 5, 25 ].min, "改善候補 #{count}件")
@@ -98,19 +119,38 @@ module Aicoo
     end
 
     def add_new_cv
-      count = business.business_metric_dailies.where(recorded_on: 7.days.ago.to_date..Date.current).sum(:conversions)
+      count = metric_rows(7.days.ago.to_date..Date.current).sum { |metric| metric.conversions.to_i }
       return if count.zero?
 
       add([ count * 4, 24 ].min, "新規CV #{count}件")
     end
 
     def add_ranking_movement
-      recent = business.business_metric_dailies.where(recorded_on: 7.days.ago.to_date..Date.current).average(:average_position).to_d
-      previous = business.business_metric_dailies.where(recorded_on: 14.days.ago.to_date...7.days.ago.to_date).average(:average_position).to_d
+      recent = average_position(7.days.ago.to_date..Date.current)
+      previous = average_position(14.days.ago.to_date...7.days.ago.to_date)
       return if recent.zero? || previous.zero?
 
       movement = (recent - previous).abs
       add(10, "順位変動 #{movement.round(1)}") if movement >= 3
+    end
+
+    def metric_rows(range)
+      return business.business_metric_dailies.where(recorded_on: range).to_a unless @metrics
+
+      @metrics.select { |metric| metric.recorded_on.in?(range) }
+    end
+
+    def average_position(range)
+      values = metric_rows(range).filter_map(&:average_position)
+      return 0.to_d if values.empty?
+
+      values.sum { |value| value.to_d } / values.size
+    end
+
+    def revenue_amount(range)
+      return business.revenue_events.revenue.where(occurred_on: range).sum(:amount) unless @revenue_events
+
+      @revenue_events.select { |event| event.revenue? && event.occurred_on.in?(range) }.sum(&:amount)
     end
 
     def apply_resource_status_weight
