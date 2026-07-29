@@ -46,6 +46,18 @@ module Aicoo
         assert_equal "error", summary.level
       end
 
+      test "keeps recheck available for a legacy failed pipeline without a full snapshot" do
+        run = Struct.new(:metadata).new({
+          "lovable_error_code" => "github_permission_error",
+          "pipeline_status" => "github_webhook_waiting"
+        })
+
+        result = PipelineDiagnosisSnapshot.unavailable_result(run)
+
+        assert result.component(:github).recheckable
+        assert_equal "error", result.component(:github).level
+      end
+
       test "refreshes on repository registration webhook pipeline state and daily run changes" do
         sources = []
         refresher = lambda do |generation_run:, source:|

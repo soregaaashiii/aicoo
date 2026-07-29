@@ -205,7 +205,8 @@ module Aicoo
             required_setting: partial["required_setting"].presence || COMPONENT_SETTINGS.fetch(key).first,
             settings_location: partial["settings_location"].presence || COMPONENT_SETTINGS.fetch(key).last,
             fix_steps: Array(partial["fix_steps"]).presence || default_fix_steps(key),
-            recheckable: partial["recheckable"] == true,
+            recheckable: partial["recheckable"] == true ||
+              (key.in?(%i[github webhook cloudflare]) && level.in?(%w[settings error])),
             details: partial["details"].to_h
           )
         end
