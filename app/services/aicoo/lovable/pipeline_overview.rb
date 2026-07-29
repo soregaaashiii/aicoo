@@ -750,6 +750,14 @@ module Aicoo
             detail: "#{metadata['pipeline_retry_count']} / #{metadata['pipeline_retry_limit']}"
           )
         end
+        page_path_generated_at = parse_time(metadata["page_path_generated_at"])
+        if page_path_generated_at
+          entries << HistoryEntry.new(
+            timestamp: page_path_generated_at,
+            label: metadata["page_path_generation_message"].presence || "page_pathを自動生成しました",
+            detail: metadata["page_path"]
+          )
+        end
         entries
       end
 

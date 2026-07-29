@@ -11,13 +11,15 @@ module Aicoo
         builder_class: StaticArtifactBuilder,
         validator_class: StaticArtifactValidator,
         publisher: Aicoo::CloudflarePages::LandingPagePublisher.new,
-        configuration: Aicoo::CloudflarePages::Configuration.new
+        configuration: Aicoo::CloudflarePages::Configuration.new,
+        page_path_assigner_class: Aicoo::LpIntegration::LandingPagePagePathAssigner
       )
         @source_client_class = source_client_class
         @builder_class = builder_class
         @validator_class = validator_class
         @publisher = publisher
         @configuration = configuration
+        @page_path_assigner_class = page_path_assigner_class
       end
 
       def call(generation_run:, source_commit_sha: nil)
@@ -53,9 +55,14 @@ module Aicoo
           "artifact_fetch_completed_at" => fetch_completed_at.iso8601,
           "artifact_fetch_duration_ms" => elapsed_ms(fetch_started_at, fetch_completed_at)
         }.merge(source_commit_metadata(snapshot)).merge(artifact_diagnostics))
-        page_path = page_path_for(landing_page)
+        page_path, page_path_assignment = page_path_for(landing_page)
         build_started_at = Time.current
-        stamp!(generation_run, "static_building", "static_build_started_at")
+        stamp!(
+          generation_run,
+          "static_building",
+          "static_build_started_at",
+          page_path_generation_metadata(page_path, page_path_assignment)
+        )
         build = builder_class.new(files: snapshot.files, page_path:).call
         validation = validator_class.new(
           files: build.files,
@@ -107,7 +114,8 @@ module Aicoo
 
       private
 
-      attr_reader :source_client_class, :builder_class, :validator_class, :publisher, :configuration
+      attr_reader :source_client_class, :builder_class, :validator_class, :publisher, :configuration,
+        :page_path_assigner_class
 
       def artifact_diagnostics_for(snapshot)
         paths = snapshot.files.keys
@@ -273,11 +281,21 @@ module Aicoo
       end
 
       def page_path_for(landing_page)
-        path = landing_page.landing_page_ga4_path.presence
-        path ||= "/#{landing_page.metadata.to_h['github_path'].to_s.delete_prefix('public/').delete_suffix('/')}" if landing_page.metadata.to_h["github_path"].present?
-        raise ArgumentError, "LP固有page_pathが未設定です。" if path.blank?
+        assignment = page_path_assigner_class.new(landing_page:).call
+        path = assignment.page_path
 
-        "/#{path.to_s.sub(%r{\A/+}, '').sub(%r{/+\z}, '')}"
+        [ "/#{path.to_s.sub(%r{\A/+}, '').sub(%r{/+\z}, '')}", assignment ]
+      end
+
+      def page_path_generation_metadata(page_path, assignment)
+        return {} unless assignment.generated
+
+        {
+          "page_path" => page_path,
+          "page_path_generated_at" => Time.current.iso8601,
+          "page_path_generation_source" => assignment.source.to_s,
+          "page_path_generation_message" => "page_pathを自動生成しました"
+        }
       end
 
       def public_url_for(page_path)

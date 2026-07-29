@@ -150,6 +150,67 @@ module Aicoo
         assert_includes flow.generation_run.metadata.to_h["static_build_log"], "Static build succeeded"
       end
 
+      test "automatically assigns a missing page path and continues through publication" do
+        @business.update!(metadata: @business.metadata.to_h.merge("lp_ga4_measurement_id" => "G-ABC123"))
+        @business.business_services.create!(
+          name: "AI受付 Service",
+          status: "production",
+          url: "https://service.example.com"
+        )
+        flow = LandingPageCreationFlow.new(
+          business: @business,
+          campaign: @campaign,
+          attributes: { purpose: "google_ads" },
+          strategy_builder_class: fake_strategy_builder
+        ).call
+        flow.landing_page.update!(
+          metadata: flow.landing_page.metadata.to_h.merge(
+            "ga4_page_path" => nil,
+            "lp_repository_url" => "https://github.com/example/voice-analysis-pro"
+          ).compact
+        )
+        flow.task.approve!
+        Aicoo::Lovable::LandingPagePipeline.new.register_result!(
+          business: @business,
+          generation_run: flow.generation_run,
+          project_url: "https://lovable.dev/projects/project-123",
+          result_repository: "https://github.com/example/voice-analysis-pro",
+          result_branch: "main"
+        )
+        publisher = FakePublisher.new
+        importer = Aicoo::Lovable::ResultRepositoryImporter.new(
+          source_client_class: fake_source_client_class,
+          publisher:,
+          configuration: Aicoo::CloudflarePages::Configuration.new(
+            env: {
+              "AICOO_GITHUB_TOKEN" => "token",
+              "CLOUDFLARE_PAGES_PRODUCTION_URL" => "https://aicoo-lp.pages.dev"
+            }
+          )
+        )
+
+        result = importer.call(generation_run: flow.generation_run)
+
+        assert_equal false, result.idempotent
+        assert_equal 1, publisher.calls
+        assert_equal "/voice-analysis-pro", flow.landing_page.reload.landing_page_ga4_path
+        metadata = flow.generation_run.reload.metadata
+        assert_equal "cloudflare_waiting", metadata["pipeline_status"]
+        assert_equal "/voice-analysis-pro", metadata["page_path"]
+        assert_equal "repository_name", metadata["page_path_generation_source"]
+        assert_equal "page_pathを自動生成しました", metadata["page_path_generation_message"]
+        assert metadata["page_path_generated_at"].present?
+        overview = Aicoo::Lovable::PipelineOverview.new(
+          generation_run: flow.generation_run,
+          landing_page: flow.landing_page,
+          task: flow.task,
+          business: @business
+        )
+        assert overview.history.any? do |entry|
+          entry.label == "page_pathを自動生成しました" && entry.detail == "/voice-analysis-pro"
+        end
+      end
+
       test "imports a registered repository without an approval task and stores preview commit details" do
         @business.update!(metadata: @business.metadata.to_h.merge("lp_ga4_measurement_id" => "G-ABC123"))
         @business.business_services.create!(
