@@ -28,12 +28,7 @@
       <%= button_to "Promptを見る", prepare_business_lovable_landing_page_path(@business), method: :post, params: { action_candidate_id: @source_action_candidate&.id }, class: "button secondary" %>
       <% end %>
       <% if @current_version %>
-          <%= link_to "Version比較", compare_business_lovable_landing_page_path(@business, landing_page_id: @landing_page_prototype&.id), class: "button secondary" %>
-        <% if @current_version.metadata.to_h["preview_url"].present? &&
-            @current_version.metadata.to_h.dig("publication", "published") != true &&
-            (!@landing_page_prototype || @current_version.metadata.to_h["static_validation_status"] == "succeeded") %>
-          <%= button_to "公開", publish_version_business_lovable_landing_page_path(@business, generation_run_id: @current_version.id), method: :post, class: "button", data: { turbo_confirm: "検証済みの静的LPをaicoo-lpへ反映し、Cloudflare Pages公開を開始します。よろしいですか？" } %>
-        <% end %>
+        <%= link_to "Version比較", compare_business_lovable_landing_page_path(@business, landing_page_id: @landing_page_prototype&.id), class: "button secondary" %>
         <%= link_to "履歴", "#lovable-versions", class: "button secondary" %>
       <% end %>
     </div>
@@ -73,24 +68,9 @@
         </div>
         <span class="pill"><%= @prompt_version.metadata.to_h["pipeline_status"] %></span>
       </div>
-      <% if @prompt_editable %>
-        <%= form_with url: update_prompt_version_business_lovable_landing_page_path(@business, generation_run_id: @prompt_version.id), method: :patch, class: "form" do |form| %>
-          <%= form.label :prompt, "生成Prompt" %>
-          <%= form.text_area :prompt, value: @prompt_version.prompt, id: "lovable-prompt-text", rows: 22, required: true %>
-          <div class="compact-actions">
-            <%= form.submit "保存", class: "button secondary" %>
-            <button type="button" class="button secondary" onclick="navigator.clipboard.writeText(document.getElementById('lovable-prompt-text').value)">コピー</button>
-          </div>
-        <% end %>
-      <% else %>
-        <label for="lovable-prompt-text">保存済みPrompt</label>
-        <textarea id="lovable-prompt-text" rows="22" readonly><%= @prompt_version.prompt %></textarea>
-        <button type="button" class="button secondary" onclick="navigator.clipboard.writeText(document.getElementById('lovable-prompt-text').value)">コピー</button>
-      <% end %>
+      <label for="lovable-prompt-text">生成Prompt</label>
+      <textarea id="lovable-prompt-text" rows="22" readonly><%= @prompt_version.prompt %></textarea>
       <div class="compact-actions">
-        <% if @prompt_editable %>
-          <%= button_to "再生成", regenerate_prompt_version_business_lovable_landing_page_path(@business, generation_run_id: @prompt_version.id), method: :post, class: "button secondary", form: { data: { turbo_confirm: "Business情報からPromptを再生成します。現在の編集内容は置き換わります。" } } %>
-        <% end %>
         <% if @lovable_task&.status&.in?(%w[draft waiting_approval]) %>
           <%= button_to "承認してLovable作成開始", approve_auto_revision_task_path(@lovable_task), method: :patch, class: "button", form: { target: "_blank" }, data: { turbo_confirm: "LP戦略とPromptを承認し、公式Lovable Build with URLを開きます。よろしいですか？" } %>
         <% elsif @prompt_version.metadata.to_h["build_url"].present? %>
@@ -132,16 +112,16 @@
     <% next_action =
       case pipeline["pipeline_status"]
       when "prompt_ready" then "LP戦略とPromptを確認して承認"
-      when "lovable_handoff_ready", "lovable_generation_waiting" then "Lovableで生成し、project URLと結果Repositoryを登録"
-      when "lovable_result_waiting", "github_webhook_waiting" then "LovableからGitHubへPushされるのを待つ"
-      when "github_webhook_received", "artifact_fetching", "static_build_started", "static_building" then "AICOOの自動処理を待つ"
-      when "waiting_manual_fix" then "表示された理由を修正してGitHubへ再Push"
-      when "github_commit_waiting" then "GitHub Token権限を確認して再試行"
-      when "cloudflare_deploying", "cloudflare_waiting" then "Cloudflare Pagesの反映を待つ"
+      when "lovable_handoff_ready", "lovable_generation_waiting" then "Lovableを開いてGenerate"
+      when "lovable_result_waiting", "github_webhook_waiting" then "操作不要。GitHub Pushを待っています"
+      when "github_webhook_received", "artifact_fetching", "static_build_started", "static_building" then "操作不要。AICOOが成果物を処理中"
+      when "waiting_manual_fix" then "エラー内容を確認し、Lovableの修正後にGitHubへPush"
+      when "github_commit_waiting" then "GitHub Pushエラーを確認"
+      when "cloudflare_deploying", "cloudflare_waiting" then "操作不要。Cloudflare Pagesの反映待ち"
       when "cloudflare_failed", "cloudflare_verification_timeout", "public_url_verification_timeout" then "公開エラーを確認して修正する"
-      when "measurement_waiting" then "GA4・GSCの初回計測を待つ"
-      when "learning_waiting" then "Learningの完了を待つ"
-      when "improvement_waiting" then "Daily Runの改善判断を待つ"
+      when "measurement_waiting" then "操作不要。GA4・GSCの初回計測待ち"
+      when "learning_waiting" then "操作不要。Learningの完了待ち"
+      when "improvement_waiting" then "操作不要。Daily Runの改善判断待ち"
       else "現在の状態を確認"
       end %>
     <section class="dashboard-section" id="lovable-pipeline">
@@ -181,20 +161,6 @@
         </div>
       <% end %>
 
-      <% if pipeline["build_url"].present? && publication["published"] != true %>
-        <%= form_with url: register_result_version_business_lovable_landing_page_path(@business, generation_run_id: @pipeline_version.id), method: :patch, class: "form lovable-register-form" do |form| %>
-          <div class="form-grid">
-            <div><%= form.label :project_url, "Lovable project URL" %><%= form.url_field :project_url, value: pipeline["lovable_project_url"], placeholder: "https://lovable.dev/projects/..." %></div>
-            <div><%= form.label :result_repository, "生成結果Repository" %><%= form.url_field :result_repository, value: pipeline["lovable_result_repository"], placeholder: "https://github.com/owner/repository" %></div>
-            <div><%= form.label :result_branch, "Branch" %><%= form.text_field :result_branch, value: pipeline["lovable_result_branch"].presence || "main" %></div>
-            <div><%= form.label :preview_url, "Preview URL（任意）" %><%= form.url_field :preview_url, value: pipeline["preview_url"], placeholder: "https://...lovable.app" %></div>
-          </div>
-          <%= form.submit "保存してGitHub Pushを待つ", class: "button" %>
-        <% end %>
-        <div class="compact-actions">
-          <%= link_to "Lovableを開く", pipeline["build_url"], class: "button secondary", target: "_blank", rel: "noopener" %>
-        </div>
-      <% end %>
     </section>
   <% end %>
 
@@ -229,24 +195,13 @@
       </div>
     <% elsif @current_version&.metadata.to_h&.dig("build_url").present? %>
       <div class="aicoo-notice status-warning">
-        <strong>Lovableで生成後、project URLと生成結果Repositoryを登録してください</strong>
-        <p>公式Build with URLでPromptを入力済みのLovableが開きます。成果物の取得と公開は上のLovable連携から進めます。</p>
+        <strong>LovableでGenerateしてください</strong>
+        <p>Generate後のGitHub Push、成果物取得、静的化、Cloudflare公開、計測開始はAICOOが自動で進めます。</p>
         <%= link_to "Lovableをもう一度開く", @current_version.metadata.to_h["build_url"], class: "button", target: "_blank", rel: "noopener" %>
       </div>
-      <%= form_with url: register_preview_version_business_lovable_landing_page_path(@business, generation_run_id: @current_version.id), method: :patch, class: "form lovable-register-form" do |form| %>
-        <div class="form-grid">
-          <div><%= form.label :preview_url, "Preview URL" %><%= form.url_field :preview_url, required: true, placeholder: "https://...lovable.app" %></div>
-          <div><%= form.label :editor_url, "Editor URL" %><%= form.url_field :editor_url, placeholder: "https://lovable.dev/projects/..." %></div>
-          <div><%= form.label :project_id, "Project ID" %><%= form.text_field :project_id %></div>
-        </div>
-        <%= form.submit "Previewを取り込む", class: "button" %>
-      <% end %>
     <% elsif @current_version %>
       <div class="aicoo-empty-state">
         <p><%= @current_version.status == "failed" ? @current_version.error_message : "LovableがPreviewを生成中です。" %></p>
-        <% if @current_version.status == "failed" %>
-          <%= button_to "再送", retry_version_business_lovable_landing_page_path(@business, generation_run_id: @current_version.id), method: :post, class: "button" %>
-        <% end %>
       </div>
     <% else %>
       <div class="aicoo-empty-state">
@@ -258,24 +213,6 @@
       </div>
     <% end %>
   </section>
-
-  <% if @current_version %>
-    <section class="dashboard-section" id="lovable-revision">
-      <div class="section-heading">
-        <div><h2>修正依頼</h2><p>Current VersionとBusiness情報を維持したまま、Lovableへ差分を依頼します。</p></div>
-      </div>
-      <%= form_with url: revise_business_lovable_landing_page_path(@business), method: :post, class: "form" do |form| %>
-        <%= form.hidden_field :action_candidate_id, value: @source_action_candidate&.id %>
-        <%= form.hidden_field :landing_page_id, value: @landing_page_prototype&.id %>
-        <%= form.label :change_request, "修正内容" %>
-        <%= form.text_area :change_request, value: @source_action_candidate&.metadata.to_h&.dig("lovable_change_request"), rows: 4, required: true, placeholder: "例: CTAを目立たせ、ファーストビューの余白を増やす" %>
-        <div class="compact-actions">
-          <%= form.submit "Lovableで改善", class: "button", formtarget: "_blank" %>
-          <%= form.submit "Promptを見る", class: "button secondary", formaction: prepare_business_lovable_landing_page_path(@business) %>
-        </div>
-      <% end %>
-    </section>
-  <% end %>
 
   <section class="dashboard-section" id="lovable-versions">
     <div class="section-heading"><div><h2>Version履歴</h2><p>Prompt、変更理由、Preview、GitHub・Cloudflare公開状態をVersion単位で保持します。</p></div></div>
@@ -296,11 +233,6 @@
               <td><%= publication["commit_sha"].presence || "-" %><br><small><%= publication["deploy_id"] %></small></td>
               <td>
                 <div class="compact-actions">
-                  <% if run.status == "failed" %>
-                    <%= button_to "再送", retry_version_business_lovable_landing_page_path(@business, generation_run_id: run.id), method: :post, class: "button secondary" %>
-                  <% elsif run.metadata.to_h["preview_url"].present? && run != @current_version %>
-                    <%= button_to "戻す", restore_version_business_lovable_landing_page_path(@business, generation_run_id: run.id), method: :post, class: "button secondary", data: { turbo_confirm: "このVersionをCurrentへ戻しますか？" } %>
-                  <% end %>
                   <%= link_to "比較", compare_business_lovable_landing_page_path(@business, landing_page_id: @landing_page_prototype&.id, after_id: run.id), class: "button secondary" %>
                 </div>
               </td>

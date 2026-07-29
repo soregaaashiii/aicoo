@@ -59,7 +59,7 @@ module Aicoo
             "landing_page_prototype_id" => landing_page_prototype.id,
             "campaign_id" => landing_page_prototype.business_campaign_id,
             "lp_strategy" => strategy
-          }
+          }.merge(external_integration_metadata(landing_page_prototype))
         )
         Result.new(landing_page:, generation_run: run, mode: "prompt_review", message: "AICOOがLP戦略とLovable Promptを生成しました。")
       end
@@ -102,7 +102,7 @@ module Aicoo
             "landing_page_prototype_id" => landing_page_prototype.id,
             "campaign_id" => landing_page_prototype.business_campaign_id,
             "lp_strategy" => strategy
-          }
+          }.merge(external_integration_metadata(landing_page_prototype))
         )
         Result.new(landing_page:, generation_run: run, mode: "prompt_review", message: "Lovable改善Promptを生成しました。")
       end
@@ -487,6 +487,16 @@ module Aicoo
         )
         prototype.update!(metadata: prototype.metadata.to_h.merge("lovable_landing_page_id" => landing_page.id))
         landing_page
+      end
+
+      def external_integration_metadata(prototype)
+        project_url = prototype.metadata.to_h["lovable_project_url"].presence
+        {
+          "lovable_project_url" => project_url,
+          "lovable_project_id" => lovable_project_id(project_url),
+          "lovable_result_repository" => prototype.landing_page_repository_url.presence,
+          "lovable_result_branch" => prototype.landing_page_branch
+        }.compact
       end
 
       def acquisition_channel_for(campaign_type)

@@ -74,6 +74,28 @@
     </ol>
   </section>
 
+  <% planning_status = metadata["planning_status"].presence || metadata["pipeline_stage"].presence %>
+  <% next_action =
+    if landing_page.landing_page_repository_url.blank?
+      "初回設定でGitHub RepositoryとBranchを登録"
+    elsif landing_page.cloudflare_published?
+      "操作不要。AICOOが計測・Learning・改善判断を継続"
+    elsif planning_status == "waiting_approval"
+      "Promptを確認して承認"
+    elsif planning_status == "lovable_handoff_ready"
+      "Lovableを開いてGenerate"
+    elsif planning_status.in?(%w[github_webhook_received artifact_fetching static_building github_commit_waiting cloudflare_waiting measurement_pending ga4_pending gsc_pending learning_pending])
+      "操作不要。AICOOが自動処理中"
+    elsif planning_status.to_s.include?("failed") || landing_page.landing_page_sync_status == "failed"
+      "エラー内容を確認"
+    else
+      "Promptレビューで現在の状態を確認"
+    end %>
+  <div class="aicoo-notice">
+    <strong>次にやること</strong>
+    <p><%= next_action %></p>
+  </div>
+
   <div class="business-access-card-actions">
     <% if metadata["lovable_generation_run_id"].present? %>
       <%= link_to "Promptレビュー",
@@ -87,11 +109,6 @@
     <% if landing_page.landing_page_url.present? %>
       <%= link_to "開く", landing_page.landing_page_url, class: "button secondary", target: "_blank", rel: "noopener" %>
     <% end %>
-    <%= button_to "公開する",
-                  publish_landing_page_business_access_settings_path(business, landing_page_id: landing_page.id),
-                  method: :post,
-                  class: "button",
-                  data: { turbo_confirm: "aicoo-lpへcommitし、Cloudflare Pagesへ公開しますか？" } %>
   </div>
 
   <details class="lp-analyzer" id="lp-analyzer-<%= landing_page.id %>">
@@ -170,30 +187,4 @@
     <% end %>
   </details>
 
-  <details class="lp-developer-actions">
-    <summary>開発者向け</summary>
-    <div class="business-access-card-actions">
-      <%= button_to "同期タスクを作成",
-                    landing_page_task_business_access_settings_path(business, landing_page_id: landing_page.id),
-                    method: :post,
-                    class: "button secondary" %>
-      <% if metadata["github_commit_sha"].present? %>
-        <%= button_to "公開確認を再実行",
-                      verify_landing_page_business_access_settings_path(business, landing_page_id: landing_page.id),
-                      method: :post,
-                      class: "button secondary" %>
-      <% end %>
-      <% if landing_page.landing_page_public_status == "published" %>
-        <%= button_to "Analyzerを再実行",
-                      improve_landing_page_business_access_settings_path(business, landing_page_id: landing_page.id),
-                      method: :post,
-                      class: "button secondary" %>
-      <% end %>
-      <%= button_to "削除",
-                    remove_landing_page_business_access_settings_path(business, landing_page_id: landing_page.id),
-                    method: :delete,
-                    class: "button danger",
-                    data: { turbo_confirm: "#{landing_page.landing_page_name}を削除しますか？" } %>
-    </div>
-  </details>
 </details>

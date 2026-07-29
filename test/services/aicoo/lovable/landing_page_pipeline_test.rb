@@ -133,6 +133,42 @@ module Aicoo
         assert_equal "lovable_api", registered.mode
       end
 
+      test "external prompt inherits the saved Lovable and GitHub settings" do
+        campaign = @business.business_campaigns.create!(name: "LP Settings", campaign_type: "seo", status: "active")
+        prototype = Aicoo::LpIntegration::LandingPageRegistry.new(business: @business).save!(
+          campaign_id: campaign.id,
+          name: "設定済みLP",
+          source_type: "github",
+          repository_url: "https://github.com/example/lovable-result",
+          branch: "release",
+          lovable_project_url: "https://lovable.dev/projects/project-456",
+          public_status: "testing"
+        )
+        strategy = {
+          "headline" => "設定済みLP",
+          "subheadline" => "自動公開",
+          "structure" => [ "ファーストビュー", "CTA" ],
+          "cta" => "問い合わせる",
+          "seo_title" => "設定済みLP",
+          "meta_description" => "設定済みLP",
+          "expected_profit_yen" => 10_000,
+          "confidence" => 0.7,
+          "estimated_work_hours" => 1,
+          "reason" => "保存済み設定を利用"
+        }
+
+        run = @pipeline.prepare_external_create!(
+          business: @business,
+          landing_page_prototype: prototype,
+          strategy:
+        ).generation_run
+
+        assert_equal "https://github.com/example/lovable-result", run.metadata["lovable_result_repository"]
+        assert_equal "release", run.metadata["lovable_result_branch"]
+        assert_equal "https://lovable.dev/projects/project-456", run.metadata["lovable_project_url"]
+        assert_equal "project-456", run.metadata["lovable_project_id"]
+      end
+
       test "restores a successful version as a new current version" do
         first = @pipeline.enqueue_create!(business: @business).generation_run
         @pipeline.register_preview!(business: @business, generation_run: first, preview_url: "https://first-preview.lovable.app")

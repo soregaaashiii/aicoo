@@ -118,9 +118,10 @@ class BusinessLpIntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.body, "セットアップ完了"
     assert_includes response.body, "aria-valuenow=\"100\""
-    assert_includes response.body, "LP同期"
-    assert_includes response.body, "本番確認"
-    assert_includes response.body, "分析開始"
+    assert_includes response.body, "LP生成後のGitHub同期、公開確認、GA4・GSC計測はAICOOが自動で進めます"
+    assert_not_includes response.body, "LP同期を始める"
+    assert_not_includes response.body, ">本番確認<"
+    assert_not_includes response.body, ">分析開始<"
     assert_not_includes response.body, "GitHubを登録"
   end
 

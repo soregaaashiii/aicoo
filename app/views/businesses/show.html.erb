@@ -1113,9 +1113,6 @@
       <%= link_to "LP Studio", business_lovable_landing_page_path(@business), class: "button secondary" %>
       <% if @lovable_current_version %>
         <%= link_to "Version比較", compare_business_lovable_landing_page_path(@business), class: "button secondary" %>
-        <% if @lovable_current_version.metadata.to_h["preview_url"].present? && @lovable_current_version.metadata.to_h.dig("publication", "published") != true %>
-          <%= button_to "公開", publish_version_business_lovable_landing_page_path(@business, generation_run_id: @lovable_current_version.id), method: :post, class: "button", data: { turbo_confirm: "このVersionをCodexへ渡して公開を開始します。よろしいですか？" } %>
-        <% end %>
         <%= link_to "履歴", business_lovable_landing_page_path(@business, anchor: "lovable-versions"), class: "button secondary" %>
       <% end %>
       <%= link_to "公開LP管理", admin_aicoo_lab_public_landing_pages_path, class: "button secondary" %>

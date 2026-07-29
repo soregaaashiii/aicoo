@@ -61,22 +61,12 @@
 
     <% if @lp_integration.setup_complete? %>
       <div class="setup-complete-actions">
-        <%= button_to "LP同期",
-                      create_task_business_lp_integration_path(@business),
-                      method: :post,
-                      class: "button",
-                      data: { turbo_confirm: "現在の設定から手動承認付きタスクを作成します。Codexへはまだ送信しません。" } %>
-        <%= button_to "本番確認", verify_production_business_lp_integration_path(@business), method: :post, class: "button secondary" %>
-        <%= button_to "分析開始", import_google_api_business_path(@business), method: :post, class: "button secondary" %>
+        <p>LP生成後のGitHub同期、公開確認、GA4・GSC計測はAICOOが自動で進めます。</p>
       </div>
     <% else %>
       <div class="setup-mobile-next-action">
         <% if @lp_integration.next_action_key == "lp_sync" %>
-          <%= button_to "LP同期を始める",
-                        create_task_business_lp_integration_path(@business),
-                        method: :post,
-                        class: "button",
-                        data: { turbo_confirm: "現在の設定から手動承認付きタスクを作成します。Codexへはまだ送信しません。" } %>
+          <p>LPの同期と公開はGitHub Push後に自動で進みます。</p>
         <% else %>
           <%= link_to setup_button_labels.fetch(@lp_integration.next_action_key), setup_paths.fetch(@lp_integration.next_action_key), class: "button" %>
         <% end %>
@@ -106,7 +96,6 @@
           <% steps = [
                ["github", "GitHub登録"],
                ["lp_source", "Lovable接続"],
-               ["lp_sync", "LP同期"],
                ["production", "Render設定"],
                ["ga4", "GA4接続"],
                ["gsc", "GSC接続"],
@@ -114,7 +103,7 @@
              ] %>
           <ol class="setup-steps">
             <% steps.each_with_index do |(key, label), index| %>
-              <% complete = key == "lp_sync" ? @lp_integration.latest_successful_task.present? : @lp_integration.setup_statuses.find { |status| status[:key] == key }&.fetch(:connected) %>
+              <% complete = @lp_integration.setup_statuses.find { |status| status[:key] == key }&.fetch(:connected) %>
               <li class="<%= "is-complete" if complete %> <%= "is-current" if key == @lp_integration.next_action_key %>">
                 <span><%= complete ? "✓" : index + 1 %></span>
                 <strong><%= label %></strong>
@@ -123,11 +112,7 @@
           </ol>
           <div class="setup-next-action">
             <% if @lp_integration.next_action_key == "lp_sync" %>
-              <%= button_to "LP同期を始める",
-                            create_task_business_lp_integration_path(@business),
-                            method: :post,
-                            class: "button",
-                            data: { turbo_confirm: "現在の設定から手動承認付きタスクを作成します。Codexへはまだ送信しません。" } %>
+              <p>LPの同期と公開はGitHub Push後に自動で進みます。</p>
             <% else %>
               <%= link_to setup_button_labels.fetch(@lp_integration.next_action_key), setup_paths.fetch(@lp_integration.next_action_key), class: "button" %>
             <% end %>
@@ -370,7 +355,7 @@
     <% else %>
       <div class="empty-state">
         <p>LP同期履歴はまだありません。</p>
-        <p>設定を保存し、「LP取り込みタスクを作成」を押すとここに追加されます。</p>
+        <p>LovableからGitHubへPushされると、自動処理の履歴がここに追加されます。</p>
       </div>
     <% end %>
   </section>

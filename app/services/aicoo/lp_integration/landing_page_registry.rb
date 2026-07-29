@@ -68,6 +68,7 @@ module Aicoo
           name: metadata.fetch("lp_name"),
           metadata:
         )
+        sync_generation_run_settings!(landing_page)
         landing_page
       end
 
@@ -105,6 +106,32 @@ module Aicoo
         return business.business_prototypes.new if landing_page_id.blank?
 
         landing_pages.find(landing_page_id)
+      end
+
+      def sync_generation_run_settings!(landing_page)
+        run_id = landing_page.metadata.to_h["lovable_generation_run_id"]
+        return if run_id.blank?
+
+        run = AicooLabGenerationRun
+          .where(generation_type: "lp_generation")
+          .find_by(id: run_id)
+        return unless run&.metadata.to_h&.dig("business_id").to_i == business.id
+
+        project_url = landing_page.metadata.to_h["lovable_project_url"].presence
+        run.update!(metadata: run.metadata.to_h.merge(
+          "lovable_project_url" => project_url,
+          "lovable_project_id" => lovable_project_id(project_url),
+          "lovable_result_repository" => landing_page.landing_page_repository_url.presence,
+          "lovable_result_branch" => landing_page.landing_page_branch
+        ))
+      end
+
+      def lovable_project_id(value)
+        return if value.blank?
+
+        URI.parse(value).path.to_s.split("/").reject(&:blank?).last
+      rescue URI::InvalidURIError
+        nil
       end
 
       def campaign_for(campaign_id, landing_page)

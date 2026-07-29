@@ -177,7 +177,6 @@ module Aicoo
       def next_action_key
         return "github" unless app_repository_url.present?
         return "lp_source" unless source_reference_present?
-        return "lp_sync" unless latest_successful_task
         return "production" unless production_url.present? && render_service_name.present? && health_check_url.present?
         return "ga4" unless ga4_property_id.present? && ga4_measurement_id.present?
         return "gsc" unless gsc_site_url.present?

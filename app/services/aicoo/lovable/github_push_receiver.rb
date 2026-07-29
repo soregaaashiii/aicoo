@@ -98,42 +98,40 @@ module Aicoo
 
       def target_for(repository, branch)
         repository_runs = candidate_runs.select do |run|
-          GithubRepositoryIdentity.normalize(run.metadata.to_h["lovable_result_repository"]) == repository
+          GithubRepositoryIdentity.normalize(repository_for(run)) == repository
         end
         return [ nil, nil, "repository_mismatch" ] if repository_runs.empty?
 
         branch_runs = repository_runs.select do |run|
-          (run.metadata.to_h["lovable_result_branch"].presence || "main") == branch
+          branch_for(run) == branch
         end
         return [ nil, nil, "branch_mismatch" ] if branch_runs.empty?
 
         active_runs = branch_runs.select { |run| active_run?(run) }
         return [ nil, nil, "active_landing_page_not_found" ] if active_runs.empty?
 
-        prototype_ids = active_runs.filter_map { |run| run.metadata.to_h["landing_page_prototype_id"].presence&.to_i }
-        prototypes = BusinessPrototype.active.external_landing_pages.where(id: prototype_ids).index_by(&:id)
         valid_runs = active_runs.select do |run|
-          prototype = prototypes[run.metadata.to_h["landing_page_prototype_id"].to_i]
+          prototype = prototype_for(run)
           prototype && prototype.business_id == run.metadata.to_h["business_id"].to_i
         end
         return [ nil, nil, "target_landing_page_not_found" ] if valid_runs.empty?
 
         current_runs = valid_runs.select do |run|
-          prototypes.fetch(run.metadata.to_h["landing_page_prototype_id"].to_i).metadata.to_h["lovable_generation_run_id"].to_i == run.id
+          prototype_for(run).metadata.to_h["lovable_generation_run_id"].to_i == run.id
         end
         eligible_runs = current_runs.presence || valid_runs
         target_ids = eligible_runs.map { |run| run.metadata.to_h["landing_page_prototype_id"].to_i }.uniq
         return [ nil, nil, "target_landing_page_ambiguous" ] if target_ids.size > 1
 
         run = eligible_runs.max_by(&:created_at)
-        [ run, prototypes.fetch(run.metadata.to_h["landing_page_prototype_id"].to_i), nil ]
+        [ run, prototype_for(run), nil ]
       end
 
       def candidate_runs
         @candidate_runs ||= AicooLabGenerationRun
           .where(generation_type: "lp_generation")
           .where("metadata ->> 'pipeline' = ?", "lovable")
-          .where("metadata ->> 'lovable_result_repository' IS NOT NULL")
+          .where("metadata ->> 'landing_page_prototype_id' IS NOT NULL")
           .order(created_at: :desc)
           .to_a
       end
@@ -141,14 +139,35 @@ module Aicoo
       def duplicate_target(repository, branch, key)
         run = candidate_runs.find do |candidate|
           metadata = candidate.metadata.to_h
-          GithubRepositoryIdentity.normalize(metadata["lovable_result_repository"]) == repository &&
-            (metadata["lovable_result_branch"].presence || "main") == branch &&
+          GithubRepositoryIdentity.normalize(repository_for(candidate)) == repository &&
+            branch_for(candidate) == branch &&
             Array(metadata["github_webhook_receipts"]).any? { |receipt| receipt.to_h["key"] == key }
         end
         return [ nil, nil ] unless run
 
-        landing_page = BusinessPrototype.find_by(id: run.metadata.to_h["landing_page_prototype_id"])
-        [ run, landing_page ]
+        [ run, prototype_for(run) ]
+      end
+
+      def candidate_prototypes
+        @candidate_prototypes ||= begin
+          ids = candidate_runs.filter_map { |run| run.metadata.to_h["landing_page_prototype_id"].presence&.to_i }
+          BusinessPrototype.active.external_landing_pages.where(id: ids).index_by(&:id)
+        end
+      end
+
+      def prototype_for(run)
+        candidate_prototypes[run.metadata.to_h["landing_page_prototype_id"].to_i]
+      end
+
+      def repository_for(run)
+        run.metadata.to_h["lovable_result_repository"].presence ||
+          prototype_for(run)&.landing_page_repository_url
+      end
+
+      def branch_for(run)
+        run.metadata.to_h["lovable_result_branch"].presence ||
+          prototype_for(run)&.landing_page_branch.presence ||
+          "main"
       end
 
       def active_run?(run)
@@ -173,6 +192,8 @@ module Aicoo
             metadata: metadata.merge(
               "pipeline_status" => "github_webhook_received",
               "lovable_status" => "webhook_received",
+              "lovable_result_repository" => repository_for(run),
+              "lovable_result_branch" => branch_for(run),
               "github_webhook_status" => "received",
               "github_webhook_processing_key" => key,
               "github_webhook_commit_sha" => attributes["commit_sha"],

@@ -92,7 +92,10 @@ class LovableLandingPagesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes response.body, "GitHub Push待ち"
-    assert_includes response.body, "保存してGitHub Pushを待つ"
+    assert_includes response.body, "操作不要。GitHub Pushを待っています"
+    assert_not_includes response.body, "保存してGitHub Pushを待つ"
+    assert_not_includes response.body, "Previewを取り込む"
+    assert_not_includes response.body, ">公開<"
     assert_not_includes response.body, ">生成結果を取得<"
   end
 end

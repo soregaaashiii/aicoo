@@ -106,7 +106,8 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
       assert_select ".lp-management-pipeline .lp-pipeline-stage", minimum: 1
       assert_select ".lp-analyzer form", count: 0
       assert_select ".lp-learning-readonly form", count: 0
-      assert_select "form[action='#{publish_landing_page_business_access_settings_path(@business, landing_page_id: landing_page.id)}'] button", text: "公開する"
+      assert_select "form[action='#{publish_landing_page_business_access_settings_path(@business, landing_page_id: landing_page.id)}']", count: 0
+      assert_select "form[action='#{landing_page_task_business_access_settings_path(@business, landing_page_id: landing_page.id)}']", count: 0
       assert_select "form[action='#{landing_page_status_business_access_settings_path(@business, landing_page_id: landing_page.id)}']", count: 0
       assert_select "button", text: "公開中にする", count: 0
       assert_select "label", text: "このVariantを勝者にする", count: 0
@@ -132,8 +133,19 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
     )
     landing_page.update!(metadata: landing_page.metadata.merge(
       "github_commit_sha" => "preserved-sha",
-      "pipeline_stage" => "learning_pending"
+      "pipeline_stage" => "learning_pending",
+      "lovable_generation_run_id" => AicooLabGenerationRun.create!(
+        generation_type: "lp_generation",
+        status: "succeeded",
+        metadata: {
+          "pipeline" => "lovable",
+          "pipeline_status" => "lovable_handoff_ready",
+          "business_id" => @business.id,
+          "landing_page_prototype_id" => landing_page.id
+        }
+      ).id
     ))
+    generation_run = AicooLabGenerationRun.find(landing_page.metadata["lovable_generation_run_id"])
     preserved = landing_page.metadata.slice(
       "lp_url",
       "ga4_page_path",
@@ -172,6 +184,10 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "https://lovable.dev/projects/updated", landing_page.metadata["lovable_project_url"]
     assert_equal "https://service.example.com/contact", landing_page.metadata["cta_destination_url"]
     assert_equal preserved, landing_page.metadata.slice(*preserved.keys)
+    assert_equal "https://github.com/example/updated", generation_run.reload.metadata["lovable_result_repository"]
+    assert_equal "main", generation_run.metadata["lovable_result_branch"]
+    assert_equal "https://lovable.dev/projects/updated", generation_run.metadata["lovable_project_url"]
+    assert_equal "updated", generation_run.metadata["lovable_project_id"]
   end
 
   test "landing page creation asks only for purpose and does not ask for campaign" do
@@ -249,7 +265,8 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "#external-lp-#{landing_page.id}" do
       assert_select "dt", text: "GitHub Path"
-      assert_select "form[action='#{publish_landing_page_business_access_settings_path(@business, landing_page_id: landing_page.id)}'] button", text: "公開する"
+      assert_select "form[action='#{publish_landing_page_business_access_settings_path(@business, landing_page_id: landing_page.id)}']", count: 0
+      assert_select ".aicoo-notice", text: /次にやること/
     end
   end
 

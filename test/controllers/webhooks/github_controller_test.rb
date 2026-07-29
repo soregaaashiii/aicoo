@@ -66,6 +66,21 @@ module Webhooks
       assert_equal "github_webhook_received", @landing_page.reload.metadata["planning_status"]
     end
 
+    test "uses the saved landing page repository when the generation run predates setup" do
+      @run.update!(metadata: @run.metadata.to_h.except("lovable_result_repository", "lovable_result_branch"))
+
+      assert_enqueued_with(
+        job: Aicoo::LovableResultImportJob,
+        args: [ @run.id, "abc123def456", "example/lovable-result:main:abc123def456" ]
+      ) do
+        post_signed_push(@payload)
+      end
+
+      assert_response :accepted
+      assert_equal "https://github.com/example/lovable-result", @run.reload.metadata["lovable_result_repository"]
+      assert_equal "main", @run.metadata["lovable_result_branch"]
+    end
+
     test "does not enqueue or publish a duplicate delivery for the same repository branch and commit" do
       assert_enqueued_jobs 1 do
         post_signed_push(@payload)
