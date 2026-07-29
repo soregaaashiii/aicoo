@@ -137,8 +137,6 @@ module Aicoo
 
         Dir.mktmpdir("aicoo-lovable-build") do |directory|
           write_source_files(directory)
-          config_path = File.join(directory, "aicoo.vite.config.mjs")
-          File.write(config_path, safe_vite_config)
           binary = resolved_package_manager_binary(package_manager)
 
           if lockfile_generation_required?(package_manager)
@@ -168,7 +166,6 @@ module Aicoo
             package_manager:,
             binary:,
             directory:,
-            config_path:,
             diagnostics:
           )
 
@@ -313,10 +310,10 @@ module Aicoo
         raise_build!(code, "#{label}に失敗しました: #{command_error(result)}", diagnostics)
       end
 
-      def run_build!(package_manager:, binary:, directory:, config_path:, diagnostics:)
+      def run_build!(package_manager:, binary:, directory:, diagnostics:)
         argv = [ binary, "run", "build" ]
         argv << "--" unless package_manager == "yarn"
-        argv.concat([ "--config", config_path, "--base", "#{page_path.delete_suffix('/')}/" ])
+        argv.concat([ "--base", "#{page_path.delete_suffix('/')}/" ])
         result = execute_command(argv, directory:, diagnostics:)
         return if result.success
 
@@ -423,15 +420,6 @@ module Aicoo
         end
 
         destination
-      end
-
-      def safe_vite_config
-        <<~JAVASCRIPT
-          import { defineConfig } from "vite";
-          export default defineConfig({
-            plugins: []
-          });
-        JAVASCRIPT
       end
 
       def resolved_package_manager_binary(package_manager)

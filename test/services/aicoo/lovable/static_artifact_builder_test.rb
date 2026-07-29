@@ -30,6 +30,21 @@ module Aicoo
         assert runner.commands.any? { |argv| argv[1, 2] == %w[run build] }
       end
 
+      test "keeps the repository Vite config for the build" do
+        runner = FakeBuildRunner.new
+        files = package_files(
+          "package-lock.json" => "{}",
+          "vite.config.ts" => "export default { build: { outDir: 'dist' } }"
+        )
+
+        build(files:, runner:)
+
+        build_command = runner.commands.find { |argv| argv[1, 2] == %w[run build] }
+        assert_not_includes build_command, "--config"
+        assert_includes build_command, "--base"
+        assert_equal files["vite.config.ts"], "export default { build: { outDir: 'dist' } }"
+      end
+
       test "generates a temporary package lock before npm ci" do
         runner = FakeBuildRunner.new
         source_files = package_files
