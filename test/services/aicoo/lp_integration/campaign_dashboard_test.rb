@@ -45,7 +45,12 @@ module Aicoo
           metadata: { "landing_page_id" => page.id }
         )
 
-        row = CampaignDashboard.new(business).call.first.fetch(:landing_pages).first
+        row = CampaignDashboard.new(
+          business,
+          campaigns: business.business_campaigns.active.includes(:landing_pages).to_a,
+          external_landing_pages: business.business_prototypes.active.external_landing_pages.to_a,
+          action_candidates: business.action_candidates.to_a
+        ).call.first.fetch(:landing_pages).first
 
         assert_equal 40_000, row.fetch(:expected_profit_yen)
       end

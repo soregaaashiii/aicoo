@@ -8,7 +8,8 @@ module Aicoo
       today: Date.current,
       include_details: true,
       metric_records: nil,
-      revenue_events: nil
+      revenue_events: nil,
+      candidate_records: nil
     )
       @businesses = Array(businesses)
       @business_ids = @businesses.filter_map(&:id)
@@ -16,6 +17,7 @@ module Aicoo
       @include_details = include_details
       @provided_metric_records = metric_records
       @provided_revenue_events = revenue_events
+      @provided_candidate_records = candidate_records
       load_data
     end
 
@@ -79,7 +81,12 @@ module Aicoo
 
     private
 
-    attr_reader :business_ids, :today, :include_details, :provided_metric_records, :provided_revenue_events
+    attr_reader :business_ids,
+                :today,
+                :include_details,
+                :provided_metric_records,
+                :provided_revenue_events,
+                :provided_candidate_records
 
     def load_data
       if provided_metric_records
@@ -124,11 +131,18 @@ module Aicoo
           .group(:business_id)
           .maximum(:occurred_on)
       end
-      @pending_action_counts = ActionCandidate
-        .where(business_id: business_ids)
-        .where.not(status: ActionCandidate::INACTIVE_STATUSES)
-        .group(:business_id)
-        .count
+      @pending_action_counts = if provided_candidate_records
+        Array(provided_candidate_records)
+          .select { |candidate| candidate.business_id.in?(business_ids) && candidate.status.present? && !candidate.status.in?(ActionCandidate::INACTIVE_STATUSES) }
+          .group_by(&:business_id)
+          .transform_values(&:size)
+      else
+        ActionCandidate
+          .where(business_id: business_ids)
+          .where.not(status: ActionCandidate::INACTIVE_STATUSES)
+          .group(:business_id)
+          .count
+      end
       if include_details
         load_detail_data
       else
@@ -144,11 +158,17 @@ module Aicoo
     end
 
     def load_detail_data
-      @candidates_by_business_id = ActionCandidate
-        .where(business_id: business_ids, created_at: time_range(DEFAULT_DAYS))
-        .select(:id, :business_id, :created_at, :practicality_score, :metadata)
-        .to_a
-        .group_by(&:business_id)
+      @candidates_by_business_id = if provided_candidate_records
+        Array(provided_candidate_records)
+          .select { |candidate| candidate.business_id.in?(business_ids) && candidate.created_at.in?(time_range(DEFAULT_DAYS)) }
+          .group_by(&:business_id)
+      else
+        ActionCandidate
+          .where(business_id: business_ids, created_at: time_range(DEFAULT_DAYS))
+          .select(:id, :business_id, :created_at, :practicality_score, :metadata)
+          .to_a
+          .group_by(&:business_id)
+      end
       @execution_counts_by_business_id = count_pairs_by_business_and_date(
         ActionExecution
           .joins(:action_candidate)

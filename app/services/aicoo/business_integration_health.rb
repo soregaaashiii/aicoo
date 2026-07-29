@@ -39,8 +39,9 @@ module Aicoo
     LOW_HEALTH_THRESHOLD = 60
     ATTENTION_HEALTH_THRESHOLD = 80
 
-    def initialize(businesses: nil)
+    def initialize(businesses: nil, action_candidate_counts: nil)
       @businesses = businesses
+      @provided_action_candidate_counts = action_candidate_counts
     end
 
     def call
@@ -403,7 +404,8 @@ module Aicoo
 
     def prepare_aggregate_maps(businesses)
       @business_ids = businesses.filter_map(&:id)
-      @action_candidate_counts = ActionCandidate.where(business_id: @business_ids, created_at: 30.days.ago..)
+      @action_candidate_counts = @provided_action_candidate_counts || ActionCandidate
+        .where(business_id: @business_ids, created_at: 30.days.ago..)
         .group(:business_id)
         .count
       @serp_counts_by_business_id = SerpAnalysis.where(business_id: @business_ids).group(:business_id).count

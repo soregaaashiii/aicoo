@@ -21,8 +21,8 @@ module Aicoo
 
     Candidate = Data.define(:business, :landing_page, :summary)
 
-    def self.for_business(business, landing_pages: nil)
-      new(business, landing_pages:).call
+    def self.for_business(business, landing_pages: nil, metrics: nil)
+      new(business, landing_pages:, metrics:).call
     end
 
     def self.promotion_candidates(limit: 8)
@@ -42,9 +42,10 @@ module Aicoo
       { "strong" => 3, "promising" => 2, "poor" => 1 }.fetch(verdict, 0)
     end
 
-    def initialize(business, landing_pages: nil)
+    def initialize(business, landing_pages: nil, metrics: nil)
       @business = business
       @provided_landing_pages = landing_pages
+      @provided_metrics = metrics
     end
 
     def call
@@ -54,7 +55,7 @@ module Aicoo
 
     private
 
-    attr_reader :business, :provided_landing_pages
+    attr_reader :business, :provided_landing_pages, :provided_metrics
 
     def landing_pages
       @landing_pages ||= provided_landing_pages || business.aicoo_lab_landing_pages.order(updated_at: :desc).to_a
@@ -151,10 +152,15 @@ module Aicoo
         .where(resource_type: "AicooLabLandingPage", resource_id: ids.map(&:to_s))
         .group(:resource_id)
         .count
-      @metric_totals = recent_metrics.pick(
-        Arel.sql("COALESCE(SUM(clicks), 0)"),
-        Arel.sql("COALESCE(SUM(impressions), 0)")
-      ).then { |clicks, impressions| { "clicks" => clicks, "impressions" => impressions } }
+      @metric_totals = if provided_metrics
+        rows = Array(provided_metrics).select { |metric| metric.recorded_on.in?(30.days.ago.to_date..Date.current) }
+        { "clicks" => rows.sum { |metric| metric.clicks.to_i }, "impressions" => rows.sum { |metric| metric.impressions.to_i } }
+      else
+        recent_metrics.pick(
+          Arel.sql("COALESCE(SUM(clicks), 0)"),
+          Arel.sql("COALESCE(SUM(impressions), 0)")
+        ).then { |clicks, impressions| { "clicks" => clicks, "impressions" => impressions } }
+      end
     end
 
     attr_reader :event_counts,

@@ -135,7 +135,8 @@ module Aicoo
       context = BusinessAnalyticsBatchContext.new(
         [ @business ],
         metric_records: @business.business_metric_dailies.to_a,
-        revenue_events: @business.revenue_events.to_a
+        revenue_events: @business.revenue_events.to_a,
+        candidate_records: @business.action_candidates.to_a
       )
       batched = BusinessAnalyticsSummary.new(
         @business,

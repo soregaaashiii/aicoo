@@ -1,15 +1,25 @@
 module Aicoo
   module LpIntegration
     class CampaignDashboard
-      def initialize(business)
+      def initialize(
+        business,
+        campaigns: nil,
+        external_landing_pages: nil,
+        action_candidates: nil,
+        improvement_history: nil
+      )
         @business = business
+        @provided_campaigns = campaigns
+        @provided_external_landing_pages = external_landing_pages
+        @provided_action_candidates = action_candidates
+        @provided_improvement_history = improvement_history
       end
 
       def call
         load_analytics_snapshots
         load_variant_counts
-        rows = business.business_campaigns.active.includes(:landing_pages).map do |campaign|
-          landing_pages = campaign.landing_pages.active.map { |landing_page| landing_page_row(landing_page) }
+        rows = campaigns.map do |campaign|
+          landing_pages = landing_pages_by_campaign_id.fetch(campaign.id, []).map { |landing_page| landing_page_row(landing_page) }
             .sort_by { |row| [ -row[:expected_profit_yen], row[:landing_page].id ] }
           landing_pages.each_with_index { |row, index| row[:rank] = index + 1 }
           campaign_row(campaign, landing_pages)
@@ -95,24 +105,25 @@ module Aicoo
       end
 
       def candidates_by_landing_page
-        @candidates_by_landing_page ||= business.action_candidates.active_for_ranking.to_a.group_by do |candidate|
+        @candidates_by_landing_page ||= active_action_candidates.group_by do |candidate|
           candidate.metadata.to_h["landing_page_id"].to_i
         end
       end
 
       def improvement_history
-        @improvement_history ||= LandingPageImprovementHistory.new(business).call.group_by { |row| row[:landing_page_id] }
+        @improvement_history ||= (provided_improvement_history || LandingPageImprovementHistory.new(business).call)
+          .group_by { |row| row[:landing_page_id] }
       end
 
       def load_variant_counts
-        @variant_counts = business.business_prototypes.active.external_landing_pages.each_with_object(Hash.new(0)) do |landing_page, counts|
+        @variant_counts = external_landing_pages.each_with_object(Hash.new(0)) do |landing_page, counts|
           source_id = landing_page.metadata.to_h["ab_source_landing_page_id"].to_i
           counts[source_id] += 1 if source_id.positive?
         end
       end
 
       def load_analytics_snapshots
-        landing_page_ids = business.business_prototypes.active.external_landing_pages.pluck(:id)
+        landing_page_ids = external_landing_pages.map(&:id)
         snapshots = if landing_page_ids.empty?
           []
         else
@@ -150,6 +161,30 @@ module Aicoo
 
       def variant_counts
         @variant_counts || {}
+      end
+
+      def campaigns
+        @campaigns ||= @provided_campaigns || business.business_campaigns.active.includes(:landing_pages).to_a
+      end
+
+      def external_landing_pages
+        @external_landing_pages ||= @provided_external_landing_pages ||
+          business.business_prototypes.active.external_landing_pages.to_a
+      end
+
+      def landing_pages_by_campaign_id
+        @landing_pages_by_campaign_id ||= external_landing_pages
+          .select { |landing_page| landing_page.status == "active" }
+          .group_by(&:business_campaign_id)
+      end
+
+      def active_action_candidates
+        rows = @provided_action_candidates || business.action_candidates.active_for_ranking.to_a
+        rows.select { |candidate| candidate.status.present? && !candidate.status.in?(ActionCandidate::INACTIVE_STATUSES) }
+      end
+
+      def provided_improvement_history
+        @provided_improvement_history
       end
 
       def numeric(value)

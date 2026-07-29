@@ -46,8 +46,18 @@ module Aicoo
         )
       end
 
-      def initialize(business)
+      def initialize(
+        business,
+        campaigns: nil,
+        external_landing_pages: nil,
+        action_candidates: nil,
+        search_query_count: nil
+      )
         @business = business
+        @provided_campaigns = campaigns
+        @provided_external_landing_pages = external_landing_pages
+        @provided_action_candidates = action_candidates
+        @provided_search_query_count = search_query_count
       end
 
       def call(persist: false)
@@ -117,8 +127,8 @@ module Aicoo
       end
 
       def improvement_recommendations_for_business
-        landing_pages = business.business_prototypes.active.external_landing_pages.index_by(&:id)
-        business.action_candidates.active_for_ranking.where(generation_source: "lp_learning").filter_map do |candidate|
+        landing_pages = external_landing_pages.index_by(&:id)
+        active_action_candidates.select { |candidate| candidate.generation_source == "lp_learning" }.filter_map do |candidate|
           landing_page = landing_pages[candidate.metadata.to_h["landing_page_id"].to_i]
           expected_profit_yen = candidate.final_expected_value_yen.to_i
           next unless landing_page && expected_profit_yen.positive?
@@ -159,7 +169,7 @@ module Aicoo
       def expected_profit_per_lp_for(pages, campaign)
         values = pages.filter_map { |page| positive_integer(page.metadata.to_h["expected_profit_yen"]) }
         if values.empty?
-          candidates = business.action_candidates.active_for_ranking.where(action_type: %w[build_lp lp_experiment ui_improvement])
+          candidates = active_action_candidates.select { |candidate| candidate.action_type.in?(%w[build_lp lp_experiment ui_improvement]) }
           candidates = candidates.select { |candidate| candidate.metadata.to_h["campaign_id"].to_i == campaign.id } if campaign
           values = candidates.filter_map { |candidate| positive_integer(candidate.final_expected_value_yen) }
         end
@@ -216,7 +226,7 @@ module Aicoo
       def landing_pages_for(campaign, purpose)
         return [] unless campaign
 
-        pages = campaign.landing_pages.active.to_a
+        pages = landing_pages_by_campaign_id.fetch(campaign.id, [])
         if purpose == "regional"
           pages.select { |page| page.metadata.to_h["creation_purpose"] == "regional" }
         elsif purpose == "seo"
@@ -227,11 +237,29 @@ module Aicoo
       end
 
       def campaigns
-        @campaigns ||= business.business_campaigns.active.includes(:landing_pages).to_a
+        @campaigns ||= @provided_campaigns || business.business_campaigns.active.includes(:landing_pages).to_a
       end
 
       def search_query_count
+        return @provided_search_query_count unless @provided_search_query_count.nil?
+
         @search_query_count ||= business.business_serp_keywords.where.not(status: %w[rejected archived]).count
+      end
+
+      def external_landing_pages
+        @external_landing_pages ||= @provided_external_landing_pages ||
+          business.business_prototypes.active.external_landing_pages.to_a
+      end
+
+      def landing_pages_by_campaign_id
+        @landing_pages_by_campaign_id ||= external_landing_pages
+          .select { |landing_page| landing_page.status == "active" }
+          .group_by(&:business_campaign_id)
+      end
+
+      def active_action_candidates
+        rows = @provided_action_candidates || business.action_candidates.active_for_ranking.to_a
+        rows.select { |candidate| candidate.status.present? && !candidate.status.in?(ActionCandidate::INACTIVE_STATUSES) }
       end
 
       def planner_purpose(campaign)

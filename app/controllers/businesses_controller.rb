@@ -96,8 +96,12 @@ class BusinessesController < ApplicationController
                                     :evaluation_reason,
                                     :action_type,
                                     :status,
+                                    :generation_source,
+                                    :metadata,
+                                    :practicality_score,
                                     :expected_profit_yen,
                                     :expected_hourly_value_yen,
+                                    :final_expected_value_yen,
                                     :final_score,
                                     :created_at
                                   )
@@ -135,15 +139,20 @@ class BusinessesController < ApplicationController
         generation_run: @lovable_published_version
       ).call
     end
+    @business_metric_rows = @business.business_metric_dailies.order(:recorded_on).to_a
+    @business_revenue_events = @business.revenue_events.to_a
     @lp_evaluations = Aicoo::LpEvaluationSummary.for_business(
       @business,
-      landing_pages: @business_landing_pages
+      landing_pages: @business_landing_pages,
+      metrics: @business_metric_rows
     )
     @lp_evaluations_by_id = @lp_evaluations.index_by { |row| row.landing_page.id }
     @mvp_ready_check = Aicoo::MvpReadyCheck.new(@business, @lp_evaluations).call
     @business_services = @business.business_services.recent.to_a
     @live_business_service_count = @business_services.count { |service| service.status == "live" }
-    @cloudflare_pages_configuration = Aicoo::CloudflarePages::Configuration.new
+    @cloudflare_pages_configuration = Aicoo::CloudflarePages::Configuration.new(
+      profile: DataSourceCostProfile.for_source("cloudflare_pages")
+    )
     @primary_business_service = @business_services.first
     @external_landing_pages = @business.business_prototypes.active.external_landing_pages.to_a
     @source_app_connections = @business.source_app_connections.to_a
@@ -157,18 +166,37 @@ class BusinessesController < ApplicationController
       source_app_connections: @source_app_connections
     )
     @business_campaigns = @business.business_campaigns.active.includes(:landing_pages).recent.to_a
-    @campaign_dashboard = Aicoo::LpIntegration::CampaignDashboard.new(@business).call
+    @landing_page_improvement_history = Aicoo::LpIntegration::LandingPageImprovementHistory.new(
+      @business,
+      candidates: @action_candidates,
+      revenue_events: @business_revenue_events
+    ).call
+    @campaign_dashboard = Aicoo::LpIntegration::CampaignDashboard.new(
+      @business,
+      campaigns: @business_campaigns,
+      external_landing_pages: @external_landing_pages,
+      action_candidates: @action_candidates,
+      improvement_history: @landing_page_improvement_history
+    ).call
     @landing_page_dashboard = Aicoo::LpIntegration::BusinessLandingPageDashboard.new(
       business: @business,
       campaign_dashboard: @campaign_dashboard
     ).call
-    @landing_page_planner = Aicoo::LpIntegration::BusinessLandingPagePlanner.new(@business).call
-    @business_metric_rows = @business.business_metric_dailies.order(:recorded_on).to_a
-    @business_revenue_events = @business.revenue_events.to_a
+    @business_serp_keywords = @business.business_serp_keywords.to_a
+    @landing_page_planner = Aicoo::LpIntegration::BusinessLandingPagePlanner.new(
+      @business,
+      campaigns: @business_campaigns,
+      external_landing_pages: @external_landing_pages,
+      action_candidates: @action_candidates,
+      search_query_count: @business_serp_keywords.count do |keyword|
+        keyword.status.present? && !keyword.status.in?(%w[rejected archived])
+      end
+    ).call
     analytics_context = Aicoo::BusinessAnalyticsBatchContext.new(
       [ @business ],
       metric_records: @business_metric_rows,
-      revenue_events: @business_revenue_events
+      revenue_events: @business_revenue_events,
+      candidate_records: @action_candidates
     )
     @mvp_evaluations = Aicoo::MvpEvaluationSummary.for_business(
       @business,
@@ -222,7 +250,11 @@ class BusinessesController < ApplicationController
     @business_playbook = @business.business_playbook
     @google_api_import_run = GoogleApiImportRun.latest_for(@business)
     @google_api_import_runs = GoogleApiImportRun.where(business: @business).recent.limit(8).to_a
-    @integration_health = Aicoo::BusinessIntegrationHealth.new(businesses: [ @business ]).call.business_healths.first
+    recent_candidate_count = @action_candidates.count { |candidate| candidate.created_at >= 30.days.ago }
+    @integration_health = Aicoo::BusinessIntegrationHealth.new(
+      businesses: [ @business ],
+      action_candidate_counts: { @business.id => recent_candidate_count }
+    ).call.business_healths.first
     @ga4_connection_summary = Aicoo::BusinessGoogleConnectionSummary.new(@business, source_key: "ga4", health: @integration_health).call
     @gsc_connection_summary = Aicoo::BusinessGoogleConnectionSummary.new(@business, source_key: "gsc", health: @integration_health).call
     @system_statuses = business_system_statuses(@business, BUSINESS_SHOW_STATUS_KEYS)
@@ -688,8 +720,8 @@ class BusinessesController < ApplicationController
       @recent_opportunities = @business.opportunity_discovery_items.order(created_at: :desc).limit(5).to_a
       @codex_prompt_draft_count = @business.codex_prompt_drafts.count
       @recent_codex_prompt_drafts = @business.codex_prompt_drafts.order(created_at: :desc).limit(5).to_a
-      @serp_keyword_active_count = @business.business_serp_keywords.active.count
-      @serp_keyword_pending_count = @business.business_serp_keywords.pending.count
+      @serp_keyword_active_count = @business_serp_keywords.count { |keyword| keyword.status == "active" }
+      @serp_keyword_pending_count = @business_serp_keywords.count { |keyword| keyword.status == "pending" }
       @serp_query_enabled_count = @business.serp_queries.enabled.count
       @serp_queries = @business.serp_queries.by_priority.limit(8).to_a
       @serp_cost = @business_analytics_summary.cost_estimates.find { |estimate| estimate.source_key == "serp" }

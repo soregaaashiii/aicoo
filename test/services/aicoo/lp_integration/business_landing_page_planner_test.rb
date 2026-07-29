@@ -32,7 +32,13 @@ module Aicoo
       end
 
       test "plans missing landing pages from campaign target and ranks only by expected profit yen" do
-        result = BusinessLandingPagePlanner.new(@business).call
+        result = BusinessLandingPagePlanner.new(
+          @business,
+          campaigns: @business.business_campaigns.active.includes(:landing_pages).to_a,
+          external_landing_pages: @business.business_prototypes.active.external_landing_pages.to_a,
+          action_candidates: @business.action_candidates.to_a,
+          search_query_count: 0
+        ).call
         seo = result.recommendations.find { |row| row.fetch("purpose") == "seo" }
 
         assert_equal 1, seo.fetch("existing_count")

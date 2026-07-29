@@ -1,8 +1,11 @@
 module Aicoo
   module LpIntegration
     class LandingPageImprovementHistory
-      def initialize(business)
+      def initialize(business, candidates: nil, tasks: nil, revenue_events: nil)
         @business = business
+        @provided_candidates = candidates
+        @provided_tasks = tasks
+        @provided_revenue_events = revenue_events
       end
 
       def call
@@ -29,18 +32,30 @@ module Aicoo
 
       private
 
-      attr_reader :business
+      attr_reader :business, :provided_candidates, :provided_tasks, :provided_revenue_events
 
       def candidates
-        @candidates ||= business.action_candidates.where(generation_source: %w[lp_learning manual]).to_a
+        @candidates ||= if provided_candidates
+          Array(provided_candidates).select { |candidate| candidate.generation_source.in?(%w[lp_learning manual]) }
+        else
+          business.action_candidates.where(generation_source: %w[lp_learning manual]).to_a
+        end
       end
 
       def tasks_by_candidate
-        @tasks_by_candidate ||= business.auto_revision_tasks.includes(:auto_revision_executions).index_by(&:action_candidate_id)
+        @tasks_by_candidate ||= (provided_tasks || business.auto_revision_tasks.includes(:auto_revision_executions)).index_by(&:action_candidate_id)
       end
 
       def revenue_by_candidate
-        @revenue_by_candidate ||= business.revenue_events.where(action_candidate_id: candidates.map(&:id)).group(:action_candidate_id).sum(:amount)
+        @revenue_by_candidate ||= if provided_revenue_events
+          candidate_ids = candidates.map(&:id).to_set
+          Array(provided_revenue_events)
+            .select { |event| candidate_ids.include?(event.action_candidate_id) }
+            .group_by(&:action_candidate_id)
+            .transform_values { |events| events.sum(&:amount) }
+        else
+          business.revenue_events.where(action_candidate_id: candidates.map(&:id)).group(:action_candidate_id).sum(:amount)
+        end
       end
     end
   end
