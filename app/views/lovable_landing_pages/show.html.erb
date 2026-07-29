@@ -7,12 +7,15 @@
              active_main: :businesses,
              actions: link_to("Businessへ戻る", business_path(@business, anchor: "business-lp"), class: "button secondary") %>
 
+  <%= render "pipeline_overview",
+             business: @business,
+             landing_page: @landing_page_prototype,
+             generation_run: @pipeline_version,
+             task: @lovable_task,
+             overview: @pipeline_overview %>
+  <%= render "pipeline_refresh_script" %>
+
   <section class="dashboard-section">
-    <div class="lovable-phase-strip" aria-label="LP workflow">
-      <% [ ["1", "AICOO要件"], ["2", "Lovable生成"], ["3", "静的検証"], ["4", "Cloudflare公開"], ["5", "Learning"] ].each do |number, label| %>
-        <div><span><%= number %></span><strong><%= label %></strong></div>
-      <% end %>
-    </div>
     <% if @source_action_candidate&.generation_source == "lp_learning" %>
       <div class="aicoo-notice status-warning">
         <strong><%= @source_action_candidate.title %></strong>
@@ -69,97 +72,7 @@
       </div>
       <label for="lovable-prompt-text">生成Prompt</label>
       <textarea id="lovable-prompt-text" rows="22" readonly><%= @prompt_version.prompt %></textarea>
-      <div class="compact-actions">
-        <% if @lovable_task&.status&.in?(%w[draft waiting_approval]) %>
-          <%= button_to "承認してLovable作成開始", approve_auto_revision_task_path(@lovable_task), method: :patch, class: "button", form: { target: "_blank" }, data: { turbo_confirm: "LP戦略とPromptを承認し、公式Lovable Build with URLを開きます。よろしいですか？" } %>
-        <% elsif @prompt_version.metadata.to_h["build_url"].present? %>
-          <%= link_to "Lovableを開く", @prompt_version.metadata.to_h["build_url"], class: "button", target: "_blank", rel: "noopener" %>
-        <% else %>
-          <%= button_to(@prompt_version.metadata.to_h["request_type"] == "revision" ? "Lovableで改善" : "Lovableで作成", launch_version_business_lovable_landing_page_path(@business, generation_run_id: @prompt_version.id), method: :post, class: "button", form: { target: "_blank" }) %>
-        <% end %>
-      </div>
       <p class="muted">Build URL生成: <%= @prompt_version.metadata.to_h["build_url_generated_at"].presence || "未生成" %> / Prompt作成: <%= @prompt_version.metadata.to_h["prompt_generated_at"].presence || "-" %></p>
-    </section>
-  <% end %>
-
-  <% if @pipeline_version %>
-    <% pipeline = @pipeline_version.metadata.to_h %>
-    <% publication = pipeline["publication"].to_h %>
-    <% status_labels = {
-      "prompt_ready" => "Promptレビュー待ち",
-      "lovable_handoff_ready" => "Lovableでのユーザー操作待ち",
-      "lovable_generation_waiting" => "Lovable生成待ち",
-      "lovable_result_waiting" => "GitHub Push待ち（旧Version）",
-      "github_webhook_waiting" => "GitHub Push待ち",
-      "github_webhook_received" => "Webhook受信済み",
-      "artifact_fetching" => "成果物取得中",
-      "lovable_result_received" => "生成結果取得済み",
-      "static_build_started" => "静的化中",
-      "static_building" => "静的化中",
-      "waiting_manual_fix" => "手動修正待ち",
-      "github_commit_waiting" => "GitHub commit待ち",
-      "cloudflare_deploying" => "Cloudflare公開待ち",
-      "cloudflare_waiting" => "Cloudflare公開待ち",
-      "cloudflare_failed" => "Cloudflare公開失敗",
-      "cloudflare_verification_timeout" => "Cloudflare確認タイムアウト",
-      "public_url_verification_timeout" => "公開URL確認失敗",
-      "cloudflare_published" => "Cloudflare公開済み",
-      "measurement_waiting" => "GA4・GSC計測待ち",
-      "learning_waiting" => "Learning待ち",
-      "improvement_waiting" => "改善待ち"
-    } %>
-    <% next_action =
-      case pipeline["pipeline_status"]
-      when "prompt_ready" then "LP戦略とPromptを確認して承認"
-      when "lovable_handoff_ready", "lovable_generation_waiting" then "Lovableを開いてGenerate"
-      when "lovable_result_waiting", "github_webhook_waiting" then "操作不要。GitHub Pushを待っています"
-      when "github_webhook_received", "artifact_fetching", "static_build_started", "static_building" then "操作不要。AICOOが成果物を処理中"
-      when "waiting_manual_fix" then "エラー内容を確認し、Lovableの修正後にGitHubへPush"
-      when "github_commit_waiting" then "GitHub Pushエラーを確認"
-      when "cloudflare_deploying", "cloudflare_waiting" then "操作不要。Cloudflare Pagesの反映待ち"
-      when "cloudflare_failed", "cloudflare_verification_timeout", "public_url_verification_timeout" then "公開エラーを確認して修正する"
-      when "measurement_waiting" then "操作不要。GA4・GSCの初回計測待ち"
-      when "learning_waiting" then "操作不要。Learningの完了待ち"
-      when "improvement_waiting" then "操作不要。Daily Runの改善判断待ち"
-      else "現在の状態を確認"
-      end %>
-    <section class="dashboard-section" id="lovable-pipeline">
-      <div class="section-heading">
-        <div>
-          <h2>Lovable連携</h2>
-          <p>Lovable公式Build with URLを利用します。生成の確定操作はLovable画面で行い、非公開APIやブラウザ自動操作は使用しません。</p>
-        </div>
-        <span class="pill"><%= status_labels.fetch(pipeline["pipeline_status"], pipeline["pipeline_status"]) %></span>
-      </div>
-      <dl class="business-access-values">
-        <dt>連携方式</dt>
-        <dd>
-          <%= case pipeline["lovable_execution_mode"]
-              when "lovable_mcp" then "公式MCP"
-              when "lovable_api" then "公式Build with URL"
-              else "手動引き継ぎ"
-              end %>
-        </dd>
-        <dt>生成するLP</dt><dd><%= @landing_page_prototype&.landing_page_name || @landing_page&.headline || "-" %></dd>
-        <dt>Lovable実行URL</dt><dd><%= pipeline["build_url"].present? ? link_to("Lovableを開く", pipeline["build_url"], target: "_blank", rel: "noopener") : "承認後に生成" %></dd>
-        <dt>Lovable project URL</dt><dd><%= pipeline["lovable_project_url"].present? ? link_to(pipeline["lovable_project_url"], pipeline["lovable_project_url"], target: "_blank", rel: "noopener") : "未登録" %></dd>
-        <dt>生成状態</dt><dd><%= status_labels.fetch(pipeline["pipeline_status"], pipeline["pipeline_status"]) %></dd>
-        <dt>最終同期</dt><dd><%= pipeline["lovable_last_sync_at"].presence || pipeline["lovable_result_registered_at"].presence || "-" %></dd>
-        <dt>生成結果Repository</dt><dd><%= pipeline["lovable_result_repository"].presence || "未登録" %> / <%= pipeline["lovable_result_branch"].presence || "main" %></dd>
-        <dt>Webhook commit SHA</dt><dd><%= pipeline["github_webhook_commit_sha"].presence || "-" %></dd>
-        <dt>静的build</dt><dd><%= pipeline["static_build_status"].presence || "未実行" %><% if pipeline["static_build_type"].present? %>（<%= pipeline["static_build_type"] %>）<% end %></dd>
-        <dt>GitHub commit SHA</dt><dd><%= pipeline["github_commit_sha"].presence || publication["commit_sha"].presence || "-" %></dd>
-        <dt>Cloudflare公開URL</dt><dd><%= pipeline["cloudflare_url"].present? ? link_to(pipeline["cloudflare_url"], pipeline["cloudflare_url"], target: "_blank", rel: "noopener") : publication["production_url"].presence || "-" %></dd>
-        <dt>次に必要な操作</dt><dd><strong><%= next_action %></strong></dd>
-      </dl>
-
-      <% if pipeline["lovable_error_message"].present? %>
-        <div class="aicoo-notice status-warning">
-          <strong><%= pipeline["lovable_error_code"] %></strong>
-          <p><%= pipeline["lovable_error_message"] %></p>
-        </div>
-      <% end %>
-
     </section>
   <% end %>
 

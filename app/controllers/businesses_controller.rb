@@ -155,6 +155,7 @@ class BusinessesController < ApplicationController
     )
     @primary_business_service = @business_services.first
     @external_landing_pages = @business.business_prototypes.active.external_landing_pages.to_a
+    @landing_page_pipeline_summary = Aicoo::Lovable::PipelineOverview.summary_for(@external_landing_pages)
     @source_app_connections = @business.source_app_connections.to_a
     @business_analytics_site = Aicoo::RequestQueryContext.analytics_site(@business) do
       AicooAnalyticsSite.where(business: @business).recent.to_a.first

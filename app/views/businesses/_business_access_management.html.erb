@@ -17,6 +17,8 @@
     <div class="metric-card"><span>利益実績</span><strong><%= number_to_currency(landing_page_dashboard.fetch(:actual_profit_yen), unit: "¥", precision: 0) %></strong></div>
     <div class="metric-card"><span>期待利益</span><strong><%= number_to_currency(landing_page_dashboard.fetch(:expected_profit_yen), unit: "¥", precision: 0) %></strong></div>
     <div class="metric-card"><span>公開LP</span><strong><%= landing_page_dashboard.fetch(:published_landing_page_count) %>件</strong></div>
+    <div class="metric-card"><span>処理中LP</span><strong><%= landing_page_pipeline_summary.fetch(:processing_count) %>件</strong></div>
+    <div class="metric-card"><span>失敗LP</span><strong><%= landing_page_pipeline_summary.fetch(:failed_count) %>件</strong></div>
     <div class="metric-card"><span>改善承認待ち</span><strong><%= landing_page_dashboard.fetch(:waiting_improvement_count) %>件</strong></div>
     <div class="metric-card"><span>改善勝率</span><strong><%= landing_page_dashboard[:win_rate] ? number_to_percentage(landing_page_dashboard[:win_rate] * 100, precision: 1) : "未学習" %></strong></div>
     <div class="metric-card"><span>平均CV率</span><strong><%= landing_page_dashboard[:average_conversion_rate] ? number_to_percentage(landing_page_dashboard[:average_conversion_rate] * 100, precision: 2) : "未計測" %></strong></div>

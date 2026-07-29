@@ -198,6 +198,7 @@ Rails.application.routes.draw do
     patch :update_data_source_settings, on: :member
     resources :data_imports, only: :create
     resource :lovable_landing_page, only: %i[show create], controller: "lovable_landing_pages" do
+      get :pipeline_status
       post :prepare
       post :revise
       get :compare

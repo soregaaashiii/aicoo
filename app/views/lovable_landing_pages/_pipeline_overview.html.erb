@@ -1,0 +1,114 @@
+<section id="lovable-pipeline-live"
+         class="dashboard-section lovable-pipeline-overview"
+         aria-live="polite"
+         data-lovable-pipeline-live
+         data-refresh-enabled="<%= overview.refresh? %>"
+         data-refresh-url="<%= pipeline_status_business_lovable_landing_page_path(business, landing_page_id: landing_page&.id) %>">
+  <div class="lovable-current-location status-<%= overview.failed? ? "failed" : (overview.completed? ? "completed" : "active") %>">
+    <div class="lovable-current-position">
+      <span>現在</span>
+      <strong><%= overview.current_position %> / <%= Aicoo::Lovable::PipelineOverview::STAGE_DEFINITIONS.size %></strong>
+      <small><%= overview.headline_status %></small>
+    </div>
+    <dl>
+      <div>
+        <dt>現在地</dt>
+        <dd><%= overview.current_label %></dd>
+      </div>
+      <div>
+        <dt>次</dt>
+        <dd><%= overview.next_label %></dd>
+      </div>
+      <div>
+        <dt>あなたの操作</dt>
+        <dd><%= overview.user_operation %></dd>
+      </div>
+    </dl>
+  </div>
+
+  <div class="lovable-pipeline-layout">
+    <ol class="lovable-pipeline-timeline" aria-label="LP Pipeline">
+      <% overview.stages.each do |stage| %>
+        <li class="lovable-pipeline-step status-<%= stage.status %>" data-pipeline-stage="<%= stage.key %>">
+          <span class="lovable-pipeline-marker" aria-hidden="true">
+            <%= stage.status == "completed" ? "✓" : stage.number %>
+          </span>
+          <div>
+            <strong><%= stage.label %></strong>
+            <small>
+              <%= overview.stage_status_label(stage) %>
+              <% if stage.timestamp %>
+                / <time datetime="<%= stage.timestamp.iso8601 %>"><%= l(stage.timestamp, format: :short) %></time>
+              <% end %>
+            </small>
+            <% if stage.detail.present? %>
+              <span class="lovable-pipeline-detail"><%= stage.detail %></span>
+            <% end %>
+          </div>
+        </li>
+      <% end %>
+    </ol>
+
+    <div class="lovable-pipeline-guidance">
+      <div class="aicoo-notice <%= "status-warning" if overview.failed? %>">
+        <strong>次にやること</strong>
+        <p><%= overview.next_action_text %></p>
+
+        <div class="compact-actions">
+          <% if overview.approval_waiting? && task %>
+            <%= button_to "承認してLovableを開く",
+                          approve_auto_revision_task_path(task),
+                          method: :patch,
+                          class: "button",
+                          form: { target: "_blank" },
+                          data: { turbo_confirm: "LP戦略とPromptを承認し、公式Lovable Build with URLを開きます。よろしいですか？" } %>
+          <% elsif overview.current_position.in?([ 3, 4 ]) && overview.build_url.present? %>
+            <%= link_to "Lovableを開く", overview.build_url, class: "button", target: "_blank", rel: "noopener" %>
+          <% elsif overview.retryable? && generation_run %>
+            <%= button_to "再試行",
+                          resume_result_version_business_lovable_landing_page_path(business, generation_run_id: generation_run.id, landing_page_id: landing_page&.id),
+                          method: :post,
+                          class: "button" %>
+          <% elsif overview.settings_required? && landing_page %>
+            <%= link_to "設定を開く", business_path(business, anchor: "external-lp-#{landing_page.id}"), class: "button" %>
+          <% end %>
+        </div>
+      </div>
+
+      <% if overview.failed? %>
+        <div class="lovable-pipeline-error">
+          <strong><%= overview.error_code.presence || "pipeline_error" %></strong>
+          <p><%= overview.error_message.presence || "処理を継続できませんでした。" %></p>
+        </div>
+      <% end %>
+
+      <% if overview.commit_sha.present? || overview.public_url.present? %>
+        <dl class="business-access-values lovable-pipeline-output">
+          <% if overview.commit_sha.present? %>
+            <dt>Commit SHA</dt><dd><%= overview.commit_sha %></dd>
+          <% end %>
+          <% if overview.public_url.present? %>
+            <dt>公開URL</dt><dd><%= link_to overview.public_url, overview.public_url, target: "_blank", rel: "noopener" %></dd>
+          <% end %>
+        </dl>
+      <% end %>
+
+      <details class="lovable-pipeline-history">
+        <summary>Pipeline履歴</summary>
+        <% if overview.history.any? %>
+          <ol>
+            <% overview.history.each do |entry| %>
+              <li>
+                <time datetime="<%= entry.timestamp.iso8601 %>"><%= entry.timestamp.strftime("%H:%M") %></time>
+                <span><%= entry.label %></span>
+                <% if entry.detail.present? %><small><%= entry.detail %></small><% end %>
+              </li>
+            <% end %>
+          </ol>
+        <% else %>
+          <p class="muted">履歴はまだありません。</p>
+        <% end %>
+      </details>
+    </div>
+  </div>
+</section>

@@ -1,4 +1,5 @@
 class LovableLandingPagesController < ApplicationController
+  skip_before_action :load_daily_run_execution_status, :load_long_running_operation_monitor, only: :pipeline_status
   before_action :set_business
   before_action :set_generation_run, only: %i[
     update_prompt regenerate_prompt launch retry register_preview register_result
@@ -7,6 +8,11 @@ class LovableLandingPagesController < ApplicationController
 
   def show
     load_page_context
+  end
+
+  def pipeline_status
+    load_pipeline_context
+    render partial: "pipeline_overview", locals: pipeline_locals
   end
 
   def create
@@ -226,10 +232,7 @@ class LovableLandingPagesController < ApplicationController
     @published_version = @repository.published
     @landing_page = @current_version&.metadata.to_h&.dig("landing_page_id")&.then { |id| AicooLabLandingPage.find_by(id:) }
     @configuration = Aicoo::Lovable::Configuration.new
-    @pipeline_version = @prompt_version || @current_version
-    @lovable_task = @pipeline_version&.metadata.to_h&.dig("auto_revision_task_id")&.then do |id|
-      @business.auto_revision_tasks.find_by(id:)
-    end
+    load_pipeline_context(repository: @repository)
     source_candidate_id = params[:action_candidate_id].presence || @prompt_version&.metadata.to_h&.dig("action_candidate_id")
     @source_action_candidate = @business.action_candidates.active_for_ranking.find_by(id: source_candidate_id)
     @current_learning = @published_version && Aicoo::Lovable::LearningSummary.new(business: @business, generation_run: @published_version).call
@@ -237,6 +240,41 @@ class LovableLandingPagesController < ApplicationController
     @version_learning = @versions.to_h do |run|
       [ run.id, run.metadata.to_h["learning"].presence || (run.metadata.to_h.dig("publication", "published") == true ? Aicoo::Lovable::LearningSummary.new(business: @business, generation_run: run).call : {}) ]
     end
+  end
+
+  def load_pipeline_context(repository: nil)
+    @landing_page_prototype ||= external_landing_page
+    @repository = repository if repository
+    @pipeline_version = repository ? repository.latest : latest_pipeline_version
+    @lovable_task = @pipeline_version&.metadata.to_h&.dig("auto_revision_task_id")&.then do |id|
+      @business.auto_revision_tasks.find_by(id:)
+    end
+    @pipeline_overview = Aicoo::Lovable::PipelineOverview.new(
+      generation_run: @pipeline_version,
+      landing_page: @landing_page_prototype,
+      task: @lovable_task
+    )
+  end
+
+  def latest_pipeline_version
+    scope = AicooLabGenerationRun
+      .where(generation_type: "lp_generation")
+      .where("metadata ->> 'pipeline' = ?", Aicoo::Lovable::VersionRepository::PIPELINE_KEY)
+      .where("metadata ->> 'business_id' = ?", @business.id.to_s)
+    if @landing_page_prototype
+      scope = scope.where("metadata ->> 'landing_page_prototype_id' = ?", @landing_page_prototype.id.to_s)
+    end
+    scope.order(created_at: :desc).first
+  end
+
+  def pipeline_locals
+    {
+      business: @business,
+      landing_page: @landing_page_prototype,
+      generation_run: @pipeline_version,
+      task: @lovable_task,
+      overview: @pipeline_overview
+    }
   end
 
   def external_landing_page
