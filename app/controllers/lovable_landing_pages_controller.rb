@@ -20,9 +20,11 @@ class LovableLandingPagesController < ApplicationController
     raise ArgumentError, "診断対象のPipelineがありません。" unless @pipeline_version
 
     component = params.expect(:component)
+    cloudflare_configuration = Aicoo::CloudflarePages::Configuration.new
+    webhook_configuration = Aicoo::Lovable::GithubWebhookConfiguration.new
     result = Aicoo::Lovable::PipelineRechecker.new(
-      cloudflare_configuration: @pipeline_cloudflare_configuration,
-      webhook_configuration: @pipeline_webhook_configuration
+      cloudflare_configuration:,
+      webhook_configuration:
     ).call(
       component:,
       landing_page: @landing_page_prototype,
@@ -321,10 +323,14 @@ class LovableLandingPagesController < ApplicationController
     end
     source_candidate_id = params[:action_candidate_id].presence || @prompt_version&.metadata.to_h&.dig("action_candidate_id")
     @source_action_candidate = @business.action_candidates.active_for_ranking.find_by(id: source_candidate_id)
-    @current_learning = @published_version && Aicoo::Lovable::LearningSummary.new(business: @business, generation_run: @published_version).call
-    @learning_comparison = Aicoo::Lovable::LandingPageLearningComparison.new(business: @business, repository: @repository).call
+    @current_learning = @published_version&.metadata.to_h&.fetch("learning", {}).to_h
+    @learning_comparison = Aicoo::Lovable::LandingPageLearningComparison.new(
+      business: @business,
+      repository: @repository,
+      persisted_only: true
+    ).call
     @version_learning = @versions.to_h do |run|
-      [ run.id, run.metadata.to_h["learning"].presence || (run.metadata.to_h.dig("publication", "published") == true ? Aicoo::Lovable::LearningSummary.new(business: @business, generation_run: run).call : {}) ]
+      [ run.id, run.metadata.to_h["learning"].to_h ]
     end
   end
 
@@ -356,21 +362,8 @@ class LovableLandingPagesController < ApplicationController
       cloudflare_configuration: @pipeline_cloudflare_configuration,
       webhook_url: github_webhook_url
     )
-    @pipeline_connection_statuses = %w[ga4 gsc].index_with do |source|
-      Aicoo::BusinessConnectionStatus.new(@business, source_key: source).call
-    end
-    @pipeline_diagnosis = Aicoo::Lovable::PipelineDiagnosis.new(
-      overview: @pipeline_overview,
-      business: @business,
-      landing_page: @landing_page_prototype,
-      generation_run: @pipeline_version,
-      analytics_site: @pipeline_analytics_site,
-      connection_statuses: @pipeline_connection_statuses,
-      webhook_configuration: @pipeline_webhook_configuration,
-      webhook_diagnostics: @pipeline_webhook_diagnostics,
-      cloudflare_configuration: @pipeline_cloudflare_configuration,
-      webhook_url: github_webhook_url
-    ).call
+    @pipeline_diagnosis = Aicoo::Lovable::PipelineDiagnosisSnapshot.read(@pipeline_version) ||
+      Aicoo::Lovable::PipelineDiagnosisSnapshot.unavailable_result(@pipeline_version)
   end
 
   def latest_pipeline_version
@@ -404,6 +397,10 @@ class LovableLandingPagesController < ApplicationController
       metadata: @pipeline_version.metadata.to_h.merge(
         "pipeline_diagnosis" => current.merge(result.component => snapshot)
       )
+    )
+    Aicoo::Lovable::PipelineDiagnosisRefresher.call(
+      generation_run: @pipeline_version,
+      source: "manual_recheck"
     )
   end
 

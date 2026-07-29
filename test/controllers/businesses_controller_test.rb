@@ -1158,6 +1158,17 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "SERP新規事業候補"
   end
 
+  test "business index reads saved pipeline summaries without live diagnosis" do
+    live_summary = ->(*) { raise "business index must not run live pipeline diagnosis" }
+
+    Aicoo::Lovable::PipelineDiagnosis.stub(:summary_for, live_summary) do
+      get businesses_url
+    end
+
+    assert_response :success
+    assert_select "th", text: "Pipeline"
+  end
+
   test "permanent delete requires soft deleted business name confirmation" do
     business = Business.create!(name: "完全削除対象", status: "exploring")
     business.soft_delete!(reason: "誤登録", actor: "owner", source: "test")

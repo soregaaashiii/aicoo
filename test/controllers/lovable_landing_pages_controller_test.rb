@@ -344,4 +344,116 @@ class LovableLandingPagesControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, "<html"
     assert_not_includes response.body, "LP Studio"
   end
+
+  test "LP detail and live refresh only read the saved diagnosis snapshot" do
+    campaign = @business.business_campaigns.create!(name: "Saved Diagnosis", campaign_type: "seo", status: "active")
+    landing_page = @business.business_prototypes.create!(
+      business_campaign: campaign,
+      name: "Saved Diagnosis LP",
+      prototype_type: "github",
+      location: "https://github.com/example/saved-diagnosis",
+      status: "active",
+      metadata: {
+        "role" => BusinessPrototype::EXTERNAL_LANDING_PAGE_ROLE,
+        "lp_name" => "Saved Diagnosis LP",
+        "lp_public_status" => "testing"
+      }
+    )
+    run = AicooLabGenerationRun.create!(
+      generation_type: "lp_generation",
+      status: "running",
+      metadata: {
+        "pipeline" => "lovable",
+        "pipeline_status" => "github_webhook_waiting",
+        "business_id" => @business.id,
+        "landing_page_prototype_id" => landing_page.id,
+        "version" => 1
+      }
+    )
+    landing_page.update!(metadata: landing_page.metadata.to_h.merge("lovable_generation_run_id" => run.id))
+    run.reload
+    assert run.metadata[Aicoo::Lovable::PipelineDiagnosisSnapshot::METADATA_KEY].present?
+
+    forbidden = ->(*) { raise "normal GET must not run live diagnosis" }
+    forbidden_keywords = ->(**) { raise "normal GET must not call an external checker" }
+    Aicoo::Lovable::PipelineDiagnosis.stub(:new, forbidden) do
+      Aicoo::BusinessConnectionStatus.stub(:new, forbidden) do
+        Aicoo::Lovable::LearningSummary.stub(:new, forbidden) do
+          Aicoo::CloudflarePages::GithubRepositoryClient.stub(:new, forbidden_keywords) do
+            Aicoo::CloudflarePages::DeploymentVerifier.stub(:new, forbidden_keywords) do
+              get business_lovable_landing_page_url(@business, landing_page_id: landing_page.id)
+              assert_response :success
+              assert_select "[data-pipeline-diagnosis]", 1
+
+              get pipeline_status_business_lovable_landing_page_url(@business, landing_page_id: landing_page.id)
+              assert_response :success
+              assert_select "[data-pipeline-diagnosis]", 1
+            end
+          end
+        end
+      end
+    end
+  end
+
+  test "manual recheck runs the live checker and replaces the saved snapshot" do
+    campaign = @business.business_campaigns.create!(name: "Manual Recheck", campaign_type: "seo", status: "active")
+    landing_page = @business.business_prototypes.create!(
+      business_campaign: campaign,
+      name: "Manual Recheck LP",
+      prototype_type: "github",
+      location: "https://github.com/example/manual-recheck",
+      status: "active",
+      metadata: {
+        "role" => BusinessPrototype::EXTERNAL_LANDING_PAGE_ROLE,
+        "lp_name" => "Manual Recheck LP",
+        "lp_public_status" => "testing"
+      }
+    )
+    run = AicooLabGenerationRun.create!(
+      generation_type: "lp_generation",
+      status: "running",
+      metadata: {
+        "pipeline" => "lovable",
+        "pipeline_status" => "github_webhook_waiting",
+        "business_id" => @business.id,
+        "landing_page_prototype_id" => landing_page.id,
+        "lovable_result_repository" => "https://github.com/example/manual-recheck",
+        "lovable_result_branch" => "main",
+        "version" => 1
+      }
+    )
+    landing_page.update!(metadata: landing_page.metadata.to_h.merge("lovable_generation_run_id" => run.id))
+    checked = Aicoo::Lovable::PipelineRechecker::Result.new(
+      component: "github",
+      ok: false,
+      level: "settings",
+      code: "github_token_missing",
+      cause: "Tokenを設定してください。",
+      required_setting: "Contents Read",
+      settings_location: "GitHub Settings",
+      fix_steps: [ "Tokenを更新する" ],
+      details: {
+        "repository" => "example/manual-recheck",
+        "branch" => "main"
+      }
+    )
+    checker = Object.new
+    checker.define_singleton_method(:call) { |**| checked }
+
+    Aicoo::Lovable::PipelineRechecker.stub(:new, checker) do
+      post recheck_pipeline_business_lovable_landing_page_url(
+        @business,
+        landing_page_id: landing_page.id
+      ), params: { component: "github" }
+    end
+
+    assert_redirected_to business_lovable_landing_page_url(
+      @business,
+      landing_page_id: landing_page.id,
+      anchor: "lovable-pipeline-live"
+    )
+    snapshot = run.reload.metadata.fetch(Aicoo::Lovable::PipelineDiagnosisSnapshot::METADATA_KEY)
+    assert_equal "manual_recheck", snapshot["source"]
+    assert_equal "Tokenを設定してください。", snapshot["components"].find { |row| row["key"] == "github" }["cause"]
+  end
 end

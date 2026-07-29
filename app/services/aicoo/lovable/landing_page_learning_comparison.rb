@@ -30,10 +30,16 @@ module Aicoo
         :version_trend
       )
 
-      def initialize(business:, repository: VersionRepository.new(business:), learning_overrides: {})
+      def initialize(
+        business:,
+        repository: VersionRepository.new(business:),
+        learning_overrides: {},
+        persisted_only: false
+      )
         @business = business
         @repository = repository
         @learning_overrides = learning_overrides
+        @persisted_only = persisted_only
       end
 
       def call
@@ -64,7 +70,7 @@ module Aicoo
 
       private
 
-      attr_reader :business, :repository, :learning_overrides
+      attr_reader :business, :repository, :learning_overrides, :persisted_only
 
       def category_businesses
         scope = Business.real_businesses.where.not(id: business.id)
@@ -78,8 +84,11 @@ module Aicoo
       end
 
       def rows_for(owner, runs)
-        runs.map do |run|
-          learning = learning_overrides[run.id] || run.metadata.to_h["learning"].presence || LearningSummary.new(business: owner, generation_run: run).call
+        runs.filter_map do |run|
+          learning = learning_overrides[run.id] || run.metadata.to_h["learning"].presence
+          learning ||= LearningSummary.new(business: owner, generation_run: run).call unless persisted_only
+          next if learning.blank?
+
           Row.new(
             business: owner,
             run:,

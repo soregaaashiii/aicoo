@@ -12,14 +12,19 @@ module Aicoo
       attr_reader :business, :landing_page, :landing_page_prototype
 
       def all
-        @all ||= AicooLabGenerationRun.where(generation_type: "lp_generation").recent.select do |run|
-          metadata = run.metadata.to_h
-          next false unless metadata["pipeline"] == PIPELINE_KEY
-          next false if business && metadata["business_id"].to_i != business.id
-          next false if landing_page && metadata["landing_page_id"].to_i != landing_page.id
-          next false if landing_page_prototype && metadata["landing_page_prototype_id"].to_i != landing_page_prototype.id
-
-          true
+        @all ||= begin
+          scope = AicooLabGenerationRun
+            .where(generation_type: "lp_generation")
+            .where("metadata ->> 'pipeline' = ?", PIPELINE_KEY)
+          scope = scope.where("metadata ->> 'business_id' = ?", business.id.to_s) if business
+          scope = scope.where("metadata ->> 'landing_page_id' = ?", landing_page.id.to_s) if landing_page
+          if landing_page_prototype
+            scope = scope.where(
+              "metadata ->> 'landing_page_prototype_id' = ?",
+              landing_page_prototype.id.to_s
+            )
+          end
+          scope.recent.to_a
         end
       end
 

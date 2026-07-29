@@ -68,15 +68,10 @@ class BusinessesController < ApplicationController
         .where(id: pipeline_run_ids)
         .select(:id, :status, :error_message, :metadata)
         .index_by(&:id)
-      pipeline_cloudflare_configuration = Aicoo::CloudflarePages::Configuration.new
       @business_pipeline_summaries = @businesses.index_with do |business|
-        statuses = @business_data_source_statuses_by_id.fetch(business).index_by(&:source_key)
-        Aicoo::Lovable::PipelineDiagnosis.summary_for(
+        Aicoo::Lovable::PipelineDiagnosisSnapshot.summary_for(
           landing_pages: index_landing_pages_by_business_id.fetch(business.id, []),
-          generation_runs_by_id: pipeline_runs_by_id,
-          ga4_status: statuses["ga4"],
-          gsc_status: statuses["gsc"],
-          cloudflare_configuration: pipeline_cloudflare_configuration
+          generation_runs_by_id: pipeline_runs_by_id
         )
       end
       analytics_context = Aicoo::BusinessAnalyticsBatchContext.new(@businesses, include_details: false)
