@@ -106,6 +106,49 @@ module Webhooks
       assert_equal 1, @run.reload.metadata.fetch("github_webhook_receipts").size
     end
 
+    test "treats a commit imported during initial sync as duplicate even without a webhook receipt" do
+      @run.update!(metadata: @run.metadata.to_h.merge(
+        "source_commit_sha" => "abc123def456",
+        "lovable_last_synced_commit_sha" => "abc123def456"
+      ))
+
+      assert_no_enqueued_jobs do
+        post_signed_push(@payload)
+      end
+
+      assert_response :success
+      assert_equal true, response.parsed_body["duplicate"]
+      assert_equal @run.id, response.parsed_body["generation_run_id"]
+    end
+
+    test "creates a new version when a new commit arrives after the previous version was published" do
+      @run.update!(
+        metadata: @run.metadata.to_h.merge(
+          "pipeline_status" => "completed",
+          "lovable_last_synced_commit_sha" => "previous-sha",
+          "publication" => {
+            "published" => true,
+            "commit_sha" => "publication-sha"
+          }
+        )
+      )
+
+      assert_difference("AicooLabGenerationRun.count", 1) do
+        assert_enqueued_jobs 1 do
+          post_signed_push(@payload)
+        end
+      end
+
+      assert_response :accepted
+      new_run = AicooLabGenerationRun.order(:created_at).last
+      assert_not_equal @run.id, new_run.id
+      assert_equal "v1", new_run.metadata["version_label"]
+      assert_equal "abc123def456", new_run.metadata["source_commit_sha"]
+      assert_equal true, new_run.metadata["repository_import"]
+      assert_equal "github_webhook_received", new_run.metadata["pipeline_status"]
+      assert_equal new_run.id, @landing_page.reload.metadata["lovable_generation_run_id"]
+    end
+
     test "rejects a signature mismatch before matching a landing page" do
       assert_no_enqueued_jobs do
         post github_webhook_url,

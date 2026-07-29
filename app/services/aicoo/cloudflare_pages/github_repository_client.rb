@@ -8,8 +8,24 @@ module Aicoo
   module CloudflarePages
     class GithubRepositoryClient
       Result = Data.define(:commit_sha, :commit_url, :changed_paths)
-      RepositorySnapshot = Data.define(:commit_sha, :files, :excluded_paths) do
-        def initialize(commit_sha:, files:, excluded_paths: [])
+      RepositorySnapshot = Data.define(
+        :commit_sha,
+        :files,
+        :excluded_paths,
+        :commit_url,
+        :committed_at,
+        :author,
+        :changed_paths
+      ) do
+        def initialize(
+          commit_sha:,
+          files:,
+          excluded_paths: [],
+          commit_url: nil,
+          committed_at: nil,
+          author: nil,
+          changed_paths: []
+        )
           super
         end
       end
@@ -83,6 +99,7 @@ module Aicoo
           resolved_commit_sha = ref.dig("object", "sha")
         end
         parent = get("/git/commits/#{escape(resolved_commit_sha)}")
+        commit_details = get("/commits/#{escape(resolved_commit_sha)}")
         tree = get("/git/trees/#{parent.dig('tree', 'sha')}?recursive=1")
         raise ArgumentError, "生成結果Repositoryのtreeが大きすぎてGitHub APIで省略されました。" if tree["truncated"] == true
 
@@ -106,7 +123,17 @@ module Aicoo
         excluded_paths = blob_entries.filter_map do |entry|
           entry["path"] unless source_path_allowed?(entry["path"])
         end
-        RepositorySnapshot.new(commit_sha: resolved_commit_sha, files:, excluded_paths:)
+        RepositorySnapshot.new(
+          commit_sha: resolved_commit_sha,
+          files:,
+          excluded_paths:,
+          commit_url: commit_details["html_url"].presence || "https://github.com/#{repository_slug}/commit/#{resolved_commit_sha}",
+          committed_at: commit_details.dig("commit", "committer", "date").presence ||
+            commit_details.dig("commit", "author", "date").presence,
+          author: commit_details.dig("author", "login").presence ||
+            commit_details.dig("commit", "author", "name").presence,
+          changed_paths: Array(commit_details["files"]).filter_map { |file| file.to_h["filename"].presence }
+        )
       end
 
       private

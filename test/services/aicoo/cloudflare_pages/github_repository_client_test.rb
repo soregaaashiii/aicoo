@@ -73,6 +73,13 @@ module Aicoo
             { object: { sha: "source-commit" } }
           when [ "GET", "/repos/example/lovable-result/git/commits/source-commit" ]
             { tree: { sha: "source-tree" } }
+          when [ "GET", "/repos/example/lovable-result/commits/source-commit" ]
+            {
+              html_url: "https://github.com/example/lovable-result/commit/source-commit",
+              author: { login: "lovable-bot" },
+              commit: { committer: { date: "2026-07-29T01:02:03Z" } },
+              files: [ { filename: "dist/index.html" } ]
+            }
           when [ "GET", "/repos/example/lovable-result/git/trees/source-tree" ]
             {
               tree: [
@@ -100,6 +107,10 @@ module Aicoo
         assert_equal "source-commit", snapshot.commit_sha
         assert_equal [ "dist/index.html" ], snapshot.files.keys
         assert_equal [ ".env", "supabase/functions/index.ts" ], snapshot.excluded_paths
+        assert_equal "lovable-bot", snapshot.author
+        assert_equal "2026-07-29T01:02:03Z", snapshot.committed_at
+        assert_equal [ "dist/index.html" ], snapshot.changed_paths
+        assert_equal "https://github.com/example/lovable-result/commit/source-commit", snapshot.commit_url
       end
 
       test "reads the webhook commit instead of a newer branch head" do
@@ -109,6 +120,11 @@ module Aicoo
           body = case [ request.method, uri.path ]
           when [ "GET", "/repos/example/lovable-result/git/commits/webhook-sha" ]
             { tree: { sha: "webhook-tree" } }
+          when [ "GET", "/repos/example/lovable-result/commits/webhook-sha" ]
+            {
+              commit: { author: { name: "Lovable" } },
+              files: [ { filename: "index.html" } ]
+            }
           when [ "GET", "/repos/example/lovable-result/git/trees/webhook-tree" ]
             { tree: [ { path: "index.html", type: "blob", sha: "html", size: 20 } ] }
           when [ "GET", "/repos/example/lovable-result/git/blobs/html" ]

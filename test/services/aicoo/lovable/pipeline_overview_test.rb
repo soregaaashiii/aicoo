@@ -121,6 +121,26 @@ module Aicoo
         assert_includes overview.next_action_text, "操作は不要"
       end
 
+      test "allows retry only after a repository import permission failure" do
+        repository_import = build_overview(
+          status: "github_webhook_waiting",
+          metadata: {
+            "repository_import" => true,
+            "lovable_error_code" => "github_permission_error"
+          }
+        )
+        regular_run = build_overview(
+          status: "github_webhook_waiting",
+          metadata: {
+            "lovable_error_code" => "github_permission_error"
+          }
+        )
+
+        assert repository_import.retryable?
+        assert repository_import.settings_required?
+        assert_not regular_run.retryable?
+      end
+
       test "exposes stored pipeline diagnostics and business common measurement settings" do
         measured_at = Time.zone.parse("2026-07-29 12:08:00")
         business = Business.new("Explorer Business", { "lp_ga4_measurement_id" => "G-EXPLORER" })

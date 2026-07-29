@@ -52,7 +52,7 @@ module Aicoo
           "lovable_last_synced_commit_sha" => snapshot.commit_sha,
           "artifact_fetch_completed_at" => fetch_completed_at.iso8601,
           "artifact_fetch_duration_ms" => elapsed_ms(fetch_started_at, fetch_completed_at)
-        }.merge(artifact_diagnostics))
+        }.merge(source_commit_metadata(snapshot)).merge(artifact_diagnostics))
         page_path = page_path_for(landing_page)
         build_started_at = Time.current
         stamp!(generation_run, "static_building", "static_build_started_at")
@@ -68,6 +68,7 @@ module Aicoo
         serialized_files = serialize_files(validation.files)
         digest = Digest::SHA256.hexdigest(serialized_files.to_json)
         generation_run.update!(
+          generated_count: 1,
           metadata: generation_run.metadata.to_h.merge(
             "pipeline_status" => "github_commit_waiting",
             "lovable_status" => "result_received",
@@ -122,6 +123,17 @@ module Aicoo
         }
       end
 
+      def source_commit_metadata(snapshot)
+        {
+          "source_commit_sha" => snapshot.commit_sha,
+          "source_commit_url" => snapshot.commit_url,
+          "source_commit_at" => snapshot.committed_at,
+          "source_commit_author" => snapshot.author,
+          "source_changed_file_count" => snapshot.changed_paths.size,
+          "source_changed_paths" => snapshot.changed_paths.first(200)
+        }.compact
+      end
+
       def file_category(path)
         extension = File.extname(path.to_s).downcase
         return "html" if extension.in?(%w[.html .htm])
@@ -159,9 +171,23 @@ module Aicoo
         unless landing_page.external_landing_page? && landing_page.business_id == metadata["business_id"].to_i
           raise ArgumentError, "Lovable生成RunとLPが一致しません。"
         end
-        task = AutoRevisionTask.find_by(id: metadata["auto_revision_task_id"])
-        raise ArgumentError, "Owner承認前のため成果物を取得できません。" unless task&.approved_at.present?
+        unless trusted_repository_import?(landing_page, metadata)
+          task = AutoRevisionTask.find_by(id: metadata["auto_revision_task_id"])
+          raise ArgumentError, "Owner承認前のため成果物を取得できません。" unless task&.approved_at.present?
+        end
         raise ArgumentError, "公開済みVersionです。" if run.metadata.to_h.dig("publication", "published") == true
+      end
+
+      def trusted_repository_import?(landing_page, metadata)
+        return false unless metadata["repository_import"] == true
+
+        saved_repository = GithubRepositoryIdentity.normalize(landing_page.landing_page_repository_url)
+        run_repository = GithubRepositoryIdentity.normalize(metadata["lovable_result_repository"])
+        saved_branch = landing_page.landing_page_branch
+        run_branch = metadata["lovable_result_branch"].presence || "main"
+        saved_repository.present? &&
+          saved_repository == run_repository &&
+          saved_branch == run_branch
       end
 
       def publish!(run, landing_page, source_commit_sha)
@@ -173,6 +199,7 @@ module Aicoo
           "lovable_last_synced_commit_sha" => source_commit_sha,
           "github_commit_sha" => result.commit_sha,
           "cloudflare_url" => result.cloudflare_url,
+          "preview_url" => result.cloudflare_url,
           "lovable_completed_at" => run.metadata.to_h["lovable_completed_at"] || Time.current.iso8601
         ))
         Result.new(

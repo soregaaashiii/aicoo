@@ -202,7 +202,15 @@
       </div>
     <% elsif @current_version %>
       <div class="aicoo-empty-state">
-        <p><%= @current_version.status == "failed" ? @current_version.error_message : "LovableがPreviewを生成中です。" %></p>
+        <p>
+          <% if @current_version.status == "failed" %>
+            <%= @current_version.error_message %>
+          <% elsif @current_version.metadata.to_h["repository_import"] == true %>
+            GitHubの最新CommitからPreviewを生成中です。
+          <% else %>
+            LovableがPreviewを生成中です。
+          <% end %>
+        </p>
       </div>
     <% else %>
       <div class="aicoo-empty-state">
@@ -219,6 +227,8 @@
         <tbody>
           <% @versions.each do |run| %>
             <% publication = run.metadata.to_h["publication"].to_h %>
+            <% source_commit_sha = run.metadata.to_h["source_commit_sha"].presence || run.metadata.to_h["github_webhook_commit_sha"].presence %>
+            <% source_commit_url = run.metadata.to_h["source_commit_url"].presence %>
             <% learning = @version_learning.fetch(run.id, {}) %>
             <tr>
               <td><strong><%= run.metadata.to_h["version_label"] %></strong><br><small><%= run.metadata.to_h["prompt_version"] || "##{run.id}" %></small><% if @learning_comparison.best&.run&.id == run.id %><br><span class="pill">Best</span><% elsif @learning_comparison.worst&.run&.id == run.id %><br><span class="pill">Worst</span><% end %></td>
@@ -227,7 +237,17 @@
               <td>CVR <%= learning["cvr"] ? number_to_percentage(learning["cvr"] * 100, precision: 1) : "-" %><br><small>CV <%= learning["conversions"] || "-" %> / CTA <%= learning["cta_clicks"] || "-" %> / ROI <%= learning["roi"] || "-" %></small></td>
               <td><%= run.metadata.to_h["preview_url"].present? ? link_to("開く", run.metadata.to_h["preview_url"], target: "_blank", rel: "noopener") : "-" %></td>
               <td><%= publication["status"].presence || "未依頼" %><br><small><%= publication["production_url"] %></small></td>
-              <td><%= publication["commit_sha"].presence || "-" %><br><small><%= publication["deploy_id"] %></small></td>
+              <td>
+                <% if source_commit_sha.present? %>
+                  <%= source_commit_url.present? ? link_to(source_commit_sha.first(12), source_commit_url, target: "_blank", rel: "noopener") : source_commit_sha.first(12) %>
+                  <br><small><%= run.metadata.to_h["source_commit_author"].presence || "-" %> / <%= run.metadata.to_h["source_commit_at"].presence || "-" %> / 変更 <%= run.metadata.to_h["source_changed_file_count"].presence || "-" %>件</small>
+                <% else %>
+                  -
+                <% end %>
+                <% if publication["commit_sha"].present? %>
+                  <br><small>aicoo-lp <%= publication["commit_sha"].first(12) %> / <%= publication["deploy_id"] %></small>
+                <% end %>
+              </td>
               <td>
                 <div class="compact-actions">
                   <%= link_to "比較", compare_business_lovable_landing_page_path(@business, landing_page_id: @landing_page_prototype&.id, after_id: run.id), class: "button secondary" %>

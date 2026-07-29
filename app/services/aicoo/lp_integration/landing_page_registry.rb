@@ -118,12 +118,23 @@ module Aicoo
         return unless run&.metadata.to_h&.dig("business_id").to_i == business.id
 
         project_url = landing_page.metadata.to_h["lovable_project_url"].presence
-        run.update!(metadata: run.metadata.to_h.merge(
+        run_metadata = run.metadata.to_h
+        source_changed = Aicoo::Lovable::GithubRepositoryIdentity.normalize(run_metadata["lovable_result_repository"]) !=
+          Aicoo::Lovable::GithubRepositoryIdentity.normalize(landing_page.landing_page_repository_url) ||
+          (run_metadata["lovable_result_branch"].presence || "main") != landing_page.landing_page_branch
+        preserve_version_source = source_changed && (
+          run_metadata["lovable_last_synced_commit_sha"].present? ||
+            run_metadata.dig("publication", "commit_sha").present?
+        )
+        settings = {
           "lovable_project_url" => project_url,
-          "lovable_project_id" => lovable_project_id(project_url),
-          "lovable_result_repository" => landing_page.landing_page_repository_url.presence,
-          "lovable_result_branch" => landing_page.landing_page_branch
-        ))
+          "lovable_project_id" => lovable_project_id(project_url)
+        }
+        unless preserve_version_source
+          settings["lovable_result_repository"] = landing_page.landing_page_repository_url.presence
+          settings["lovable_result_branch"] = landing_page.landing_page_branch
+        end
+        run.update!(metadata: run_metadata.merge(settings))
       end
 
       def lovable_project_id(value)

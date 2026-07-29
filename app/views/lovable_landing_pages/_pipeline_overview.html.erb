@@ -126,6 +126,12 @@
             <%= link_to "設定を開く",
                         business_lovable_landing_page_path(business, landing_page_id: landing_page.id, anchor: "lp-settings"),
                         class: "button" %>
+            <% if overview.retryable? && generation_run %>
+              <%= button_to "再試行",
+                            resume_result_version_business_lovable_landing_page_path(business, generation_run_id: generation_run.id, landing_page_id: landing_page.id),
+                            method: :post,
+                            class: "button secondary" %>
+            <% end %>
           <% end %>
         </div>
       </div>

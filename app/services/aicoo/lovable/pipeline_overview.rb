@@ -271,8 +271,10 @@ module Aicoo
       end
 
       def retryable?
-        error_code.to_s.in?(%w[artifact_fetch_failed result_import_failed]) &&
-          generation_run.present?
+        return false unless generation_run.present?
+
+        error_code.to_s.in?(%w[artifact_fetch_failed result_import_failed]) ||
+          (metadata["repository_import"] == true && error_code == "github_permission_error")
       end
 
       def settings_required?

@@ -10,12 +10,17 @@ class BusinessAccessSettingsController < ApplicationController
 
   def update_landing_page
     landing_page = Aicoo::BusinessAccessSettingsUpdater.new(@business).update_landing_page!(landing_page_params)
+    initial_sync = Aicoo::Lovable::RepositoryInitialSync.new.call(
+      business: @business,
+      landing_page:
+    )
     if params[:commit_action] == "create_task"
       result = Aicoo::LpIntegration::LandingPageTaskCreator.new(business: @business, landing_page:).call
       message = result.created ? "LP設定を保存し、LP取り込みタスクを作成しました。" : "LP設定を保存しました。同じ設定の未完了タスクがあります。"
       redirect_to_landing_page(landing_page, message)
     else
-      redirect_to_landing_page(landing_page, "LP設定を保存しました。")
+      message = initial_sync.enqueued ? "LP設定を保存し、GitHub最新版の自動取得を開始しました。" : "LP設定を保存しました。"
+      redirect_to_landing_page(landing_page, message)
     end
   rescue ActiveRecord::RecordInvalid, ArgumentError => e
     redirect_to_landing_page_id(

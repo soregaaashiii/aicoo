@@ -396,7 +396,93 @@ module Aicoo
         Result.new(landing_page:, generation_run: restored, mode: "restore", message: "v#{generation_run.metadata.to_h['version']}を新しいCurrent Versionとして復元しました。")
       end
 
+      def prepare_repository_import!(business:, landing_page_prototype:, source_commit_sha: nil)
+        landing_page_prototype.with_lock do
+          prepare_repository_import_without_lock!(
+            business:,
+            landing_page_prototype: landing_page_prototype.reload,
+            source_commit_sha:
+          )
+        end
+      end
+
       private
+
+      def prepare_repository_import_without_lock!(business:, landing_page_prototype:, source_commit_sha:)
+        unless landing_page_prototype.business_id == business.id && landing_page_prototype.external_landing_page?
+          raise ArgumentError, "このBusinessのLPではありません。"
+        end
+
+        repository_url = landing_page_prototype.landing_page_repository_url.presence
+        raise ArgumentError, "GitHub Repositoryを登録してください。" if repository_url.blank?
+
+        branch = landing_page_prototype.landing_page_branch
+        landing_page = ensure_landing_page_for_prototype!(
+          business,
+          landing_page_prototype,
+          repository_import_strategy(business, landing_page_prototype)
+        )
+        repository = VersionRepository.new(
+          business:,
+          landing_page:,
+          landing_page_prototype:
+        )
+        existing = repository_import_run(
+          repository:,
+          repository_url:,
+          branch:,
+          source_commit_sha:
+        )
+        if existing
+          return Result.new(
+            landing_page:,
+            generation_run: existing,
+            mode: "existing",
+            message: "GitHub Repositoryの同期は開始済みです。"
+          )
+        end
+
+        now = Time.current
+        run = create_run!(
+          business:,
+          landing_page:,
+          version: repository.next_version,
+          request_type: "repository_import",
+          prompt: nil,
+          extra_metadata: {
+            "landing_page_prototype_id" => landing_page_prototype.id,
+            "campaign_id" => landing_page_prototype.business_campaign_id,
+            "pipeline_status" => source_commit_sha.present? ? "github_webhook_received" : "artifact_fetching",
+            "lovable_status" => source_commit_sha.present? ? "webhook_received" : "repository_sync_waiting",
+            "repository_import" => true,
+            "repository_import_source" => source_commit_sha.present? ? "github_webhook" : "repository_registration",
+            "source_commit_sha" => source_commit_sha.presence,
+            "github_webhook_commit_sha" => source_commit_sha.presence,
+            "created_by" => "system"
+          }.merge(external_integration_metadata(landing_page_prototype))
+        )
+        run.update!(
+          status: "succeeded",
+          finished_at: now,
+          metadata: run.metadata.to_h.merge(
+            "repository_sync_started_at" => now.iso8601
+          )
+        )
+        landing_page_prototype.update!(
+          metadata: landing_page_prototype.metadata.to_h.merge(
+            "lovable_generation_run_id" => run.id,
+            "planning_status" => run.metadata.to_h["pipeline_status"],
+            "sync_status" => "syncing",
+            "repository_sync_started_at" => now.iso8601
+          )
+        )
+        Result.new(
+          landing_page:,
+          generation_run: run,
+          mode: "created",
+          message: "GitHub Repositoryの最新版取得を開始しました。"
+        )
+      end
 
       attr_reader :client, :configuration, :launch_service
 
@@ -487,6 +573,41 @@ module Aicoo
         )
         prototype.update!(metadata: prototype.metadata.to_h.merge("lovable_landing_page_id" => landing_page.id))
         landing_page
+      end
+
+      def repository_import_strategy(business, prototype)
+        {
+          "reason" => "登録済みGitHub Repositoryの最新版をAICOOへ取り込む",
+          "headline" => prototype.landing_page_name,
+          "subheadline" => business.description.to_s,
+          "structure" => [],
+          "cta" => prototype.metadata.to_h["cta"].to_s,
+          "seo_title" => prototype.landing_page_name,
+          "meta_description" => business.description.to_s,
+          "expected_profit_yen" => 0,
+          "confidence" => 0,
+          "estimated_work_hours" => 0
+        }
+      end
+
+      def repository_import_run(repository:, repository_url:, branch:, source_commit_sha:)
+        normalized_repository = GithubRepositoryIdentity.normalize(repository_url)
+        repository.all.find do |run|
+          metadata = run.metadata.to_h
+          next false unless GithubRepositoryIdentity.normalize(metadata["lovable_result_repository"]) == normalized_repository
+          next false unless (metadata["lovable_result_branch"].presence || "main") == branch
+
+          if source_commit_sha.present?
+            metadata.values_at(
+              "source_commit_sha",
+              "github_webhook_commit_sha",
+              "lovable_last_synced_commit_sha"
+            ).compact.include?(source_commit_sha)
+          else
+            metadata["repository_import"] == true ||
+              metadata["lovable_last_synced_commit_sha"].present?
+          end
+        end
       end
 
       def external_integration_metadata(prototype)

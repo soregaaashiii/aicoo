@@ -150,6 +150,51 @@ module Aicoo
         assert_includes flow.generation_run.metadata.to_h["static_build_log"], "Static build succeeded"
       end
 
+      test "imports a registered repository without an approval task and stores preview commit details" do
+        @business.update!(metadata: @business.metadata.to_h.merge("lp_ga4_measurement_id" => "G-ABC123"))
+        @business.business_services.create!(
+          name: "AI受付 Service",
+          status: "production",
+          url: "https://service.example.com"
+        )
+        prototype = LandingPageRegistry.new(business: @business).save!(
+          campaign_id: @campaign.id,
+          name: "既存GitHub LP",
+          source_type: "github",
+          repository_url: "https://github.com/example/existing-lp",
+          branch: "main",
+          ga4_page_path: "/existing-lp",
+          public_status: "testing"
+        )
+        prepared = Aicoo::Lovable::LandingPagePipeline.new.prepare_repository_import!(
+          business: @business,
+          landing_page_prototype: prototype
+        )
+        publisher = FakePublisher.new
+        importer = Aicoo::Lovable::ResultRepositoryImporter.new(
+          source_client_class: fake_source_client_class,
+          publisher:,
+          configuration: Aicoo::CloudflarePages::Configuration.new(
+            env: {
+              "AICOO_GITHUB_TOKEN" => "token",
+              "CLOUDFLARE_PAGES_PRODUCTION_URL" => "https://aicoo-lp.pages.dev"
+            }
+          )
+        )
+
+        result = importer.call(generation_run: prepared.generation_run)
+
+        assert_equal false, result.idempotent
+        metadata = prepared.generation_run.reload.metadata
+        assert_equal "lovable-source-sha", metadata["source_commit_sha"]
+        assert_equal "https://github.com/example/lovable-result/commit/lovable-source-sha", metadata["source_commit_url"]
+        assert_equal "lovable-bot", metadata["source_commit_author"]
+        assert_equal 2, metadata["source_changed_file_count"]
+        assert_equal "https://aicoo-lp.pages.dev/ai-reception/", metadata["preview_url"]
+        assert_equal "cloudflare_waiting", metadata["pipeline_status"]
+        assert_nil metadata["auto_revision_task_id"]
+      end
+
       private
 
       def fake_strategy_builder
@@ -193,6 +238,10 @@ module Aicoo
           def snapshot!(commit_sha: nil)
             Aicoo::CloudflarePages::GithubRepositoryClient::RepositorySnapshot.new(
               commit_sha: commit_sha || "lovable-source-sha",
+              commit_url: "https://github.com/example/lovable-result/commit/#{commit_sha || 'lovable-source-sha'}",
+              committed_at: "2026-07-29T01:02:03Z",
+              author: "lovable-bot",
+              changed_paths: %w[index.html styles.css],
               files: {
                 "index.html" => <<~HTML,
                   <!doctype html>

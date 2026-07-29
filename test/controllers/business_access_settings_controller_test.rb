@@ -194,6 +194,43 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "updated", generation_run.metadata["lovable_project_id"]
   end
 
+  test "saving a github repository creates the first version and starts import automatically" do
+    campaign = @business.business_campaigns.create!(name: "SEO", campaign_type: "seo", status: "active")
+    landing_page = Aicoo::LpIntegration::LandingPageRegistry.new(business: @business).save!(
+      campaign_id: campaign.id,
+      name: "自動同期LP",
+      source_type: "manual",
+      ga4_page_path: "/auto-sync",
+      public_status: "testing"
+    )
+
+    assert_difference("AicooLabGenerationRun.count", 1) do
+      assert_enqueued_jobs 1, only: Aicoo::LovableResultImportJob do
+        patch landing_page_business_access_settings_url(@business), params: {
+          lp_access: {
+            landing_page_id: landing_page.id,
+            name: "自動同期LP",
+            repository_url: "https://github.com/example/auto-sync-lp",
+            branch: "main"
+          }
+        }
+      end
+    end
+
+    assert_redirected_to business_lovable_landing_page_url(
+      @business,
+      landing_page_id: landing_page.id,
+      anchor: "lp-settings"
+    )
+    follow_redirect!
+    assert_response :success
+    assert_select "#lovable-versions tbody tr", minimum: 1
+    assert_select "#lovable-versions", text: /v1/
+    assert_select "#lovable-versions", text: /repository_import/
+    assert_select "#lovable-versions", text: /Versionはまだありません。/, count: 0
+    assert_select "body", text: /GitHub最新版の自動取得を開始しました/
+  end
+
   test "landing page creation asks only for purpose and does not ask for campaign" do
     get business_url(@business)
 

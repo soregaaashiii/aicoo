@@ -7,14 +7,20 @@ module Aicoo
         lovable_generation_waiting
         lovable_result_waiting
         github_webhook_waiting
+        artifact_fetching
         waiting_manual_fix
         github_commit_waiting
       ].freeze
       MAX_RECEIPTS = 20
 
-      def initialize(configuration: GithubWebhookConfiguration.new, job_class: Aicoo::LovableResultImportJob)
+      def initialize(
+        configuration: GithubWebhookConfiguration.new,
+        job_class: Aicoo::LovableResultImportJob,
+        pipeline: LandingPagePipeline.new
+      )
         @configuration = configuration
         @job_class = job_class
+        @pipeline = pipeline
       end
 
       def call(event:, delivery_id:, payload:, payload_size: nil)
@@ -43,7 +49,7 @@ module Aicoo
         end
 
         key = [ repository, branch, commit_sha ].join(":")
-        duplicate_run, duplicate_landing_page = duplicate_target(repository, branch, key)
+        duplicate_run, duplicate_landing_page = duplicate_target(repository, branch, commit_sha, key)
         if duplicate_run
           configuration.record!(status: "duplicate", attributes:)
           return Result.new(
@@ -55,7 +61,7 @@ module Aicoo
           )
         end
 
-        generation_run, landing_page, reason = target_for(repository, branch)
+        generation_run, landing_page, reason = target_for(repository, branch, commit_sha)
         return failed(reason, attributes) unless generation_run && landing_page
 
         attributes["processing_duration_ms"] = elapsed_ms(started_at)
@@ -81,7 +87,7 @@ module Aicoo
 
       private
 
-      attr_reader :configuration, :job_class
+      attr_reader :configuration, :job_class, :pipeline
 
       def record_non_push(event, delivery_id)
         status = event.to_s == "ping" ? "ping" : "ignored"
@@ -105,35 +111,40 @@ module Aicoo
         value.delete_prefix("refs/heads/")
       end
 
-      def target_for(repository, branch)
-        repository_runs = candidate_runs.select do |run|
-          GithubRepositoryIdentity.normalize(repository_for(run)) == repository
+      def target_for(repository, branch, commit_sha)
+        repository_pages = candidate_prototypes.values.select do |landing_page|
+          GithubRepositoryIdentity.normalize(landing_page.landing_page_repository_url) == repository
         end
-        return [ nil, nil, "repository_mismatch" ] if repository_runs.empty?
+        return [ nil, nil, "repository_mismatch" ] if repository_pages.empty?
 
-        branch_runs = repository_runs.select do |run|
-          branch_for(run) == branch
+        branch_pages = repository_pages.select do |landing_page|
+          landing_page.landing_page_branch == branch
         end
-        return [ nil, nil, "branch_mismatch" ] if branch_runs.empty?
+        return [ nil, nil, "branch_mismatch" ] if branch_pages.empty?
+        return [ nil, nil, "target_landing_page_ambiguous" ] if branch_pages.size > 1
 
-        active_runs = branch_runs.select { |run| active_run?(run) }
-        return [ nil, nil, "active_landing_page_not_found" ] if active_runs.empty?
-
-        valid_runs = active_runs.select do |run|
-          prototype = prototype_for(run)
-          prototype && prototype.business_id == run.metadata.to_h["business_id"].to_i
+        landing_page = branch_pages.first
+        reusable_runs = candidate_runs.select do |run|
+          prototype_for(run)&.id == landing_page.id &&
+            active_run?(run) &&
+            reusable_for_commit?(run, commit_sha)
         end
-        return [ nil, nil, "target_landing_page_not_found" ] if valid_runs.empty?
-
-        current_runs = valid_runs.select do |run|
-          prototype_for(run).metadata.to_h["lovable_generation_run_id"].to_i == run.id
+        current_runs = reusable_runs.select do |run|
+          landing_page.metadata.to_h["lovable_generation_run_id"].to_i == run.id
         end
-        eligible_runs = current_runs.presence || valid_runs
-        target_ids = eligible_runs.map { |run| run.metadata.to_h["landing_page_prototype_id"].to_i }.uniq
-        return [ nil, nil, "target_landing_page_ambiguous" ] if target_ids.size > 1
-
-        run = eligible_runs.max_by(&:created_at)
-        [ run, prototype_for(run), nil ]
+        run = (current_runs.presence || reusable_runs).max_by(&:created_at)
+        unless run
+          prepared = pipeline.prepare_repository_import!(
+            business: landing_page.business,
+            landing_page_prototype: landing_page,
+            source_commit_sha: commit_sha
+          )
+          run = prepared.generation_run
+        end
+        [ run, landing_page, nil ]
+      rescue ActiveRecord::RecordInvalid, ArgumentError => e
+        Rails.logger.error("[GithubPushReceiver] repository=#{repository} branch=#{branch} #{e.class}: #{e.message}")
+        [ nil, nil, "target_landing_page_not_found" ]
       end
 
       def candidate_runs
@@ -145,12 +156,15 @@ module Aicoo
           .to_a
       end
 
-      def duplicate_target(repository, branch, key)
+      def duplicate_target(repository, branch, commit_sha, key)
         run = candidate_runs.find do |candidate|
           metadata = candidate.metadata.to_h
           GithubRepositoryIdentity.normalize(repository_for(candidate)) == repository &&
             branch_for(candidate) == branch &&
-            Array(metadata["github_webhook_receipts"]).any? { |receipt| receipt.to_h["key"] == key }
+            (
+              Array(metadata["github_webhook_receipts"]).any? { |receipt| receipt.to_h["key"] == key } ||
+                metadata["lovable_last_synced_commit_sha"] == commit_sha
+            )
         end
         return [ nil, nil ] unless run
 
@@ -158,10 +172,7 @@ module Aicoo
       end
 
       def candidate_prototypes
-        @candidate_prototypes ||= begin
-          ids = candidate_runs.filter_map { |run| run.metadata.to_h["landing_page_prototype_id"].presence&.to_i }
-          BusinessPrototype.active.external_landing_pages.where(id: ids).index_by(&:id)
-        end
+        @candidate_prototypes ||= BusinessPrototype.active.external_landing_pages.includes(:business).index_by(&:id)
       end
 
       def prototype_for(run)
@@ -184,6 +195,15 @@ module Aicoo
         run.status != "failed" &&
           metadata.dig("publication", "published") != true &&
           metadata["pipeline_status"].in?(ACTIVE_PIPELINE_STATUSES)
+      end
+
+      def reusable_for_commit?(run, commit_sha)
+        current_commit = run.metadata.to_h.values_at(
+          "source_commit_sha",
+          "github_webhook_commit_sha",
+          "lovable_last_synced_commit_sha"
+        ).compact.first
+        current_commit.blank? || current_commit == commit_sha
       end
 
       def reserve!(run, landing_page, key, attributes)
