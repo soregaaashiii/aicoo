@@ -25,10 +25,12 @@ module Webhooks
         return render json: { ok: false, error: "signature_mismatch" }, status: :unauthorized
       end
 
+      payload = JSON.parse(body)
       result = Aicoo::Lovable::GithubPushReceiver.new(configuration:).call(
         event: request.headers["X-GitHub-Event"],
         delivery_id: request.headers["X-GitHub-Delivery"],
-        payload: JSON.parse(body)
+        payload:,
+        payload_size: body.bytesize
       )
       render json: {
         ok: true,

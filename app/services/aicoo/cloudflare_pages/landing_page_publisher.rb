@@ -23,6 +23,7 @@ module Aicoo
         files = bundle.files.to_h do |relative_path, content|
           [ "#{github_path.delete_suffix('/')}/#{relative_path}", content ]
         end
+        push_started_at = Time.current
         result = client.commit!(
           files:,
           message: commit_message.presence || commit_message_for(generation_run)
@@ -30,6 +31,7 @@ module Aicoo
         page_path = page_path_for(landing_page, github_path)
         cloudflare_url = cloudflare_url_for(page_path)
         now = Time.current
+        push_duration_ms = ((now - push_started_at) * 1_000).round
         metadata = landing_page.metadata.to_h.merge(
           "lp_publication_repository_url" => configuration.repository_url,
           "lp_publication_branch" => configuration.branch,
@@ -37,6 +39,9 @@ module Aicoo
           "github_commit_sha" => result.commit_sha,
           "github_commit_url" => result.commit_url,
           "last_push_at" => now.iso8601,
+          "last_push_duration_ms" => push_duration_ms,
+          "last_push_file_count" => result.changed_paths.size,
+          "last_push_changed_paths" => result.changed_paths.first(200),
           "ga4_page_path" => page_path,
           "lp_url" => cloudflare_url,
           "gsc_url" => cloudflare_url,
@@ -50,7 +55,16 @@ module Aicoo
           "asset_source" => bundle.source
         )
         landing_page.update!(metadata:)
-        stamp_generation_run!(generation_run, landing_page, result, cloudflare_url, bundle.source)
+        stamp_generation_run!(
+          generation_run,
+          landing_page,
+          result,
+          cloudflare_url,
+          bundle.source,
+          push_started_at:,
+          pushed_at: now,
+          push_duration_ms:
+        )
         enqueue_verification(landing_page, result.commit_sha)
         Result.new(
           landing_page:,
@@ -181,7 +195,16 @@ module Aicoo
         end
       end
 
-      def stamp_generation_run!(generation_run, landing_page, result, cloudflare_url, asset_source)
+      def stamp_generation_run!(
+        generation_run,
+        landing_page,
+        result,
+        cloudflare_url,
+        asset_source,
+        push_started_at:,
+        pushed_at:,
+        push_duration_ms:
+      )
         return unless generation_run
 
         publication = generation_run.metadata.to_h.fetch("publication", {}).merge(
@@ -195,7 +218,11 @@ module Aicoo
           "commit_url" => result.commit_url,
           "production_url" => cloudflare_url,
           "asset_source" => asset_source,
-          "pushed_at" => Time.current.iso8601
+          "push_started_at" => push_started_at.iso8601,
+          "pushed_at" => pushed_at.iso8601,
+          "push_duration_ms" => push_duration_ms,
+          "changed_file_count" => result.changed_paths.size,
+          "changed_paths" => result.changed_paths.first(200)
         )
         generation_run.update!(metadata: generation_run.metadata.to_h.merge("publication" => publication))
       end

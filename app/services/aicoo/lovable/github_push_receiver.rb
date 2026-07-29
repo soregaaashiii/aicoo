@@ -17,7 +17,8 @@ module Aicoo
         @job_class = job_class
       end
 
-      def call(event:, delivery_id:, payload:)
+      def call(event:, delivery_id:, payload:, payload_size: nil)
+        started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
         job_enqueued = false
         values = payload.to_h.deep_stringify_keys
         return record_non_push(event, delivery_id) unless event.to_s == "push"
@@ -25,7 +26,14 @@ module Aicoo
         repository = repository_identity(values)
         branch = branch_name(values["ref"])
         commit_sha = values["after"].to_s
-        attributes = diagnostic_attributes(delivery_id:, repository:, branch:, commit_sha:)
+        attributes = diagnostic_attributes(
+          delivery_id:,
+          repository:,
+          branch:,
+          commit_sha:,
+          payload_size:,
+          payload: values
+        )
         return ignored("branch_deleted", attributes) if values["deleted"] == true || commit_sha.match?(/\A0+\z/)
         return failed("repository_missing", attributes) if repository.blank?
         return failed("branch_missing", attributes) if branch.blank?
@@ -50,13 +58,14 @@ module Aicoo
         generation_run, landing_page, reason = target_for(repository, branch)
         return failed(reason, attributes) unless generation_run && landing_page
 
+        attributes["processing_duration_ms"] = elapsed_ms(started_at)
         duplicate = reserve!(generation_run, landing_page, key, attributes)
         if duplicate
           configuration.record!(status: "duplicate", attributes:)
           return Result.new(status: "duplicate", generation_run_id: generation_run.id, landing_page_id: landing_page.id, duplicate: true, reason: "duplicate_push")
         end
 
-        job_class.perform_later(generation_run.id, commit_sha, key)
+        enqueue_import!(generation_run, commit_sha, key)
         job_enqueued = true
         configuration.record!(status: "accepted", attributes: attributes.merge("generation_run_id" => generation_run.id, "landing_page_id" => landing_page.id))
         Result.new(status: "accepted", generation_run_id: generation_run.id, landing_page_id: landing_page.id, duplicate: false, reason: nil)
@@ -234,14 +243,29 @@ module Aicoo
         Result.new(status: "failed", generation_run_id: nil, landing_page_id: nil, duplicate: false, reason:)
       end
 
-      def diagnostic_attributes(delivery_id:, repository:, branch:, commit_sha:)
+      def diagnostic_attributes(delivery_id:, repository:, branch:, commit_sha:, payload_size:, payload:)
+        changed_paths = changed_paths_for(payload)
         {
           "event" => "push",
           "delivery_id" => delivery_id,
           "repository" => repository,
           "branch" => branch,
-          "commit_sha" => commit_sha
+          "commit_sha" => commit_sha,
+          "signature_status" => "verified",
+          "payload_size_bytes" => payload_size,
+          "changed_file_count" => changed_paths.size,
+          "changed_paths" => changed_paths.first(200)
         }.compact
+      end
+
+      def changed_paths_for(payload)
+        Array(payload["commits"]).flat_map do |commit|
+          commit.to_h.values_at("added", "modified", "removed").flatten
+        end.compact.map(&:to_s).reject(&:blank?).uniq
+      end
+
+      def elapsed_ms(started_at)
+        ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at) * 1_000).round
       end
 
       def mark_enqueue_failure(run, key, error)
@@ -256,10 +280,34 @@ module Aicoo
             "lovable_error_code" => "webhook_enqueue_failed",
             "lovable_error_message" => error.message,
             "lovable_last_error_at" => Time.current.iso8601,
+            "pipeline_recovery_status" => "exhausted",
+            "pipeline_retry_count" => 2,
+            "pipeline_retry_limit" => 2,
+            "pipeline_next_retry_at" => nil,
             "github_webhook_processing_key" => nil,
             "github_webhook_receipts" => receipts
           )
         )
+      end
+
+      def enqueue_import!(run, commit_sha, key)
+        job_class.perform_later(run.id, commit_sha, key)
+      rescue StandardError => first_error
+        now = Time.current
+        run.update!(
+          error_message: first_error.message,
+          metadata: run.metadata.to_h.merge(
+            "github_webhook_status" => "retrying",
+            "lovable_error_code" => "webhook_enqueue_failed",
+            "lovable_error_message" => first_error.message,
+            "pipeline_recovery_status" => "retrying",
+            "pipeline_retry_count" => 1,
+            "pipeline_retry_limit" => 2,
+            "pipeline_last_retry_at" => now.iso8601,
+            "pipeline_next_retry_at" => (now + 30.seconds).iso8601
+          )
+        )
+        job_class.set(wait: 30.seconds).perform_later(run.id, commit_sha, key)
       end
     end
   end

@@ -249,10 +249,23 @@ class LovableLandingPagesController < ApplicationController
     @lovable_task = @pipeline_version&.metadata.to_h&.dig("auto_revision_task_id")&.then do |id|
       @business.auto_revision_tasks.find_by(id:)
     end
+    @pipeline_analytics_site = AicooAnalyticsSite.where(business: @business).recent.first
+    @pipeline_learning_snapshot = if @landing_page_prototype
+      AicooDataSnapshot
+        .where(source_type: "landing_page_analytics", source_id: @landing_page_prototype.id)
+        .recent
+        .first
+    end
     @pipeline_overview = Aicoo::Lovable::PipelineOverview.new(
       generation_run: @pipeline_version,
       landing_page: @landing_page_prototype,
-      task: @lovable_task
+      task: @lovable_task,
+      business: @business,
+      analytics_site: @pipeline_analytics_site,
+      learning_snapshot: @pipeline_learning_snapshot,
+      webhook_diagnostics: Aicoo::Lovable::GithubWebhookConfiguration.new.diagnostics,
+      cloudflare_configuration: Aicoo::CloudflarePages::Configuration.new,
+      webhook_url: github_webhook_url
     )
   end
 

@@ -4,6 +4,13 @@
          data-lovable-pipeline-live
          data-refresh-enabled="<%= overview.refresh? %>"
          data-refresh-url="<%= pipeline_status_business_lovable_landing_page_path(business, landing_page_id: landing_page&.id) %>">
+  <div class="section-heading">
+    <div>
+      <h2>Pipeline Explorer</h2>
+      <p>工程を開くと、AIの実行内容と停止理由を確認できます。</p>
+    </div>
+  </div>
+
   <div class="lovable-current-location status-<%= overview.failed? ? "failed" : (overview.completed? ? "completed" : "active") %>">
     <div class="lovable-current-position">
       <span>現在</span>
@@ -33,18 +40,49 @@
           <span class="lovable-pipeline-marker" aria-hidden="true">
             <%= stage.status == "completed" ? "✓" : stage.number %>
           </span>
-          <div>
-            <strong><%= stage.label %></strong>
-            <small>
-              <%= overview.stage_status_label(stage) %>
-              <% if stage.timestamp %>
-                / <time datetime="<%= stage.timestamp.iso8601 %>"><%= l(stage.timestamp, format: :short) %></time>
+          <details class="lovable-pipeline-explorer-stage"
+                   data-pipeline-explorer-stage="<%= stage.key %>"
+                   <%= "open" if stage.status.in?(%w[current failed recovering]) %>>
+            <summary>
+              <span>
+                <strong><%= stage.label %></strong>
+                <small>
+                  <%= overview.stage_status_label(stage) %>
+                  <% if stage.timestamp %>
+                    / <time datetime="<%= stage.timestamp.iso8601 %>"><%= l(stage.timestamp, format: :short) %></time>
+                  <% end %>
+                </small>
+                <% if stage.detail.present? %>
+                  <span class="lovable-pipeline-detail"><%= stage.detail %></span>
+                <% end %>
+              </span>
+            </summary>
+
+            <dl class="lovable-pipeline-diagnostics">
+              <% stage.diagnostics.each do |diagnostic| %>
+                <div>
+                  <dt><%= diagnostic.label %></dt>
+                  <dd>
+                    <% if diagnostic.value.blank? %>
+                      <span class="muted">未記録</span>
+                    <% elsif diagnostic.value.is_a?(Array) %>
+                      <ul>
+                        <% diagnostic.value.each do |value| %><li><%= value %></li><% end %>
+                      </ul>
+                    <% elsif diagnostic.value.is_a?(Hash) %>
+                      <%= diagnostic.value.to_json %>
+                    <% elsif diagnostic.value.respond_to?(:in_time_zone) %>
+                      <time datetime="<%= diagnostic.value.in_time_zone.iso8601 %>"><%= l(diagnostic.value.in_time_zone, format: :short) %></time>
+                    <% elsif diagnostic.url.present? %>
+                      <%= link_to diagnostic.value, diagnostic.url, target: "_blank", rel: "noopener" %>
+                    <% else %>
+                      <%= diagnostic.value %>
+                    <% end %>
+                  </dd>
+                </div>
               <% end %>
-            </small>
-            <% if stage.detail.present? %>
-              <span class="lovable-pipeline-detail"><%= stage.detail %></span>
-            <% end %>
-          </div>
+            </dl>
+          </details>
         </li>
       <% end %>
     </ol>

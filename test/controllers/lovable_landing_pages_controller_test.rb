@@ -14,7 +14,7 @@ class LovableLandingPagesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "1 / 13"
     assert_includes response.body, "LP作成"
     assert_includes response.body, "承認"
-    assert_includes response.body, "Generate"
+    assert_includes response.body, "Lovable"
     assert_includes response.body, "GitHub Push"
     assert_includes response.body, "Webhook"
     assert_includes response.body, "成果物取得"
@@ -25,6 +25,13 @@ class LovableLandingPagesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "GA4"
     assert_includes response.body, "GSC"
     assert_includes response.body, "Learning"
+    assert_includes response.body, "Pipeline Explorer"
+    assert_select "details[data-pipeline-explorer-stage]", 13
+    assert_select "details[data-pipeline-explorer-stage='github_source_push'] summary", text: /GitHub Push/
+    assert_select "details[data-pipeline-explorer-stage='webhook']", text: /Webhook URL/
+    assert_select "details[data-pipeline-explorer-stage='cloudflare']", text: /Cloudflare Project/
+    assert_select "details[data-pipeline-explorer-stage='ga4']", text: /Business共通設定/
+    assert_select "details[data-pipeline-explorer-stage='learning']", text: /Snapshot/
     assert_includes response.body, "次にやること"
     assert_includes response.body, "BusinessのLP一覧へ"
     assert_includes response.body, "5000"
@@ -32,6 +39,8 @@ class LovableLandingPagesControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, ">Promptを見る<"
     assert_not_includes response.body, ">Lovableで編集<"
     assert_not_includes response.body, "lovable-phase-strip"
+    assert_includes response.body, "openStages"
+    assert_includes response.body, "data-pipeline-explorer-stage"
   end
 
   test "creates an official Build URL version regardless of MCP configuration" do
@@ -212,6 +221,9 @@ class LovableLandingPagesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "6 / 13"
     assert_includes response.body, "成果物取得"
     assert_includes response.body, "現在AIが処理中です。操作は不要です。"
+    assert_select "details[data-pipeline-explorer-stage]", 13
+    assert_select "details[data-pipeline-explorer-stage='artifact_fetch'][open]", 1
+    assert_select "details[data-pipeline-explorer-stage='artifact_fetch']", text: /取得ファイル数/
     assert_not_includes response.body, "<html"
     assert_not_includes response.body, "LP Studio"
   end

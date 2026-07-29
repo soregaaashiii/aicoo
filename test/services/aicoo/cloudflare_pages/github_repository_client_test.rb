@@ -99,6 +99,7 @@ module Aicoo
 
         assert_equal "source-commit", snapshot.commit_sha
         assert_equal [ "dist/index.html" ], snapshot.files.keys
+        assert_equal [ ".env", "supabase/functions/index.ts" ], snapshot.excluded_paths
       end
 
       test "reads the webhook commit instead of a newer branch head" do

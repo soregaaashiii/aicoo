@@ -51,6 +51,8 @@ module Aicoo
         assert_equal "published", metadata["lp_public_status"]
         assert_equal "deployed", metadata["cloudflare_deploy_status"]
         assert_equal "deploy-1", metadata["cloudflare_deployment_id"]
+        assert_equal 200, metadata["cloudflare_http_status"]
+        assert_equal "HTTP 200確認完了", metadata["cloudflare_last_message"]
         assert metadata["last_published_at"].present?
       end
 

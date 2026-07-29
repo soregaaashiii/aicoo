@@ -281,17 +281,53 @@
   color: #fff;
 }
 
+.lovable-pipeline-step.status-recovering .lovable-pipeline-marker {
+  animation: lovable-pipeline-pulse 1.6s ease-in-out infinite;
+  background: #b46b16;
+  border-color: #b46b16;
+  color: #fff;
+}
+
 .lovable-pipeline-step.status-failed .lovable-pipeline-marker {
   background: var(--danger);
   border-color: var(--danger);
   color: #fff;
 }
 
-.lovable-pipeline-step > div {
+.lovable-pipeline-explorer-stage {
+  min-width: 0;
+  padding: 3px 0 12px;
+}
+
+.lovable-pipeline-explorer-stage > summary {
+  cursor: pointer;
+  list-style: none;
+  min-height: 42px;
+  padding-right: 22px;
+  position: relative;
+}
+
+.lovable-pipeline-explorer-stage > summary::-webkit-details-marker {
+  display: none;
+}
+
+.lovable-pipeline-explorer-stage > summary::after {
+  color: var(--muted);
+  content: "＋";
+  font-weight: 800;
+  position: absolute;
+  right: 2px;
+  top: 0;
+}
+
+.lovable-pipeline-explorer-stage[open] > summary::after {
+  content: "−";
+}
+
+.lovable-pipeline-explorer-stage > summary > span {
   display: grid;
   gap: 2px;
   min-width: 0;
-  padding: 3px 0 12px;
 }
 
 .lovable-pipeline-step small,
@@ -299,6 +335,40 @@
   color: var(--muted);
   font-size: 0.76rem;
   overflow-wrap: anywhere;
+}
+
+.lovable-pipeline-diagnostics {
+  background: #f7fafb;
+  border-left: 2px solid var(--border);
+  display: grid;
+  gap: 7px;
+  margin: 8px 0 8px;
+  padding: 10px 12px;
+}
+
+.lovable-pipeline-diagnostics > div {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(96px, 0.38fr) minmax(0, 1fr);
+}
+
+.lovable-pipeline-diagnostics dt,
+.lovable-pipeline-diagnostics dd {
+  font-size: 0.78rem;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.lovable-pipeline-diagnostics dt {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.lovable-pipeline-diagnostics ul {
+  margin: 0;
+  max-height: 150px;
+  overflow: auto;
+  padding-left: 18px;
 }
 
 .lovable-pipeline-guidance {
@@ -389,6 +459,10 @@
   }
 
   .lovable-current-location dl {
+    grid-template-columns: 1fr;
+  }
+
+  .lovable-pipeline-diagnostics > div {
     grid-template-columns: 1fr;
   }
 }

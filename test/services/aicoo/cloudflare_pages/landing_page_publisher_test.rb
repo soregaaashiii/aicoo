@@ -76,6 +76,9 @@ module Aicoo
         assert_equal "https://github.com/soregaaashiii/aicoo-lp", metadata["lp_publication_repository_url"]
         assert_equal "deploying", metadata["cloudflare_deploy_status"]
         assert_equal "abc123", metadata["github_commit_sha"]
+        assert_equal 3, metadata["last_push_file_count"]
+        assert_equal 3, metadata["last_push_changed_paths"].size
+        assert_operator metadata["last_push_duration_ms"], :>=, 0
         assert_equal "https://github.com/example/service", service_profile.reload.github_repository
       end
 

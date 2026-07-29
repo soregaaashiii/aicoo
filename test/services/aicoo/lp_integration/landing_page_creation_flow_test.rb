@@ -118,6 +118,11 @@ module Aicoo
         assert_equal "cloudflare_waiting", flow.generation_run.reload.metadata.to_h["pipeline_status"]
         assert_equal "succeeded", flow.generation_run.metadata.to_h["static_validation_status"]
         assert flow.generation_run.metadata.to_h["publication_files"].key?("index.html")
+        assert_equal 2, flow.generation_run.metadata.to_h["artifact_fetched_file_count"]
+        assert_equal 1, flow.generation_run.metadata.to_h.dig("artifact_file_counts", "html")
+        assert_equal 1, flow.generation_run.metadata.to_h.dig("artifact_file_counts", "css")
+        assert_equal 2, flow.generation_run.metadata.to_h["static_build_generated_file_count"]
+        assert_includes flow.generation_run.metadata.to_h["static_build_log"], "Static build succeeded"
       end
 
       private

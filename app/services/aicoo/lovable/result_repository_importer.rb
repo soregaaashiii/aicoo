@@ -25,6 +25,7 @@ module Aicoo
         landing_page = BusinessPrototype.find(metadata.fetch("landing_page_prototype_id"))
         business = landing_page.business
         validate!(generation_run, landing_page, metadata)
+        fetch_started_at = Time.current
         stamp!(generation_run, "artifact_fetching", "result_fetch_started_at")
         source_client = source_client_class.new(
           repository_url: metadata.fetch("lovable_result_repository"),
@@ -45,10 +46,15 @@ module Aicoo
           return publish!(generation_run, landing_page, snapshot.commit_sha)
         end
 
+        fetch_completed_at = Time.current
+        artifact_diagnostics = artifact_diagnostics_for(snapshot)
         stamp!(generation_run, "lovable_result_received", "lovable_result_received_at", {
-          "lovable_last_synced_commit_sha" => snapshot.commit_sha
-        })
+          "lovable_last_synced_commit_sha" => snapshot.commit_sha,
+          "artifact_fetch_completed_at" => fetch_completed_at.iso8601,
+          "artifact_fetch_duration_ms" => elapsed_ms(fetch_started_at, fetch_completed_at)
+        }.merge(artifact_diagnostics))
         page_path = page_path_for(landing_page)
+        build_started_at = Time.current
         stamp!(generation_run, "static_building", "static_build_started_at")
         build = builder_class.new(files: snapshot.files, page_path:).call
         validation = validator_class.new(
@@ -58,6 +64,7 @@ module Aicoo
           service_url: service_url_for(business),
           measurement_id: measurement_id_for(business)
         ).call
+        build_completed_at = Time.current
         serialized_files = serialize_files(validation.files)
         digest = Digest::SHA256.hexdigest(serialized_files.to_json)
         generation_run.update!(
@@ -69,11 +76,18 @@ module Aicoo
             "static_build_status" => "succeeded",
             "static_build_type" => build.build_type,
             "static_build_warnings" => build.warnings,
+            "static_build_output_directory" => build_output_directory(build.build_type),
+            "static_build_generated_file_count" => validation.files.size,
+            "static_build_generated_files" => validation.files.keys.sort.first(200),
+            "static_build_duration_ms" => elapsed_ms(build_started_at, build_completed_at),
+            "static_build_log" => build_log_for(build),
             "static_validation_status" => "succeeded",
             "static_validation_warnings" => validation.warnings,
             "publication_files" => serialized_files,
             "publication_files_sha256" => digest,
-            "static_validation_completed_at" => Time.current.iso8601,
+            "static_validation_completed_at" => build_completed_at.iso8601,
+            "pipeline_recovery_status" => nil,
+            "pipeline_next_retry_at" => nil,
             "lovable_error_code" => nil,
             "lovable_error_message" => nil
           )
@@ -93,6 +107,51 @@ module Aicoo
       private
 
       attr_reader :source_client_class, :builder_class, :validator_class, :publisher, :configuration
+
+      def artifact_diagnostics_for(snapshot)
+        paths = snapshot.files.keys
+        counts = paths.each_with_object(Hash.new(0)) do |path, values|
+          values[file_category(path)] += 1
+        end
+        {
+          "artifact_fetched_file_count" => paths.size,
+          "artifact_file_counts" => counts,
+          "artifact_excluded_file_count" => snapshot.excluded_paths.size,
+          "artifact_excluded_paths" => snapshot.excluded_paths.first(200),
+          "artifact_build_targets" => paths.select { |path| build_target_path?(path) }.sort.first(200)
+        }
+      end
+
+      def file_category(path)
+        extension = File.extname(path.to_s).downcase
+        return "html" if extension.in?(%w[.html .htm])
+        return "css" if extension == ".css"
+        return "javascript" if extension.in?(%w[.js .mjs .cjs .jsx .ts .tsx])
+        return "images" if extension.in?(%w[.png .jpg .jpeg .gif .webp .svg .avif .ico])
+
+        "other"
+      end
+
+      def build_target_path?(path)
+        File.basename(path.to_s).in?(%w[index.html package.json package-lock.json]) ||
+          path.to_s.start_with?("dist/")
+      end
+
+      def build_output_directory(build_type)
+        build_type == "static_files" ? "/" : "dist/"
+      end
+
+      def build_log_for(build)
+        [
+          "Build type: #{build.build_type}",
+          "Static build succeeded",
+          *Array(build.warnings)
+        ]
+      end
+
+      def elapsed_ms(started_at, finished_at)
+        ((finished_at - started_at) * 1_000).round
+      end
 
       def validate!(run, landing_page, metadata)
         raise ArgumentError, "Lovable LP生成Runではありません。" unless metadata["pipeline"] == "lovable"

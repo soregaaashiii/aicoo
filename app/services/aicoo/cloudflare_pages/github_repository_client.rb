@@ -8,7 +8,11 @@ module Aicoo
   module CloudflarePages
     class GithubRepositoryClient
       Result = Data.define(:commit_sha, :commit_url, :changed_paths)
-      RepositorySnapshot = Data.define(:commit_sha, :files)
+      RepositorySnapshot = Data.define(:commit_sha, :files, :excluded_paths) do
+        def initialize(commit_sha:, files:, excluded_paths: [])
+          super
+        end
+      end
       MAX_SOURCE_FILES = 500
       MAX_SOURCE_BYTES = 15.megabytes
       EXCLUDED_SOURCE_PATHS = %r{
@@ -82,7 +86,8 @@ module Aicoo
         tree = get("/git/trees/#{parent.dig('tree', 'sha')}?recursive=1")
         raise ArgumentError, "生成結果Repositoryのtreeが大きすぎてGitHub APIで省略されました。" if tree["truncated"] == true
 
-        entries = Array(tree["tree"]).select do |entry|
+        blob_entries = Array(tree["tree"]).select { |entry| entry["type"] == "blob" }
+        entries = blob_entries.select do |entry|
           entry["type"] == "blob" && source_path_allowed?(entry["path"])
         end
         raise ArgumentError, "生成結果Repositoryのファイル数が上限#{MAX_SOURCE_FILES}件を超えています。" if entries.size > MAX_SOURCE_FILES
@@ -98,7 +103,10 @@ module Aicoo
         if files.sum { |_path, content| content.bytesize } > MAX_SOURCE_BYTES
           raise ArgumentError, "生成結果Repositoryが安全な取得上限#{MAX_SOURCE_BYTES / 1.megabyte}MBを超えています。"
         end
-        RepositorySnapshot.new(commit_sha: resolved_commit_sha, files:)
+        excluded_paths = blob_entries.filter_map do |entry|
+          entry["path"] unless source_path_allowed?(entry["path"])
+        end
+        RepositorySnapshot.new(commit_sha: resolved_commit_sha, files:, excluded_paths:)
       end
 
       private

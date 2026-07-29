@@ -48,7 +48,14 @@ module Webhooks
         repository: {
           full_name: "example/lovable-result",
           html_url: "https://github.com/example/lovable-result"
-        }
+        },
+        commits: [
+          {
+            added: [ "index.html" ],
+            modified: [ "src/app.js" ],
+            removed: []
+          }
+        ]
       }
     end
 
@@ -64,6 +71,12 @@ module Webhooks
       assert_equal "github_webhook_received", @run.reload.metadata["pipeline_status"]
       assert_equal "abc123def456", @run.metadata["github_webhook_commit_sha"]
       assert_equal "github_webhook_received", @landing_page.reload.metadata["planning_status"]
+      receipt = @run.metadata.fetch("github_webhook_receipts").last
+      assert_equal "verified", receipt["signature_status"]
+      assert_operator receipt["payload_size_bytes"], :>, 0
+      assert_equal 2, receipt["changed_file_count"]
+      assert_equal %w[index.html src/app.js], receipt["changed_paths"]
+      assert_operator receipt["processing_duration_ms"], :>=, 0
     end
 
     test "uses the saved landing page repository when the generation run predates setup" do

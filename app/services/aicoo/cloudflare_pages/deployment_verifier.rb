@@ -27,7 +27,7 @@ module Aicoo
         verified = deleted ? response.code.to_i == 404 : response.is_a?(Net::HTTPSuccess)
         return pending(deleted ? "Cloudflare Pagesからの削除反映を待っています。" : "Cloudflare Pagesの公開URL反映を待っています。") unless verified
 
-        complete!(landing_page, deployment, url, deleted:)
+        complete!(landing_page, deployment, url, response:, deleted:)
       rescue StandardError => e
         pending("公開確認に失敗しました: #{e.message}")
       end
@@ -60,11 +60,15 @@ module Aicoo
         http_adapter.call(uri, request)
       end
 
-      def complete!(landing_page, deployment, url, deleted:)
+      def complete!(landing_page, deployment, url, response:, deleted:)
         now = Time.current
         metadata = landing_page.metadata.to_h.merge(
           "cloudflare_deploy_status" => deleted ? "deleted" : "deployed",
           "cloudflare_deployment_id" => deployment&.dig("id"),
+          "cloudflare_http_status" => response.code.to_i,
+          "cloudflare_content_type" => response["content-type"].presence,
+          "cloudflare_last_checked_at" => now.iso8601,
+          "cloudflare_last_message" => deleted ? "削除確認完了" : "HTTP 200確認完了",
           "last_published_at" => now.iso8601,
           "last_sync_at" => now.iso8601,
           "sync_status" => "synced",
@@ -77,7 +81,7 @@ module Aicoo
         ).compact
         metadata["lp_public_status"] = "published" unless deleted
         landing_page.update!(metadata:)
-        stamp_generation_run!(landing_page, url, deployment) unless deleted
+        stamp_generation_run!(landing_page, url, deployment, response) unless deleted
         Result.new(
           completed: true,
           status: deleted ? "deleted" : "deployed",
@@ -87,7 +91,7 @@ module Aicoo
         )
       end
 
-      def stamp_generation_run!(landing_page, url, deployment)
+      def stamp_generation_run!(landing_page, url, deployment, response)
         run_id = landing_page.metadata.to_h["lovable_generation_run_id"]
         run = AicooLabGenerationRun.find_by(id: run_id)
         return unless run
@@ -97,6 +101,8 @@ module Aicoo
           "published" => true,
           "production_url" => url,
           "deploy_id" => deployment&.dig("id"),
+          "http_status" => response.code.to_i,
+          "content_type" => response["content-type"].presence,
           "published_at" => Time.current.iso8601,
           "last_synced_at" => Time.current.iso8601
         ).compact
@@ -104,8 +110,9 @@ module Aicoo
           "publication" => publication,
           "pipeline_status" => "measurement_waiting",
           "lovable_status" => "completed",
+          "cloudflare_retry_count" => landing_page.metadata.to_h["cloudflare_retry_count"],
           "measurement_started_at" => Time.current.iso8601
-        ))
+        ).compact)
       end
 
       def failed(deployment, status)

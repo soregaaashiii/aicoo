@@ -20,16 +20,36 @@ module Aicoo
         landing_page.update!(metadata: landing_page.metadata.to_h.merge(
           "cloudflare_deploy_status" => deploy_status,
           "cloudflare_deploy_error" => result.message,
-          "cloudflare_last_checked_at" => Time.current.iso8601
+          "cloudflare_last_checked_at" => Time.current.iso8601,
+          "cloudflare_last_message" => result.message,
+          "cloudflare_retry_count" => attempt.to_i
         ))
         stamp_generation_run_failure!(landing_page, deploy_status, result.message)
         return
       end
 
+      record_pending_recovery!(landing_page, attempt, result.message)
       self.class.set(wait: 30.seconds).perform_later(landing_page_id, commit_sha, deleted, attempt.to_i + 1)
     end
 
     private
+
+    def record_pending_recovery!(landing_page, attempt, message)
+      now = Time.current
+      landing_page.update!(metadata: landing_page.metadata.to_h.merge(
+        "cloudflare_last_checked_at" => now.iso8601,
+        "cloudflare_last_message" => message,
+        "cloudflare_retry_count" => attempt.to_i
+      ))
+      run = AicooLabGenerationRun.find_by(id: landing_page.metadata.to_h["lovable_generation_run_id"])
+      return unless run
+
+      run.update!(metadata: run.metadata.to_h.merge(
+        "cloudflare_retry_count" => attempt.to_i,
+        "cloudflare_last_checked_at" => now.iso8601,
+        "cloudflare_last_message" => message
+      ))
+    end
 
     def stamp_generation_run_failure!(landing_page, deploy_status, message)
       run = AicooLabGenerationRun.find_by(id: landing_page.metadata.to_h["lovable_generation_run_id"])

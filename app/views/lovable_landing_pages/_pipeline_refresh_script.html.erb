@@ -22,11 +22,24 @@
             return response.text();
           })
           .then(function (html) {
+            var openStages = Array.from(
+              currentPanel.querySelectorAll("details[data-pipeline-explorer-stage][open]")
+            ).map(function (details) {
+              return details.dataset.pipelineExplorerStage;
+            });
             var template = document.createElement("template");
             template.innerHTML = html.trim();
             var replacement = template.content.querySelector("[data-lovable-pipeline-live]");
             if (!replacement) return;
 
+            openStages.forEach(function (stage) {
+              var details = Array.from(
+                replacement.querySelectorAll("details[data-pipeline-explorer-stage]")
+              ).find(function (candidate) {
+                return candidate.dataset.pipelineExplorerStage === stage;
+              });
+              if (details) details.open = true;
+            });
             currentPanel.replaceWith(replacement);
             if (replacement.dataset.refreshEnabled !== "true") {
               window.clearInterval(window.__aicooLovablePipelineRefreshTimer);
