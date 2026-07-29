@@ -186,9 +186,7 @@ class BusinessAccessSettingsController < ApplicationController
 
   def landing_page_params
     params.expect(lp_access: %i[
-      landing_page_id campaign_id name source_type repository_url branch lovable_project_url url public_status
-      ga4_page_path cta current_conversion_rate improvement_target cloudflare_preview_url cloudflare_deploy_status
-      ab_test_name ab_variant ab_status ab_winner ab_win_rate
+      landing_page_id name repository_url branch lovable_project_url cta_destination_url
     ])
   end
 

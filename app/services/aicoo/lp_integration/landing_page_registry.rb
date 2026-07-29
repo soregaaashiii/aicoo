@@ -52,6 +52,25 @@ module Aicoo
         landing_page
       end
 
+      def update_owner_settings!(attributes)
+        values = attributes.to_h.deep_stringify_keys
+        landing_page = find!(values.fetch("landing_page_id"))
+        metadata = landing_page.metadata.to_h.merge(
+          "lp_name" => values["name"].presence || landing_page.landing_page_name,
+          "lp_repository_url" => values["repository_url"].presence,
+          "lp_branch" => values["branch"].presence || "main",
+          "lovable_project_url" => values["lovable_project_url"].presence,
+          "cta_destination_url" => values["cta_destination_url"].presence,
+          "updated_by" => "owner",
+          "updated_at" => Time.current.iso8601
+        ).compact
+        landing_page.update!(
+          name: metadata.fetch("lp_name"),
+          metadata:
+        )
+        landing_page
+      end
+
       def archive!(landing_page_id)
         landing_page = landing_pages.find(landing_page_id)
         landing_page.update!(

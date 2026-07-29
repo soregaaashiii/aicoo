@@ -3,6 +3,21 @@
 <% purpose_label = metadata["creation_purpose_label"].presence ||
   Aicoo::LpIntegration::LandingPageStrategyBuilder::PURPOSES[metadata["creation_purpose"].to_s] ||
   "その他" %>
+<% pipeline_stages = Array(metadata["pipeline_stages"]) %>
+<% if pipeline_stages.empty? %>
+  <% inferred_stage = metadata["pipeline_stage"].presence ||
+    (landing_page.cloudflare_published? ? "improvement_pending" : "prompt_pending") %>
+  <% pipeline_stages = Aicoo::LpIntegration::LandingPagePipelineState.build(
+    current: inferred_stage,
+    approval_required: false
+  ) %>
+<% end %>
+<% pipeline_status_labels = {
+  "completed" => "完了",
+  "waiting_approval" => "承認待ち",
+  "pending" => "待機",
+  "blocked" => "前工程待ち"
+} %>
 
 <details class="campaign-lp-row business-lp-row" id="external-lp-<%= landing_page.id %>">
   <summary>
@@ -16,25 +31,48 @@
     <span><%= landing_page.landing_page_sync_status_label %></span>
   </summary>
 
-  <dl class="business-access-values lp-analysis-values">
+  <h4>LP概要</h4>
+  <dl class="business-access-values lp-analysis-values lp-readonly-values">
     <dt>目的</dt><dd><%= purpose_label %></dd>
     <dt>公開URL</dt><dd><%= landing_page.landing_page_url.presence || "未設定" %></dd>
-    <dt>Cloudflare</dt><dd><%= metadata["cloudflare_deploy_status"].presence || "未デプロイ" %> / <%= landing_page.landing_page_cloudflare_url.presence || "公開URL未設定" %></dd>
+    <dt>Cloudflare URL</dt><dd><%= landing_page.landing_page_cloudflare_url.presence || "未設定" %></dd>
+    <dt>Cloudflare Status</dt><dd><%= metadata["cloudflare_deploy_status"].presence || "未デプロイ" %></dd>
+    <dt>Deploy Status</dt><dd><%= metadata["cloudflare_deploy_status"].presence || landing_page.landing_page_sync_status_label %></dd>
     <dt>GitHub</dt><dd><%= landing_page.landing_page_repository_url.presence || landing_page.landing_page_publication_repository_url.presence || cloudflare_configuration.repository_url %></dd>
     <dt>GitHub Path</dt><dd><%= landing_page.landing_page_github_path.presence || "未公開" %></dd>
+    <dt>Branch</dt><dd><%= landing_page.landing_page_branch %></dd>
+    <dt>Lovable</dt><dd><%= metadata["lovable_project_url"].presence || "未接続" %></dd>
+    <dt>CTAリンク先</dt><dd><%= metadata["cta_destination_url"].presence || "Service設定を使用" %></dd>
     <dt>状態</dt><dd><%= landing_page.landing_page_public_status_label %> / <%= landing_page.landing_page_sync_status_label %></dd>
     <dt>期待利益</dt><dd><%= number_to_currency(lp_row.fetch(:expected_profit_yen), unit: "¥", precision: 0) %></dd>
     <dt>CV率 / CTR</dt><dd><%= lp_row[:conversion_rate] ? number_to_percentage(lp_row[:conversion_rate] * 100, precision: 2) : "未計測" %> / <%= lp_row[:ctr] ? number_to_percentage(lp_row[:ctr] * 100, precision: 2) : "未計測" %></dd>
     <dt>順位</dt><dd><%= lp_row[:average_position] || "未計測" %></dd>
+    <dt>GA4 Page Path</dt><dd><%= landing_page.landing_page_ga4_path.presence || "自動設定待ち" %></dd>
+    <dt>改善対象</dt><dd><%= metadata["improvement_target"].presence || "Analyzer判定待ち" %></dd>
     <dt>改善</dt><dd><%= lp_row.fetch(:improvement_count) %>回 / 候補 <%= lp_row.fetch(:improvement_candidate_count) %>件</dd>
     <dt>Learning</dt><dd><%= lp_row.dig(:learning, "status").presence || "改善後データ待ち" %></dd>
     <dt>最終更新</dt><dd><%= l(landing_page.updated_at, format: :short) %></dd>
     <dt>公開日</dt><dd><%= landing_page.landing_page_last_published_at ? l(landing_page.landing_page_last_published_at, format: :short) : "未公開" %></dd>
-    <dt>Pipeline</dt><dd><%= metadata["planning_status"].presence || landing_page.landing_page_sync_status_label %></dd>
+    <dt>最終Push</dt><dd><%= landing_page.landing_page_last_push_at ? l(landing_page.landing_page_last_push_at, format: :short) : "未実施" %></dd>
+    <dt>最終Deploy</dt><dd><%= (lp_row[:last_deploy_at] || landing_page.landing_page_last_published_at) ? l(lp_row[:last_deploy_at] || landing_page.landing_page_last_published_at, format: :short) : "未実施" %></dd>
+    <dt>Pipeline</dt><dd><%= metadata["pipeline_stage"].presence || metadata["planning_status"].presence || landing_page.landing_page_sync_status_label %></dd>
     <dt>Commit SHA</dt><dd><%= metadata["github_commit_sha"].presence || "未作成" %></dd>
     <dt>Variant</dt><dd><%= lp_row.fetch(:variant_count) %>件 / <%= landing_page.landing_page_ab_test["variant"].presence || "未設定" %></dd>
-    <dt>Lovable</dt><dd><%= metadata["lovable_project_url"].presence || "未接続" %></dd>
+    <dt>Variant状態</dt><dd><%= landing_page.landing_page_ab_test["status"].presence || "未実施" %></dd>
+    <dt>A/B勝率</dt><dd><%= landing_page.landing_page_ab_test["win_rate"].present? ? number_to_percentage(landing_page.landing_page_ab_test["win_rate"].to_f * 100, precision: 1) : "未計測" %></dd>
   </dl>
+
+  <section class="lp-readonly-section">
+    <h4>Pipeline</h4>
+    <ol class="lp-pipeline-list lp-management-pipeline" aria-label="LP Pipeline">
+      <% pipeline_stages.each do |stage| %>
+        <li class="lp-pipeline-stage status-<%= stage["status"] %>">
+          <strong><%= stage["label"] %></strong>
+          <small><%= pipeline_status_labels.fetch(stage["status"], stage["status"]) %></small>
+        </li>
+      <% end %>
+    </ol>
+  </section>
 
   <div class="business-access-card-actions">
     <% if metadata["lovable_generation_run_id"].present? %>
@@ -43,31 +81,17 @@
                   class: "button" %>
     <% end %>
     <details class="business-access-editor">
-      <summary class="button secondary">編集</summary>
+      <summary class="button secondary">設定</summary>
       <%= render "external_landing_page_form", business:, landing_page: %>
     </details>
     <% if landing_page.landing_page_url.present? %>
       <%= link_to "開く", landing_page.landing_page_url, class: "button secondary", target: "_blank", rel: "noopener" %>
     <% end %>
-    <%= button_to "同期", landing_page_task_business_access_settings_path(business, landing_page_id: landing_page.id), method: :post, class: "button secondary" %>
-    <%= button_to "公開",
+    <%= button_to "公開する",
                   publish_landing_page_business_access_settings_path(business, landing_page_id: landing_page.id),
                   method: :post,
                   class: "button",
                   data: { turbo_confirm: "aicoo-lpへcommitし、Cloudflare Pagesへ公開しますか？" } %>
-    <% if metadata["github_commit_sha"].present? %>
-      <%= button_to "公開確認",
-                    verify_landing_page_business_access_settings_path(business, landing_page_id: landing_page.id),
-                    method: :post,
-                    class: "button secondary" %>
-    <% end %>
-    <% if landing_page.landing_page_public_status == "published" %>
-      <%= button_to "改善を開始", improve_landing_page_business_access_settings_path(business, landing_page_id: landing_page.id), method: :post, class: "button" %>
-      <%= button_to "停止", landing_page_status_business_access_settings_path(business, landing_page_id: landing_page.id), method: :patch, params: { public_status: "stopped" }, class: "button secondary" %>
-    <% else %>
-      <%= button_to "公開中にする", landing_page_status_business_access_settings_path(business, landing_page_id: landing_page.id), method: :patch, params: { public_status: "published" }, class: "button secondary" %>
-    <% end %>
-    <%= button_to "削除", remove_landing_page_business_access_settings_path(business, landing_page_id: landing_page.id), method: :delete, class: "button danger", data: { turbo_confirm: "#{landing_page.landing_page_name}を削除しますか？" } %>
   </div>
 
   <details class="lp-analyzer" id="lp-analyzer-<%= landing_page.id %>">
@@ -114,6 +138,16 @@
     <% end %>
   </details>
 
+  <details class="lp-learning-readonly">
+    <summary>Learning</summary>
+    <dl class="business-access-values lp-analysis-values">
+      <dt>状態</dt><dd><%= lp_row.dig(:learning, "status").presence || "改善後データ待ち" %></dd>
+      <dt>利益差</dt><dd><%= lp_row.dig(:learning, "profit_delta_yen").present? ? number_to_currency(lp_row.dig(:learning, "profit_delta_yen"), unit: "¥", precision: 0) : "未学習" %></dd>
+      <dt>改善成功率</dt><dd><%= lp_row[:improvement_success_rate] ? number_to_percentage(lp_row[:improvement_success_rate] * 100, precision: 1) : "未学習" %></dd>
+      <dt>最終改善</dt><dd><%= lp_row[:last_improvement_at] ? l(lp_row[:last_improvement_at], format: :short) : "未実施" %></dd>
+    </dl>
+  </details>
+
   <details class="lp-improvement-history">
     <summary>改善履歴 <%= lp_row.fetch(:improvement_history).size %>件</summary>
     <% if lp_row.fetch(:improvement_history).any? %>
@@ -134,5 +168,32 @@
     <% else %>
       <p>勝ちパターンはまだありません。</p>
     <% end %>
+  </details>
+
+  <details class="lp-developer-actions">
+    <summary>開発者向け</summary>
+    <div class="business-access-card-actions">
+      <%= button_to "同期タスクを作成",
+                    landing_page_task_business_access_settings_path(business, landing_page_id: landing_page.id),
+                    method: :post,
+                    class: "button secondary" %>
+      <% if metadata["github_commit_sha"].present? %>
+        <%= button_to "公開確認を再実行",
+                      verify_landing_page_business_access_settings_path(business, landing_page_id: landing_page.id),
+                      method: :post,
+                      class: "button secondary" %>
+      <% end %>
+      <% if landing_page.landing_page_public_status == "published" %>
+        <%= button_to "Analyzerを再実行",
+                      improve_landing_page_business_access_settings_path(business, landing_page_id: landing_page.id),
+                      method: :post,
+                      class: "button secondary" %>
+      <% end %>
+      <%= button_to "削除",
+                    remove_landing_page_business_access_settings_path(business, landing_page_id: landing_page.id),
+                    method: :delete,
+                    class: "button danger",
+                    data: { turbo_confirm: "#{landing_page.landing_page_name}を削除しますか？" } %>
+    </div>
   </details>
 </details>

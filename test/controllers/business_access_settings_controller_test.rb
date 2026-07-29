@@ -60,6 +60,120 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
     assert_select "#lp-analyzer-#{landing_page.id}", text: /Learning/
   end
 
+  test "landing page settings expose only owner managed fields and keep ai managed fields read only" do
+    landing_page = Aicoo::LpIntegration::LandingPageRegistry.new(business: @business).save!(
+      name: "AI管理LP",
+      source_type: "github",
+      repository_url: "https://github.com/example/ai-managed-lp",
+      branch: "main",
+      url: "https://aicoo-lp.pages.dev/ai-managed/",
+      ga4_page_path: "/ai-managed",
+      public_status: "testing",
+      current_conversion_rate: 0.04,
+      improvement_target: "cta_improvement",
+      cloudflare_deploy_status: "deploying",
+      ab_variant: "B",
+      ab_status: "running",
+      ab_win_rate: 0.55
+    )
+    landing_page.update!(metadata: landing_page.metadata.merge(
+      "github_commit_sha" => "abc123",
+      "pipeline_stage" => "cloudflare_pending",
+      "pipeline_stages" => Aicoo::LpIntegration::LandingPagePipelineState.build(
+        current: "cloudflare_pending",
+        approval_required: false
+      )
+    ))
+
+    get business_url(@business)
+
+    assert_response :success
+    assert_select "#external-lp-#{landing_page.id}" do
+      assert_select "summary", text: "設定"
+      assert_select "input[name='lp_access[name]']", count: 1
+      assert_select "input[name='lp_access[lovable_project_url]']", count: 1
+      assert_select "input[name='lp_access[repository_url]']", count: 1
+      assert_select "input[name='lp_access[branch]']", count: 1
+      assert_select "input[name='lp_access[cta_destination_url]']", count: 1
+      assert_select "input[name='lp_access[url]']", count: 0
+      assert_select "input[name='lp_access[ga4_page_path]']", count: 0
+      assert_select "[name='lp_access[public_status]']", count: 0
+      assert_select "[name='lp_access[current_conversion_rate]']", count: 0
+      assert_select "[name='lp_access[improvement_target]']", count: 0
+      assert_select "[name='lp_access[cloudflare_deploy_status]']", count: 0
+      assert_select "[name='lp_access[ab_win_rate]']", count: 0
+      assert_select "[name='lp_access[ab_winner]']", count: 0
+      assert_select ".lp-management-pipeline .lp-pipeline-stage", minimum: 1
+      assert_select ".lp-analyzer form", count: 0
+      assert_select ".lp-learning-readonly form", count: 0
+      assert_select "form[action='#{publish_landing_page_business_access_settings_path(@business, landing_page_id: landing_page.id)}'] button", text: "公開する"
+      assert_select "form[action='#{landing_page_status_business_access_settings_path(@business, landing_page_id: landing_page.id)}']", count: 0
+      assert_select "button", text: "公開中にする", count: 0
+      assert_select "label", text: "このVariantを勝者にする", count: 0
+    end
+  end
+
+  test "owner setting update preserves analyzer pipeline and publication values" do
+    landing_page = Aicoo::LpIntegration::LandingPageRegistry.new(business: @business).save!(
+      name: "保存前LP",
+      source_type: "github",
+      repository_url: "https://github.com/example/original",
+      branch: "develop",
+      lovable_project_url: "https://lovable.dev/projects/original",
+      url: "https://aicoo-lp.pages.dev/preserved/",
+      ga4_page_path: "/preserved",
+      public_status: "published",
+      current_conversion_rate: 0.08,
+      improvement_target: "seo_improvement",
+      cloudflare_deploy_status: "deployed",
+      ab_variant: "B",
+      ab_status: "running",
+      ab_win_rate: 0.72
+    )
+    landing_page.update!(metadata: landing_page.metadata.merge(
+      "github_commit_sha" => "preserved-sha",
+      "pipeline_stage" => "learning_pending"
+    ))
+    preserved = landing_page.metadata.slice(
+      "lp_url",
+      "ga4_page_path",
+      "lp_public_status",
+      "current_conversion_rate",
+      "improvement_target",
+      "cloudflare_deploy_status",
+      "ab_test",
+      "github_commit_sha",
+      "pipeline_stage"
+    )
+
+    patch landing_page_business_access_settings_url(@business), params: {
+      lp_access: {
+        landing_page_id: landing_page.id,
+        name: "設定更新後LP",
+        repository_url: "https://github.com/example/updated",
+        branch: "main",
+        lovable_project_url: "https://lovable.dev/projects/updated",
+        cta_destination_url: "https://service.example.com/contact",
+        url: "https://malicious.example.com",
+        ga4_page_path: "/overwritten",
+        public_status: "stopped",
+        current_conversion_rate: 0.99,
+        improvement_target: "manual",
+        cloudflare_deploy_status: "failed",
+        ab_win_rate: 1.0
+      }
+    }
+
+    assert_redirected_to business_url(@business, anchor: "business-access-urls")
+    landing_page.reload
+    assert_equal "設定更新後LP", landing_page.landing_page_name
+    assert_equal "https://github.com/example/updated", landing_page.landing_page_repository_url
+    assert_equal "main", landing_page.landing_page_branch
+    assert_equal "https://lovable.dev/projects/updated", landing_page.metadata["lovable_project_url"]
+    assert_equal "https://service.example.com/contact", landing_page.metadata["cta_destination_url"]
+    assert_equal preserved, landing_page.metadata.slice(*preserved.keys)
+  end
+
   test "landing page creation asks only for purpose and does not ask for campaign" do
     get business_url(@business)
 
@@ -135,7 +249,7 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "#external-lp-#{landing_page.id}" do
       assert_select "dt", text: "GitHub Path"
-      assert_select "form[action='#{publish_landing_page_business_access_settings_path(@business, landing_page_id: landing_page.id)}'] button", text: "公開"
+      assert_select "form[action='#{publish_landing_page_business_access_settings_path(@business, landing_page_id: landing_page.id)}'] button", text: "公開する"
     end
   end
 
@@ -317,21 +431,18 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
   end
 
   def save_landing_page(name:, path:, repository:, campaign: nil)
-    patch landing_page_business_access_settings_url(@business), params: {
-      lp_access: {
-        campaign_id: campaign&.id,
-        name:,
-        source_type: "lovable_github",
-        repository_url: repository,
-        branch: "main",
-        lovable_project_url: "https://lovable.dev/projects/#{name.parameterize}",
-        url: "https://lp.example.com#{path}",
-        ga4_page_path: path,
-        public_status: "published",
-        cta: "無料相談",
-        improvement_target: "CTA"
-      }
-    }
-    assert_redirected_to business_url(@business, anchor: "business-access-urls")
+    Aicoo::LpIntegration::LandingPageRegistry.new(business: @business).save!(
+      campaign_id: campaign&.id,
+      name:,
+      source_type: "lovable_github",
+      repository_url: repository,
+      branch: "main",
+      lovable_project_url: "https://lovable.dev/projects/#{name.parameterize}",
+      url: "https://lp.example.com#{path}",
+      ga4_page_path: path,
+      public_status: "published",
+      cta: "無料相談",
+      improvement_target: "CTA"
+    )
   end
 end

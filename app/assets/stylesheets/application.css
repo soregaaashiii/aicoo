@@ -901,6 +901,28 @@ details.revenue-card > summary {
   margin-top: 0.75rem;
 }
 
+.lp-readonly-section,
+.lp-learning-readonly,
+.lp-developer-actions {
+  margin-top: 0.75rem;
+}
+
+.lp-readonly-values dd {
+  overflow-wrap: anywhere;
+}
+
+.lp-management-pipeline {
+  grid-auto-columns: minmax(120px, 1fr);
+  grid-auto-flow: column;
+  grid-template-columns: none;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.lp-management-pipeline .lp-pipeline-stage {
+  min-width: 120px;
+}
+
 .lp-winning-patterns p {
   font-size: 0.78rem;
   margin: 0.4rem 0;

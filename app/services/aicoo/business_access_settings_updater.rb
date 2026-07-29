@@ -40,7 +40,7 @@ module Aicoo
     end
 
     def update_landing_page!(attributes)
-      LpIntegration::LandingPageRegistry.new(business:).save!(attributes)
+      LpIntegration::LandingPageRegistry.new(business:).update_owner_settings!(attributes)
     end
 
     def update_campaign!(attributes)
