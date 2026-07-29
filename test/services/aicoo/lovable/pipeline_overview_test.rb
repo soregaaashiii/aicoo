@@ -99,6 +99,34 @@ module Aicoo
         assert_not overview.refresh?
       end
 
+      test "shows generated lock details and keeps a specific build failure at static build" do
+        generated_at = "2026-07-29T12:02:00+09:00"
+        overview = build_overview(
+          status: "waiting_manual_fix",
+          metadata: {
+            "lovable_error_code" => "static_build_npm_ci_failed",
+            "lovable_error_message" => "npm ciに失敗しました。",
+            "static_build_package_manager" => "npm",
+            "static_build_commands" => [
+              "npm install --package-lock-only --ignore-scripts",
+              "npm ci --ignore-scripts"
+            ],
+            "static_build_lockfile_generated" => true,
+            "static_build_lockfile_generated_at" => generated_at,
+            "static_build_lockfile_message" => "package-lock.jsonがなかったため一時生成しました"
+          }
+        )
+
+        assert_equal 7, overview.current_position
+        diagnostics = overview.stages[6].diagnostics.index_by(&:label)
+        assert_equal "npm", diagnostics.fetch("Package manager").value
+        assert_equal 2, diagnostics.fetch("実行コマンド").value.size
+        assert_equal "package-lock.jsonがなかったため一時生成しました", diagnostics.fetch("Lockfile").value
+        assert overview.history.any? do |entry|
+          entry.label == "package-lock.jsonがなかったため一時生成しました" && entry.detail == "npm"
+        end
+      end
+
       test "keeps a transient importer failure in automatic recovery without owner notification" do
         overview = build_overview(
           status: "github_webhook_waiting",

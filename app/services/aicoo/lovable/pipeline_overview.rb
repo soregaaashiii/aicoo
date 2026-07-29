@@ -65,6 +65,20 @@ module Aicoo
         "webhook_enqueue_failed" => 5,
         "artifact_fetch_failed" => 6,
         "static_build_failed" => 7,
+        "static_build_timeout" => 7,
+        "static_build_package_json_missing" => 7,
+        "static_build_package_json_invalid" => 7,
+        "static_build_unsafe_lifecycle_script" => 7,
+        "static_build_script_missing" => 7,
+        "static_build_script_unsupported" => 7,
+        "static_build_vite_missing" => 7,
+        "static_build_package_manager_missing" => 7,
+        "static_build_lockfile_generation_failed" => 7,
+        "static_build_npm_ci_failed" => 7,
+        "static_build_dependency_install_failed" => 7,
+        "static_build_command_failed" => 7,
+        "static_build_output_directory_missing" => 7,
+        "static_build_output_missing" => 7,
         "static_validation_failed" => 7,
         "github_permission_error" => 8,
         "result_import_failed" => 8,
@@ -491,6 +505,9 @@ module Aicoo
           diagnostic("Build終了", metadata["static_validation_completed_at"]),
           diagnostic("処理時間", duration_ms(metadata["static_build_duration_ms"]) ||
             duration_between(metadata["static_build_started_at"], metadata["static_validation_completed_at"])),
+          diagnostic("Package manager", metadata["static_build_package_manager"]),
+          diagnostic("実行コマンド", metadata["static_build_commands"]),
+          diagnostic("Lockfile", metadata["static_build_lockfile_message"]),
           diagnostic("出力ディレクトリ", metadata["static_build_output_directory"]),
           diagnostic("生成ファイル数", metadata["static_build_generated_file_count"]),
           diagnostic("Build Log", metadata["static_build_log"]),
@@ -758,19 +775,32 @@ module Aicoo
             detail: metadata["page_path"]
           )
         end
+        lockfile_generated_at = parse_time(metadata["static_build_lockfile_generated_at"])
+        if lockfile_generated_at
+          entries << HistoryEntry.new(
+            timestamp: lockfile_generated_at,
+            label: metadata["static_build_lockfile_message"].presence ||
+              "package-lock.jsonがなかったため一時生成しました",
+            detail: metadata["static_build_package_manager"]
+          )
+        end
         entries
       end
 
       def failure_guidance
-        case error_code
-        when "repository_missing", "repository_mismatch", "branch_missing", "branch_mismatch", "github_permission_error"
-          "GitHub RepositoryとBranchの設定を確認してください"
-        when "static_build_failed", "static_validation_failed"
-          "Lovable成果物を修正してGitHubへPushしてください"
-        when "cloudflare_failed", "cloudflare_verification_timeout", "public_url_verification_timeout"
-          "Cloudflare設定と公開URLを確認してください"
+        if error_code.to_s.start_with?("static_build_")
+          "Lovable成果物の#{error_message.presence || '静的build設定'}を修正してGitHubへPushしてください"
         else
-          "エラー内容を確認してください"
+          case error_code
+          when "repository_missing", "repository_mismatch", "branch_missing", "branch_mismatch", "github_permission_error"
+            "GitHub RepositoryとBranchの設定を確認してください"
+          when "static_validation_failed"
+            "Lovable成果物を修正してGitHubへPushしてください"
+          when "cloudflare_failed", "cloudflare_verification_timeout", "public_url_verification_timeout"
+            "Cloudflare設定と公開URLを確認してください"
+          else
+            "エラー内容を確認してください"
+          end
         end
       end
     end

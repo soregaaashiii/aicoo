@@ -63,7 +63,21 @@ module Aicoo
           "static_build_started_at",
           page_path_generation_metadata(page_path, page_path_assignment)
         )
-        build = builder_class.new(files: snapshot.files, page_path:).call
+        build = builder_class.new(
+          files: snapshot.files,
+          page_path:,
+          output_directory: metadata["static_build_output_directory"]
+        ).call
+        build_completed_at = Time.current
+        generation_run.update!(
+          metadata: generation_run.metadata.to_h.merge(
+            static_build_metadata(
+              build,
+              build_started_at:,
+              build_completed_at:
+            )
+          )
+        )
         validation = validator_class.new(
           files: build.files,
           page_path:,
@@ -71,7 +85,6 @@ module Aicoo
           service_url: service_url_for(business),
           measurement_id: measurement_id_for(business)
         ).call
-        build_completed_at = Time.current
         serialized_files = serialize_files(validation.files)
         digest = Digest::SHA256.hexdigest(serialized_files.to_json)
         generation_run.update!(
@@ -81,14 +94,8 @@ module Aicoo
             "lovable_status" => "result_received",
             "lovable_last_synced_commit_sha" => snapshot.commit_sha,
             "lovable_last_sync_at" => Time.current.iso8601,
-            "static_build_status" => "succeeded",
-            "static_build_type" => build.build_type,
-            "static_build_warnings" => build.warnings,
-            "static_build_output_directory" => build_output_directory(build.build_type),
             "static_build_generated_file_count" => validation.files.size,
             "static_build_generated_files" => validation.files.keys.sort.first(200),
-            "static_build_duration_ms" => elapsed_ms(build_started_at, build_completed_at),
-            "static_build_log" => build_log_for(build),
             "static_validation_status" => "succeeded",
             "static_validation_warnings" => validation.warnings,
             "publication_files" => serialized_files,
@@ -102,7 +109,7 @@ module Aicoo
         )
         publish!(generation_run, landing_page, snapshot.commit_sha)
       rescue StaticArtifactBuilder::UnsafeBuild => e
-        mark_waiting_manual_fix(generation_run, "static_build_failed", e)
+        mark_waiting_manual_fix(generation_run, e.code, e, static_build_failure_metadata(e))
         raise
       rescue StaticArtifactValidator::InvalidArtifact => e
         mark_waiting_manual_fix(generation_run, "static_validation_failed", e)
@@ -153,20 +160,37 @@ module Aicoo
       end
 
       def build_target_path?(path)
-        File.basename(path.to_s).in?(%w[index.html package.json package-lock.json]) ||
-          path.to_s.start_with?("dist/")
-      end
-
-      def build_output_directory(build_type)
-        build_type == "static_files" ? "/" : "dist/"
+        File.basename(path.to_s).in?(%w[
+          index.html package.json package-lock.json pnpm-lock.yaml yarn.lock
+        ]) || path.to_s.start_with?("dist/", "build/", "out/")
       end
 
       def build_log_for(build)
         [
           "Build type: #{build.build_type}",
+          ("Package manager: #{build.package_manager}" if build.package_manager.present?),
+          ("Commands: #{build.commands.join(' / ')}" if build.commands.present?),
+          ("Output directory: #{build.output_directory}" if build.output_directory.present?),
           "Static build succeeded",
           *Array(build.warnings)
-        ]
+        ].compact
+      end
+
+      def static_build_metadata(build, build_started_at:, build_completed_at:)
+        {
+          "static_build_status" => "succeeded",
+          "static_build_type" => build.build_type,
+          "static_build_warnings" => build.warnings,
+          "static_build_package_manager" => build.package_manager,
+          "static_build_commands" => build.commands,
+          "static_build_output_directory" => build.output_directory,
+          "static_build_lockfile_generated" => build.lockfile_generated,
+          "static_build_lockfile_generated_at" => build.lockfile_generated ? build_completed_at.iso8601 : nil,
+          "static_build_lockfile_message" => build.lockfile_generated ?
+            "package-lock.jsonがなかったため一時生成しました" : nil,
+          "static_build_duration_ms" => elapsed_ms(build_started_at, build_completed_at),
+          "static_build_log" => build_log_for(build)
+        }
       end
 
       def elapsed_ms(started_at, finished_at)
@@ -238,7 +262,7 @@ module Aicoo
         ).merge(extra))
       end
 
-      def mark_waiting_manual_fix(run, error_code, error)
+      def mark_waiting_manual_fix(run, error_code, error, extra_metadata = {})
         return unless run&.persisted?
 
         run.update!(
@@ -249,8 +273,24 @@ module Aicoo
             "lovable_error_code" => error_code,
             "lovable_error_message" => error.message,
             "lovable_last_error_at" => Time.current.iso8601
-          )
+          ).merge(extra_metadata)
         )
+      end
+
+      def static_build_failure_metadata(error)
+        details = error.details.to_h.deep_stringify_keys
+        lockfile_generated = details["lockfile_generated"] == true
+        {
+          "static_build_status" => "failed",
+          "static_build_failure_code" => error.code,
+          "static_build_package_manager" => details["package_manager"],
+          "static_build_commands" => details["commands"],
+          "static_build_output_directory" => details["output_directory"],
+          "static_build_lockfile_generated" => lockfile_generated,
+          "static_build_lockfile_generated_at" => lockfile_generated ? Time.current.iso8601 : nil,
+          "static_build_lockfile_message" => lockfile_generated ?
+            "package-lock.jsonがなかったため一時生成しました" : nil
+        }
       end
 
       def mark_retryable_failure(run, error)
