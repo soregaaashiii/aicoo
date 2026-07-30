@@ -1,4 +1,5 @@
 require "nokogiri"
+require "pathname"
 require "set"
 require "uri"
 
@@ -15,8 +16,22 @@ module Aicoo
       end
 
       Result = Data.define(:files, :warnings)
+      AssetReference = Data.define(:url, :source_file, :context, :line)
       GA4_MISSING_WARNING = "GA4 Measurement IDが未設定のためアクセス計測は開始されていません".freeze
       GA4_PUBLICATION_NOTICE = "公開は完了しました。GA4を設定するとアクセス計測を開始できます".freeze
+      EXTERNAL_ASSET_REFERENCE_PATTERN =
+        %r{\A(?:(?:https?:)?//|data:|blob:|mailto:|tel:|javascript:|#)}i
+      HTML_ASSET_ATTRIBUTES = {
+        "script" => %w[src],
+        "link" => %w[href],
+        "img" => %w[src],
+        "source" => %w[src],
+        "video" => %w[src poster],
+        "audio" => %w[src],
+        "iframe" => %w[src]
+      }.freeze
+      CSS_URL_PATTERN = /url\(\s*(?:"([^"]*)"|'([^']*)'|([^)]*?))\s*\)/im
+      CSS_IMPORT_PATTERN = /@import\s+(?:"([^"]+)"|'([^']+)')/im
       TEXT_EXTENSIONS = %w[
         .html .htm .css .js .mjs .cjs .jsx .ts .tsx .json .xml .txt .svg .webmanifest
       ].freeze
@@ -38,13 +53,23 @@ module Aicoo
           /\bprocess\.env\b|import\.meta\.env(?!\.(?:DEV|PROD|SSR|MODE|BASE_URL)\b)/
       }.freeze
 
-      def initialize(files:, page_path:, public_url:, service_url:, measurement_id:)
+      def initialize(
+        files:,
+        page_path:,
+        public_url:,
+        service_url:,
+        measurement_id:,
+        artifact_root: nil,
+        artifact_root_label: nil
+      )
         @files = files.to_h.transform_keys(&:to_s).transform_values { |value| value.to_s.b }
         @page_path = normalize_page_path(page_path)
         @public_url = valid_http_url(public_url, "Cloudflare公開URL")
         @service_url_fallback = service_url.blank? || same_destination?(service_url, @public_url)
         @service_url = valid_http_url(service_url.presence || @public_url, "Service URL")
         @measurement_id = measurement_id.to_s.strip
+        @artifact_root = artifact_root.present? ? Pathname.new(artifact_root).expand_path : nil
+        @artifact_root_label = artifact_root_label.presence || artifact_root&.to_s || "静的成果物"
       end
 
       def call
@@ -69,7 +94,8 @@ module Aicoo
 
       private
 
-      attr_reader :files, :page_path, :public_url, :service_url, :measurement_id, :service_url_fallback
+      attr_reader :files, :page_path, :public_url, :service_url, :measurement_id, :service_url_fallback,
+        :artifact_root, :artifact_root_label
 
       def scan_for_secrets_and_runtime_dependencies!
         files.each do |path, content|
@@ -470,17 +496,253 @@ module Aicoo
 
       def validate_asset_references!(values)
         document = Nokogiri::HTML5(values.fetch("index.html"))
-        references = document.css("[src], link[href]").filter_map do |node|
-          node["src"].presence || node["href"].presence
+        base_directory = html_base_directory(document)
+        references = html_asset_references(document)
+        references.concat(inline_css_asset_references(document))
+        values.each do |path, content|
+          next unless File.extname(path).casecmp(".css").zero?
+
+          references.concat(css_asset_references(content, source_file: path))
         end
         references.each do |reference|
-          next if reference.start_with?("#", "data:", "mailto:", "tel:", "//") || reference.match?(%r{\Ahttps?://}i)
+          next if external_asset_reference?(reference.url)
 
-          path = reference.split(/[?#]/, 2).first.to_s.sub(%r{\A\./}, "").sub(%r{\A/+}, "")
-          next if path.blank? || values.key?(path)
+          relative_directory = if reference.source_file == "index.html"
+            base_directory
+          else
+            File.dirname(reference.source_file)
+          end
+          next if relative_directory == :external
 
-          raise InvalidArtifact, "index.htmlが存在しないasset #{reference} を参照しています。"
+          path = normalize_asset_reference(reference, relative_directory:)
+          next if path.blank?
+          next if asset_exists?(values, path, reference)
+
+          raise_asset_error!(
+            "公開用ファイルから参照されているassetが見つかりません。",
+            reference,
+            normalized_path: path
+          )
         end
+      end
+
+      def html_asset_references(document)
+        references = HTML_ASSET_ATTRIBUTES.flat_map do |element, attributes|
+          attributes.flat_map do |attribute|
+            document.css("#{element}[#{attribute}]").map do |node|
+              AssetReference.new(
+                url: node[attribute].to_s,
+                source_file: "index.html",
+                context: "#{element} #{attribute}",
+                line: node.line
+              )
+            end
+          end
+        end
+        references.concat(
+          document.css("img[srcset], source[srcset]").flat_map do |node|
+            parse_srcset(node["srcset"]).map do |url|
+              AssetReference.new(
+                url:,
+                source_file: "index.html",
+                context: "#{node.name} srcset",
+                line: node.line
+              )
+            end
+          end
+        )
+      end
+
+      def inline_css_asset_references(document)
+        style_blocks = document.css("style").flat_map do |node|
+          css_asset_references(
+            node.text.to_s,
+            source_file: "index.html",
+            context_prefix: "style",
+            line_offset: node.line.to_i - 1
+          )
+        end
+        style_attributes = document.css("[style]").flat_map do |node|
+          css_asset_references(
+            node["style"].to_s,
+            source_file: "index.html",
+            context_prefix: "#{node.name} style",
+            line_offset: node.line.to_i - 1
+          )
+        end
+        style_blocks + style_attributes
+      end
+
+      def css_asset_references(content, source_file:, context_prefix: "CSS", line_offset: 0)
+        text = strip_css_comments(content.to_s)
+        references = regex_asset_references(
+          text,
+          CSS_URL_PATTERN,
+          source_file:,
+          context: "#{context_prefix} url",
+          line_offset:
+        )
+        references.concat(
+          regex_asset_references(
+            text,
+            CSS_IMPORT_PATTERN,
+            source_file:,
+            context: "#{context_prefix} @import",
+            line_offset:
+          )
+        )
+        references.uniq { |reference| [ reference.url, reference.source_file, reference.context, reference.line ] }
+      end
+
+      def regex_asset_references(text, pattern, source_file:, context:, line_offset:)
+        references = []
+        offset = 0
+        while (match = pattern.match(text, offset))
+          url = match.captures.compact.first.to_s.strip
+          if url.present?
+            references << AssetReference.new(
+              url:,
+              source_file:,
+              context:,
+              line: line_offset + text[0...match.begin(0)].count("\n") + 1
+            )
+          end
+          offset = match.end(0)
+        end
+        references
+      end
+
+      def strip_css_comments(text)
+        text.gsub(%r{/\*.*?\*/}m) { |comment| "\n" * comment.count("\n") }
+      end
+
+      def parse_srcset(value)
+        source = value.to_s
+        urls = []
+        index = 0
+        while index < source.length
+          index += 1 while index < source.length && (source[index].match?(/\s/) || source[index] == ",")
+          break if index >= source.length
+
+          start = index
+          index += 1 while index < source.length && !source[index].match?(/\s/)
+          url = source[start...index].to_s
+          trailing_separator = url.end_with?(",")
+          url = url.delete_suffix(",")
+          urls << url if url.present?
+          next if trailing_separator
+
+          index += 1 while index < source.length && source[index] != ","
+          index += 1 if source[index] == ","
+        end
+        urls
+      end
+
+      def html_base_directory(document)
+        node = document.at_css("base[href]")
+        value = node&.[]("href").to_s.strip
+        return "" if value.blank?
+        return :external if external_asset_reference?(value)
+
+        reference = AssetReference.new(
+          url: value,
+          source_file: "index.html",
+          context: "base href",
+          line: node&.line
+        )
+        trailing_slash = decoded_reference_path(value, reference).split(/[?#]/, 2).first.to_s.end_with?("/")
+        normalized = normalize_asset_reference(reference, relative_directory: "")
+        return "" if normalized.blank?
+
+        trailing_slash ? normalized : File.dirname(normalized).sub(/\A\.\z/, "")
+      end
+
+      def external_asset_reference?(value)
+        value.to_s.strip.match?(EXTERNAL_ASSET_REFERENCE_PATTERN)
+      end
+
+      def normalize_asset_reference(reference, relative_directory:)
+        path = decoded_reference_path(reference.url, reference)
+        path = path.split(/[?#]/, 2).first.to_s
+        root_relative = path.start_with?("/")
+        if root_relative && page_path != "/"
+          path = "" if path == page_path
+          path = path.delete_prefix("#{page_path}/") if path.start_with?("#{page_path}/")
+        end
+        path = path.sub(%r{\A/+}, "")
+        return if path.blank?
+
+        reject_traversal!(path, reference)
+        path = File.join(relative_directory, path) unless root_relative || relative_directory.blank?
+        reject_traversal!(path, reference)
+        normalized = Pathname.new(path).cleanpath.to_s.sub(%r{\A\./}, "")
+        reject_traversal!(normalized, reference)
+        normalized.presence
+      end
+
+      def decoded_reference_path(value, reference)
+        source = value.to_s.strip
+        if source.match?(/%(?![0-9a-f]{2})/i)
+          raise_asset_error!("公開用assetのURLエンコードが不正です。", reference)
+        end
+
+        decoded = URI::DEFAULT_PARSER.unescape(source)
+        if decoded.include?("\0") || decoded.include?("\\")
+          raise_asset_error!("公開用assetの参照が不正です。", reference)
+        end
+        decoded
+      rescue ArgumentError
+        raise_asset_error!("公開用assetのURLエンコードが不正です。", reference)
+      end
+
+      def reject_traversal!(path, reference)
+        return unless path.to_s.split("/").include?("..")
+
+        raise_asset_error!(
+          "公開用assetの参照が成果物外を指しています。",
+          reference,
+          normalized_path: path
+        )
+      end
+
+      def asset_exists?(values, path, reference)
+        return false unless values.key?(path)
+        return true unless artifact_root
+
+        root = artifact_root.realpath
+        candidate = artifact_root.join(path)
+        return false unless candidate.exist?
+
+        resolved = candidate.realpath
+        unless path_within?(resolved, root)
+          raise_asset_error!(
+            "公開用assetの参照が成果物外を指しています。",
+            reference,
+            normalized_path: path
+          )
+        end
+        resolved.file?
+      rescue Errno::ENOENT, Errno::EACCES
+        false
+      end
+
+      def path_within?(candidate, root)
+        candidate == root || candidate.to_s.start_with?("#{root}#{File::SEPARATOR}")
+      end
+
+      def raise_asset_error!(message, reference, normalized_path: nil)
+        raise InvalidArtifact.new(
+          message,
+          details: {
+            "file" => reference.source_file,
+            "line" => reference.line,
+            "url" => reference.url,
+            "normalized_path" => normalized_path,
+            "page_path" => page_path,
+            "api" => reference.context,
+            "artifact_root" => artifact_root_label
+          }.compact
+        )
       end
 
       def upsert_link(head, rel, href)

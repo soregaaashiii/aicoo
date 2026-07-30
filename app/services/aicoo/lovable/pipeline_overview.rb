@@ -529,6 +529,9 @@ module Aicoo
           diagnostic("検出行", metadata["static_validation_failure_line"]),
           diagnostic("検出URL", metadata["static_validation_failure_url"]),
           diagnostic("検出API", metadata["static_validation_failure_api"]),
+          diagnostic("正規化後パス", metadata["static_validation_failure_normalized_path"]),
+          diagnostic("page_path", metadata["static_validation_failure_page_path"]),
+          diagnostic("成果物ルート", metadata["static_validation_failure_artifact_root"]),
           diagnostic("結果", metadata["static_build_status"] || stage_result(:static_build))
         ]
       end

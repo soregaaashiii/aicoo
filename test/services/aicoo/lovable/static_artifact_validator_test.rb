@@ -1,4 +1,6 @@
 require "test_helper"
+require "fileutils"
+require "tmpdir"
 
 module Aicoo
   module Lovable
@@ -228,7 +230,239 @@ module Aicoo
         assert_equal "http://localhost:3000/preview", error.details.fetch("url")
       end
 
+      test "matches a page path prefixed script to the artifact relative path" do
+        result = validate_assets(
+          body: '<script src="/voice-analysis-pro/assets/app.js"></script>',
+          assets: { "assets/app.js" => "console.log('app')" }
+        )
+
+        assert result.files.key?("assets/app.js")
+      end
+
+      test "removes query and fragment before matching an asset" do
+        result = validate_assets(
+          head: '<link rel="stylesheet" href="/voice-analysis-pro/assets/app.css?v=1#top">',
+          assets: { "assets/app.css" => "body { color: black; }" }
+        )
+
+        assert result.files.key?("assets/app.css")
+      end
+
+      test "matches a relative asset path" do
+        result = validate_assets(
+          body: '<script src="assets/app.js"></script>',
+          assets: { "assets/app.js" => "console.log('app')" }
+        )
+
+        assert result.files.key?("assets/app.js")
+      end
+
+      test "keeps existing root asset matching" do
+        result = validate_assets(
+          body: '<script src="/assets/app.js"></script>',
+          assets: { "assets/app.js" => "console.log('app')" }
+        )
+
+        assert result.files.key?("assets/app.js")
+      end
+
+      test "does not remove a page path without an exact path boundary" do
+        error = assert_raises(StaticArtifactValidator::InvalidArtifact) do
+          validate_assets(
+            body: '<script src="/voice-analysis-production/assets/app.js"></script>',
+            assets: { "assets/app.js" => "console.log('app')" }
+          )
+        end
+
+        assert_equal "/voice-analysis-production/assets/app.js", error.details.fetch("url")
+        assert_equal "voice-analysis-production/assets/app.js", error.details.fetch("normalized_path")
+      end
+
+      test "does not check external https assets locally" do
+        result = validate_assets(
+          body: '<script src="https://cdn.example.com/app.js"></script>'
+        )
+
+        assert result.files.key?("index.html")
+      end
+
+      test "does not check data urls locally" do
+        result = validate_assets(
+          body: '<img src="data:image/png;base64,AAAA" alt="">'
+        )
+
+        assert result.files.key?("index.html")
+      end
+
+      test "checks every srcset candidate" do
+        result = validate_assets(
+          body: <<~HTML,
+            <picture>
+              <source srcset="/voice-analysis-pro/assets/large.webp 2x, assets/small.webp?v=1 1x">
+              <img src="assets/small.webp" alt="">
+            </picture>
+          HTML
+          assets: {
+            "assets/large.webp" => "large",
+            "assets/small.webp" => "small"
+          }
+        )
+
+        assert result.files.key?("assets/large.webp")
+        assert result.files.key?("assets/small.webp")
+      end
+
+      test "matches a page path prefixed CSS url" do
+        result = validate_assets(
+          head: '<link rel="stylesheet" href="assets/app.css">',
+          assets: {
+            "assets/app.css" => 'body { background: url("/voice-analysis-pro/assets/bg.png"); }',
+            "assets/bg.png" => "image"
+          }
+        )
+
+        assert result.files.key?("assets/bg.png")
+      end
+
+      test "matches a page path prefixed CSS import" do
+        result = validate_assets(
+          head: '<link rel="stylesheet" href="assets/app.css">',
+          assets: {
+            "assets/app.css" => '@import "/voice-analysis-pro/assets/theme.css";',
+            "assets/theme.css" => "body { color: black; }"
+          }
+        )
+
+        assert result.files.key?("assets/theme.css")
+      end
+
+      test "rejects plain path traversal" do
+        error = assert_raises(StaticArtifactValidator::InvalidArtifact) do
+          validate_assets(body: '<script src="../secret.js"></script>')
+        end
+
+        assert_includes error.message, "成果物外"
+        assert_equal "../secret.js", error.details.fetch("url")
+      end
+
+      test "rejects URL encoded path traversal" do
+        error = assert_raises(StaticArtifactValidator::InvalidArtifact) do
+          validate_assets(body: '<script src="%2e%2e/secret.js"></script>')
+        end
+
+        assert_includes error.message, "成果物外"
+        assert_equal "../secret.js", error.details.fetch("normalized_path")
+      end
+
+      test "rejects a symlink that resolves outside the artifact root" do
+        Dir.mktmpdir("artifact-root") do |root|
+          Dir.mktmpdir("outside-root") do |outside|
+            FileUtils.mkdir_p(File.join(root, "assets"))
+            File.write(File.join(outside, "app.js"), "outside")
+            File.symlink(File.join(outside, "app.js"), File.join(root, "assets", "app.js"))
+
+            error = assert_raises(StaticArtifactValidator::InvalidArtifact) do
+              validate_assets(
+                body: '<script src="assets/app.js"></script>',
+                assets: { "assets/app.js" => "outside" },
+                artifact_root: root
+              )
+            end
+
+            assert_includes error.message, "成果物外"
+          end
+        end
+      end
+
+      test "uses base href without removing the page path twice" do
+        result = validate_assets(
+          head: '<base href="/voice-analysis-pro/">',
+          body: '<script src="assets/app.js"></script>',
+          assets: { "assets/app.js" => "console.log('app')" }
+        )
+
+        assert result.files.key?("assets/app.js")
+      end
+
+      test "records original and normalized paths when an asset is missing" do
+        error = assert_raises(StaticArtifactValidator::InvalidArtifact) do
+          validate_assets(
+            head: '<link rel="stylesheet" href="/voice-analysis-pro/assets/missing.css?v=1">',
+            artifact_root_label: "dist/client/"
+          )
+        end
+
+        assert_equal "公開用ファイルから参照されているassetが見つかりません。", error.message
+        assert_equal "/voice-analysis-pro/assets/missing.css?v=1", error.details.fetch("url")
+        assert_equal "assets/missing.css", error.details.fetch("normalized_path")
+        assert_equal "/voice-analysis-pro", error.details.fetch("page_path")
+        assert_equal "index.html", error.details.fetch("file")
+        assert_equal "link href", error.details.fetch("api")
+        assert_equal "dist/client/", error.details.fetch("artifact_root")
+      end
+
+      test "checks all supported HTML asset attributes" do
+        result = validate_assets(
+          head: <<~HTML,
+            <link rel="manifest" href="/voice-analysis-pro/site.webmanifest">
+          HTML
+          body: <<~HTML,
+            <img src="assets/image.png" alt="">
+            <source src="assets/movie.webm">
+            <video src="assets/movie.mp4" poster="assets/poster.jpg"></video>
+            <audio src="assets/sound.mp3"></audio>
+            <iframe src="assets/frame.html"></iframe>
+          HTML
+          assets: {
+            "site.webmanifest" => "{}",
+            "assets/image.png" => "image",
+            "assets/movie.webm" => "webm",
+            "assets/movie.mp4" => "mp4",
+            "assets/poster.jpg" => "poster",
+            "assets/sound.mp3" => "mp3",
+            "assets/frame.html" => "<html></html>"
+          }
+        )
+
+        assert_equal 8, result.files.size
+      end
+
       private
+
+      def validate_assets(
+        head: "",
+        body: "",
+        assets: {},
+        page_path: "/voice-analysis-pro",
+        artifact_root: nil,
+        artifact_root_label: nil
+      )
+        StaticArtifactValidator.new(
+          files: {
+            "index.html" => <<~HTML,
+              <!doctype html>
+              <html>
+                <head>
+                  <title>Voice Analysis</title>
+                  <meta name="description" content="Voice Analysis LP">
+                  #{head}
+                </head>
+                <body>
+                  <a class="cta" href="https://service.example.com">CTA</a>
+                  #{body}
+                </body>
+              </html>
+            HTML
+            **assets
+          },
+          page_path:,
+          public_url: "https://aicoo-lp.pages.dev#{page_path}/",
+          service_url: "https://service.example.com",
+          measurement_id: nil,
+          artifact_root:,
+          artifact_root_label:
+        ).call
+      end
 
       def validate_javascript(source)
         StaticArtifactValidator.new(

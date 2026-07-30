@@ -154,7 +154,10 @@ module Aicoo
             "static_validation_failure_file" => "assets/app.js",
             "static_validation_failure_line" => 12,
             "static_validation_failure_url" => "http://localhost:3000/api",
-            "static_validation_failure_api" => "fetch"
+            "static_validation_failure_api" => "fetch",
+            "static_validation_failure_normalized_path" => "assets/app.js",
+            "static_validation_failure_page_path" => "/voice-analysis-pro",
+            "static_validation_failure_artifact_root" => "dist/client/"
           }
         )
 
@@ -163,6 +166,9 @@ module Aicoo
         assert_equal 12, diagnostics.fetch("検出行").value
         assert_equal "http://localhost:3000/api", diagnostics.fetch("検出URL").value
         assert_equal "fetch", diagnostics.fetch("検出API").value
+        assert_equal "assets/app.js", diagnostics.fetch("正規化後パス").value
+        assert_equal "/voice-analysis-pro", diagnostics.fetch("page_path").value
+        assert_equal "dist/client/", diagnostics.fetch("成果物ルート").value
         assert_equal "localhostへの実通信が検出されました。", overview.error_message
       end
 

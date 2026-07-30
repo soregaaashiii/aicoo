@@ -92,7 +92,8 @@ module Aicoo
           page_path:,
           public_url: public_url_for(page_path),
           service_url: configured_service_url,
-          measurement_id: measurement_id_for(business)
+          measurement_id: measurement_id_for(business),
+          artifact_root_label: build.output_directory
         ).call
         serialized_files = serialize_files(validation.files)
         digest = Digest::SHA256.hexdigest(serialized_files.to_json)
@@ -330,7 +331,10 @@ module Aicoo
           "static_validation_failure_file" => details["file"],
           "static_validation_failure_line" => details["line"],
           "static_validation_failure_url" => details["url"],
-          "static_validation_failure_api" => details["api"]
+          "static_validation_failure_api" => details["api"],
+          "static_validation_failure_normalized_path" => details["normalized_path"],
+          "static_validation_failure_page_path" => details["page_path"],
+          "static_validation_failure_artifact_root" => details["artifact_root"]
         }.compact
       end
 
