@@ -211,6 +211,46 @@ class LovableLandingPagesControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "offers the existing result resume action after a static validation failure" do
+    campaign = @business.business_campaigns.create!(name: "Validation Retry Campaign", campaign_type: "seo", status: "active")
+    landing_page = @business.business_prototypes.create!(
+      business_campaign: campaign,
+      name: "Validation Retry LP",
+      prototype_type: "github",
+      location: "https://github.com/example/validation-retry-lp",
+      status: "active",
+      metadata: {
+        "role" => BusinessPrototype::EXTERNAL_LANDING_PAGE_ROLE,
+        "lp_name" => "Validation Retry LP",
+        "lp_public_status" => "testing"
+      }
+    )
+    run = AicooLabGenerationRun.create!(
+      generation_type: "lp_generation",
+      status: "failed",
+      error_message: "Service URLが未設定です。",
+      metadata: {
+        "pipeline" => "lovable",
+        "pipeline_status" => "waiting_manual_fix",
+        "business_id" => @business.id,
+        "landing_page_prototype_id" => landing_page.id,
+        "version" => 1,
+        "lovable_result_repository" => landing_page.location,
+        "lovable_result_branch" => "main",
+        "lovable_error_code" => "static_validation_failed",
+        "lovable_error_message" => "Service URLが未設定です。"
+      }
+    )
+    landing_page.update!(metadata: landing_page.metadata.to_h.merge("lovable_generation_run_id" => run.id))
+
+    get business_lovable_landing_page_url(@business, landing_page_id: landing_page.id)
+
+    assert_response :success
+    assert_select ".lovable-pipeline-error form[action='#{resume_result_version_business_lovable_landing_page_path(@business, run, landing_page_id: landing_page.id)}']", 1 do
+      assert_select "button", text: "静的buildを再試行"
+    end
+  end
+
   test "starts and approves an unstarted landing page without leaving its detail" do
     campaign = @business.business_campaigns.create!(name: "Detail SEO", campaign_type: "seo", status: "active")
     landing_page = @business.business_prototypes.create!(
