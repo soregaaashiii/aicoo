@@ -26,7 +26,8 @@ module Aicoo
         @files = files.to_h.transform_keys(&:to_s).transform_values { |value| value.to_s.b }
         @page_path = normalize_page_path(page_path)
         @public_url = valid_http_url(public_url, "Cloudflare公開URL")
-        @service_url = valid_http_url(service_url, "Service URL")
+        @service_url_fallback = service_url.blank? || same_destination?(service_url, @public_url)
+        @service_url = valid_http_url(service_url.presence || @public_url, "Service URL")
         @measurement_id = measurement_id.to_s.strip
       end
 
@@ -41,12 +42,15 @@ module Aicoo
         ensure_ga4!(document)
         normalized["index.html"] = document.to_html
         validate_asset_references!(normalized)
-        Result.new(files: normalized, warnings: [])
+        Result.new(
+          files: normalized,
+          warnings: service_url_fallback ? [ "初回公開のため公開URLを自動登録します" ] : []
+        )
       end
 
       private
 
-      attr_reader :files, :page_path, :public_url, :service_url, :measurement_id
+      attr_reader :files, :page_path, :public_url, :service_url, :measurement_id, :service_url_fallback
 
       def scan_for_secrets_and_runtime_dependencies!
         files.each do |path, content|
@@ -101,8 +105,15 @@ module Aicoo
         end
         links = document.css("a[href]").map { |node| node["href"].to_s }
         return if links.any? { |href| same_destination?(href, service_url) }
+        return if service_url_fallback && local_conversion_target?(document)
 
         raise InvalidArtifact, "Service本体URLへ遷移するCTAリンクがありません。"
+      end
+
+      def local_conversion_target?(document)
+        document.at_css(
+          "a[data-aicoo-cta], a[data-cta], button[data-aicoo-cta], button[data-cta], form"
+        ).present?
       end
 
       def ensure_ga4!(document)

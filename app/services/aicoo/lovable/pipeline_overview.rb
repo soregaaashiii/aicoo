@@ -521,6 +521,7 @@ module Aicoo
           diagnostic("build後ファイル", metadata["static_build_post_build_files"]),
           diagnostic("生成ファイル数", metadata["static_build_generated_file_count"]),
           diagnostic("Build Log", metadata["static_build_log"]),
+          diagnostic("Service URL", metadata["service_url_auto_registration_notice"]),
           diagnostic("結果", metadata["static_build_status"] || stage_result(:static_build))
         ]
       end
@@ -792,6 +793,24 @@ module Aicoo
             label: metadata["static_build_lockfile_message"].presence ||
               "package-lock.jsonがなかったため一時生成しました",
             detail: metadata["static_build_package_manager"]
+          )
+        end
+        cloudflare_public_url_acquired_at = parse_time(metadata["cloudflare_public_url_acquired_at"])
+        if cloudflare_public_url_acquired_at
+          entries << HistoryEntry.new(
+            timestamp: cloudflare_public_url_acquired_at,
+            label: metadata["cloudflare_public_url_acquired_message"].presence ||
+              "Cloudflare公開URLを取得しました",
+            detail: publication["production_url"]
+          )
+        end
+        service_url_auto_registered_at = parse_time(metadata["service_url_auto_registered_at"])
+        if service_url_auto_registered_at
+          entries << HistoryEntry.new(
+            timestamp: service_url_auto_registered_at,
+            label: metadata["service_url_auto_registration_message"].presence ||
+              "Service URLを自動登録しました",
+            detail: publication["production_url"]
           )
         end
         entries

@@ -211,6 +211,47 @@ module Aicoo
         end
       end
 
+      test "continues an initial publication without a configured service url" do
+        @business.update!(metadata: @business.metadata.to_h.merge("lp_ga4_measurement_id" => "G-ABC123"))
+        flow = LandingPageCreationFlow.new(
+          business: @business,
+          campaign: @campaign,
+          attributes: { purpose: "google_ads" },
+          strategy_builder_class: fake_strategy_builder
+        ).call
+        flow.landing_page.update!(
+          metadata: flow.landing_page.metadata.to_h.merge("ga4_page_path" => "/ai-reception")
+        )
+        flow.task.approve!
+        Aicoo::Lovable::LandingPagePipeline.new.register_result!(
+          business: @business,
+          generation_run: flow.generation_run,
+          project_url: "https://lovable.dev/projects/project-123",
+          result_repository: "https://github.com/example/lovable-result",
+          result_branch: "main"
+        )
+        publisher = FakePublisher.new
+        importer = Aicoo::Lovable::ResultRepositoryImporter.new(
+          source_client_class: fake_source_client_class,
+          publisher:,
+          configuration: Aicoo::CloudflarePages::Configuration.new(
+            env: {
+              "AICOO_GITHUB_TOKEN" => "token",
+              "CLOUDFLARE_PAGES_PRODUCTION_URL" => "https://aicoo-lp.pages.dev"
+            }
+          )
+        )
+
+        result = importer.call(generation_run: flow.generation_run)
+
+        assert_equal false, result.idempotent
+        assert_equal 1, publisher.calls
+        metadata = flow.generation_run.reload.metadata
+        assert_equal true, metadata["service_url_auto_registration_pending"]
+        assert_equal "初回公開のため公開URLを自動登録します", metadata["service_url_auto_registration_notice"]
+        assert_includes metadata["static_validation_warnings"], "初回公開のため公開URLを自動登録します"
+      end
+
       test "imports a registered repository without an approval task and stores preview commit details" do
         @business.update!(metadata: @business.metadata.to_h.merge("lp_ga4_measurement_id" => "G-ABC123"))
         @business.business_services.create!(

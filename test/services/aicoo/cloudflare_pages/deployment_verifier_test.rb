@@ -15,9 +15,20 @@ module Aicoo
           "cloudflare_url" => "https://aicoo-lp.pages.dev/published/",
           "github_commit_sha" => "abcdef123456"
         ))
+        @run = AicooLabGenerationRun.create!(
+          generation_type: "lp_generation",
+          status: "succeeded",
+          metadata: {
+            "pipeline" => "lovable",
+            "pipeline_status" => "cloudflare_waiting"
+          }
+        )
+        @landing_page.update!(
+          metadata: @landing_page.metadata.merge("lovable_generation_run_id" => @run.id)
+        )
       end
 
-      test "marks landing page published after matching deployment and url are successful" do
+      test "marks landing page published and registers the initial service url after real html is verified" do
         configuration = Configuration.new(env: {
           "CLOUDFLARE_ACCOUNT_ID" => "account",
           "CLOUDFLARE_API_TOKEN" => "token",
@@ -36,7 +47,11 @@ module Aicoo
               ]
             }.to_json)
           else
-            response(Net::HTTPOK, "ok")
+            response(
+              Net::HTTPOK,
+              "<!doctype html><html><head><title>AI電話受付</title></head><body>voice-analysis-pro</body></html>",
+              content_type: "text/html; charset=utf-8"
+            )
           end
         end
 
@@ -52,8 +67,39 @@ module Aicoo
         assert_equal "deployed", metadata["cloudflare_deploy_status"]
         assert_equal "deploy-1", metadata["cloudflare_deployment_id"]
         assert_equal 200, metadata["cloudflare_http_status"]
-        assert_equal "HTTP 200確認完了", metadata["cloudflare_last_message"]
+        assert_equal "AI電話受付", metadata["cloudflare_page_title"]
+        assert_equal "HTTP 200・実LP確認完了", metadata["cloudflare_last_message"]
+        assert_equal "https://aicoo-lp.pages.dev/published/", metadata["service_url"]
+        assert_equal "Service URLを自動登録しました", metadata["service_url_auto_registration_message"]
         assert metadata["last_published_at"].present?
+
+        run_metadata = @run.reload.metadata
+        assert_equal "Cloudflare公開URLを取得しました", run_metadata["cloudflare_public_url_acquired_message"]
+        assert_equal "Service URLを自動登録しました", run_metadata["service_url_auto_registration_message"]
+        overview = Aicoo::Lovable::PipelineOverview.new(
+          generation_run: @run,
+          landing_page: @landing_page,
+          task: nil,
+          business: @business
+        )
+        assert overview.history.any? { |entry| entry.label == "Cloudflare公開URLを取得しました" }
+        assert overview.history.any? { |entry| entry.label == "Service URLを自動登録しました" }
+      end
+
+      test "does not overwrite an existing service url on update publication" do
+        service = @business.business_services.create!(
+          name: "既存Service",
+          status: "production",
+          url: "https://service.example.com"
+        )
+        result = verifier_with_page(
+          "<!doctype html><html><head><title>更新LP</title></head><body>更新済みLP</body></html>"
+        ).call(landing_page: @landing_page, commit_sha: "abcdef123456")
+
+        assert result.completed
+        assert_equal "https://service.example.com", service.reload.url
+        assert_nil @landing_page.reload.metadata["service_url"]
+        assert_nil @run.reload.metadata["service_url_auto_registration_message"]
       end
 
       test "keeps deployment pending while cloudflare has not returned the commit" do
@@ -72,6 +118,85 @@ module Aicoo
         assert_not result.completed
         assert_equal "pending", result.status
         assert_equal "testing", @landing_page.reload.landing_page_public_status
+      end
+
+      test "does not save a service url when the Cloudflare deployment fails" do
+        configuration = Configuration.new(env: {
+          "CLOUDFLARE_ACCOUNT_ID" => "account",
+          "CLOUDFLARE_API_TOKEN" => "token",
+          "CLOUDFLARE_PROJECT_NAME" => "aicoo-lp"
+        })
+        adapter = lambda do |_uri, _request|
+          response(Net::HTTPOK, {
+            success: true,
+            result: [
+              {
+                id: "deploy-failed",
+                latest_stage: { status: "failure" },
+                deployment_trigger: { metadata: { commit_hash: "abcdef123456" } }
+              }
+            ]
+          }.to_json)
+        end
+
+        result = DeploymentVerifier.new(configuration:, http_adapter: adapter).call(
+          landing_page: @landing_page,
+          commit_sha: "abcdef123456"
+        )
+
+        assert_not result.completed
+        assert_equal "failed", result.status
+        assert_nil @landing_page.reload.metadata["service_url"]
+      end
+
+      test "does not publish or save a service url for the generic Cloudflare page" do
+        result = verifier_with_page(
+          "<!doctype html><html><head><title>AICOO LP</title></head><body>Cloudflare Pages is ready.</body></html>"
+        ).call(landing_page: @landing_page, commit_sha: "abcdef123456")
+
+        assert_not result.completed
+        assert_equal "pending", result.status
+        assert_includes result.message, "汎用初期ページ"
+        assert_nil @landing_page.reload.metadata["service_url"]
+      end
+
+      test "does not publish or save a service url for HTTP 500" do
+        verifier = verifier_with_page(
+          "<html><head><title>Error</title></head><body>error</body></html>",
+          page_status: Net::HTTPInternalServerError
+        )
+
+        result = verifier.call(landing_page: @landing_page, commit_sha: "abcdef123456")
+
+        assert_not result.completed
+        assert_includes result.message, "HTTP 500"
+        assert_nil @landing_page.reload.metadata["service_url"]
+      end
+
+      test "does not publish or save a service url when HTML cannot be obtained" do
+        result = verifier_with_page(
+          '{"status":"ok"}',
+          content_type: "application/json"
+        ).call(landing_page: @landing_page, commit_sha: "abcdef123456")
+
+        assert_not result.completed
+        assert_includes result.message, "HTMLを取得できません"
+        assert_nil @landing_page.reload.metadata["service_url"]
+      end
+
+      test "does not save a service url when the Cloudflare url is unavailable" do
+        @landing_page.update!(
+          location: "manual://published",
+          metadata: @landing_page.metadata.except("cloudflare_url", "lp_url")
+        )
+
+        result = verifier_with_page(
+          "<!doctype html><html><head><title>LP</title></head><body>LP</body></html>"
+        ).call(landing_page: @landing_page, commit_sha: "abcdef123456")
+
+        assert_not result.completed
+        assert_includes result.message, "公開確認に失敗"
+        assert_nil @landing_page.reload.metadata["service_url"]
       end
 
       test "diagnoses an invalid cloudflare token without changing a landing page" do
@@ -102,8 +227,34 @@ module Aicoo
 
       private
 
-      def response(klass, body)
+      def verifier_with_page(body, page_status: Net::HTTPOK, content_type: "text/html; charset=utf-8")
+        configuration = Configuration.new(env: {
+          "CLOUDFLARE_ACCOUNT_ID" => "account",
+          "CLOUDFLARE_API_TOKEN" => "token",
+          "CLOUDFLARE_PROJECT_NAME" => "aicoo-lp"
+        })
+        adapter = lambda do |uri, _request|
+          if uri.host == "api.cloudflare.com"
+            response(Net::HTTPOK, {
+              success: true,
+              result: [
+                {
+                  id: "deploy-1",
+                  latest_stage: { status: "success" },
+                  deployment_trigger: { metadata: { commit_hash: "abcdef123456" } }
+                }
+              ]
+            }.to_json)
+          else
+            response(page_status, body, content_type:)
+          end
+        end
+        DeploymentVerifier.new(configuration:, http_adapter: adapter)
+      end
+
+      def response(klass, body, content_type: "application/json")
         klass.new("1.1", klass == Net::HTTPOK ? "200" : "500", "response").tap do |response|
+          response["content-type"] = content_type
           response.define_singleton_method(:body) { body }
         end
       end

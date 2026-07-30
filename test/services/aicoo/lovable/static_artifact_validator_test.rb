@@ -20,6 +20,7 @@ module Aicoo
         ).call
 
         html = result.files.fetch("index.html")
+        assert_empty result.warnings
         assert_includes html, "width=device-width"
         assert_includes html, "https://aicoo-lp.pages.dev/ai-reception/"
         assert_includes html, "https://service.example.com"
@@ -64,6 +65,52 @@ module Aicoo
         end
 
         assert_includes error.message, "G-WRONG1"
+      end
+
+      test "uses the Cloudflare public url when an initial publication has no service url" do
+        result = StaticArtifactValidator.new(
+          files: {
+            "index.html" => <<~HTML
+              <!doctype html>
+              <html>
+                <head><title>AI受付</title><meta name="description" content="電話受付を自動化"></head>
+                <body>
+                  <a href="#contact" data-cta="hero">問い合わせる</a>
+                  <form id="contact"><button type="submit" data-cta="submit">送信</button></form>
+                </body>
+              </html>
+            HTML
+          },
+          page_path: "/ai-reception",
+          public_url: "https://aicoo-lp.pages.dev/ai-reception/",
+          service_url: nil,
+          measurement_id: "G-ABC123"
+        ).call
+
+        assert_includes result.warnings, "初回公開のため公開URLを自動登録します"
+        assert_includes result.files.fetch("index.html"), "https://aicoo-lp.pages.dev/ai-reception/"
+      end
+
+      test "keeps the existing service url requirement for update publications" do
+        error = assert_raises(StaticArtifactValidator::InvalidArtifact) do
+          StaticArtifactValidator.new(
+            files: {
+              "index.html" => <<~HTML
+                <!doctype html>
+                <html>
+                  <head><title>AI受付</title><meta name="description" content="電話受付を自動化"></head>
+                  <body><a href="#contact" data-cta="hero">問い合わせる</a></body>
+                </html>
+              HTML
+            },
+            page_path: "/ai-reception",
+            public_url: "https://aicoo-lp.pages.dev/ai-reception/",
+            service_url: "https://service.example.com",
+            measurement_id: "G-ABC123"
+          ).call
+        end
+
+        assert_includes error.message, "Service本体URLへ遷移するCTAリンクがありません"
       end
     end
   end

@@ -78,11 +78,20 @@ module Aicoo
             )
           )
         )
+        configured_service_url = service_url_for(business, landing_page)
+        if configured_service_url.blank?
+          generation_run.update!(
+            metadata: generation_run.metadata.to_h.merge(
+              "service_url_auto_registration_pending" => true,
+              "service_url_auto_registration_notice" => "初回公開のため公開URLを自動登録します"
+            )
+          )
+        end
         validation = validator_class.new(
           files: build.files,
           page_path:,
           public_url: public_url_for(page_path),
-          service_url: service_url_for(business),
+          service_url: configured_service_url,
           measurement_id: measurement_id_for(business)
         ).call
         serialized_files = serialize_files(validation.files)
@@ -364,9 +373,10 @@ module Aicoo
         "#{configuration.production_url.delete_suffix('/')}#{page_path}/"
       end
 
-      def service_url_for(business)
+      def service_url_for(business, landing_page)
         business.business_execution_profile&.production_url.presence ||
-          business.business_services.where.not(url: [ nil, "" ]).order(:id).pick(:url)
+          business.business_services.where.not(url: [ nil, "" ]).order(:id).pick(:url) ||
+          landing_page.metadata.to_h["service_url"].presence
       end
 
       def measurement_id_for(business)
