@@ -15,6 +15,8 @@ module Aicoo
       end
 
       Result = Data.define(:files, :warnings)
+      GA4_MISSING_WARNING = "GA4 Measurement IDが未設定のためアクセス計測は開始されていません".freeze
+      GA4_PUBLICATION_NOTICE = "公開は完了しました。GA4を設定するとアクセス計測を開始できます".freeze
       TEXT_EXTENSIONS = %w[
         .html .htm .css .js .mjs .cjs .jsx .ts .tsx .json .xml .txt .svg .webmanifest
       ].freeze
@@ -53,12 +55,15 @@ module Aicoo
         document = Nokogiri::HTML5(normalized.fetch("index.html"))
         ensure_head_metadata!(document)
         ensure_cta!(document)
-        ensure_ga4!(document)
+        ga4_warning = ensure_ga4!(document)
         normalized["index.html"] = document.to_html
         validate_asset_references!(normalized)
+        warnings = []
+        warnings << "初回公開のため公開URLを自動登録します" if service_url_fallback
+        warnings << ga4_warning if ga4_warning
         Result.new(
           files: normalized,
-          warnings: service_url_fallback ? [ "初回公開のため公開URLを自動登録します" ] : []
+          warnings:
         )
       end
 
@@ -431,9 +436,8 @@ module Aicoo
       end
 
       def ensure_ga4!(document)
-        unless measurement_id.match?(/\AG-[A-Z0-9]+\z/i)
-          raise InvalidArtifact, "Business共通GA4 Measurement IDが未設定です。"
-        end
+        return GA4_MISSING_WARNING if measurement_id.blank?
+        raise InvalidArtifact, "Business共通GA4 Measurement IDが不正です。" unless measurement_id.match?(/\AG-[A-Z0-9]+\z/i)
 
         html = document.to_html
         existing_ids = html.scan(%r{gtag/js\?id=(G-[A-Z0-9]+)}i).flatten +

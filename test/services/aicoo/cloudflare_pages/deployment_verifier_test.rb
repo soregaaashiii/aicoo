@@ -102,6 +102,36 @@ module Aicoo
         assert_nil @run.reload.metadata["service_url_auto_registration_message"]
       end
 
+      test "completes publication and preserves a GA4 warning when Measurement ID is missing" do
+        @run.update!(metadata: @run.metadata.merge(
+          "static_validation_warnings" => [
+            Aicoo::Lovable::StaticArtifactValidator::GA4_MISSING_WARNING
+          ]
+        ))
+
+        result = verifier_with_page(
+          "<!doctype html><html><head><title>公開LP</title></head><body>voice-analysis-pro</body></html>"
+        ).call(landing_page: @landing_page, commit_sha: "abcdef123456")
+
+        assert result.completed
+        landing_page_metadata = @landing_page.reload.metadata
+        assert_equal "published", landing_page_metadata["lp_public_status"]
+        assert_equal "deployed", landing_page_metadata["cloudflare_deploy_status"]
+        assert_equal "completed", landing_page_metadata["pipeline_stage"]
+        assert_equal(
+          Aicoo::Lovable::StaticArtifactValidator::GA4_MISSING_WARNING,
+          landing_page_metadata["ga4_measurement_warning"]
+        )
+
+        run_metadata = @run.reload.metadata
+        assert_equal "completed", run_metadata["pipeline_status"]
+        assert_equal(
+          Aicoo::Lovable::StaticArtifactValidator::GA4_PUBLICATION_NOTICE,
+          run_metadata["publication_notice"]
+        )
+        assert_nil run_metadata["measurement_started_at"]
+      end
+
       test "keeps deployment pending while cloudflare has not returned the commit" do
         configuration = Configuration.new(env: {
           "CLOUDFLARE_ACCOUNT_ID" => "account",

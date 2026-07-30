@@ -82,6 +82,24 @@ module Aicoo
         assert overview.history.any? { |entry| entry.label == "Learning完了" }
       end
 
+      test "shows the missing GA4 warning after publication completes" do
+        warning = StaticArtifactValidator::GA4_MISSING_WARNING
+        overview = build_overview(
+          status: "completed",
+          metadata: {
+            "ga4_measurement_warning" => warning,
+            "ga4_measurement_warning_at" => "2026-07-29T12:05:00+09:00",
+            "measurement_sources" => { "ga4" => "waiting", "gsc" => "waiting" }
+          }
+        )
+
+        assert overview.completed?
+        assert_equal StaticArtifactValidator::GA4_PUBLICATION_NOTICE, overview.next_action_text
+        ga4 = overview.stages.find { |stage| stage.key == :ga4 }.diagnostics.index_by(&:label)
+        assert_equal warning, ga4.fetch("警告").value
+        assert overview.history.any? { |entry| entry.label == warning }
+      end
+
       test "keeps failure at its stage and provides recovery guidance" do
         overview = build_overview(
           status: "waiting_manual_fix",

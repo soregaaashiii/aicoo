@@ -67,6 +67,49 @@ module Aicoo
         assert_includes error.message, "G-WRONG1"
       end
 
+      test "warns and continues when the Business shared GA4 Measurement ID is missing" do
+        result = StaticArtifactValidator.new(
+          files: {
+            "index.html" => <<~HTML
+              <!doctype html>
+              <html>
+                <head><title>LP</title><meta name="description" content="LP"></head>
+                <body><a class="cta" href="https://service.example.com">CTA</a></body>
+              </html>
+            HTML
+          },
+          page_path: "/lp",
+          public_url: "https://aicoo-lp.pages.dev/lp/",
+          service_url: "https://service.example.com",
+          measurement_id: nil
+        ).call
+
+        assert_includes result.warnings, StaticArtifactValidator::GA4_MISSING_WARNING
+        assert_not_includes result.files.fetch("index.html"), "googletagmanager.com/gtag"
+      end
+
+      test "rejects a configured but invalid GA4 Measurement ID" do
+        error = assert_raises(StaticArtifactValidator::InvalidArtifact) do
+          StaticArtifactValidator.new(
+            files: {
+              "index.html" => <<~HTML
+                <!doctype html>
+                <html>
+                  <head><title>LP</title><meta name="description" content="LP"></head>
+                  <body><a class="cta" href="https://service.example.com">CTA</a></body>
+                </html>
+              HTML
+            },
+            page_path: "/lp",
+            public_url: "https://aicoo-lp.pages.dev/lp/",
+            service_url: "https://service.example.com",
+            measurement_id: "UA-INVALID"
+          ).call
+        end
+
+        assert_equal "Business共通GA4 Measurement IDが不正です。", error.message
+      end
+
       test "uses the Cloudflare public url when an initial publication has no service url" do
         result = StaticArtifactValidator.new(
           files: {

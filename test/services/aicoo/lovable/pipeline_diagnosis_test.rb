@@ -142,6 +142,29 @@ module Aicoo
         assert_equal "Business → Google設定", ga4.settings_location
       end
 
+      test "shows the publication notice instead of blocking a published LP without GA4" do
+        diagnosis = build_diagnosis(
+          status: "completed",
+          run_metadata: {
+            "ga4_measurement_warning" => StaticArtifactValidator::GA4_MISSING_WARNING,
+            "static_validation_warnings" => [ StaticArtifactValidator::GA4_MISSING_WARNING ],
+            "publication" => {
+              "production_url" => "https://aicoo-lp.pages.dev/test/",
+              "http_status" => 200
+            }
+          },
+          connection_statuses: {
+            "ga4" => ConnectionStatus.new(false, false, nil, nil, nil),
+            "gsc" => ConnectionStatus.new(true, false, "sc-domain:example.com", Time.current, nil)
+          }
+        )
+
+        assert_equal "warning", diagnosis.component(:ga4).level
+        assert_equal StaticArtifactValidator::GA4_MISSING_WARNING, diagnosis.component(:ga4).cause
+        assert_equal StaticArtifactValidator::GA4_PUBLICATION_NOTICE, diagnosis.next_action.text
+        assert_equal :none, diagnosis.next_action.kind
+      end
+
       test "does not surface an owner action while automatic recovery is running" do
         diagnosis = build_diagnosis(
           status: "github_webhook_waiting",

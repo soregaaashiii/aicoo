@@ -227,6 +227,7 @@ module Aicoo
         return "LP戦略とPromptを確認して承認してください。" if approval_waiting?
         return "Lovableを開いてGenerateしてください。" if current_stage_index == 3
         return "GitHub Pushを待っています。Generate後は操作不要です。" if current_stage_index == 4
+        return Aicoo::Lovable::StaticArtifactValidator::GA4_PUBLICATION_NOTICE if completed? && ga4_missing_warning?
         return "公開・計測・Learningが完了しました。AICOOが次の改善を判断します。" if completed?
 
         "現在AIが処理中です。操作は不要です。"
@@ -345,6 +346,8 @@ module Aicoo
       end
 
       def completed_pipeline_stage_index
+        return 14 if ga4_missing_warning?
+
         sources = metadata.to_h["measurement_sources"].to_h
         return 14 if sources.empty?
         return 11 unless sources["ga4"] == "available"
@@ -577,6 +580,7 @@ module Aicoo
           diagnostic("Property", analytics_site&.ga4_property_id),
           diagnostic("Measurement ID", ga4_measurement_id),
           diagnostic("Page Path", landing_page_ga4_path),
+          diagnostic("警告", ga4_measurement_warning),
           diagnostic("初回計測", metadata["measurement_started_at"]),
           diagnostic("最新計測", analytics_site&.last_ga4_fetch_at || measurement_timestamp("ga4")),
           diagnostic("取得状態", measurement_source_label("ga4"))
@@ -764,6 +768,18 @@ module Aicoo
         metadata.to_h.dig("measurement_sources", source).presence
       end
 
+      def ga4_missing_warning?
+        ga4_measurement_warning == Aicoo::Lovable::StaticArtifactValidator::GA4_MISSING_WARNING
+      end
+
+      def ga4_measurement_warning
+        metadata["ga4_measurement_warning"].presence ||
+          landing_page_metadata["ga4_measurement_warning"].presence ||
+          Array(metadata["static_validation_warnings"]).find do |warning|
+            warning == Aicoo::Lovable::StaticArtifactValidator::GA4_MISSING_WARNING
+          end
+      end
+
       def history_entries
         entries = stages.filter_map do |stage|
           next unless stage.timestamp
@@ -815,6 +831,14 @@ module Aicoo
             label: metadata["service_url_auto_registration_message"].presence ||
               "Service URLを自動登録しました",
             detail: publication["production_url"]
+          )
+        end
+        ga4_warning_at = parse_time(metadata["ga4_measurement_warning_at"])
+        if ga4_warning_at && ga4_measurement_warning.present?
+          entries << HistoryEntry.new(
+            timestamp: ga4_warning_at,
+            label: ga4_measurement_warning,
+            detail: nil
           )
         end
         entries

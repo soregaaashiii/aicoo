@@ -144,7 +144,18 @@ module Aicoo
       def complete!(landing_page, deployment, url, response:, deleted:, page_title:)
         now = Time.current
         auto_register_service_url = !deleted && existing_service_url(landing_page).blank?
-        metadata = landing_page.metadata.to_h.merge(
+        generation_run = deleted ? nil : generation_run_for(landing_page)
+        ga4_warning = ga4_missing_warning(generation_run)
+        pipeline_stage = ga4_warning ? "completed" : "ga4_pending"
+        landing_page_metadata = landing_page.metadata.to_h
+        unless deleted || ga4_warning
+          landing_page_metadata = landing_page_metadata.except(
+            "ga4_measurement_warning",
+            "ga4_measurement_warning_at",
+            "publication_notice"
+          )
+        end
+        metadata = landing_page_metadata.merge(
           "cloudflare_deploy_status" => deleted ? "deleted" : "deployed",
           "cloudflare_deployment_id" => deployment&.dig("id"),
           "cloudflare_http_status" => response.code.to_i,
@@ -157,14 +168,21 @@ module Aicoo
           "last_published_at" => now.iso8601,
           "last_sync_at" => now.iso8601,
           "sync_status" => "synced",
-          "planning_status" => deleted ? "archived" : "measurement_pending",
-          "pipeline_stage" => deleted ? "completed" : "ga4_pending",
+          "planning_status" => deleted ? "archived" : (ga4_warning ? "completed" : "measurement_pending"),
+          "pipeline_stage" => deleted ? "completed" : pipeline_stage,
           "pipeline_stages" => Aicoo::LpIntegration::LandingPagePipelineState.build(
-            current: deleted ? "completed" : "ga4_pending",
+            current: deleted ? "completed" : pipeline_stage,
             approval_required: false
           )
         ).compact
         metadata["lp_public_status"] = "published" unless deleted
+        if ga4_warning
+          metadata.merge!(
+            "ga4_measurement_warning" => ga4_warning,
+            "ga4_measurement_warning_at" => now.iso8601,
+            "publication_notice" => Aicoo::Lovable::StaticArtifactValidator::GA4_PUBLICATION_NOTICE
+          )
+        end
         if auto_register_service_url
           metadata.merge!(
             "service_url" => url,
@@ -176,6 +194,7 @@ module Aicoo
         end
         landing_page.update!(metadata:)
         stamp_generation_run!(
+          generation_run,
           landing_page,
           url,
           deployment,
@@ -200,6 +219,7 @@ module Aicoo
       end
 
       def stamp_generation_run!(
+        run,
         landing_page,
         url,
         deployment,
@@ -208,10 +228,6 @@ module Aicoo
         auto_register_service_url:,
         registered_at:
       )
-        run_id = landing_page.metadata.to_h["lovable_generation_run_id"]
-        return if run_id.blank?
-
-        run = AicooLabGenerationRun.find_by(id: run_id)
         return unless run
 
         publication = run.metadata.to_h.fetch("publication", {}).merge(
@@ -238,13 +254,44 @@ module Aicoo
         else
           {}
         end
-        run.update!(metadata: run.metadata.to_h.merge(
+        ga4_warning = ga4_missing_warning(run)
+        completion_metadata = if ga4_warning
+          {
+            "pipeline_status" => "completed",
+            "ga4_measurement_warning" => ga4_warning,
+            "ga4_measurement_warning_at" => registered_at.iso8601,
+            "publication_notice" => Aicoo::Lovable::StaticArtifactValidator::GA4_PUBLICATION_NOTICE
+          }
+        else
+          {
+            "pipeline_status" => "measurement_waiting",
+            "measurement_started_at" => Time.current.iso8601
+          }
+        end
+        run_metadata = run.metadata.to_h
+        unless ga4_warning
+          run_metadata = run_metadata.except(
+            "ga4_measurement_warning",
+            "ga4_measurement_warning_at",
+            "publication_notice"
+          )
+        end
+        run.update!(metadata: run_metadata.merge(
           "publication" => publication,
-          "pipeline_status" => "measurement_waiting",
           "lovable_status" => "completed",
-          "cloudflare_retry_count" => landing_page.metadata.to_h["cloudflare_retry_count"],
-          "measurement_started_at" => Time.current.iso8601
-        ).merge(initial_publication_metadata).compact)
+          "cloudflare_retry_count" => landing_page.metadata.to_h["cloudflare_retry_count"]
+        ).merge(initial_publication_metadata).merge(completion_metadata).compact)
+      end
+
+      def generation_run_for(landing_page)
+        run_id = landing_page.metadata.to_h["lovable_generation_run_id"]
+        AicooLabGenerationRun.find_by(id: run_id) if run_id.present?
+      end
+
+      def ga4_missing_warning(generation_run)
+        Array(generation_run&.metadata.to_h&.dig("static_validation_warnings")).find do |warning|
+          warning == Aicoo::Lovable::StaticArtifactValidator::GA4_MISSING_WARNING
+        end
       end
 
       def failed(deployment, status)

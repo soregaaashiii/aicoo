@@ -433,6 +433,8 @@ module Aicoo
           [ "settings", "Google OAuthの再認証が必要です。" ]
         elsif last_error.present?
           [ "error", last_error ]
+        elsif source == "ga4" && ga4_missing_publication_warning?
+          [ "warning", Aicoo::Lovable::StaticArtifactValidator::GA4_MISSING_WARNING ]
         elsif configured
           [ "healthy", "#{source.upcase}はBusiness共通設定へ接続済みです。" ]
         else
@@ -512,6 +514,13 @@ module Aicoo
         return NextAction.new(text: "このLPの作成目的を選んで生成を開始してください。", kind: :create, component: nil) unless generation_run
         return NextAction.new(text: "LP戦略とPromptを確認して承認してください。", kind: :approve, component: nil) if overview.approval_waiting?
         return NextAction.new(text: "LovableでGenerateしてください。", kind: :generate, component: :lovable) if overview.current_position == 3
+        if overview.completed? && ga4_missing_publication_warning?
+          return NextAction.new(
+            text: Aicoo::Lovable::StaticArtifactValidator::GA4_PUBLICATION_NOTICE,
+            kind: :none,
+            component: :ga4
+          )
+        end
 
         current_component = self.class.component_for_stage(overview.current_stage.key)
         issue = components.find { |row| row.key == current_component && row.actionable? }
@@ -579,6 +588,13 @@ module Aicoo
         return "Cloudflare公開URLのHTTP 200を確認できませんでした。" if error_code == "public_url_verification_timeout"
 
         text.presence || "Cloudflare PagesのDeployに失敗しました。"
+      end
+
+      def ga4_missing_publication_warning?
+        metadata["ga4_measurement_warning"] == Aicoo::Lovable::StaticArtifactValidator::GA4_MISSING_WARNING ||
+          Array(metadata["static_validation_warnings"]).include?(
+            Aicoo::Lovable::StaticArtifactValidator::GA4_MISSING_WARNING
+          )
       end
 
       class << self

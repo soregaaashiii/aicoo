@@ -252,6 +252,54 @@ module Aicoo
         assert_includes metadata["static_validation_warnings"], "初回公開のため公開URLを自動登録します"
       end
 
+      test "continues through aicoo lp publication when GA4 Measurement ID is missing" do
+        @business.business_services.create!(
+          name: "AI受付 Service",
+          status: "production",
+          url: "https://service.example.com"
+        )
+        flow = LandingPageCreationFlow.new(
+          business: @business,
+          campaign: @campaign,
+          attributes: { purpose: "google_ads" },
+          strategy_builder_class: fake_strategy_builder
+        ).call
+        flow.landing_page.update!(
+          metadata: flow.landing_page.metadata.to_h.merge("ga4_page_path" => "/ai-reception")
+        )
+        flow.task.approve!
+        Aicoo::Lovable::LandingPagePipeline.new.register_result!(
+          business: @business,
+          generation_run: flow.generation_run,
+          project_url: "https://lovable.dev/projects/project-123",
+          result_repository: "https://github.com/example/lovable-result",
+          result_branch: "main"
+        )
+        publisher = FakePublisher.new
+        importer = Aicoo::Lovable::ResultRepositoryImporter.new(
+          source_client_class: fake_source_client_class,
+          publisher:,
+          configuration: Aicoo::CloudflarePages::Configuration.new(
+            env: {
+              "AICOO_GITHUB_TOKEN" => "token",
+              "CLOUDFLARE_PAGES_PRODUCTION_URL" => "https://aicoo-lp.pages.dev"
+            }
+          )
+        )
+
+        result = importer.call(generation_run: flow.generation_run)
+
+        assert_equal false, result.idempotent
+        assert_equal 1, publisher.calls
+        metadata = flow.generation_run.reload.metadata
+        assert_equal "succeeded", metadata["static_validation_status"]
+        assert_equal "cloudflare_waiting", metadata["pipeline_status"]
+        assert_includes(
+          metadata["static_validation_warnings"],
+          Aicoo::Lovable::StaticArtifactValidator::GA4_MISSING_WARNING
+        )
+      end
+
       test "imports a registered repository without an approval task and stores preview commit details" do
         @business.update!(metadata: @business.metadata.to_h.merge("lp_ga4_measurement_id" => "G-ABC123"))
         @business.business_services.create!(
