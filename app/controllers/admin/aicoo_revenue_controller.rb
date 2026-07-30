@@ -1,7 +1,7 @@
 module Admin
   class AicooRevenueController < ApplicationController
     def show
-      @today_board = ::Aicoo::TodayActionBoard.new(mode: params[:mode], reuse_request_result: true).call
+      @today_board = ::Aicoo::TodayActionBoard.new(mode: params[:mode]).call
     end
 
     private

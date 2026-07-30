@@ -12,23 +12,7 @@ module Aicoo
     )
     RateSummary = Data.define(:label, :total_count, :positive_count, :rate)
 
-    def initialize(reuse_request_result: false)
-      @reuse_request_result = reuse_request_result
-    end
-
     def call
-      if reuse_request_result && Aicoo::RequestQueryContext.active
-        return Aicoo::RequestQueryContext.fetch(:owner_decision_summary) { build_summary }
-      end
-
-      build_summary
-    end
-
-    private
-
-    attr_reader :reuse_request_result
-
-    def build_summary
       logs_30_days = OwnerDecisionLog.last_30_days
 
       Summary.new(
@@ -42,6 +26,8 @@ module Aicoo
         recent_logs: OwnerDecisionLog.includes(:business, :queue_item).recent.limit(10)
       )
     end
+
+    private
 
     def counts_by_decision_type(scope)
       OwnerDecisionLog::DECISION_TYPES.index_with { |type| scope.where(decision_type: type).count }

@@ -7,8 +7,7 @@ module Owner
           Aicoo::TodayActionBoard.new(
             mode: @mode,
             page: params[:home_actions_page],
-            page_param: :home_actions_page,
-            reuse_request_result: true
+            page_param: :home_actions_page
           ).call
         end
         @dashboard_summary = Aicoo::MemoryDiagnostics.measure("Owner::DashboardController#show.dashboard_summary", context: memory_diagnostics_context(mode: @mode)) do

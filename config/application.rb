@@ -1,4 +1,5 @@
 require_relative "boot"
+require_relative "../lib/aicoo/system_mode_performance"
 
 require "rails/all"
 
@@ -23,6 +24,7 @@ module RubyOnRailsAiCooAi2
     #
     config.time_zone = "Asia/Tokyo"
     config.active_record.default_timezone = :utc
+    config.middleware.insert_before 0, Aicoo::SystemModePerformance::Middleware
     # config.eager_load_paths << Rails.root.join("extras")
   end
 end

@@ -6,8 +6,7 @@ module Owner
           Aicoo::TodayActionBoard.new(
             mode: params[:mode],
             page: params[:today_actions_page],
-            page_param: :today_actions_page,
-            reuse_request_result: true
+            page_param: :today_actions_page
           ).call
         end
       end
