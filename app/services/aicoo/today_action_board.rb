@@ -113,14 +113,29 @@ module Aicoo
       :improvement_type_label
     )
 
-    def initialize(mode: nil, page: nil, page_param: :today_actions_page, per_page: PER_PAGE)
+    def initialize(mode: nil, page: nil, page_param: :today_actions_page, per_page: PER_PAGE, reuse_request_result: false)
       @mode = MODES.include?(mode.to_s) ? mode.to_s : "revenue"
       @page = page
       @page_param = page_param.to_sym
       @per_page = per_page
+      @reuse_request_result = reuse_request_result
     end
 
     def call
+      return build_board unless reuse_request_result && Aicoo::RequestQueryContext.active
+
+      Aicoo::RequestQueryContext.fetch(request_result_cache_key) { build_board }
+    end
+
+    def expected_value_yen_for(candidate)
+      action_candidate_valuation(candidate).fetch(:action_expected_value_delta_yen)
+    end
+
+    private
+
+    attr_reader :mode, :page, :page_param, :per_page, :reuse_request_result
+
+    def build_board
       Aicoo::MemoryDiagnostics.measure("Aicoo::TodayActionBoard#call", context: memory_context) do
         items = candidate_items
         ranking = ActionExpectedValueRanking.new(
@@ -147,13 +162,25 @@ module Aicoo
       end
     end
 
-    def expected_value_yen_for(candidate)
-      action_candidate_valuation(candidate).fetch(:action_expected_value_delta_yen)
+    def request_result_cache_key
+      [
+        :today_action_board,
+        :owner_active_for_ranking,
+        mode,
+        normalized_page,
+        page_param,
+        normalized_per_page
+      ]
     end
 
-    private
+    def normalized_page
+      [ page.to_i, 1 ].max
+    end
 
-    attr_reader :mode, :page, :page_param, :per_page
+    def normalized_per_page
+      [ per_page.to_i, Aicoo::ActionExpectedValueRanking::DEFAULT_PER_PAGE ].select(&:positive?).first ||
+        Aicoo::ActionExpectedValueRanking::DEFAULT_PER_PAGE
+    end
 
     def memory_context(extra = {})
       {
@@ -1001,6 +1028,14 @@ module Aicoo
     end
 
     def action_candidate_valuation(candidate)
+      return uncached_action_candidate_valuation(candidate) unless reuse_request_result && Aicoo::RequestQueryContext.active
+
+      Aicoo::RequestQueryContext.fetch([ :today_action_candidate_valuation, candidate.object_id ]) do
+        uncached_action_candidate_valuation(candidate)
+      end
+    end
+
+    def uncached_action_candidate_valuation(candidate)
       return article_opportunity_valuation(candidate) if article_opportunity_candidate?(candidate)
       return seo_article_candidate_valuation(candidate) if Aicoo::SeoArticleExpectedValue.applies_to?(candidate)
 

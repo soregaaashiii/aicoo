@@ -121,6 +121,67 @@ module Aicoo
       assert_equal original, candidate.metadata
     end
 
+    test "reuses an identical Today board within one request" do
+      boards = RequestQueryContext.within do
+        2.times.map do
+          TodayActionBoard.new(
+            mode: "revenue",
+            page: 1,
+            page_param: :today_actions_page,
+            per_page: 20,
+            reuse_request_result: true
+          ).call
+        end
+      end
+
+      assert_same boards.first, boards.second
+    end
+
+    test "keeps Today items and ranking unchanged when request reuse is enabled" do
+      boards = RequestQueryContext.within do
+        [
+          TodayActionBoard.new(mode: "revenue", per_page: 100).call,
+          TodayActionBoard.new(mode: "revenue", per_page: 100, reuse_request_result: true).call
+        ]
+      end
+
+      assert_equal today_board_signature(boards.first), today_board_signature(boards.second)
+    end
+
+    test "separates Today boards with different request conditions" do
+      boards = RequestQueryContext.within do
+        {
+          revenue: TodayActionBoard.new(mode: "revenue", reuse_request_result: true).call,
+          learning: TodayActionBoard.new(mode: "learning", reuse_request_result: true).call,
+          page_two: TodayActionBoard.new(mode: "revenue", page: 2, reuse_request_result: true).call,
+          larger_page: TodayActionBoard.new(mode: "revenue", per_page: 100, reuse_request_result: true).call
+        }
+      end
+
+      refute_same boards.fetch(:revenue), boards.fetch(:learning)
+      refute_same boards.fetch(:revenue), boards.fetch(:page_two)
+      refute_same boards.fetch(:revenue), boards.fetch(:larger_page)
+    end
+
+    test "does not leak a Today board to another request" do
+      first = RequestQueryContext.within do
+        TodayActionBoard.new(mode: "revenue", reuse_request_result: true).call
+      end
+      second = RequestQueryContext.within do
+        TodayActionBoard.new(mode: "revenue", reuse_request_result: true).call
+      end
+
+      refute_same first, second
+    end
+
+    test "reuses owner decision summary within one request" do
+      summaries = RequestQueryContext.within do
+        2.times.map { OwnerDecisionSummary.new(reuse_request_result: true).call }
+      end
+
+      assert_same summaries.first, summaries.second
+    end
+
     private
 
     def capture_sql
@@ -137,6 +198,29 @@ module Aicoo
 
     def matching_query_count(sql, table_name)
       sql.count { |statement| statement.include?(%("#{table_name}")) }
+    end
+
+    def today_board_signature(board)
+      {
+        mode: board.mode,
+        total_count: board.total_count,
+        current_page: board.current_page,
+        total_pages: board.total_pages,
+        items: board.items.map do |item|
+          {
+            stable_id: item.stable_id,
+            rank: item.rank,
+            title: item.concrete_task,
+            expected_value_yen: item.expected_value_yen,
+            expected_hours: item.expected_hours,
+            success_probability: item.success_probability,
+            department: item.record.try(:department),
+            action_type: item.record.try(:action_type),
+            reason: item.reason,
+            group_count: item.group_count
+          }
+        end
+      }
     end
   end
 end
