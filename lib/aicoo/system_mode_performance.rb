@@ -661,7 +661,7 @@ module Aicoo
       end
 
       def app_caller
-        root = defined?(Rails) ? Rails.root.to_s : nil
+        root = defined?(Rails) && Rails.respond_to?(:root) ? Rails.root.to_s : nil
         location = caller_locations(3, CALLER_LIMIT).find do |item|
           root && item.absolute_path.to_s.start_with?("#{root}/app/")
         end
