@@ -127,6 +127,27 @@ module Aicoo
         end
       end
 
+      test "shows localhost runtime connection details only in static build diagnostics" do
+        overview = build_overview(
+          status: "waiting_manual_fix",
+          metadata: {
+            "lovable_error_code" => "static_validation_failed",
+            "lovable_error_message" => "localhostへの実通信が検出されました。",
+            "static_validation_failure_file" => "assets/app.js",
+            "static_validation_failure_line" => 12,
+            "static_validation_failure_url" => "http://localhost:3000/api",
+            "static_validation_failure_api" => "fetch"
+          }
+        )
+
+        diagnostics = overview.stages[6].diagnostics.index_by(&:label)
+        assert_equal "assets/app.js", diagnostics.fetch("検出ファイル").value
+        assert_equal 12, diagnostics.fetch("検出行").value
+        assert_equal "http://localhost:3000/api", diagnostics.fetch("検出URL").value
+        assert_equal "fetch", diagnostics.fetch("検出API").value
+        assert_equal "localhostへの実通信が検出されました。", overview.error_message
+      end
+
       test "keeps a transient importer failure in automatic recovery without owner notification" do
         overview = build_overview(
           status: "github_webhook_waiting",

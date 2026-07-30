@@ -121,7 +121,7 @@ module Aicoo
         mark_waiting_manual_fix(generation_run, e.code, e, static_build_failure_metadata(e))
         raise
       rescue StaticArtifactValidator::InvalidArtifact => e
-        mark_waiting_manual_fix(generation_run, "static_validation_failed", e)
+        mark_waiting_manual_fix(generation_run, "static_validation_failed", e, static_validation_failure_metadata(e))
         raise
       rescue StandardError => e
         mark_retryable_failure(generation_run, e)
@@ -322,6 +322,16 @@ module Aicoo
           "static_build_stderr" => details["build_stderr"],
           "static_build_exit_code" => details["build_exit_code"]
         }
+      end
+
+      def static_validation_failure_metadata(error)
+        details = error.details.to_h.deep_stringify_keys
+        {
+          "static_validation_failure_file" => details["file"],
+          "static_validation_failure_line" => details["line"],
+          "static_validation_failure_url" => details["url"],
+          "static_validation_failure_api" => details["api"]
+        }.compact
       end
 
       def mark_retryable_failure(run, error)

@@ -522,6 +522,10 @@ module Aicoo
           diagnostic("生成ファイル数", metadata["static_build_generated_file_count"]),
           diagnostic("Build Log", metadata["static_build_log"]),
           diagnostic("Service URL", metadata["service_url_auto_registration_notice"]),
+          diagnostic("検出ファイル", metadata["static_validation_failure_file"]),
+          diagnostic("検出行", metadata["static_validation_failure_line"]),
+          diagnostic("検出URL", metadata["static_validation_failure_url"]),
+          diagnostic("検出API", metadata["static_validation_failure_api"]),
           diagnostic("結果", metadata["static_build_status"] || stage_result(:static_build))
         ]
       end

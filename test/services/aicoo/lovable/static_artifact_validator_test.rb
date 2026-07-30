@@ -112,6 +112,99 @@ module Aicoo
 
         assert_includes error.message, "Service本体URLへ遷移するCTAリンクがありません"
       end
+
+      test "allows localhost in comments error messages dev checks unused strings and source maps" do
+        result = validate_javascript(<<~JAVASCRIPT)
+          // Documentation: http://localhost:3000
+          const message = "Could not connect to http://localhost:3000";
+          if (import.meta.env.DEV) console.debug(message);
+          const unused = "http://127.0.0.1:4000/debug";
+          const origin = window.origin !== "null" ? window.origin : "http://localhost";
+          //# sourceMappingURL=http://localhost:3000/app.js.map
+        JAVASCRIPT
+
+        assert result.files.key?("assets/app.js")
+      end
+
+      test "rejects a localhost fetch with file line url and api details" do
+        error = assert_raises(StaticArtifactValidator::InvalidArtifact) do
+          validate_javascript(<<~JAVASCRIPT)
+            const label = "request";
+            fetch("http://localhost:3000/api");
+          JAVASCRIPT
+        end
+
+        assert_equal "localhostへの実通信が検出されました。", error.message
+        assert_equal "assets/app.js", error.details.fetch("file")
+        assert_equal 2, error.details.fetch("line")
+        assert_equal "http://localhost:3000/api", error.details.fetch("url")
+        assert_equal "fetch", error.details.fetch("api")
+      end
+
+      test "rejects a loopback axios request" do
+        error = assert_raises(StaticArtifactValidator::InvalidArtifact) do
+          validate_javascript('axios("http://127.0.0.1/api");')
+        end
+
+        assert_equal "axios", error.details.fetch("api")
+        assert_equal "http://127.0.0.1/api", error.details.fetch("url")
+      end
+
+      test "rejects a localhost WebSocket connection" do
+        error = assert_raises(StaticArtifactValidator::InvalidArtifact) do
+          validate_javascript('new WebSocket("ws://localhost:5173/socket");')
+        end
+
+        assert_equal "WebSocket", error.details.fetch("api")
+        assert_equal "ws://localhost:5173/socket", error.details.fetch("url")
+      end
+
+      test "rejects a localhost iframe source" do
+        error = assert_raises(StaticArtifactValidator::InvalidArtifact) do
+          StaticArtifactValidator.new(
+            files: {
+              "index.html" => <<~HTML
+                <!doctype html>
+                <html>
+                  <head><title>LP</title><meta name="description" content="LP"></head>
+                  <body>
+                    <a class="cta" href="https://service.example.com">CTA</a>
+                    <iframe src="http://localhost:3000/preview"></iframe>
+                  </body>
+                </html>
+              HTML
+            },
+            page_path: "/lp",
+            public_url: "https://aicoo-lp.pages.dev/lp/",
+            service_url: "https://service.example.com",
+            measurement_id: "G-ABC123"
+          ).call
+        end
+
+        assert_equal "iframe src", error.details.fetch("api")
+        assert_equal "http://localhost:3000/preview", error.details.fetch("url")
+      end
+
+      private
+
+      def validate_javascript(source)
+        StaticArtifactValidator.new(
+          files: {
+            "index.html" => <<~HTML,
+              <!doctype html>
+              <html>
+                <head><title>LP</title><meta name="description" content="LP"></head>
+                <body><a class="cta" href="https://service.example.com">CTA</a></body>
+              </html>
+            HTML
+            "assets/app.js" => source
+          },
+          page_path: "/lp",
+          public_url: "https://aicoo-lp.pages.dev/lp/",
+          service_url: "https://service.example.com",
+          measurement_id: "G-ABC123"
+        ).call
+      end
     end
   end
 end
