@@ -21,6 +21,27 @@ module Aicoo
       assert_operator summary.smart_count, :>, 0
     end
 
+    test "rechecks existing defaults with one query and no writes" do
+      DataSourceCostProfile.ensure_defaults!
+      statements = []
+      callback = lambda do |_name, _start, _finish, _id, payload|
+        next if payload[:cached] || payload[:name] == "SCHEMA"
+
+        statements << payload[:sql]
+      end
+
+      ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+        DataSourceCostProfile.ensure_defaults!
+      end
+
+      profile_selects = statements.count do |sql|
+        sql.match?(/SELECT .* FROM "data_source_cost_profiles"/m)
+      end
+      writes = statements.grep(/\A\s*(?:INSERT|UPDATE|DELETE)/i)
+      assert_equal 1, profile_selects
+      assert_empty writes
+    end
+
     test "calculates business level disabled warning" do
       DataSourceCostProfile.ensure_defaults!
       BusinessDataSourceSetting.create!(business: @business, source_key: "serp", enabled: false)

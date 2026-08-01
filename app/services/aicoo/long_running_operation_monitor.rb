@@ -78,9 +78,7 @@ module Aicoo
         (include_daily_runs ? daily_run_operations : []) +
         codex_operations +
         serp_operations
-      if running_only
-        landing_page_operations
-      else
+      unless running_only
         operations += data_import_operations + landing_page_operations
       end
 

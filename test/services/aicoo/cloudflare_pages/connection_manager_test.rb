@@ -49,6 +49,45 @@ module Aicoo
         assert_equal 0, BusinessDataSourceSetting.where(source_key: "cloudflare_pages").count
       end
 
+      test "successful test stores the refreshed projects and clears the previous error" do
+        calls = 0
+        fake_client = Class.new do
+          define_method(:initialize) do |account_id: nil, token:|
+            @account_id = account_id
+            @token = token
+          end
+
+          define_method(:project_snapshots) do |account_id:|
+            calls += 1
+            raise "unexpected account" unless account_id == "account-1"
+            raise "unexpected token" unless @token == "token-1"
+
+            [ { "name" => "aicoo-lp", "production_url" => "https://aicoo-lp.pages.dev", "domains" => [] } ]
+          end
+        end
+        profile = DataSourceCostProfile.create!(
+          source_key: "cloudflare_pages",
+          name: "Cloudflare Pages",
+          execution_mode: "auto",
+          enabled: true,
+          last_error: "old error",
+          metadata: {
+            "credentials" => { "account_id" => "account-1", "api_token" => "token-1" },
+            "cloudflare" => { "status" => "error", "last_error" => "old error", "use_stored_credentials" => true }
+          }
+        )
+
+        result = ConnectionManager.new(profile:, env: {}, api_client_class: fake_client).test!
+
+        profile.reload
+        assert result.connected?
+        assert_equal 1, calls
+        assert_equal "connected", profile.metadata.dig("cloudflare", "status")
+        assert_equal "aicoo-lp", profile.metadata.dig("cloudflare", "projects", 0, "name")
+        assert_nil profile.metadata.dig("cloudflare", "last_error")
+        assert_nil profile.last_error
+      end
+
       test "stores oauth credentials globally and resolves the account" do
         fake_client = Class.new do
           def initialize(account_id: nil, token:)

@@ -64,7 +64,7 @@ class ApplicationController < ActionController::Base
     return if execution_runs_path?
     return unless request.format.html?
 
-    options = if business_index_request?
+    options = if business_index_request? || global_settings_request?
       {
         running_only: true,
         include_daily_runs: @daily_run_execution_status.nil?
@@ -92,6 +92,10 @@ class ApplicationController < ActionController::Base
 
   def business_index_request?
     controller_path == "businesses" && action_name == "index"
+  end
+
+  def global_settings_request?
+    action_name == "show" && controller_path.in?([ "aicoo_settings", "admin/cloudflare_connections" ])
   end
 
   def owner_focus_path?

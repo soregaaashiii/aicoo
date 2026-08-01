@@ -201,11 +201,16 @@ module Aicoo
     end
 
     def global_default_available_for?(profile, credential_fields, configured_labels)
-      return false unless profile.enabled?
-      return Aicoo::SystemStatusResolver.call(profile.source_key).connected? if profile.source_key.in?(%w[gsc ga4])
-      return true if credential_fields.empty? || configured_labels.any?
-
-      false
+      @global_default_availability ||= {}
+      @global_default_availability.fetch(profile.source_key) do
+        @global_default_availability[profile.source_key] = if !profile.enabled?
+          false
+        elsif profile.source_key.in?(%w[gsc ga4])
+          Aicoo::SystemStatusResolver.call(profile.source_key).connected?
+        else
+          credential_fields.empty? || configured_labels.any?
+        end
+      end
     end
 
     def profile_for(source_key)

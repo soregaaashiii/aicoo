@@ -37,6 +37,41 @@ class AicooSettingsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "自動投入ON"
   end
 
+  test "renders saved connection states with one cost engine and no external request" do
+    DataSourceCostProfile.ensure_defaults!
+    AicooSetting.current
+    cost_engine_builds = 0
+    original_new = Aicoo::CostEngine.method(:new)
+    statements = []
+    callback = lambda do |_name, _start, _finish, _id, payload|
+      next if payload[:cached] || payload[:name] == "SCHEMA"
+
+      statements << payload[:sql]
+    end
+
+    with_singleton_method(Net::HTTP, :start, ->(*) { flunk("settings GET must not call an external API") }) do
+      with_singleton_method(Aicoo::CostEngine, :new, lambda { |*args, **kwargs|
+        cost_engine_builds += 1
+        original_new.call(*args, **kwargs)
+      }) do
+        ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+          get aicoo_setting_url
+        end
+      end
+    end
+
+    setting_selects = statements.count do |sql|
+      sql.match?(/SELECT .* FROM "business_data_source_settings"/m)
+    end
+    writes = statements.grep(/\A\s*(?:INSERT|UPDATE|DELETE)/i)
+    assert_response :success
+    assert_equal 1, cost_engine_builds
+    assert_equal 1, setting_selects
+    assert_empty writes
+    assert_not statements.any? { |sql| sql.include?("data_imports") }
+    assert_not statements.any? { |sql| sql.include?("aicoo_lab_landing_page_publication_events") }
+  end
+
   test "updates data source cost profiles and business usage" do
     DataSourceCostProfile.ensure_defaults!
 
@@ -151,5 +186,16 @@ class AicooSettingsControllerTest < ActionDispatch::IntegrationTest
     assert_equal 0.1.to_d, setting.strategic_learning_max_penalty_rate
     assert_equal 0.05.to_d, setting.strategic_learning_warning_threshold_rate
     assert_equal 5, setting.strategic_learning_decision_log_min_count
+  end
+
+  private
+
+  def with_singleton_method(object, method_name, replacement)
+    singleton_class = object.singleton_class
+    original = object.method(method_name)
+    singleton_class.define_method(method_name, replacement)
+    yield
+  ensure
+    singleton_class.define_method(method_name, original)
   end
 end

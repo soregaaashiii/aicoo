@@ -32,13 +32,15 @@ class AicooSettingsController < ApplicationController
 
   def load_data_source_cost_context
     DataSourceCostProfile.ensure_defaults!
-    @cost_summary = Aicoo::CostEngine.new.call
+    @cost_summary = Aicoo::CostEngine.new(ensure_defaults: false).call
     @data_source_cost_profiles = @cost_summary.profiles
+    @cost_estimates_by_source_key = @cost_summary.estimates.index_by(&:source_key)
     @businesses = Business.real_businesses.order(:name)
-    @business_data_source_settings = BusinessDataSourceSetting.all.index_by { |setting| [ setting.business_id, setting.source_key ] }
+    business_data_source_settings = BusinessDataSourceSetting.all.load
+    @business_data_source_settings = business_data_source_settings.index_by { |setting| [ setting.business_id, setting.source_key ] }
     @data_source_settings_presenter = Aicoo::DataSourceSettingsPresenter.new(
       profiles: @data_source_cost_profiles,
-      settings: BusinessDataSourceSetting.all
+      settings: business_data_source_settings
     )
     load_global_connections
   end
@@ -49,45 +51,50 @@ class AicooSettingsController < ApplicationController
     google = AicooGoogleCredential.default
     webhook = Aicoo::Lovable::GithubWebhookConfiguration.new
     github = Aicoo::CloudflarePages::Configuration.new
+    github_connected = github.github_configured?
+    cloudflare_status = cloudflare.connection_status
+    google_connected = google&.connected?
+    webhook_connected = webhook.configured?
+    webhook_diagnostics = webhook.diagnostics
     @global_connections = [
       {
         key: "github",
         label: "GitHub",
-        status: github.github_configured? ? "接続済み" : "未接続",
-        level: github.github_configured? ? "healthy" : "attention",
+        status: github_connected ? "接続済み" : "未接続",
+        level: github_connected ? "healthy" : "attention",
         detail: github.repository_url,
         path: admin_lovable_path(anchor: "github-webhook-settings")
       },
       {
         key: "cloudflare",
         label: "Cloudflare",
-        status: { "connected" => "接続済み", "error" => "接続エラー" }.fetch(cloudflare.connection_status, "未接続"),
-        level: cloudflare.connection_status == "connected" ? "healthy" : (cloudflare.connection_status == "error" ? "critical" : "attention"),
+        status: { "connected" => "接続済み", "error" => "接続エラー" }.fetch(cloudflare_status, "未接続"),
+        level: cloudflare_status == "connected" ? "healthy" : (cloudflare_status == "error" ? "critical" : "attention"),
         detail: cloudflare.last_connected_at ? "最終接続 #{I18n.l(cloudflare.last_connected_at, format: :short)}" : "全体認証",
         path: admin_cloudflare_connection_path
       },
       {
         key: "ga4",
         label: "GA4",
-        status: google&.connected? ? "接続済み" : "未接続",
-        level: google&.connected? ? "healthy" : "attention",
+        status: google_connected ? "接続済み" : "未接続",
+        level: google_connected ? "healthy" : "attention",
         detail: "AICOO共通Google認証",
         path: admin_analytics_connections_path
       },
       {
         key: "gsc",
         label: "GSC",
-        status: google&.connected? ? "接続済み" : "未接続",
-        level: google&.connected? ? "healthy" : "attention",
+        status: google_connected ? "接続済み" : "未接続",
+        level: google_connected ? "healthy" : "attention",
         detail: "AICOO共通Google認証",
         path: admin_analytics_connections_path
       },
       {
         key: "webhook",
         label: "Webhook",
-        status: webhook.configured? ? "接続済み" : "未接続",
-        level: webhook.configured? ? "healthy" : "attention",
-        detail: webhook.diagnostics["last_received_at"].presence || "Push event",
+        status: webhook_connected ? "接続済み" : "未接続",
+        level: webhook_connected ? "healthy" : "attention",
+        detail: webhook_diagnostics["last_received_at"].presence || "Push event",
         path: admin_lovable_path(anchor: "github-webhook-settings")
       }
     ]

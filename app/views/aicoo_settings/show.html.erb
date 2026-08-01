@@ -130,7 +130,7 @@
             </thead>
             <tbody>
               <% @data_source_cost_profiles.each do |profile| %>
-                <% estimate = Aicoo::CostEngine.new.estimate(profile.source_key) %>
+                <% estimate = @cost_estimates_by_source_key.fetch(profile.source_key) %>
                 <tr>
                   <td>
                     <strong><%= profile.name %></strong><br>

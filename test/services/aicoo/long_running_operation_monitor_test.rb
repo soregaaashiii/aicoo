@@ -57,8 +57,10 @@ module Aicoo
         started_at: 5.minutes.ago
       )
       query_names = []
+      statements = []
       callback = lambda do |_name, _start, _finish, _id, payload|
         query_names << payload[:name]
+        statements << payload[:sql]
       end
 
       result = ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
@@ -69,6 +71,8 @@ module Aicoo
       assert_empty result.recent_operations
       assert_not_includes query_names, "DataImport Eager Load"
       assert_not_includes query_names, "AicooDailyRunStep Load"
+      assert_not statements.any? { |sql| sql.include?("data_imports") }
+      assert_not statements.any? { |sql| sql.include?("aicoo_lab_landing_page_publication_events") }
     end
   end
 end

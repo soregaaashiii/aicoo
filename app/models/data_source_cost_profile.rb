@@ -44,8 +44,10 @@ class DataSourceCostProfile < ApplicationRecord
   scope :enabled, -> { where(enabled: true) }
 
   def self.ensure_defaults!
+    profiles_by_source_key = where(source_key: SOURCE_DEFINITIONS.keys).index_by(&:source_key)
+
     SOURCE_DEFINITIONS.each do |source_key, attributes|
-      profile = find_or_initialize_by(source_key:)
+      profile = profiles_by_source_key[source_key] || new(source_key:)
       if profile.new_record?
         profile.assign_attributes(
           attributes.slice(:name, :execution_mode)
