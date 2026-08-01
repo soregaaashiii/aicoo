@@ -8,7 +8,7 @@
 }.fetch(@cloudflare_configuration.connection_status, "未接続") %>
 <% status_level = @cloudflare_configuration.connection_status == "connected" ? "healthy" : (@cloudflare_configuration.connection_status == "error" ? "critical" : "attention") %>
 
-<div class="aicoo-page">
+<div class="aicoo-page" data-cloudflare-connection-control data-cloudflare-connection-state="<%= @cloudflare_configuration.connection_status %>">
   <%= render "shared/aicoo_header",
              title: "Cloudflare接続",
              description: "AICOO全体で一度だけ認証し、各BusinessはPages Projectと公開ドメインだけを選択します。",
@@ -46,14 +46,39 @@
       </div>
     <% end %>
 
+    <div class="aicoo-lab-help status-critical is-hidden" role="alert" data-cloudflare-connection-error></div>
+
     <div class="actions compact-actions">
-      <% if @cloudflare_oauth_available %>
-        <%= link_to(@cloudflare_configuration.globally_connected? ? "再認証" : "Cloudflareへ接続", connect_admin_cloudflare_connection_path, class: "button") %>
+      <% if @cloudflare_configuration.connection_status == "connected" %>
+        <span class="button secondary" aria-live="polite" data-cloudflare-connected-label>接続済み</span>
+        <% if @cloudflare_oauth_available %>
+          <%= link_to "再認証",
+                      connect_admin_cloudflare_connection_path,
+                      class: "button",
+                      data: {
+                        aicoo_loading: true,
+                        aicoo_loading_label: "接続中...",
+                        cloudflare_connection_submit: true
+                      } %>
+        <% end %>
+      <% elsif @cloudflare_oauth_available %>
+        <%= link_to "Cloudflareへ接続",
+                    connect_admin_cloudflare_connection_path,
+                    class: "button",
+                    data: {
+                      aicoo_loading: true,
+                      aicoo_loading_label: "接続中...",
+                      cloudflare_connection_submit: true
+                    } %>
       <% else %>
-        <button type="button" class="button" disabled>Cloudflareへ接続</button>
+        <button type="button" class="button" data-cloudflare-connection-reveal>Cloudflareへ接続</button>
       <% end %>
       <% if @cloudflare_configuration.globally_connected? %>
-        <%= button_to "接続テスト", test_admin_cloudflare_connection_path, method: :post, class: "button secondary" %>
+        <%= button_to "接続テスト",
+                      test_admin_cloudflare_connection_path,
+                      method: :post,
+                      class: "button secondary",
+                      form: { data: { cloudflare_connection_submit: true, aicoo_loading_label: "接続確認中..." } } %>
       <% end %>
     </div>
 
@@ -61,9 +86,13 @@
       <p class="aicoo-help-text">OAuth Clientが未設定のため、Cloudflare API Tokenで接続します。</p>
     <% end %>
 
-    <details class="business-access-editor business-access-add-editor" <%= "open" unless @cloudflare_configuration.globally_connected? %>>
+    <details class="business-access-editor business-access-add-editor" data-cloudflare-token-panel <%= "open" unless @cloudflare_configuration.connection_status == "connected" %>>
       <summary class="button secondary">API Tokenで接続</summary>
-      <%= form_with url: admin_cloudflare_connection_path, method: :patch, scope: :cloudflare_connection, class: "business-access-form" do |form| %>
+      <%= form_with url: admin_cloudflare_connection_path,
+                    method: :patch,
+                    scope: :cloudflare_connection,
+                    class: "business-access-form",
+                    data: { cloudflare_connection_submit: true, aicoo_loading_label: "接続中..." } do |form| %>
         <div class="field">
           <%= form.label :account_id, "Account ID" %>
           <%= form.text_field :account_id, value: @cloudflare_configuration.account_id, autocomplete: "off", required: true %>
@@ -124,3 +153,5 @@
     <% end %>
   </section>
 </div>
+
+<%= render "connection_feedback_script" %>

@@ -1,0 +1,145 @@
+<script>
+  (function () {
+    var ROOT_SELECTOR = "[data-cloudflare-connection-control]";
+    var TIMEOUT_MS = 30000;
+
+    function roots() {
+      return document.querySelectorAll(ROOT_SELECTOR);
+    }
+
+    function errorPanel(root) {
+      return root && root.querySelector("[data-cloudflare-connection-error]");
+    }
+
+    function showError(root, message) {
+      var panel = errorPanel(root);
+      if (!panel) return;
+
+      panel.textContent = message;
+      panel.classList.remove("is-hidden");
+    }
+
+    function clearError(root) {
+      var panel = errorPanel(root);
+      if (!panel) return;
+
+      panel.textContent = "";
+      panel.classList.add("is-hidden");
+    }
+
+    function restoreButton(button) {
+      if (!button || button.dataset.aicooLocked !== "true") return;
+
+      if (button.dataset.aicooOriginalText !== undefined) {
+        if (button.tagName === "INPUT") {
+          button.value = button.dataset.aicooOriginalText;
+        } else {
+          button.textContent = button.dataset.aicooOriginalText;
+        }
+      }
+      delete button.dataset.aicooLocked;
+      delete button.dataset.aicooOriginalText;
+      button.removeAttribute("aria-busy");
+      button.disabled = false;
+      button.classList.remove("is-submitting");
+    }
+
+    function restoreLink(link) {
+      if (!link || link.dataset.aicooLocked !== "true") return;
+
+      delete link.dataset.aicooLocked;
+      link.removeAttribute("aria-busy");
+      link.removeAttribute("aria-disabled");
+      link.classList.remove("is-submitting");
+    }
+
+    function hideGlobalLoading() {
+      if (document.querySelector(".is-submitting, [data-aicoo-submitting='true']")) return;
+
+      var feedback = document.getElementById("aicoo-loading-feedback");
+      if (feedback) feedback.classList.add("is-hidden");
+    }
+
+    function reset(root, message) {
+      if (!root) return;
+
+      if (root._cloudflareConnectionTimeout) {
+        window.clearTimeout(root._cloudflareConnectionTimeout);
+        root._cloudflareConnectionTimeout = null;
+      }
+
+      root.querySelectorAll("form[data-cloudflare-connection-submit]").forEach(function (form) {
+        delete form.dataset.aicooSubmitting;
+        form.removeAttribute("aria-busy");
+        form.querySelectorAll("[data-aicoo-submitter-copy]").forEach(function (copy) { copy.remove(); });
+        form.querySelectorAll("button[type='submit'], input[type='submit']").forEach(restoreButton);
+      });
+      root.querySelectorAll("a[data-cloudflare-connection-submit]").forEach(restoreLink);
+
+      if (message) showError(root, message);
+      hideGlobalLoading();
+    }
+
+    function scheduleTimeout(root) {
+      if (!root) return;
+
+      clearError(root);
+      if (root._cloudflareConnectionTimeout) window.clearTimeout(root._cloudflareConnectionTimeout);
+      root._cloudflareConnectionTimeout = window.setTimeout(function () {
+        reset(root, "Cloudflare接続がタイムアウトしました。接続状態を確認して再試行してください。");
+      }, TIMEOUT_MS);
+    }
+
+    function rootFor(element) {
+      return element && element.closest ? element.closest(ROOT_SELECTOR) : null;
+    }
+
+    function initialize() {
+      roots().forEach(function (root) { reset(root); });
+    }
+
+    if (!window.__cloudflareConnectionFeedbackBound) {
+      window.__cloudflareConnectionFeedbackBound = true;
+
+      document.addEventListener("click", function (event) {
+        var reveal = event.target.closest("[data-cloudflare-connection-reveal]");
+        if (reveal) {
+          var root = rootFor(reveal);
+          var panel = root && root.querySelector("[data-cloudflare-token-panel]");
+          if (panel) panel.open = true;
+          return;
+        }
+
+        var action = event.target.closest("a[data-cloudflare-connection-submit]");
+        if (action) scheduleTimeout(rootFor(action));
+      });
+
+      document.addEventListener("submit", function (event) {
+        if (!event.target.matches("form[data-cloudflare-connection-submit]")) return;
+        scheduleTimeout(rootFor(event.target));
+      });
+
+      document.addEventListener("turbo:submit-end", function (event) {
+        if (!event.target.matches("form[data-cloudflare-connection-submit]")) return;
+        reset(rootFor(event.target));
+      });
+
+      document.addEventListener("turbo:fetch-request-error", function () {
+        roots().forEach(function (root) {
+          if (!root._cloudflareConnectionTimeout && !root.querySelector(".is-submitting, [data-aicoo-submitting='true']")) return;
+          reset(root, "Cloudflareへ接続できませんでした。通信状態を確認して再試行してください。");
+        });
+      });
+
+      document.addEventListener("turbo:before-cache", initialize);
+      document.addEventListener("turbo:load", initialize);
+      window.addEventListener("pageshow", initialize);
+    }
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", initialize, { once: true });
+    } else {
+      initialize();
+    }
+  })();
+</script>
