@@ -88,6 +88,7 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
   test "all global connection destinations preserve the settings sidebar position" do
     [
       admin_analytics_connections_url,
+      admin_analytics_sites_url,
       admin_google_credentials_url,
       admin_lovable_url,
       admin_aicoo_lab_lp_learning_url

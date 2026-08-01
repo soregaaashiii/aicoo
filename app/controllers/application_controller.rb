@@ -105,6 +105,7 @@ class ApplicationController < ActionController::Base
       "aicoo_settings",
       "admin/cloudflare_connections",
       "admin/analytics_connections",
+      "admin/analytics_sites",
       "admin/google_credentials",
       "admin/lovable",
       "admin/aicoo_lab/lp_learning"
