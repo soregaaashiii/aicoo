@@ -72,6 +72,45 @@ class AicooSettingsControllerTest < ActionDispatch::IntegrationTest
     assert_not statements.any? { |sql| sql.include?("aicoo_lab_landing_page_publication_events") }
   end
 
+  test "running operation refresh uses the lightweight status endpoint" do
+    AicooDailyRun.create!(
+      target_date: Date.current,
+      status: "running",
+      source: "manual",
+      started_at: 1.minute.ago
+    )
+
+    get aicoo_setting_url
+
+    assert_response :success
+    assert_select "[data-aicoo-auto-refresh-url='#{aicoo_operation_status_path}']", count: 1
+
+    get aicoo_operation_status_url
+
+    assert_response :success
+    assert_select "#aicoo-operation-status-panel", count: 1
+    assert_not_includes response.body, "AICOO全体設定センター"
+  end
+
+  test "loads only displayed businesses and profile settings" do
+    DataSourceCostProfile.ensure_defaults!
+    visible_business = businesses(:suelog)
+    hidden_business = Business.create!(name: "設定画面対象外", status: "paused", deleted_at: Time.current)
+    visible_setting = BusinessDataSourceSetting.create!(business: visible_business, source_key: "ga4", enabled: false)
+    hidden_setting = BusinessDataSourceSetting.create!(business: hidden_business, source_key: "ga4", enabled: false)
+    unrelated_setting = BusinessDataSourceSetting.create!(business: visible_business, source_key: "unknown-source", enabled: false)
+
+    get aicoo_setting_url
+
+    assert_response :success
+    assert_includes response.body, "business_data_sources[#{visible_business.id}][ga4][enabled]"
+    assert_not_includes response.body, "business_data_sources[#{hidden_business.id}][ga4][enabled]"
+    assert_not_includes response.body, "business_data_sources[#{visible_business.id}][unknown-source][enabled]"
+    assert visible_setting.persisted?
+    assert hidden_setting.persisted?
+    assert unrelated_setting.persisted?
+  end
+
   test "updates data source cost profiles and business usage" do
     DataSourceCostProfile.ensure_defaults!
 

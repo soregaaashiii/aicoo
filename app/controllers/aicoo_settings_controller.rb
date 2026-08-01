@@ -35,8 +35,14 @@ class AicooSettingsController < ApplicationController
     @cost_summary = Aicoo::CostEngine.new(ensure_defaults: false).call
     @data_source_cost_profiles = @cost_summary.profiles
     @cost_estimates_by_source_key = @cost_summary.estimates.index_by(&:source_key)
-    @businesses = Business.real_businesses.order(:name)
-    business_data_source_settings = BusinessDataSourceSetting.all.load
+    @businesses = Business.real_businesses.select(:id, :name).order(:name).load
+    business_data_source_settings = BusinessDataSourceSetting
+      .where(
+        business_id: @businesses.map(&:id),
+        source_key: @data_source_cost_profiles.map(&:source_key)
+      )
+      .select(:id, :business_id, :source_key, :enabled, :connection_status)
+      .load
     @business_data_source_settings = business_data_source_settings.index_by { |setting| [ setting.business_id, setting.source_key ] }
     @data_source_settings_presenter = Aicoo::DataSourceSettingsPresenter.new(
       profiles: @data_source_cost_profiles,

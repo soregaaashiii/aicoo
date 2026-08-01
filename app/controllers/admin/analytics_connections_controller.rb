@@ -63,7 +63,10 @@ module Admin
     private
 
     def build_connections
-      settings_by_business = AnalyticsSourceSetting.order(:name, created_at: :desc).group_by do |setting|
+      settings_by_business = AnalyticsSourceSetting
+        .includes(:google_credential, :analytics_fetch_runs)
+        .order(:name, created_at: :desc)
+        .group_by do |setting|
         business_name_for(setting.name)
       end
 
@@ -71,9 +74,16 @@ module Admin
         AnalyticsConnection.new(
           business_name: name,
           gsc_setting: settings.find { |setting| setting.source_type == "gsc" },
-          ga4_setting: settings.find { |setting| setting.source_type == "ga4" }
+          ga4_setting: settings.find { |setting| setting.source_type == "ga4" },
+          latest_fetch_run: latest_fetch_run_from(settings)
         )
       end.sort_by(&:business_name)
+    end
+
+    def latest_fetch_run_from(settings)
+      settings
+        .flat_map { |setting| setting.analytics_fetch_runs.to_a }
+        .max_by { |run| [ run.started_at&.to_f.to_f, run.created_at&.to_f.to_f ] }
     end
 
     def setting_for(name, source_type)
@@ -381,7 +391,7 @@ module Admin
       ENV[key].present? ? "設定済み" : "未設定"
     end
 
-    AnalyticsConnection = Data.define(:business_name, :gsc_setting, :ga4_setting) do
+    AnalyticsConnection = Data.define(:business_name, :gsc_setting, :ga4_setting, :latest_fetch_run) do
       def credentials_status
         return "設定済み" if env_credentials_present? ||
                         AicooGoogleCredential.default.present? ||
@@ -458,14 +468,10 @@ module Admin
 
       private
 
-      def latest_fetch_run
-        AnalyticsFetchRun.where(analytics_source_setting: [ gsc_setting, ga4_setting ].compact).recent.first
-      end
-
       def source_status(setting, identifier)
         return "未設定" unless setting&.enabled? && setting.public_send(identifier).present?
 
-        case setting.latest_fetch_run&.status
+        case latest_fetch_run_for(setting)&.status
         when "success"
           "最終取得成功"
         when "failed"
@@ -501,6 +507,13 @@ module Admin
         JSON.parse(setting.credentials_json.presence || "{}")
       rescue JSON::ParserError
         {}
+      end
+
+      def latest_fetch_run_for(setting)
+        runs = setting.analytics_fetch_runs
+        return setting.latest_fetch_run unless runs.loaded?
+
+        runs.max_by { |run| [ run.started_at&.to_f.to_f, run.created_at&.to_f.to_f ] }
       end
     end
   end

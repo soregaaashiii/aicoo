@@ -134,7 +134,7 @@
               <td><%= credential.connected_at ? l(credential.connected_at, format: :short) : "-" %></td>
               <td><%= credential.last_oauth_success_at ? l(credential.last_oauth_success_at, format: :short) : "-" %></td>
               <td><%= credential.updated_at ? l(credential.updated_at, format: :short) : "-" %></td>
-              <td class="number"><%= credential.analytics_source_settings.count %></td>
+              <td class="number"><%= credential.analytics_source_settings.size %></td>
               <td>
                 <div class="actions compact-actions">
                   <%= link_to "Googleと接続", connect_admin_google_credential_path(credential), class: "button" %>

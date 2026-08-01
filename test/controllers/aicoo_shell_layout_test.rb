@@ -59,6 +59,47 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "現在位置"
   end
 
+  test "settings navigation preserves sidebar position without scrolling the active item" do
+    get aicoo_setting_url
+
+    assert_response :success
+    assert_select "body[data-aicoo-settings-navigation='true']"
+    assert_select "#aicoo-sidebar"
+    assert_includes response.body, "aicoo.settings.sidebar.scrollTop"
+    assert_includes response.body, 'document.addEventListener("turbo:before-visit", savePosition)'
+    assert_includes response.body, 'document.addEventListener("turbo:load", initialize)'
+    assert_not_includes response.body, "scrollIntoView"
+
+    get owner_focus_url
+
+    assert_response :success
+    assert_select "body[data-aicoo-settings-navigation]", count: 0
+    assert_not_includes response.body, "aicoo.settings.sidebar.scrollTop"
+  end
+
+  test "cloudflare settings keeps the global settings navigation active" do
+    get admin_cloudflare_connection_url
+
+    assert_response :success
+    assert_select ".aicoo-sidebar-child.active strong", text: "全体設定"
+    assert_select "body[data-aicoo-settings-navigation='true']"
+  end
+
+  test "all global connection destinations preserve the settings sidebar position" do
+    [
+      admin_analytics_connections_url,
+      admin_google_credentials_url,
+      admin_lovable_url,
+      admin_aicoo_lab_lp_learning_url
+    ].each do |url|
+      get url
+
+      assert_response :success
+      assert_select "body[data-aicoo-settings-navigation='true']"
+      assert_includes response.body, "aicoo.settings.sidebar.scrollTop"
+    end
+  end
+
   test "business pages use the ceo shell" do
     get business_url(businesses(:suelog))
 

@@ -3,8 +3,8 @@ module Admin
     before_action :set_credential, only: %i[edit update connect]
 
     def index
-      @credentials = AicooGoogleCredential.recent.to_a.each(&:reload)
-      @current_credential = AicooGoogleCredential.default&.reload
+      @credentials = AicooGoogleCredential.recent.includes(:analytics_source_settings).to_a
+      @current_credential = AicooGoogleCredential.default
       @google_oauth_recovery_statuses = Aicoo::GoogleOauthRecoveryStatus.new(credential: @current_credential).call
       log_google_credential_display_event!
       @credential = AicooGoogleCredential.new(name: "AICOO共通Google認証", enabled: true)

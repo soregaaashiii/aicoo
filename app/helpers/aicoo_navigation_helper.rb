@@ -138,7 +138,7 @@ module AicooNavigationHelper
     return :system_approval_logs if path.start_with?("/admin/approval_logs")
     return :system_execution_profiles if path.start_with?("/admin/business_execution_profiles")
     return :system_codex_rules if path.start_with?("/admin/codex_prompt_rules")
-    return :system_settings if path.start_with?("/aicoo_setting", "/admin/aicoo_daily_run_settings", "/admin/aicoo_auto_revision_settings")
+    return :system_settings if path.start_with?("/aicoo_setting", "/admin/aicoo_daily_run_settings", "/admin/aicoo_auto_revision_settings", "/admin/cloudflare_connection")
 
     :system_daily_runs
   end

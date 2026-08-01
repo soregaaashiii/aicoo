@@ -48,6 +48,39 @@ module Admin
       assert_not_includes response.body, "access-token-value"
     end
 
+    test "preloads credential usage counts without one query per row" do
+      credentials = 2.times.map do |index|
+        AicooGoogleCredential.create!(
+          name: "Google認証#{index}",
+          client_id: "client-#{index}",
+          client_secret: "secret-#{index}",
+          refresh_token: "refresh-#{index}"
+        )
+      end
+      AnalyticsSourceSetting.create!(
+        name: "計測 GA4",
+        source_type: "ga4",
+        property_id: "123456",
+        google_credential: credentials.first
+      )
+      statements = []
+      callback = lambda do |_name, _start, _finish, _id, payload|
+        next if payload[:cached] || payload[:name] == "SCHEMA"
+
+        statements << payload[:sql]
+      end
+
+      ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+        get admin_google_credentials_url
+      end
+
+      per_credential_count_queries = statements.grep(/COUNT\(\*\).*"analytics_source_settings".*"google_credential_id"/m)
+      assert_response :success
+      assert_empty per_credential_count_queries
+      assert_includes response.body, "Google認証0"
+      assert_includes response.body, "Google認証1"
+    end
+
     test "creates google credential" do
       assert_difference("AicooGoogleCredential.count", 1) do
         post admin_google_credentials_url, params: {

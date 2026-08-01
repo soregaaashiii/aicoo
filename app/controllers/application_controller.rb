@@ -10,6 +10,8 @@ class ApplicationController < ActionController::Base
   before_action :load_long_running_operation_monitor
   around_action :reuse_read_only_query_results
 
+  helper_method :aicoo_settings_navigation_request?
+
   # Changes to the importmap will invalidate the etag for HTML responses
   stale_when_importmap_changes
 
@@ -83,7 +85,7 @@ class ApplicationController < ActionController::Base
     return unless request.format.html?
 
     @daily_run_execution_status = Aicoo::DailyRunExecutionStatus.call(
-      include_latest: !business_index_request?
+      include_latest: !(business_index_request? || global_settings_request?)
     )
   rescue StandardError => e
     Rails.logger.warn("Daily run execution status unavailable: #{e.class}: #{e.message}")
@@ -95,7 +97,18 @@ class ApplicationController < ActionController::Base
   end
 
   def global_settings_request?
-    controller_path.in?([ "aicoo_settings", "admin/cloudflare_connections" ])
+    aicoo_settings_navigation_request?
+  end
+
+  def aicoo_settings_navigation_request?
+    controller_path.in?([
+      "aicoo_settings",
+      "admin/cloudflare_connections",
+      "admin/analytics_connections",
+      "admin/google_credentials",
+      "admin/lovable",
+      "admin/aicoo_lab/lp_learning"
+    ])
   end
 
   def owner_focus_path?

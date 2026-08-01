@@ -115,7 +115,8 @@
 
         var currentPanel = document.querySelector("[data-aicoo-operation-panel]");
 
-        fetch(window.location.href, {
+        var refreshUrl = currentRefreshTarget.dataset.aicooAutoRefreshUrl || window.location.href;
+        fetch(refreshUrl, {
           headers: { "Accept": "text/html", "X-Requested-With": "XMLHttpRequest" },
           credentials: "same-origin"
         })

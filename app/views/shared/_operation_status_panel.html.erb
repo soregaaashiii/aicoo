@@ -8,7 +8,8 @@
     id="aicoo-operation-status-panel"
     class="operation-status-panel"
     data-aicoo-operation-panel="true"
-    data-aicoo-auto-refresh="5000">
+    data-aicoo-auto-refresh="5000"
+    data-aicoo-auto-refresh-url="<%= local_assigns[:refresh_url].presence || request.original_fullpath %>">
     <% if daily_run_running %>
       <%= render "shared/daily_run_execution_status", status: daily_run_status, mode: :compact %>
     <% end %>

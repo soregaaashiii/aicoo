@@ -51,6 +51,28 @@ module Admin
       assert_not_includes response.body, "secret-refresh-token"
     end
 
+    test "loads fetch histories once for all analytics connection cards" do
+      gsc = create_gsc_setting(name: "吸えログ", site_url: "sc-domain:suelog.jp")
+      ga4 = create_ga4_setting(name: "吸えログ", property_id: "536889590")
+      AnalyticsFetchRun.create!(analytics_source_setting: gsc, status: "success", started_at: 2.minutes.ago)
+      AnalyticsFetchRun.create!(analytics_source_setting: ga4, status: "failed", started_at: 1.minute.ago)
+      statements = []
+      callback = lambda do |_name, _start, _finish, _id, payload|
+        next if payload[:cached] || payload[:name] == "SCHEMA"
+
+        statements << payload[:sql]
+      end
+
+      ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+        get admin_analytics_connections_url
+      end
+
+      history_queries = statements.count { |sql| sql.match?(/FROM "analytics_fetch_runs"/) }
+      assert_response :success
+      assert_equal 1, history_queries
+      assert_includes response.body, "最終取得失敗"
+    end
+
     test "shows env credential statuses" do
       with_google_env(
         "GOOGLE_CLIENT_ID" => "client-id",

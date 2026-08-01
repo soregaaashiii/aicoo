@@ -22,9 +22,10 @@
     <%# Includes all stylesheet files in app/assets/stylesheets %>
     <%= stylesheet_link_tag :app, "data-turbo-track": "reload" %>
     <%= render "shared/aicoo_submit_feedback_script" %>
+    <%= render "shared/aicoo_settings_sidebar_scroll_script" if aicoo_settings_navigation_request? %>
   </head>
 
-  <body class="<%= content_for(:body_class) %>">
+  <body class="<%= content_for(:body_class) %>" <%= 'data-aicoo-settings-navigation="true"'.html_safe if aicoo_settings_navigation_request? %>>
     <header class="app-header aicoo-global-header">
       <div class="aicoo-brand-block">
         <%= link_to "AICOO", aicoo_mode_home_path, class: "brand" %>
@@ -55,7 +56,7 @@
     </header>
 
     <div class="aicoo-shell <%= aicoo_ceo_mode? ? "aicoo-shell-ceo" : "aicoo-shell-system" %>">
-      <aside class="aicoo-sidebar" aria-label="<%= aicoo_mode_label %> navigation">
+      <aside id="aicoo-sidebar" class="aicoo-sidebar" aria-label="<%= aicoo_mode_label %> navigation">
         <div class="aicoo-sidebar-mode">
           <strong><%= aicoo_mode_label %></strong>
           <span>目的から探す</span>
@@ -121,7 +122,8 @@
         <% unless content_for?(:hide_operation_status_panel) %>
           <%= render "shared/operation_status_panel",
                      monitor: @long_running_operation_monitor,
-                     daily_run_status: @daily_run_execution_status %>
+                     daily_run_status: @daily_run_execution_status,
+                     refresh_url: (aicoo_settings_navigation_request? ? aicoo_operation_status_path : request.original_fullpath) %>
         <% end %>
 
         <%= yield %>

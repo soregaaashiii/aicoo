@@ -1,0 +1,66 @@
+<script>
+  (function () {
+    if (window.__aicooSettingsSidebarScrollBound) return;
+    window.__aicooSettingsSidebarScrollBound = true;
+
+    var storageKey = "aicoo.settings.sidebar.scrollTop";
+
+    function settingsNavigationActive() {
+      return document.body && document.body.dataset.aicooSettingsNavigation === "true";
+    }
+
+    function sidebar() {
+      return document.getElementById("aicoo-sidebar");
+    }
+
+    function savedPosition() {
+      try {
+        var value = window.sessionStorage.getItem(storageKey);
+        return value === null ? null : Number(value);
+      } catch (_error) {
+        return null;
+      }
+    }
+
+    function savePosition() {
+      if (!settingsNavigationActive()) return;
+
+      var element = sidebar();
+      if (!element) return;
+
+      try {
+        window.sessionStorage.setItem(storageKey, String(element.scrollTop));
+      } catch (_error) {
+      }
+    }
+
+    function restorePosition() {
+      if (!settingsNavigationActive()) return;
+
+      var element = sidebar();
+      var position = savedPosition();
+      if (!element || position === null || !Number.isFinite(position)) return;
+
+      element.scrollTop = position;
+    }
+
+    function bindSidebar() {
+      var element = sidebar();
+      if (!element || element.dataset.aicooScrollPositionBound === "true") return;
+
+      element.dataset.aicooScrollPositionBound = "true";
+      element.addEventListener("scroll", savePosition, { passive: true });
+    }
+
+    function initialize() {
+      bindSidebar();
+      restorePosition();
+    }
+
+    document.addEventListener("DOMContentLoaded", initialize, { once: true });
+    document.addEventListener("turbo:before-visit", savePosition);
+    document.addEventListener("turbo:before-cache", savePosition);
+    document.addEventListener("turbo:load", initialize);
+    window.addEventListener("pageshow", initialize);
+  })();
+</script>

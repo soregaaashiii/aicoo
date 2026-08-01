@@ -194,11 +194,10 @@
                     <% setting = @business_data_source_settings[[business.id, profile.source_key]] %>
                     <% enabled = setting.nil? ? true : setting.enabled? %>
                     <td>
-                      <% connection_setting = @business_data_source_settings[[business.id, profile.source_key]] || BusinessDataSourceSetting.new(business:, source_key: profile.source_key) %>
                       <%= hidden_field_tag "business_data_sources[#{business.id}][#{profile.source_key}][enabled]", "0" %>
                       <%= check_box_tag "business_data_sources[#{business.id}][#{profile.source_key}][enabled]", "1", enabled %>
                       <br>
-                      <span class="pill status-<%= connection_setting.connection_status_level %>"><%= connection_setting.connection_status_label %></span>
+                      <span class="pill status-<%= setting&.connection_status_level || "attention" %>"><%= setting&.connection_status_label %></span>
                     </td>
                   <% end %>
                 </tr>
