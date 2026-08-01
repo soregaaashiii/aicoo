@@ -95,7 +95,7 @@ class ApplicationController < ActionController::Base
   end
 
   def global_settings_request?
-    action_name == "show" && controller_path.in?([ "aicoo_settings", "admin/cloudflare_connections" ])
+    controller_path.in?([ "aicoo_settings", "admin/cloudflare_connections" ])
   end
 
   def owner_focus_path?

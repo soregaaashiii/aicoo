@@ -110,6 +110,10 @@ module Admin
 
     test "connection test invokes the pages refresh once" do
       calls = 0
+      statements = []
+      callback = lambda do |_name, _start, _finish, _id, payload|
+        statements << payload[:sql] unless payload[:cached] || payload[:name] == "SCHEMA"
+      end
       manager = Object.new
       manager.define_singleton_method(:test!) do
         calls += 1
@@ -123,11 +127,15 @@ module Admin
       end
 
       with_singleton_method(Aicoo::CloudflarePages::ConnectionManager, :new, ->(*) { manager }) do
-        post test_admin_cloudflare_connection_url
+        ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+          post test_admin_cloudflare_connection_url
+        end
       end
 
       assert_redirected_to admin_cloudflare_connection_url
       assert_equal 1, calls
+      assert_not statements.any? { |sql| sql.include?("data_imports") }
+      assert_not statements.any? { |sql| sql.include?("aicoo_lab_landing_page_publication_events") }
     end
 
     test "connection test reports missing global authentication without an external request" do
