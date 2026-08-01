@@ -103,9 +103,14 @@ class ApplicationController < ActionController::Base
   def aicoo_settings_navigation_request?
     controller_path.in?([
       "aicoo_settings",
+      "admin/aicoo_auto_revision_settings",
+      "admin/aicoo_daily_run_settings",
       "admin/cloudflare_connections",
       "admin/analytics_connections",
+      "admin/analytics_imports",
       "admin/analytics_sites",
+      "admin/analytics_sources",
+      "admin/google_api_imports",
       "admin/google_credentials",
       "admin/lovable",
       "admin/aicoo_lab/lp_learning"

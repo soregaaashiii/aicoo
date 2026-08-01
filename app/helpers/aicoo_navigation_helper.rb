@@ -122,9 +122,9 @@ module AicooNavigationHelper
 
   def aicoo_system_sidebar_child_key
     path = request.path
+    return :system_settings if aicoo_settings_navigation_request?
     return :system_daily_runs if path.start_with?("/aicoo_daily_runs", "/admin/aicoo_daily_run_health")
     return :system_cron_health if path.start_with?("/admin/cron_health")
-    return :system_google if path.start_with?("/admin/google_credentials", "/admin/google_api_imports", "/admin/analytics")
     return :system_traffic_channels if path.start_with?("/admin/traffic_channels")
     return :system_pipeline_e2e if path.start_with?("/admin/pipeline_e2e_check")
     return :system_activity_learning if path.start_with?("/admin/activity_learning_e2e_check", "/admin/business_activity_logs")
@@ -134,7 +134,6 @@ module AicooNavigationHelper
     return :system_resource_budget if path.start_with?("/admin/aicoo_resource_budget")
     return :system_source_app if path.start_with?("/admin/source_app_connections", "/admin/source_app_diff_rules")
     return :system_codex_connection if path.start_with?("/admin/codex_connection")
-    return :system_lovable if path.start_with?("/admin/lovable", "/admin/aicoo_lab/lp_learning")
     return :system_approval_logs if path.start_with?("/admin/approval_logs")
     return :system_execution_profiles if path.start_with?("/admin/business_execution_profiles")
     return :system_codex_rules if path.start_with?("/admin/codex_prompt_rules")
@@ -288,7 +287,6 @@ module AicooNavigationHelper
         children: [
           { key: :system_daily_runs, label: "日次実行", description: "Daily RunとStep", path: aicoo_daily_runs_path, matchers: [ %r{\A/aicoo_daily_runs}, %r{\A/admin/aicoo_daily_run_health} ] },
           { key: :system_cron_health, label: "Cron監視", description: "Cron稼働確認", path: admin_cron_health_path, matchers: [ %r{\A/admin/cron_health} ] },
-          { key: :system_google, label: "Google連携", description: "OAuthとGA4/GSC取得", path: admin_google_credentials_path, matchers: [ %r{\A/admin/(google_credentials|google_api_imports|analytics)} ] },
           { key: :system_traffic_channels, label: "集客監視", description: "集客チャネル全体", path: admin_traffic_channels_path, matchers: [ %r{\A/admin/traffic_channels} ] },
           { key: :system_pipeline_e2e, label: "自動ループ診断", description: "処理経路の診断", path: admin_pipeline_e2e_check_path, matchers: [ %r{\A/admin/pipeline_e2e_check} ] },
           { key: :system_activity_learning, label: "活動学習", description: "Activity検知と評価", path: admin_activity_learning_e2e_check_path, matchers: [ %r{\A/admin/(activity_learning_e2e_check|business_activity_logs)} ] },
@@ -298,7 +296,6 @@ module AicooNavigationHelper
           { key: :system_resource_budget, label: "AI予算", description: "AI予算とBuild制御", path: admin_aicoo_resource_budget_path, matchers: [ %r{\A/admin/aicoo_resource_budget} ] },
           { key: :system_source_app, label: "外部DB連携", description: "外部DB差分検知", path: admin_source_app_connections_path, matchers: [ %r{\A/admin/source_app_(connections|diff_rules)} ] },
           { key: :system_codex_connection, label: "Codex連携", description: "GitHub/PR連携", path: admin_codex_connection_path, matchers: [ %r{\A/admin/codex_connection} ] },
-          { key: :system_lovable, label: "Lovable LP", description: "LP生成・公開・学習", path: admin_lovable_path, matchers: [ %r{\A/admin/lovable}, %r{\A/admin/aicoo_lab/lp_learning} ] },
           { key: :system_approval_logs, label: "操作履歴", description: "承認・操作ログ", path: admin_approval_logs_path, matchers: [ %r{\A/admin/approval_logs} ] },
           { key: :system_settings, label: "全体設定", description: "AICOO設定", path: aicoo_setting_path, matchers: [ %r{\A/aicoo_setting}, %r{\A/admin/(aicoo_daily_run_settings|aicoo_auto_revision_settings|cloudflare_connection)} ] },
           { key: :system_execution_profiles, label: "実行先設定", description: "実行環境の設定", path: admin_business_execution_profiles_path, matchers: [ %r{\A/admin/business_execution_profiles} ] },

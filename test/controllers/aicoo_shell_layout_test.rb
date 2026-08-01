@@ -42,7 +42,8 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "AICOOの運用・復旧"
     assert_includes response.body, "日次実行"
     assert_includes response.body, "Cron監視"
-    assert_includes response.body, "Google連携"
+    assert_not_select ".aicoo-sidebar", text: /Google連携/
+    assert_not_select ".aicoo-sidebar", text: /Lovable LP/
     assert_select ".aicoo-sidebar a[href='#{admin_serp_settings_path}']", false
     assert_not_select ".aicoo-sidebar", text: /新規事業探索/
     assert_includes response.body, "自動ループ診断"
@@ -85,19 +86,50 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
     assert_select "body[data-aicoo-settings-navigation='true']"
   end
 
-  test "all global connection destinations preserve the settings sidebar position" do
+  test "all global settings destinations use the same main sidebar" do
+    get aicoo_setting_url
+
+    assert_response :success
+    expected_sidebar = settings_sidebar_signature
+
     [
+      admin_cloudflare_connection_url,
       admin_analytics_connections_url,
       admin_analytics_sites_url,
+      admin_analytics_sources_url,
+      admin_analytics_imports_url,
+      admin_google_api_imports_url,
       admin_google_credentials_url,
       admin_lovable_url,
-      admin_aicoo_lab_lp_learning_url
+      admin_aicoo_lab_lp_learning_url,
+      admin_aicoo_daily_run_settings_url,
+      admin_aicoo_auto_revision_settings_url
     ].each do |url|
       get url
 
       assert_response :success
       assert_select "body[data-aicoo-settings-navigation='true']"
       assert_includes response.body, "aicoo.settings.sidebar.scrollTop"
+      assert_equal expected_sidebar, settings_sidebar_signature
+      assert_select ".aicoo-sidebar-child.active strong", text: "全体設定"
+      assert_not_select ".aicoo-sidebar", text: /Google連携/
+      assert_not_select ".aicoo-sidebar", text: /Lovable LP/
+      assert_select ".aicoo-settings-navigation[aria-label='全体設定内ナビゲーション']"
+    end
+  end
+
+  test "global settings detail links stay in the main content" do
+    get admin_analytics_connections_url
+
+    assert_response :success
+    assert_select ".aicoo-settings-navigation" do
+      assert_select "a[href='#{aicoo_setting_path}']", text: "全体設定"
+      assert_select "a[href='#{admin_cloudflare_connection_path}']", text: "Cloudflare"
+      assert_select "a[href='#{admin_analytics_connections_path}']", text: "GA4 / GSC"
+      assert_select "a[href='#{admin_analytics_sites_path}']", text: "サイト別GA4/GSC"
+      assert_select "a[href='#{admin_google_credentials_path}']", text: "Google連携"
+      assert_select "a[href='#{admin_lovable_path}']", text: "GitHub / Webhook / Lovable"
+      assert_select "a[href='#{admin_aicoo_lab_lp_learning_path}']", text: "Learning"
     end
   end
 
@@ -219,6 +251,12 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
   end
 
   private
+
+  def settings_sidebar_signature
+    css_select("#aicoo-sidebar .aicoo-sidebar-child").map do |node|
+      [ node.at_css("strong")&.text&.strip, node["href"], node["class"].to_s.sub(/\s*active\b/, "") ]
+    end
+  end
 
   def basic_auth_headers(username, password)
     credentials = Base64.strict_encode64("#{username}:#{password}")

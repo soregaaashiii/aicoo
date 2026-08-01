@@ -97,6 +97,8 @@
           <% end %>
         </nav>
 
+        <%= render "shared/aicoo_settings_navigation" if aicoo_settings_navigation_request? %>
+
         <div class="aicoo-flash-stack" aria-live="polite">
           <% if content_for?(:aicoo_primary_status) %>
             <%= yield :aicoo_primary_status %>
