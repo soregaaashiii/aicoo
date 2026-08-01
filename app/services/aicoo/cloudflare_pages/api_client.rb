@@ -8,6 +8,7 @@ module Aicoo
       class Error < StandardError; end
 
       API_BASE = "https://api.cloudflare.com/client/v4".freeze
+      PROJECTS_PER_PAGE = 20
 
       def initialize(account_id: nil, token:, http_adapter: nil)
         @account_id = account_id
@@ -21,7 +22,20 @@ module Aicoo
 
       def projects(account_id: @account_id)
         require_account!(account_id)
-        get("/accounts/#{escape(account_id)}/pages/projects", query: { per_page: 100 })
+        path = "/accounts/#{escape(account_id)}/pages/projects"
+        page = 1
+        projects = []
+
+        loop do
+          payload = get_payload(path, query: { page:, per_page: PROJECTS_PER_PAGE })
+          projects.concat(Array(payload["result"]))
+          total_pages = payload["result_info"].to_h["total_pages"].to_i
+          break if total_pages <= page
+
+          page += 1
+        end
+
+        projects
       end
 
       def project(account_id: @account_id, name:)
@@ -82,9 +96,13 @@ module Aicoo
       attr_reader :token, :http_adapter
 
       def get(path, query: nil)
+        get_payload(path, query:)["result"]
+      end
+
+      def get_payload(path, query: nil)
         uri = uri_for(path, query:)
         request = Net::HTTP::Get.new(uri)
-        perform(uri, request)
+        perform_payload(uri, request)
       end
 
       def post(path, body:)
@@ -95,6 +113,10 @@ module Aicoo
       end
 
       def perform(uri, request)
+        perform_payload(uri, request)["result"]
+      end
+
+      def perform_payload(uri, request)
         raise Error, "Cloudflare認証情報が未設定です。" if token.blank?
 
         request["Authorization"] = "Bearer #{token}"
@@ -106,7 +128,7 @@ module Aicoo
           raise Error, message.presence || "Cloudflare APIへ接続できませんでした。HTTP #{response.code}"
         end
 
-        payload["result"]
+        payload
       rescue JSON::ParserError
         raise Error, "Cloudflare APIの応答を解析できませんでした。"
       end
