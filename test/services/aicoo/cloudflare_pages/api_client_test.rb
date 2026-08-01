@@ -28,7 +28,7 @@ module Aicoo
         assert_equal %w[aicoo-lp.pages.dev lp.example.com], projects.first["domains"]
         assert requests.all? { |_path, _query, authorization| authorization == "Bearer token" }
         assert_equal "/client/v4/accounts/account/pages/projects", requests.first[0]
-        assert_equal "page=1&per_page=20", requests.first[1]
+        assert_equal "page=1", requests.first[1]
         assert_equal 1, requests.size
       end
 
@@ -41,7 +41,7 @@ module Aicoo
           response({
             success: true,
             result: [ { name: "project-#{page}", subdomain: "project-#{page}.pages.dev", domains: [] } ],
-            result_info: { page:, per_page: 20, total_pages: 2, total_count: 2 }
+            result_info: { page:, per_page: 10, total_pages: 2, total_count: 2 }
           })
         end
 
@@ -49,8 +49,8 @@ module Aicoo
 
         assert_equal %w[project-1 project-2], projects.map { |project| project["name"] }
         assert_equal [
-          { "page" => "1", "per_page" => "20" },
-          { "page" => "2", "per_page" => "20" }
+          { "page" => "1" },
+          { "page" => "2" }
         ], requests
       end
 

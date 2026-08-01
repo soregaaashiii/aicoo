@@ -8,8 +8,6 @@ module Aicoo
       class Error < StandardError; end
 
       API_BASE = "https://api.cloudflare.com/client/v4".freeze
-      PROJECTS_PER_PAGE = 20
-
       def initialize(account_id: nil, token:, http_adapter: nil)
         @account_id = account_id
         @token = token
@@ -27,7 +25,7 @@ module Aicoo
         projects = []
 
         loop do
-          payload = get_payload(path, query: { page:, per_page: PROJECTS_PER_PAGE })
+          payload = get_payload(path, query: { page: })
           projects.concat(Array(payload["result"]))
           total_pages = payload["result_info"].to_h["total_pages"].to_i
           break if total_pages <= page
