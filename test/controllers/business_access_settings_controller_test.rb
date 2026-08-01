@@ -35,8 +35,58 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
       assert_select "summary", text: "+ 内部施策追加"
     end
     assert_select "summary", text: "共通計測を設定"
+    assert_select "summary", text: "Cloudflare公開先を選択"
+    assert_select "select[name='cloudflare_access[project_name]']"
+    assert_select "select[name='cloudflare_access[production_url]']"
+    assert_select "input[name='cloudflare_access[api_token]']", count: 0
+    assert_select "input[name='cloudflare_access[account_id]']", count: 0
     assert_select "#business-campaign-access-card input[name='measurement_access[ga4_property_id]']", count: 0
     assert_select "#business-campaign-access-card input[name='measurement_access[gsc_site_url]']", count: 0
+  end
+
+  test "business stores only a selected cloudflare project and domain" do
+    DataSourceCostProfile.create!(
+      source_key: "cloudflare_pages",
+      name: "Cloudflare Pages",
+      metadata: {
+        "credentials" => { "account_id" => "global-account", "api_token" => "global-token" },
+        "cloudflare" => {
+          "status" => "connected",
+          "projects" => [
+            {
+              "name" => "aicoo-lp",
+              "production_url" => "https://aicoo-lp.pages.dev",
+              "domains" => [ "lp.example.com" ]
+            }
+          ]
+        }
+      }
+    )
+    BusinessDataSourceSetting.create!(
+      business: @business,
+      source_key: "cloudflare_pages",
+      metadata: {
+        "api_token" => "legacy-business-token",
+        "credentials" => { "account_id" => "legacy-account" }
+      }
+    )
+
+    patch cloudflare_business_access_settings_url(@business), params: {
+      cloudflare_access: {
+        project_name: "aicoo-lp",
+        production_url: "https://lp.example.com"
+      }
+    }
+
+    assert_redirected_to business_url(@business, anchor: "business-access-urls")
+    setting = BusinessDataSourceSetting.find_by!(business: @business, source_key: "cloudflare_pages")
+    assert_equal "aicoo-lp", setting.property_identifier
+    assert_equal "https://lp.example.com", setting.endpoint_url
+    assert_equal "AICOO全体Cloudflare認証", setting.credential_reference
+    assert_equal({ "use_global" => "1" }, setting.metadata["source_binding"])
+    assert_nil setting.metadata["api_token"]
+    assert_nil setting.metadata["account_id"]
+    assert_nil setting.metadata["credentials"]
   end
 
   test "business detail links each landing page to its canonical analyzer detail" do

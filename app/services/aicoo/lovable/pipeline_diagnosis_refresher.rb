@@ -27,7 +27,7 @@ module Aicoo
         end
         webhook_configuration = GithubWebhookConfiguration.new
         webhook_diagnostics = webhook_configuration.diagnostics
-        cloudflare_configuration = Aicoo::CloudflarePages::Configuration.new
+        cloudflare_configuration = Aicoo::CloudflarePages::Configuration.new(business:)
         overview = PipelineOverview.new(
           generation_run:,
           landing_page:,

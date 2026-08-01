@@ -1,0 +1,126 @@
+<% content_for :title, "Cloudflare接続" %>
+
+<% status_label = {
+  "connected" => "接続済み",
+  "error" => "接続エラー",
+  "connecting" => "接続確認中",
+  "disconnected" => "未接続"
+}.fetch(@cloudflare_configuration.connection_status, "未接続") %>
+<% status_level = @cloudflare_configuration.connection_status == "connected" ? "healthy" : (@cloudflare_configuration.connection_status == "error" ? "critical" : "attention") %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "Cloudflare接続",
+             description: "AICOO全体で一度だけ認証し、各BusinessはPages Projectと公開ドメインだけを選択します。",
+             active_main: :revenue,
+             actions: link_to("全体設定へ戻る", aicoo_setting_path(anchor: "global-connections"), class: "button secondary") %>
+
+  <section class="dashboard-section">
+    <div class="metric-grid">
+      <div class="metric-card">
+        <span>接続状態</span>
+        <strong class="status-<%= status_level %>"><%= status_label %></strong>
+        <small><%= @cloudflare_configuration.authentication_mode == "oauth" ? "OAuth" : "API Token" %></small>
+      </div>
+      <div class="metric-card">
+        <span>最後の接続</span>
+        <strong><%= @cloudflare_configuration.last_connected_at ? l(@cloudflare_configuration.last_connected_at, format: :short) : "-" %></strong>
+        <small>接続テスト成功日時</small>
+      </div>
+      <div class="metric-card">
+        <span>Account</span>
+        <strong><%= @cloudflare_configuration.account_id.presence || "未設定" %></strong>
+        <small>AICOO全体設定</small>
+      </div>
+      <div class="metric-card">
+        <span>Pages Project</span>
+        <strong><%= @cloudflare_projects.size %></strong>
+        <small>取得済み</small>
+      </div>
+    </div>
+
+    <% if @cloudflare_configuration.connection_error.present? %>
+      <div class="aicoo-lab-help status-critical">
+        <strong>接続エラー</strong>
+        <p><%= @cloudflare_configuration.connection_error %></p>
+      </div>
+    <% end %>
+
+    <div class="actions compact-actions">
+      <% if @cloudflare_oauth_available %>
+        <%= link_to(@cloudflare_configuration.globally_connected? ? "再認証" : "Cloudflareへ接続", connect_admin_cloudflare_connection_path, class: "button") %>
+      <% else %>
+        <button type="button" class="button" disabled>Cloudflareへ接続</button>
+      <% end %>
+      <% if @cloudflare_configuration.globally_connected? %>
+        <%= button_to "接続テスト", test_admin_cloudflare_connection_path, method: :post, class: "button secondary" %>
+      <% end %>
+    </div>
+
+    <% unless @cloudflare_oauth_available %>
+      <p class="aicoo-help-text">OAuth Clientが未設定のため、Cloudflare API Tokenで接続します。</p>
+    <% end %>
+
+    <details class="business-access-editor business-access-add-editor" <%= "open" unless @cloudflare_configuration.globally_connected? %>>
+      <summary class="button secondary">API Tokenで接続</summary>
+      <%= form_with url: admin_cloudflare_connection_path, method: :patch, scope: :cloudflare_connection, class: "business-access-form" do |form| %>
+        <div class="field">
+          <%= form.label :account_id, "Account ID" %>
+          <%= form.text_field :account_id, value: @cloudflare_configuration.account_id, autocomplete: "off", required: true %>
+        </div>
+        <div class="field">
+          <%= form.label :api_token, "API Token" %>
+          <%= form.password_field :api_token, value: nil, autocomplete: "new-password", placeholder: @cloudflare_configuration.api_token.present? ? "設定済み" : "Cloudflare API Token" %>
+        </div>
+        <div class="actions compact-actions">
+          <%= form.submit "接続", class: "button" %>
+        </div>
+      <% end %>
+    </details>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="section-heading">
+      <div>
+        <h2>Pages Project</h2>
+        <p>接続時と接続テスト時にCloudflareから取得します。各Businessではこの一覧からProjectとDomainを選択します。</p>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Project</th><th>Production branch</th><th>公開URL</th><th>Domain</th><th>Deploy</th></tr></thead>
+        <tbody>
+          <% @cloudflare_projects.each do |project| %>
+            <tr>
+              <td><strong><%= project["name"] %></strong></td>
+              <td><%= project["production_branch"].presence || "main" %></td>
+              <td><%= link_to project["production_url"], project["production_url"], target: "_blank", rel: "noopener" if project["production_url"].present? %></td>
+              <td><%= Array(project["domains"]).join(", ").presence || "-" %></td>
+              <td><%= project["latest_deployment_id"].presence || "-" %></td>
+            </tr>
+          <% end %>
+          <% if @cloudflare_projects.empty? %>
+            <tr><td colspan="5">Pages Projectはまだ取得されていません。</td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+
+    <% if @cloudflare_configuration.globally_connected? %>
+      <details class="business-access-editor business-access-add-editor">
+        <summary class="button secondary">Pages Projectを作成</summary>
+        <%= form_with url: create_project_admin_cloudflare_connection_path, method: :post, scope: :cloudflare_project, class: "business-access-form" do |form| %>
+          <div class="field">
+            <%= form.label :name, "Project Name" %>
+            <%= form.text_field :name, required: true, placeholder: "aicoo-lp" %>
+          </div>
+          <div class="field">
+            <%= form.label :production_branch, "Production branch" %>
+            <%= form.text_field :production_branch, value: "main", required: true %>
+          </div>
+          <div class="actions compact-actions"><%= form.submit "Projectを作成", class: "button" %></div>
+        <% end %>
+      </details>
+    <% end %>
+  </section>
+</div>

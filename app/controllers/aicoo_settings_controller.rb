@@ -40,6 +40,57 @@ class AicooSettingsController < ApplicationController
       profiles: @data_source_cost_profiles,
       settings: BusinessDataSourceSetting.all
     )
+    load_global_connections
+  end
+
+  def load_global_connections
+    cloudflare_profile = DataSourceCostProfile.find_by(source_key: Aicoo::CloudflarePages::Configuration::PROFILE_KEY)
+    cloudflare = Aicoo::CloudflarePages::Configuration.new(profile: cloudflare_profile)
+    google = AicooGoogleCredential.default
+    webhook = Aicoo::Lovable::GithubWebhookConfiguration.new
+    github = Aicoo::CloudflarePages::Configuration.new
+    @global_connections = [
+      {
+        key: "github",
+        label: "GitHub",
+        status: github.github_configured? ? "接続済み" : "未接続",
+        level: github.github_configured? ? "healthy" : "attention",
+        detail: github.repository_url,
+        path: admin_lovable_path(anchor: "github-webhook-settings")
+      },
+      {
+        key: "cloudflare",
+        label: "Cloudflare",
+        status: { "connected" => "接続済み", "error" => "接続エラー" }.fetch(cloudflare.connection_status, "未接続"),
+        level: cloudflare.connection_status == "connected" ? "healthy" : (cloudflare.connection_status == "error" ? "critical" : "attention"),
+        detail: cloudflare.last_connected_at ? "最終接続 #{I18n.l(cloudflare.last_connected_at, format: :short)}" : "全体認証",
+        path: admin_cloudflare_connection_path
+      },
+      {
+        key: "ga4",
+        label: "GA4",
+        status: google&.connected? ? "接続済み" : "未接続",
+        level: google&.connected? ? "healthy" : "attention",
+        detail: "AICOO共通Google認証",
+        path: admin_analytics_connections_path
+      },
+      {
+        key: "gsc",
+        label: "GSC",
+        status: google&.connected? ? "接続済み" : "未接続",
+        level: google&.connected? ? "healthy" : "attention",
+        detail: "AICOO共通Google認証",
+        path: admin_analytics_connections_path
+      },
+      {
+        key: "webhook",
+        label: "Webhook",
+        status: webhook.configured? ? "接続済み" : "未接続",
+        level: webhook.configured? ? "healthy" : "attention",
+        detail: webhook.diagnostics["last_received_at"].presence || "Push event",
+        path: admin_lovable_path(anchor: "github-webhook-settings")
+      }
+    ]
   end
 
   def update_cost_profiles!

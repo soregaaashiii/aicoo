@@ -175,6 +175,13 @@ class BusinessAccessSettingsController < ApplicationController
     redirect_to_access_section("計測設定を保存できませんでした: #{error_message(e)}", alert: true)
   end
 
+  def update_cloudflare
+    Aicoo::BusinessAccessSettingsUpdater.new(@business).update_cloudflare!(cloudflare_params)
+    redirect_to_access_section("Cloudflare Pages Projectと公開ドメインを保存しました。")
+  rescue ActiveRecord::RecordInvalid, ArgumentError => e
+    redirect_to_access_section("Cloudflare設定を保存できませんでした: #{error_message(e)}", alert: true)
+  end
+
   def verify_production
     result = Aicoo::LpIntegration::ProductionVerifier.new(business: @business).call
     redirect_to_access_section(result.message, alert: !result.success)
@@ -226,6 +233,10 @@ class BusinessAccessSettingsController < ApplicationController
     params.expect(measurement_access: %i[
       public_url ga4_measurement_id ga4_property_id gsc_site_url activity_api_enabled
     ])
+  end
+
+  def cloudflare_params
+    params.expect(cloudflare_access: %i[project_name production_url])
   end
 
   def landing_page_registry

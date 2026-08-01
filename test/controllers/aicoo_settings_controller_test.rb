@@ -13,6 +13,13 @@ class AicooSettingsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Strategic Philosophy"
     assert_includes response.body, "Strategic Learning Guardrail"
     assert_includes response.body, "AICOO全体設定センター"
+    assert_select "#global-connections"
+    assert_select "#global-connection-github", text: /GitHub/
+    assert_select "#global-connection-cloudflare", text: /Cloudflare/
+    assert_select "#global-connection-ga4", text: /GA4/
+    assert_select "#global-connection-gsc", text: /GSC/
+    assert_select "#global-connection-webhook", text: /Webhook/
+    assert_select "#global-connection-cloudflare a[href='#{admin_cloudflare_connection_path}']"
     assert_includes response.body, "Google"
     assert_includes response.body, "Search / SEO"
     assert_includes response.body, "Social"

@@ -255,6 +255,35 @@ module Aicoo
         assert_equal 403, result.http_status
       end
 
+      test "checks the pages project selected by the landing page business" do
+        BusinessDataSourceSetting.create!(
+          business: @business,
+          source_key: "cloudflare_pages",
+          property_identifier: "business-project",
+          endpoint_url: "https://business-project.pages.dev",
+          connection_status: "linked"
+        )
+        requested_path = nil
+        adapter = lambda do |uri, _request|
+          requested_path = uri.path
+          response(Net::HTTPOK, { success: true, result: { name: "business-project" } }.to_json)
+        end
+        verifier = DeploymentVerifier.new(
+          configuration: Configuration.new(env: {
+            "CLOUDFLARE_ACCOUNT_ID" => "account",
+            "CLOUDFLARE_API_TOKEN" => "token",
+            "CLOUDFLARE_PROJECT_NAME" => "aicoo-lp"
+          }),
+          http_adapter: adapter
+        )
+
+        result = verifier.check_connection(business: @business)
+
+        assert result.ok
+        assert_equal "business-project", result.project_name
+        assert_equal "/client/v4/accounts/account/pages/projects/business-project", requested_path
+      end
+
       private
 
       def verifier_with_page(body, page_status: Net::HTTPOK, content_type: "text/html; charset=utf-8")

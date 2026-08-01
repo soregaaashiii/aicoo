@@ -29,7 +29,7 @@ module Aicoo
       def call(component:, landing_page:, generation_run:)
         case component.to_s
         when "github" then check_github(landing_page, generation_run)
-        when "cloudflare" then check_cloudflare
+        when "cloudflare" then check_cloudflare(landing_page)
         when "webhook" then check_webhook(generation_run)
         else
           failure(component, "unsupported_component", "この工程は再確認対象ではありません。")
@@ -89,8 +89,15 @@ module Aicoo
         )
       end
 
-      def check_cloudflare
-        result = cloudflare_verifier.check_connection
+      def check_cloudflare(landing_page)
+        supports_business = cloudflare_verifier.method(:check_connection).parameters.any? do |_kind, name|
+          name == :business
+        end
+        result = if supports_business
+          cloudflare_verifier.check_connection(business: landing_page&.business)
+        else
+          cloudflare_verifier.check_connection
+        end
         return success(:cloudflare, result.message, {
           "project_name" => result.project_name,
           "http_status" => result.http_status
@@ -100,9 +107,9 @@ module Aicoo
           :cloudflare,
           result.code,
           result.message,
-          required_setting: "Cloudflare Account ID / API Token / Project",
-          settings_location: "AICOO → Lovable接続 → Cloudflare Pages公開設定",
-          fix_steps: [ "Cloudflare設定を確認する", "再確認を押す" ],
+          required_setting: "AICOO全体Cloudflare接続 / Pages Project",
+          settings_location: "AICOO → 全体設定 → Cloudflare",
+          fix_steps: [ "Cloudflare全体設定を確認する", "BusinessのPages Projectを確認する", "再確認を押す" ],
           details: {
             "project_name" => result.project_name,
             "http_status" => result.http_status

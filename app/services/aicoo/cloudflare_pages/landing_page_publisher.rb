@@ -17,6 +17,7 @@ module Aicoo
 
       def publish!(landing_page:, generation_run: nil, commit_message: nil)
         validate_landing_page!(landing_page)
+        publication_configuration = configuration.for_business(landing_page.business)
         github_path = github_path_for(landing_page)
         ensure_path_is_available!(landing_page, github_path)
         bundle = bundle_builder_class.new(landing_page:, generation_run:).call
@@ -29,7 +30,7 @@ module Aicoo
           message: commit_message.presence || commit_message_for(generation_run)
         )
         page_path = page_path_for(landing_page, github_path)
-        cloudflare_url = cloudflare_url_for(page_path)
+        cloudflare_url = cloudflare_url_for(page_path, publication_configuration)
         now = Time.current
         push_duration_ms = ((now - push_started_at) * 1_000).round
         metadata = landing_page.metadata.to_h.merge(
@@ -46,7 +47,7 @@ module Aicoo
           "lp_url" => cloudflare_url,
           "gsc_url" => cloudflare_url,
           "cloudflare_url" => cloudflare_url,
-          "cloudflare_project_name" => configuration.project_name,
+          "cloudflare_project_name" => publication_configuration.project_name,
           "cloudflare_deploy_status" => "deploying",
           "sync_status" => "syncing",
           "planning_status" => "cloudflare_pending",
@@ -61,6 +62,7 @@ module Aicoo
           result,
           cloudflare_url,
           bundle.source,
+          publication_configuration:,
           push_started_at:,
           pushed_at: now,
           push_duration_ms:
@@ -184,8 +186,8 @@ module Aicoo
         "/#{github_path.delete_prefix('public/').delete_suffix('/')}"
       end
 
-      def cloudflare_url_for(page_path)
-        "#{configuration.production_url.delete_suffix('/')}#{page_path.sub(%r{/\z}, '')}/"
+      def cloudflare_url_for(page_path, publication_configuration)
+        "#{publication_configuration.production_url.delete_suffix('/')}#{page_path.sub(%r{/\z}, '')}/"
       end
 
       def commit_message_for(generation_run)
@@ -201,6 +203,7 @@ module Aicoo
         result,
         cloudflare_url,
         asset_source,
+        publication_configuration:,
         push_started_at:,
         pushed_at:,
         push_duration_ms:
@@ -211,8 +214,8 @@ module Aicoo
           "status" => "github_pushed",
           "published" => false,
           "landing_page_prototype_id" => landing_page.id,
-          "repository_url" => configuration.repository_url,
-          "branch" => configuration.branch,
+          "repository_url" => publication_configuration.repository_url,
+          "branch" => publication_configuration.branch,
           "github_path" => landing_page.metadata.to_h["github_path"],
           "commit_sha" => result.commit_sha,
           "commit_url" => result.commit_url,

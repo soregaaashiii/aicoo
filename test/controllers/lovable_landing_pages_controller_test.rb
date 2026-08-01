@@ -145,8 +145,8 @@ class LovableLandingPagesControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-pipeline-explorer-stage='github_source_push']", text: /Contents Read/
     assert_select "[data-pipeline-setting-link='github'][href='https://github.com/settings/personal-access-tokens'][target='_blank']", minimum: 1,
       text: "GitHub設定を開く"
-    assert_select "[data-pipeline-setting-link='cloudflare'][href='https://dash.cloudflare.com/'][target='_blank']", minimum: 1,
-      text: "Cloudflareを開く"
+    assert_select "[data-pipeline-setting-link='cloudflare'][href='#{admin_cloudflare_connection_path}'][target='_blank']", minimum: 1,
+      text: "Cloudflare設定を開く"
     assert_select "[data-pipeline-setting-link='webhook'][href='https://github.com/example/private-lp/settings/hooks'][target='_blank']", 1,
       text: "Webhook設定を開く"
     assert_select "[data-pipeline-setting-link='ga4'][href='https://analytics.google.com/analytics/web/'][target='_blank']", 1,

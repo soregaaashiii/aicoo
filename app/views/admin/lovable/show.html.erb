@@ -28,39 +28,6 @@
     </dl>
   </section>
 
-  <section class="dashboard-section" id="cloudflare-pages-settings">
-    <div class="section-heading">
-      <div>
-        <h2>Cloudflare Pages公開設定</h2>
-        <p>LP専用Repository <code>aicoo-lp</code>へのpushと、Cloudflare Pagesの公開確認に使います。</p>
-      </div>
-    </div>
-    <div class="metric-grid">
-      <div class="metric-card"><span>Project</span><strong><%= @cloudflare_configuration.project_name %></strong><small>Production branch: main</small></div>
-      <div class="metric-card"><span>GitHub</span><strong>aicoo-lp</strong><small><%= @cloudflare_configuration.repository_url %></small></div>
-      <div class="metric-card"><span>Cloudflare API</span><strong><%= @cloudflare_configuration.cloudflare_api_configured? ? "設定済み" : "未設定" %></strong><small>公開状態の確認だけに利用</small></div>
-      <div class="metric-card"><span>GitHub Token</span><strong><%= @cloudflare_configuration.github_configured? ? "設定済み" : "未設定" %></strong><small>AICOO_GITHUB_TOKEN / GITHUB_TOKEN</small></div>
-    </div>
-    <%= form_with url: admin_lovable_cloudflare_path, method: :patch, scope: :cloudflare_pages, class: "business-access-form" do |form| %>
-      <div class="field">
-        <%= form.label :account_id, "CLOUDFLARE_ACCOUNT_ID" %>
-        <%= form.text_field :account_id, value: @cloudflare_configuration.account_id, placeholder: "Cloudflare Account ID" %>
-      </div>
-      <div class="field">
-        <%= form.label :api_token, "CLOUDFLARE_API_TOKEN" %>
-        <%= form.password_field :api_token, value: nil, placeholder: @cloudflare_configuration.api_token.present? ? "設定済み" : "Cloudflare API Token" %>
-      </div>
-      <div class="field">
-        <%= form.label :project_name, "CLOUDFLARE_PROJECT_NAME" %>
-        <%= form.text_field :project_name, value: @cloudflare_configuration.project_name, placeholder: "aicoo-lp" %>
-      </div>
-      <div class="actions compact-actions">
-        <%= form.submit "Cloudflare設定を保存", class: "button" %>
-      </div>
-    <% end %>
-    <p class="aicoo-help-text">HTMLはCloudflare APIへ送信しません。AICOOはGitHubへcommit/pushし、Cloudflare PagesのGitHub連携で公開します。</p>
-  </section>
-
   <section class="dashboard-section" id="github-webhook-settings">
     <div class="section-heading">
       <div>

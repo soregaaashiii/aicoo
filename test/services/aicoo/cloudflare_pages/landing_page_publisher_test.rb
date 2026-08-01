@@ -82,6 +82,22 @@ module Aicoo
         assert_equal "https://github.com/example/service", service_profile.reload.github_repository
       end
 
+      test "publishes with the business selected pages project and domain" do
+        BusinessDataSourceSetting.create!(
+          business: @business,
+          source_key: "cloudflare_pages",
+          property_identifier: "selected-project",
+          endpoint_url: "https://lp.example.com",
+          connection_status: "linked"
+        )
+        client = FakeClient.new
+
+        result = LandingPagePublisher.new(configuration: @configuration, client:).publish!(landing_page: @landing_page)
+
+        assert_equal "https://lp.example.com/ai-reception/price/", result.cloudflare_url
+        assert_equal "selected-project", @landing_page.reload.metadata["cloudflare_project_name"]
+      end
+
       test "uses supplied lovable output files when present" do
         run = AicooLabGenerationRun.create!(
           generation_type: "lp_generation",

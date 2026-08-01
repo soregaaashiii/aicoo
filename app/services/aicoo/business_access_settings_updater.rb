@@ -97,6 +97,48 @@ module Aicoo
       end
     end
 
+    def update_cloudflare!(attributes)
+      values = attributes.to_h.deep_stringify_keys
+      configuration = CloudflarePages::Configuration.new(business:)
+      project_name = values["project_name"].to_s.strip
+      raise ArgumentError, "Cloudflare Pages Projectを選択してください。" if project_name.blank?
+
+      project = configuration.project_snapshot_for(project_name)
+      if configuration.available_projects.any? && project.nil?
+        raise ArgumentError, "選択したCloudflare Pages Projectを全体設定で確認できません。"
+      end
+
+      production_url = values["production_url"].presence || project&.dig("production_url").presence || "https://#{project_name}.pages.dev"
+      allowed_urls = ([ project&.dig("production_url") ] + Array(project&.dig("domains")).map { |domain| "https://#{domain}" }).compact
+      if allowed_urls.any? && !allowed_urls.include?(production_url)
+        raise ArgumentError, "選択した公開ドメインはPages Projectに登録されていません。"
+      end
+
+      setting = BusinessDataSourceSetting.for_business_and_source(business, CloudflarePages::Configuration::PROFILE_KEY)
+      secret_keys = %w[account_id api_token access_token refresh_token token_expires_at oauth_scope]
+      metadata = setting.metadata.to_h.except(*secret_keys)
+      credentials = metadata.fetch("credentials", {}).to_h.except("project_name", *secret_keys)
+      connection_fields = metadata.fetch("connection_fields", {}).to_h.except("project_name", *secret_keys)
+      metadata["credentials"] = credentials
+      metadata.delete("credentials") if credentials.empty?
+      metadata["connection_fields"] = connection_fields
+      metadata.delete("connection_fields") if connection_fields.empty?
+      setting.assign_attributes(
+        enabled: true,
+        connection_status: configuration.globally_connected? ? "linked" : "needs_attention",
+        property_identifier: project_name,
+        endpoint_url: production_url,
+        credential_reference: "AICOO全体Cloudflare認証",
+        metadata: metadata.merge(
+          "source_binding" => metadata.fetch("source_binding", {}).to_h.merge("use_global" => "1"),
+          "project_name" => project_name,
+          "production_url" => production_url
+        )
+      )
+      setting.save!
+      setting
+    end
+
     private
 
     attr_reader :business

@@ -300,7 +300,7 @@ module AicooNavigationHelper
           { key: :system_codex_connection, label: "Codex連携", description: "GitHub/PR連携", path: admin_codex_connection_path, matchers: [ %r{\A/admin/codex_connection} ] },
           { key: :system_lovable, label: "Lovable LP", description: "LP生成・公開・学習", path: admin_lovable_path, matchers: [ %r{\A/admin/lovable}, %r{\A/admin/aicoo_lab/lp_learning} ] },
           { key: :system_approval_logs, label: "操作履歴", description: "承認・操作ログ", path: admin_approval_logs_path, matchers: [ %r{\A/admin/approval_logs} ] },
-          { key: :system_settings, label: "全体設定", description: "AICOO設定", path: aicoo_setting_path, matchers: [ %r{\A/aicoo_setting}, %r{\A/admin/(aicoo_daily_run_settings|aicoo_auto_revision_settings)} ] },
+          { key: :system_settings, label: "全体設定", description: "AICOO設定", path: aicoo_setting_path, matchers: [ %r{\A/aicoo_setting}, %r{\A/admin/(aicoo_daily_run_settings|aicoo_auto_revision_settings|cloudflare_connection)} ] },
           { key: :system_execution_profiles, label: "実行先設定", description: "実行環境の設定", path: admin_business_execution_profiles_path, matchers: [ %r{\A/admin/business_execution_profiles} ] },
           { key: :system_codex_rules, label: "Codexルール", description: "Prompt共通ルール", path: admin_codex_prompt_rules_path, matchers: [ %r{\A/admin/codex_prompt_rules} ] }
         ]

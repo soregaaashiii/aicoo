@@ -20,7 +20,7 @@ class LovableLandingPagesController < ApplicationController
     raise ArgumentError, "診断対象のPipelineがありません。" unless @pipeline_version
 
     component = params.expect(:component)
-    cloudflare_configuration = Aicoo::CloudflarePages::Configuration.new
+    cloudflare_configuration = Aicoo::CloudflarePages::Configuration.new(business: @business)
     webhook_configuration = Aicoo::Lovable::GithubWebhookConfiguration.new
     result = Aicoo::Lovable::PipelineRechecker.new(
       cloudflare_configuration:,
@@ -350,7 +350,7 @@ class LovableLandingPagesController < ApplicationController
     end
     @pipeline_webhook_configuration = Aicoo::Lovable::GithubWebhookConfiguration.new
     @pipeline_webhook_diagnostics = @pipeline_webhook_configuration.diagnostics
-    @pipeline_cloudflare_configuration = Aicoo::CloudflarePages::Configuration.new
+    @pipeline_cloudflare_configuration = Aicoo::CloudflarePages::Configuration.new(business: @business)
     @pipeline_overview = Aicoo::Lovable::PipelineOverview.new(
       generation_run: @pipeline_version,
       landing_page: @landing_page_prototype,

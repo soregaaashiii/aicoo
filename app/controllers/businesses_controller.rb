@@ -169,8 +169,10 @@ class BusinessesController < ApplicationController
     @business_services = @business.business_services.recent.to_a
     @live_business_service_count = @business_services.count { |service| service.status == "live" }
     @cloudflare_pages_configuration = Aicoo::CloudflarePages::Configuration.new(
-      profile: DataSourceCostProfile.for_source("cloudflare_pages")
+      profile: DataSourceCostProfile.for_source("cloudflare_pages"),
+      business: @business
     )
+    @cloudflare_projects = @cloudflare_pages_configuration.available_projects
     @primary_business_service = @business_services.first
     @external_landing_pages = @business.business_prototypes.active.external_landing_pages.to_a
     @landing_page_pipeline_summary = Aicoo::Lovable::PipelineOverview.summary_for(@external_landing_pages)

@@ -18,8 +18,10 @@ module Aicoo
       def call(landing_page:, commit_sha:, deleted: false)
         raise ArgumentError, "公開確認に必要なGit commit SHAがありません。" if commit_sha.blank?
 
+        @active_configuration = configuration.for_business(landing_page.business)
+
         deployment = cloudflare_deployment(commit_sha)
-        return pending("Cloudflare Pagesのdeploymentを待っています。") if configuration.cloudflare_api_configured? && deployment.blank?
+        return pending("Cloudflare Pagesのdeploymentを待っています。") if active_configuration.cloudflare_api_configured? && deployment.blank?
 
         status = deployment&.dig("latest_stage", "status").presence || deployment&.dig("stages", -1, "status")
         return failed(deployment, status) if status.in?(%w[failure failed])
@@ -40,14 +42,15 @@ module Aicoo
         pending("公開確認に失敗しました: #{e.message}")
       end
 
-      def check_connection
-        return connection_failure("account_id_missing", "CLOUDFLARE_ACCOUNT_IDが未設定です。") if configuration.account_id.blank?
-        return connection_failure("api_token_missing", "CLOUDFLARE_API_TOKENが未設定です。") if configuration.api_token.blank?
-        return connection_failure("project_missing", "CLOUDFLARE_PROJECT_NAMEが未設定です。") if configuration.project_name.blank?
+      def check_connection(business: nil)
+        @active_configuration = business ? configuration.for_business(business) : configuration
+        return connection_failure("account_id_missing", "Cloudflare Account IDが未設定です。") if active_configuration.account_id.blank?
+        return connection_failure("api_token_missing", "Cloudflare認証が未設定です。") if active_configuration.api_token.blank?
+        return connection_failure("project_missing", "Cloudflare Pages Projectが未設定です。") if active_configuration.project_name.blank?
 
-        uri = URI("https://api.cloudflare.com/client/v4/accounts/#{configuration.account_id}/pages/projects/#{configuration.project_name}")
+        uri = URI("https://api.cloudflare.com/client/v4/accounts/#{active_configuration.account_id}/pages/projects/#{active_configuration.project_name}")
         request = Net::HTTP::Get.new(uri)
-        request["Authorization"] = "Bearer #{configuration.api_token}"
+        request["Authorization"] = "Bearer #{active_configuration.api_token}"
         request["Content-Type"] = "application/json"
         response = http_adapter.call(uri, request)
         body = JSON.parse(response.body.presence || "{}")
@@ -55,7 +58,7 @@ module Aicoo
           return ConnectionResult.new(
             ok: true,
             code: "ok",
-            project_name: configuration.project_name,
+            project_name: active_configuration.project_name,
             http_status: response.code.to_i,
             message: "Cloudflare Pages Projectへ接続できました。"
           )
@@ -73,12 +76,16 @@ module Aicoo
 
       attr_reader :configuration, :http_adapter
 
-      def cloudflare_deployment(commit_sha)
-        return unless configuration.cloudflare_api_configured?
+      def active_configuration
+        @active_configuration || configuration
+      end
 
-        uri = URI("https://api.cloudflare.com/client/v4/accounts/#{configuration.account_id}/pages/projects/#{configuration.project_name}/deployments?env=production&per_page=20")
+      def cloudflare_deployment(commit_sha)
+        return unless active_configuration.cloudflare_api_configured?
+
+        uri = URI("https://api.cloudflare.com/client/v4/accounts/#{active_configuration.account_id}/pages/projects/#{active_configuration.project_name}/deployments?env=production&per_page=20")
         request = Net::HTTP::Get.new(uri)
-        request["Authorization"] = "Bearer #{configuration.api_token}"
+        request["Authorization"] = "Bearer #{active_configuration.api_token}"
         request["Content-Type"] = "application/json"
         response = http_adapter.call(uri, request)
         body = JSON.parse(response.body.presence || "{}")
@@ -312,7 +319,7 @@ module Aicoo
         ConnectionResult.new(
           ok: false,
           code:,
-          project_name: configuration.project_name,
+          project_name: active_configuration.project_name,
           http_status:,
           message:
         )
@@ -320,7 +327,7 @@ module Aicoo
 
       def cloudflare_connection_error(status, body)
         return [ "api_token_invalid", "Cloudflare API Tokenが無効または期限切れです。" ] if status.in?([ 401, 403 ])
-        return [ "project_not_found", "Cloudflare Pages Project #{configuration.project_name} が存在しません。" ] if status == 404
+        return [ "project_not_found", "Cloudflare Pages Project #{active_configuration.project_name} が存在しません。" ] if status == 404
 
         message = Array(body["errors"]).filter_map { |error| error.to_h["message"].presence }.join(" / ")
         [ "connection_failed", message.presence || "Cloudflare APIへ接続できませんでした。HTTP #{status}" ]

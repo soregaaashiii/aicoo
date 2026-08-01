@@ -22,7 +22,7 @@ module Aicoo
         lovable: [ "Lovable Project URL", "LP詳細 → 設定 → Lovable Project URL" ],
         github: [ "GitHub Repository / Branch / Token", "LP詳細 → 設定 → GitHub Repository" ],
         webhook: [ "Payload URL / application/json / Secret / Push event", "GitHub Repository → Settings → Webhooks → Add webhook" ],
-        cloudflare: [ "Cloudflare Account ID / API Token / Project", "AICOO → Lovable接続 → Cloudflare Pages公開設定" ],
+        cloudflare: [ "AICOO全体Cloudflare接続 / Pages Project", "AICOO → 全体設定 → Cloudflare" ],
         ga4: [ "Google認証 / GA4 Property ID", "Business → Google設定" ],
         gsc: [ "Google認証 / GSC Site URL", "Business → Google設定" ],
         learning: [ nil, nil ]

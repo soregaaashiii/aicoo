@@ -81,8 +81,8 @@ module Aicoo
 
         cloudflare = diagnosis.component(:cloudflare)
         assert_equal "settings", cloudflare.level
-        assert_equal "CLOUDFLARE_API_TOKENが未設定です。", cloudflare.cause
-        assert_includes cloudflare.required_setting, "API Token"
+        assert_equal "AICOO全体のCloudflare認証が未設定です。", cloudflare.cause
+        assert_includes cloudflare.required_setting, "AICOO全体Cloudflare接続"
       end
 
       test "diagnoses an unregistered or unreceived webhook" do

@@ -384,9 +384,9 @@ module Aicoo
         elsif snapshot["ok"] == false
           [ snapshot["level"].presence || "error", snapshot["cause"].presence || "Cloudflare接続を確認できませんでした。" ]
         elsif cloudflare_configuration.account_id.blank?
-          [ "settings", "CLOUDFLARE_ACCOUNT_IDが未設定です。" ]
+          [ "settings", "AICOO全体のCloudflare Accountが未接続です。" ]
         elsif cloudflare_configuration.api_token.blank?
-          [ "settings", "CLOUDFLARE_API_TOKENが未設定です。" ]
+          [ "settings", "AICOO全体のCloudflare認証が未設定です。" ]
         elsif cloudflare_configuration.project_name.blank?
           [ "settings", "Cloudflare Pages Projectが未設定です。" ]
         elsif error_code.in?(CLOUDFLARE_ERROR_CODES)
@@ -402,12 +402,11 @@ module Aicoo
           "Cloudflare",
           level:,
           cause:,
-          required_setting: "Account ID / API Token / Project #{cloudflare_configuration.project_name.presence || 'aicoo-lp'}",
-          settings_location: "AICOO → Lovable接続 → Cloudflare Pages公開設定",
+          required_setting: "AICOO全体Cloudflare接続 / Pages Project #{cloudflare_configuration.project_name.presence || 'aicoo-lp'}",
+          settings_location: "AICOO → 全体設定 → Cloudflare",
           fix_steps: [
-            "Cloudflare Account IDを確認する",
-            "Pages Read権限を持つTokenを設定する",
-            "Project名が存在することを確認する",
+            "AICOO全体設定でCloudflareへ接続する",
+            "BusinessのPages Projectと公開ドメインを確認する",
             "再確認を押す"
           ],
           recheckable: level.in?(%w[settings error]),

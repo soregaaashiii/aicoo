@@ -4,10 +4,6 @@ module LovableLandingPagesHelper
       label: "GitHub設定を開く",
       url: "https://github.com/settings/personal-access-tokens"
     },
-    cloudflare: {
-      label: "Cloudflareを開く",
-      url: "https://dash.cloudflare.com/"
-    },
     ga4: {
       label: "GA4を開く",
       url: "https://analytics.google.com/analytics/web/"
@@ -20,6 +16,13 @@ module LovableLandingPagesHelper
 
   def pipeline_diagnosis_settings_link(component, landing_page:)
     return unless component.actionable?
+
+    if component.key == :cloudflare
+      return {
+        label: "Cloudflare設定を開く",
+        url: admin_cloudflare_connection_path
+      }
+    end
 
     if component.key == :webhook
       repository = Aicoo::Lovable::GithubRepositoryIdentity.normalize(

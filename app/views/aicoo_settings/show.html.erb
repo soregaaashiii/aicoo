@@ -12,6 +12,27 @@
              actions: header_actions %>
   <%= render "shared/aicoo_execution_tabs", active: :dashboard %>
 
+  <section class="dashboard-section" id="global-connections">
+    <div class="section-heading">
+      <div>
+        <h2>接続</h2>
+        <p>GitHub、Cloudflare、GA4、GSC、WebhookをAICOO全体で一度だけ設定します。</p>
+      </div>
+    </div>
+    <div class="metric-grid">
+      <% @global_connections.each do |connection| %>
+        <div class="metric-card" id="global-connection-<%= connection[:key] %>">
+          <span><%= connection[:label] %></span>
+          <strong><span class="pill status-<%= connection[:level] %>"><%= connection[:status] %></span></strong>
+          <small><%= connection[:detail] %></small>
+          <div class="actions compact-actions">
+            <%= link_to "設定を開く", connection[:path], class: "button secondary" %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </section>
+
   <section class="dashboard-section" id="global-data-source-settings">
     <div class="section-heading">
       <div>

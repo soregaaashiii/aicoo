@@ -183,6 +183,7 @@ Rails.application.routes.draw do
       delete "landing_pages/:landing_page_id", action: :destroy_landing_page, as: :remove_landing_page
       patch :production, action: :update_production
       patch :measurement, action: :update_measurement
+      patch :cloudflare, action: :update_cloudflare
       post :verify_production
     end
     resource :lp_integration, only: %i[show update], controller: "business_lp_integrations" do
@@ -230,6 +231,12 @@ Rails.application.routes.draw do
   end
 
   namespace :admin do
+    resource :cloudflare_connection, only: %i[show update] do
+      get :connect
+      get :callback
+      post :test
+      post :create_project
+    end
     get "lovable", to: "lovable#show", as: :lovable
     patch "lovable/cloudflare", to: "lovable#update_cloudflare", as: :lovable_cloudflare
     patch "lovable/github_webhook", to: "lovable#update_github_webhook", as: :lovable_github_webhook

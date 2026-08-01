@@ -201,6 +201,45 @@
       <p class="aicoo-help-text">LP追加時はGA4/GSCを新設しません。各LPのpage_pathとURLで同じ接続から抽出します。</p>
 
       <details class="business-access-editor business-access-add-editor">
+        <summary class="button"><%= cloudflare_configuration.business_setting&.persisted? ? "Cloudflare公開先を編集" : "Cloudflare公開先を選択" %></summary>
+        <%= form_with url: cloudflare_business_access_settings_path(business), method: :patch, scope: :cloudflare_access, class: "business-access-form" do |form| %>
+          <div class="field">
+            <%= form.label :project_name, "Pages Project" %>
+            <% project_options = @cloudflare_projects.map { |project| [ project["name"], project["name"] ] } %>
+            <% unless project_options.any? { |option| option.last == cloudflare_configuration.project_name } %>
+              <% project_options << [ cloudflare_configuration.project_name, cloudflare_configuration.project_name ] %>
+            <% end %>
+            <%= form.select :project_name,
+                            options_for_select(
+                              project_options,
+                              cloudflare_configuration.project_name
+                            ),
+                            {},
+                            required: true %>
+          </div>
+          <div class="field">
+            <%= form.label :production_url, "公開ドメイン" %>
+            <% domain_options = @cloudflare_projects.flat_map do |project|
+                 urls = [ project["production_url"] ] + Array(project["domains"]).map { |domain| "https://#{domain}" }
+                 urls.compact.uniq.map { |url| [ "#{project["name"]} · #{url}", url ] }
+               end %>
+            <% unless domain_options.any? { |option| option.last == cloudflare_configuration.production_url } %>
+              <% domain_options << [ "#{cloudflare_configuration.project_name} · #{cloudflare_configuration.production_url}", cloudflare_configuration.production_url ] %>
+            <% end %>
+            <%= form.select :production_url,
+                            options_for_select(domain_options, cloudflare_configuration.production_url),
+                            {},
+                            required: true %>
+          </div>
+          <p class="aicoo-help-text">認証情報はAICOO全体設定を利用します。このBusinessにはProjectとDomainだけ保存します。</p>
+          <div class="actions compact-actions">
+            <%= form.submit "保存", class: "button" %>
+            <%= link_to "Cloudflare全体設定", admin_cloudflare_connection_path, class: "button secondary" %>
+          </div>
+        <% end %>
+      </details>
+
+      <details class="business-access-editor business-access-add-editor">
         <summary class="button"><%= analytics_site ? "共通計測を編集" : "共通計測を設定" %></summary>
         <%= form_with url: measurement_business_access_settings_path(business), method: :patch, scope: :measurement_access, class: "business-access-form" do |form| %>
           <div class="field">
@@ -225,7 +264,7 @@
           </div>
           <div class="actions compact-actions">
             <%= form.submit "保存", class: "button" %>
-            <%= link_to "Cloudflare設定", admin_lovable_path(anchor: "cloudflare-pages-settings"), class: "button secondary" %>
+            <%= link_to "Cloudflare設定", admin_cloudflare_connection_path, class: "button secondary" %>
             <%= link_to "Google接続", admin_analytics_sites_path, class: "button secondary" %>
             <%= link_to "Activity API詳細", admin_source_app_connections_path, class: "button secondary" %>
           </div>
