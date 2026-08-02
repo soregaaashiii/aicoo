@@ -67,6 +67,7 @@ module AicooInsight
 
     DATE_KEYS = %w[date recorded_on occurred_on event_date].freeze
     DEFAULT_BATCH_SIZE = 100
+    SNAPSHOT_BATCH_SIZE = 10
     PROGRESS_METADATA_KEY = "insight_generation_progress".freeze
 
     def self.generate_all!(source: nil, progress: nil, memory_context: {})
@@ -275,32 +276,44 @@ module AicooInsight
     end
 
     def call_batch(offset:, limit:)
-      specs = collect_specs
-      return Result.new(skipped: [ no_insight_reason ], processed_count: 0, total_count: 0, completed: true) if specs.empty?
+      offset = offset.to_i
+      limit = limit.to_i
+      total_count = 0
+      batch_specs = []
+      Aicoo::MemoryDiagnostics.measure("InsightGeneration::SpecCollection", context: diagnostic_context) do
+        each_spec do |spec|
+          batch_specs << spec if total_count >= offset && batch_specs.size < limit
+          total_count += 1
+        end
+      end
+      return Result.new(skipped: [ no_insight_reason ], processed_count: 0, total_count: 0, completed: true) if total_count.zero?
 
-      batch_specs = specs.drop(offset.to_i).first(limit.to_i)
       result = process_specs(batch_specs, include_empty_reason: false)
       result.with_batch_progress(
         processed_count: batch_specs.size,
-        total_count: specs.size,
-        completed: offset.to_i + batch_specs.size >= specs.size,
+        total_count:,
+        completed: offset + batch_specs.size >= total_count,
         last_spec: batch_specs.last&.title
       )
     ensure
-      specs = batch_specs = nil
+      batch_specs = nil
     end
 
     def collect_specs
       Aicoo::MemoryDiagnostics.measure("InsightGeneration::SpecCollection", context: diagnostic_context) do
-        [
-          measured("InsightGeneration::CtrImprovementSpecs") { ctr_improvement_specs },
-          measured("InsightGeneration::PositionImprovementSpecs") { position_improvement_specs },
-          measured("InsightGeneration::RevenueImprovementSpecs") { revenue_improvement_specs },
-          measured("InsightGeneration::NeglectAlertSpecs") { neglect_alert_specs },
-          measured("InsightGeneration::GrowthExpansionSpecs") { growth_expansion_specs },
-          measured("InsightGeneration::WithdrawalSpecs") { withdrawal_specs }
-        ].flatten.compact
+        each_spec.to_a
       end
+    end
+
+    def each_spec
+      return enum_for(__method__) unless block_given?
+
+      measured("InsightGeneration::CtrImprovementSpecs") { each_ctr_improvement_spec { |spec| yield spec } }
+      measured("InsightGeneration::PositionImprovementSpecs") { each_position_improvement_spec { |spec| yield spec } }
+      measured("InsightGeneration::RevenueImprovementSpecs") { revenue_improvement_specs }.each { |spec| yield spec }
+      measured("InsightGeneration::NeglectAlertSpecs") { neglect_alert_specs }.each { |spec| yield spec }
+      measured("InsightGeneration::GrowthExpansionSpecs") { growth_expansion_specs }.each { |spec| yield spec }
+      measured("InsightGeneration::WithdrawalSpecs") { withdrawal_specs }.each { |spec| yield spec }
     end
 
     def process_specs(specs, include_empty_reason: true)
@@ -366,7 +379,13 @@ module AicooInsight
     end
 
     def ctr_improvement_specs
-      gsc_rows.filter_map do |row|
+      each_ctr_improvement_spec.to_a
+    end
+
+    def each_ctr_improvement_spec
+      return enum_for(__method__) unless block_given?
+
+      each_gsc_row do |row|
         impressions = numeric(row, "impressions")
         clicks = numeric(row, "clicks")
         ctr = ratio(row["ctr"] || row[:ctr], clicks, impressions)
@@ -374,7 +393,7 @@ module AicooInsight
         next unless impressions > 100 && ctr < 0.01 && position <= 10
 
         keyword = row_label(row)
-        build_spec(
+        yield build_spec(
           title: "#{business.name}: #{keyword} のCTR改善",
           description: "表示回数は#{impressions}ありますが、CTRが#{percentage(ctr)}に留まっています。",
           action_type: "seo_improvement",
@@ -388,13 +407,19 @@ module AicooInsight
     end
 
     def position_improvement_specs
-      gsc_rows.filter_map do |row|
+      each_position_improvement_spec.to_a
+    end
+
+    def each_position_improvement_spec
+      return enum_for(__method__) unless block_given?
+
+      each_gsc_row do |row|
         position = decimal(row, "position")
         next unless position >= 5 && position <= 20
 
         impressions = numeric(row, "impressions")
         keyword = row_label(row)
-        build_spec(
+        yield build_spec(
           title: "#{business.name}: #{keyword} の順位改善",
           description: "検索順位が#{position.round(1)}位で、内部リンクや関連記事追加による押し上げ余地があります。",
           action_type: "seo_improvement",
@@ -566,21 +591,32 @@ module AicooInsight
       "position_improvement"
     end
 
-    def gsc_rows
-      snapshot_rows("gsc")
+    def each_gsc_row
+      return enum_for(__method__) unless block_given?
+
+      matching_snapshots("gsc").select(:id, :payload).find_each(batch_size: SNAPSHOT_BATCH_SIZE, order: :asc) do |snapshot|
+        payload = snapshot.payload || {}
+        emitted = false
+        rows_from_payload(payload).each do |row|
+          next unless row.is_a?(Hash)
+
+          emitted = true
+          yield row
+        end
+        yield payload unless emitted
+      ensure
+        payload = snapshot = nil
+      end
     end
 
-    def snapshot_rows(source_type)
-      matching_snapshots(source_type).flat_map do |snapshot|
-        rows = rows_from_payload(snapshot.payload || {})
-        rows.presence || [ snapshot.payload || {} ]
-      end
+    def gsc_row_count
+      each_gsc_row.count
     end
 
     def rows_from_payload(payload)
       rows = payload["rows"] || payload.dig("metrics", "rows")
       rows = payload["metrics"] if rows.blank? && payload["metrics"].is_a?(Array)
-      Array(rows).select { |row| row.is_a?(Hash) }
+      Array(rows)
     end
 
     def matching_snapshots(source_type)
@@ -676,7 +712,7 @@ module AicooInsight
     def no_insight_reason
       [
         "#{business.name}: Insight生成条件に一致しません",
-        "gsc_rows=#{gsc_rows.size}",
+        "gsc_rows=#{gsc_row_count}",
         "recent30_pageviews=#{recent_metric_total(:pageviews, 30)}",
         "current_month_profit=#{business.current_month_profit.to_i}",
         "recent7_clicks=#{metric_total(:clicks, 7.days.ago.to_date..Date.current)}",

@@ -186,6 +186,31 @@ module AicooInsight
       assert_equal 2, progress.fetch(:processed_count)
     end
 
+    test "streams snapshot payloads while preserving spec order and batch totals" do
+      business = create_business("Streamed insight")
+      create_gsc_snapshot(business, rows: [
+        { "query" => "first ctr", "impressions" => 240, "clicks" => 1, "ctr" => 0.004, "position" => 4 }
+      ])
+      create_gsc_snapshot(business, rows: [
+        { "query" => "second ctr and position", "impressions" => 260, "clicks" => 1, "ctr" => 0.003, "position" => 8 }
+      ])
+      sql = []
+
+      result = capture_sql(sql) do
+        Generator.new(business:).call_batch(offset: 0, limit: 2)
+      end
+
+      assert_equal 2, result.processed_count
+      assert_equal 3, result.total_count
+      assert_equal [
+        "Streamed insight: first ctr のCTR改善",
+        "Streamed insight: second ctr and position のCTR改善"
+      ], result.created.map(&:title)
+      snapshot_queries = sql.grep(/FROM \"aicoo_data_snapshots\"/)
+      assert snapshot_queries.any? { |statement| statement.match?(/LIMIT/i) }
+      assert snapshot_queries.none? { |statement| statement.match?(/SELECT\s+\"aicoo_data_snapshots\"\.\*/i) }
+    end
+
     test "generate all resumes from saved insight progress" do
       business = create_business("Resume insight")
       create_gsc_snapshot(business, rows: [
@@ -261,6 +286,13 @@ module AicooInsight
       klass.define_singleton_method(method_name) do |*args, **kwargs, &block|
         original.call(*args, **kwargs, &block)
       end
+    end
+
+    def capture_sql(statements)
+      subscriber = lambda do |_name, _start, _finish, _id, payload|
+        statements << payload[:sql] unless payload[:name] == "SCHEMA"
+      end
+      ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") { yield }
     end
 
     def with_env(values)
