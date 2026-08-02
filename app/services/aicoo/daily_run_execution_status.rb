@@ -46,8 +46,10 @@ module Aicoo
 
     include Rails.application.routes.url_helpers
 
-    def self.call(...)
-      new(...).call
+    def self.call(include_latest: true)
+      Aicoo::RequestQueryContext.fetch([ :daily_run_execution_status, include_latest ]) do
+        new(include_latest:).call
+      end
     end
 
     def initialize(include_latest: true)

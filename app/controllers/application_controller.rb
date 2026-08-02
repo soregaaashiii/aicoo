@@ -4,11 +4,11 @@ class ApplicationController < ActionController::Base
   # Only allow modern browsers supporting webp images, web push, badges, import maps, CSS nesting, and CSS :has.
   allow_browser versions: :modern
 
+  around_action :reuse_read_only_query_results
   before_action :protect_aicoo_management_area
   before_action :set_robots_header
   before_action :load_daily_run_execution_status
   before_action :load_long_running_operation_monitor
-  around_action :reuse_read_only_query_results
 
   helper_method :aicoo_settings_navigation_request?
 
@@ -66,15 +66,10 @@ class ApplicationController < ActionController::Base
     return if execution_runs_path?
     return unless request.format.html?
 
-    options = if business_index_request? || global_settings_request?
-      {
-        running_only: true,
-        include_daily_runs: @daily_run_execution_status.nil?
-      }
-    else
-      {}
-    end
-    @long_running_operation_monitor = Aicoo::LongRunningOperationMonitor.new(**options).call
+    @long_running_operation_monitor = Aicoo::LongRunningOperationMonitor.new(
+      running_only: true,
+      include_daily_runs: false
+    ).call
   rescue StandardError => e
     Rails.logger.warn("Long running operation monitor unavailable: #{e.class}: #{e.message}")
     @long_running_operation_monitor = nil
@@ -85,19 +80,16 @@ class ApplicationController < ActionController::Base
     return unless request.format.html?
 
     @daily_run_execution_status = Aicoo::DailyRunExecutionStatus.call(
-      include_latest: !(business_index_request? || global_settings_request?)
+      include_latest: daily_run_history_status_required?
     )
   rescue StandardError => e
     Rails.logger.warn("Daily run execution status unavailable: #{e.class}: #{e.message}")
     @daily_run_execution_status = nil
   end
 
-  def business_index_request?
-    controller_path == "businesses" && action_name == "index"
-  end
-
-  def global_settings_request?
-    aicoo_settings_navigation_request?
+  def daily_run_history_status_required?
+    (controller_path == "aicoo_daily_runs" && action_name == "index") ||
+      (controller_path == "dashboard" && action_name == "show")
   end
 
   def aicoo_settings_navigation_request?

@@ -60,6 +60,61 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "現在位置"
   end
 
+  test "system mode status refresh uses the lightweight endpoint" do
+    AicooDailyRun.create!(
+      target_date: Date.current,
+      status: "running",
+      source: "manual",
+      started_at: 1.minute.ago
+    )
+
+    get admin_aicoo_judge_url
+
+    assert_response :success
+    assert_select "[data-aicoo-auto-refresh-url='#{aicoo_operation_status_path}']", count: 1
+    assert_select "[data-aicoo-auto-refresh-url='#{admin_aicoo_judge_path}']", count: 0
+  end
+
+  test "system mode layout loads only running operation data" do
+    statements = []
+    callback = lambda do |_name, _start, _finish, _id, payload|
+      next if payload[:cached] || payload[:name] == "SCHEMA"
+
+      statements << payload[:sql].to_s
+    end
+
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+      get admin_aicoo_judge_url
+    end
+
+    assert_response :success
+    assert_not statements.any? { |sql| sql.include?("data_imports") }
+    assert_not statements.any? { |sql| sql.include?("aicoo_lab_landing_page_publication_events") }
+  end
+
+  test "daily run index reuses the execution status loaded for the layout" do
+    AicooDailyRun.create!(
+      target_date: Date.current,
+      status: "running",
+      source: "manual",
+      started_at: 1.minute.ago
+    )
+    status_queries = []
+    callback = lambda do |_name, _start, _finish, _id, payload|
+      next if payload[:cached] || payload[:name] == "SCHEMA"
+
+      sql = payload[:sql].to_s
+      status_queries << sql if sql.include?('WHERE ("aicoo_daily_runs"."status"') && sql.include?(" OR ")
+    end
+
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+      get aicoo_daily_runs_url
+    end
+
+    assert_response :success
+    assert_equal 1, status_queries.size
+  end
+
   test "settings navigation preserves sidebar position without scrolling the active item" do
     get aicoo_setting_url
 

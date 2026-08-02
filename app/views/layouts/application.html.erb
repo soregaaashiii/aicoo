@@ -125,7 +125,7 @@
           <%= render "shared/operation_status_panel",
                      monitor: @long_running_operation_monitor,
                      daily_run_status: @daily_run_execution_status,
-                     refresh_url: (aicoo_settings_navigation_request? ? aicoo_operation_status_path : request.original_fullpath) %>
+                     refresh_url: aicoo_operation_status_path %>
         <% end %>
 
         <%= yield %>

@@ -516,6 +516,25 @@ module Aicoo
       assert_empty queries
     end
 
+    test "execution status is reused within one request context" do
+      run = create_run(status: "running")
+      create_step(run, "analytics_fetch", status: "running")
+      queries = []
+      callback = lambda do |_name, _start, _finish, _id, payload|
+        sql = payload[:sql].to_s
+        queries << sql if sql.include?(%("aicoo_daily_runs")) && sql.include?(%("status" =))
+      end
+
+      results = ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+        Aicoo::RequestQueryContext.within do
+          2.times.map { Aicoo::DailyRunExecutionStatus.call(include_latest: false) }
+        end
+      end
+
+      assert_same results.first, results.second
+      assert_equal 1, queries.size
+    end
+
     private
 
     def create_run(status: "running", started_at: @now - 2.minutes, finished_at: nil, **attributes)
