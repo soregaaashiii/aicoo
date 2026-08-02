@@ -156,6 +156,38 @@ class AicooDailyRunRakeTest < ActiveSupport::TestCase
     assert_equal "failed", step.status
     assert_includes step.error_message, "scheduler exploded"
     assert_equal "render_cron", step.metadata["source"]
+    assert_not AicooDailyRun.where(status: "running").exists?
+  end
+
+  test "daily_run task records an explicit failure when Render Cron fires before the configured time" do
+    schedule_decision = AicooDailyRunScheduler::ScheduleDecision.new(
+      status: "schedule_check",
+      reason: "not_due",
+      source: "cron",
+      target_date: Date.yesterday,
+      message: "Daily Run schedule check: not_due"
+    )
+
+    with_env("AICOO_DAILY_RUN_ENABLED", "true") do
+      with_scheduler_stub(->(source:) {
+        assert_equal "cron", source
+        schedule_decision
+      }) do
+        assert_difference -> { AicooDailyRun.where(source: "cron", status: "failed").count }, 1 do
+          assert_raises(Aicoo::DailyRunCronTask::ScheduleNotDueError) do
+            capture_io do
+              Rake::Task["aicoo:daily_run"].invoke
+            end
+          end
+        end
+      end
+    end
+
+    run = AicooDailyRun.where(source: "cron", target_date: Date.yesterday).order(:created_at).last
+    assert_equal "failed", run.status
+    assert_includes run.error_message, "Render Cron fired before"
+    assert_equal "failed", run.aicoo_daily_run_steps.find_by!(step_name: "cron_execution").status
+    assert_not AicooDailyRun.where(status: "running").exists?
   end
 
   private

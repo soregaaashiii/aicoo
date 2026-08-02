@@ -50,8 +50,8 @@ class AicooDailyRunSchedulerTest < ActiveSupport::TestCase
       started_at: 31.minutes.ago,
       metadata: { "heartbeat" => 31.minutes.ago.iso8601 }
     )
-    stuck.current_step.update_columns(updated_at: 31.minutes.ago)
-    stuck.update_columns(updated_at: 31.minutes.ago)
+    stuck.current_step.update_columns(created_at: 31.minutes.ago, updated_at: 31.minutes.ago)
+    stuck.update_columns(created_at: 31.minutes.ago, updated_at: 31.minutes.ago)
     retry_run = nil
 
     with_runner_stub(->(target_date:, source:) {
@@ -203,6 +203,14 @@ class AicooDailyRunSchedulerTest < ActiveSupport::TestCase
     end
   end
 
+  test "previous target date stuck run does not block the current target date" do
+    assert_previous_target_date_terminal_run_does_not_block("stuck")
+  end
+
+  test "previous target date partial failure does not block the current target date" do
+    assert_previous_target_date_terminal_run_does_not_block("partial_failed")
+  end
+
   test "uses Asia Tokyo date for due and target date around UTC midnight" do
     setting = AicooDailyRunSetting.create!(
       enabled: true,
@@ -238,6 +246,32 @@ class AicooDailyRunSchedulerTest < ActiveSupport::TestCase
 
   def make_due!(setting)
     setting.define_singleton_method(:scheduled_time_for) { |_date = Date.current| 1.hour.ago }
+  end
+
+  def assert_previous_target_date_terminal_run_does_not_block(status)
+    setting = AicooDailyRunSetting.create!(run_hour: 0, run_minute: 0)
+    make_due!(setting)
+    previous_run = AicooDailyRun.create!(
+      target_date: Date.yesterday - 1.day,
+      status:,
+      source: "cron",
+      started_at: 2.hours.ago,
+      finished_at: 1.hour.ago
+    )
+    current_run = nil
+
+    with_runner_stub(->(target_date:, source:) {
+      current_run = AicooDailyRun.create!(target_date:, status: "success", source:)
+      current_run
+    }) do
+      result = AicooDailyRunScheduler.new(setting:).check!(source: "cron")
+
+      assert_equal current_run, result
+    end
+
+    assert_equal status, previous_run.reload.status
+    assert_equal Date.yesterday, current_run.target_date
+    assert_equal "cron", current_run.source
   end
 
   def with_runner_stub(replacement)

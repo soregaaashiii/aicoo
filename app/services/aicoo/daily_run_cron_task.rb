@@ -3,6 +3,8 @@ module Aicoo
     ENABLED_ENV_KEY = "AICOO_DAILY_RUN_ENABLED"
     ENABLED_VALUE = "true"
 
+    class ScheduleNotDueError < StandardError; end
+
     Result = Data.define(:status, :message, :daily_run)
 
     def self.call(scheduler: AicooDailyRunScheduler)
@@ -27,6 +29,11 @@ module Aicoo
 
       Rails.logger.info("AICOO Daily Run cron started.")
       result = scheduler.check!(source: "cron")
+      if result.is_a?(AicooDailyRunScheduler::ScheduleDecision) && result.reason == "not_due"
+        raise ScheduleNotDueError,
+          "Render Cron fired before the configured Daily Run time. target_date=#{result.target_date}"
+      end
+
       daily_run = result if result.is_a?(AicooDailyRun)
       if daily_run
         message = "AICOO Daily Run cron finished: daily_run_id=#{daily_run.id} status=#{daily_run.status} target_date=#{daily_run.target_date}"

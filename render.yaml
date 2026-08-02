@@ -52,7 +52,7 @@ services:
     name: aicoo-daily-run
     runtime: ruby
     plan: starter
-    schedule: "0 22,3,9,14 * * *"
+    schedule: "0 23 * * *"
     buildCommand: bundle install
     startCommand: bundle exec rails aicoo:daily_run
     envVars:
