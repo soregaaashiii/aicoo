@@ -48,11 +48,21 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "existing landing page form opens without a get write" do
+    statements = []
+    subscriber = lambda do |_name, _started, _finished, _id, payload|
+      next if payload[:cached] || payload[:name].to_s.in?(%w[SCHEMA TRANSACTION])
+
+      statements << payload[:sql].to_s
+    end
+
     assert_no_difference [ "BusinessPrototype.count", "BusinessCampaign.count" ] do
-      get new_existing_landing_page_business_access_settings_url(@business)
+      ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+        get new_existing_landing_page_business_access_settings_url(@business)
+      end
     end
 
     assert_response :success
+    assert_empty statements.grep(/\A\s*(?:INSERT|UPDATE|DELETE)/i)
     assert_select "h1", text: "既存LPを登録"
     assert_select "form[action='#{existing_landing_pages_business_access_settings_path(@business)}']" do
       assert_select "input[name='existing_lp[name]'][required]"
