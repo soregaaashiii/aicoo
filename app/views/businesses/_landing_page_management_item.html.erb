@@ -22,7 +22,16 @@
     <dt>Cloudflare</dt>
     <dd><%= landing_page.landing_page_cloudflare_url.presence || metadata["cloudflare_deploy_status"].presence || "未公開" %></dd>
     <dt>GitHub</dt>
-    <dd><%= landing_page.landing_page_repository_url.presence || landing_page.landing_page_publication_repository_url.presence || cloudflare_configuration.repository_url %></dd>
+    <% github_url = landing_page.landing_page_repository_url.presence || landing_page.landing_page_publication_repository_url.presence %>
+    <dd>
+      <% if github_url.present? && metadata["registration_source"] == "existing_external" %>
+        <%= link_to github_url, github_url, target: "_blank", rel: "noopener noreferrer" %>
+      <% elsif github_url.present? %>
+        <%= github_url %>
+      <% else %>
+        <%= cloudflare_configuration.repository_url %>
+      <% end %>
+    </dd>
     <dt>状態</dt>
     <dd><%= landing_page.landing_page_public_status_label %> / <%= landing_page.landing_page_sync_status_label %></dd>
     <dt>期待利益</dt>
@@ -43,6 +52,10 @@
       /
       <%= landing_page.landing_page_last_published_at ? l(landing_page.landing_page_last_published_at, format: :short) : "未公開" %>
     </dd>
+    <% if metadata["registration_source"] == "existing_external" %>
+      <dt>登録日時</dt>
+      <dd><%= l(landing_page.created_at, format: :short) %></dd>
+    <% end %>
   </dl>
 
   <div class="business-access-card-actions">

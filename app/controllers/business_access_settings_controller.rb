@@ -82,6 +82,19 @@ class BusinessAccessSettingsController < ApplicationController
     redirect_to_access_section("LP生成計画を実行できませんでした: #{error_message(e)}", alert: true)
   end
 
+  def new_existing_landing_page
+    @existing_landing_page_attributes = {}
+  end
+
+  def create_existing_landing_page
+    @existing_landing_page_attributes = existing_landing_page_params.to_h.deep_stringify_keys
+    landing_page_registry.register_existing!(@existing_landing_page_attributes)
+    redirect_to business_path(@business, anchor: "business-lp-access-card"), notice: "既存LPを登録しました。"
+  rescue ActiveRecord::RecordInvalid => e
+    @existing_landing_page_errors = e.record.errors
+    render :new_existing_landing_page, status: :unprocessable_content
+  end
+
   def update_campaign
     Aicoo::BusinessAccessSettingsUpdater.new(@business).update_campaign!(campaign_params)
     redirect_to_access_section("Campaign設定を保存しました。")
@@ -204,6 +217,10 @@ class BusinessAccessSettingsController < ApplicationController
     params.expect(lp_access: %i[
       landing_page_id name repository_url branch lovable_project_url cta_destination_url
     ])
+  end
+
+  def existing_landing_page_params
+    params.expect(existing_lp: %i[name url repository_url])
   end
 
   def landing_page_plan_params

@@ -29,6 +29,9 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
     assert_select "summary", text: "+ Service追加"
     assert_select "#business-lp-access-card summary", text: "＋LP追加", count: 1
     assert_select "summary", text: "＋LP追加", count: 1
+    assert_select "#business-lp-access-card a[href='#{new_existing_landing_page_business_access_settings_path(@business)}']",
+      text: "既存LPを登録",
+      count: 1
     assert_select "details.business-campaign-developer-settings:not([open])" do
       assert_select "summary", text: "開発者向け"
       assert_select "#business-campaign-access-card", text: /Campaign/
@@ -42,6 +45,100 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
     assert_select "input[name='cloudflare_access[account_id]']", count: 0
     assert_select "#business-campaign-access-card input[name='measurement_access[ga4_property_id]']", count: 0
     assert_select "#business-campaign-access-card input[name='measurement_access[gsc_site_url]']", count: 0
+  end
+
+  test "existing landing page form opens without a get write" do
+    assert_no_difference [ "BusinessPrototype.count", "BusinessCampaign.count" ] do
+      get new_existing_landing_page_business_access_settings_url(@business)
+    end
+
+    assert_response :success
+    assert_select "h1", text: "既存LPを登録"
+    assert_select "form[action='#{existing_landing_pages_business_access_settings_path(@business)}']" do
+      assert_select "input[name='existing_lp[name]'][required]"
+      assert_select "input[name='existing_lp[url]'][type='url'][required]"
+      assert_select "input[name='existing_lp[repository_url]'][type='url']"
+      assert_select "input[type='submit'][value='登録する']"
+    end
+    assert_includes response.body, "すでに公開済みのLPを、この事業の管理対象に追加します。"
+  end
+
+  test "registers an existing landing page and returns to the business lp list" do
+    assert_difference -> { @business.business_prototypes.external_landing_pages.count }, 1 do
+      post existing_landing_pages_business_access_settings_url(@business), params: {
+        existing_lp: {
+          name: "VAULT",
+          url: "https://example.com/vault/",
+          repository_url: "https://github.com/Soregaaashiii/Vault.git"
+        }
+      }
+    end
+
+    landing_page = @business.business_prototypes.external_landing_pages.find_by!(name: "VAULT")
+    assert_redirected_to business_url(@business, anchor: "business-lp-access-card")
+    assert_equal "https://example.com/vault", landing_page.landing_page_url
+    assert_equal "https://github.com/soregaaashiii/vault", landing_page.landing_page_repository_url
+    assert_nil @other_business.business_prototypes.external_landing_pages.find_by(name: "VAULT")
+
+    follow_redirect!
+    assert_response :success
+    assert_select "#external-lp-#{landing_page.id}", text: /VAULT/
+    assert_select "#external-lp-#{landing_page.id} a[href='https://github.com/soregaaashiii/vault']"
+    assert_select "#external-lp-#{landing_page.id}", text: /登録日時/
+    assert_select "body", text: /既存LPを登録しました。/
+  end
+
+  test "registers an existing landing page without github" do
+    post existing_landing_pages_business_access_settings_url(@business), params: {
+      existing_lp: { name: "URLのみ", url: "https://example.com/url-only" }
+    }
+
+    assert_redirected_to business_url(@business, anchor: "business-lp-access-card")
+    landing_page = @business.business_prototypes.external_landing_pages.find_by!(name: "URLのみ")
+    assert_nil landing_page.landing_page_repository_url
+  end
+
+  test "shows japanese field errors and does not save invalid or duplicate input" do
+    post existing_landing_pages_business_access_settings_url(@business), params: {
+      existing_lp: { name: "不正", url: "not-a-url", repository_url: "https://example.com/not-github" }
+    }
+
+    assert_response :unprocessable_content
+    assert_select "[role='alert']", text: /httpまたはhttpsの正しいURL/
+    assert_select "[role='alert']", text: /GitHubリポジトリURL/
+
+    Aicoo::LpIntegration::LandingPageRegistry.new(business: @business).register_existing!(
+      name: "登録済み",
+      url: "https://example.com/duplicate"
+    )
+    assert_no_difference -> { @business.business_prototypes.external_landing_pages.count } do
+      post existing_landing_pages_business_access_settings_url(@business), params: {
+        existing_lp: { name: "重複", url: "https://example.com/duplicate/" }
+      }
+    end
+
+    assert_response :unprocessable_content
+    assert_select "[role='alert']", text: /この事業に登録済み/
+  end
+
+  test "existing landing page registration requires management authentication" do
+    previous = {
+      "AICOO_ENABLE_BASIC_AUTH" => ENV["AICOO_ENABLE_BASIC_AUTH"],
+      "AICOO_BASIC_AUTH_USERNAME" => ENV["AICOO_BASIC_AUTH_USERNAME"],
+      "AICOO_BASIC_AUTH_PASSWORD" => ENV["AICOO_BASIC_AUTH_PASSWORD"]
+    }
+    ENV["AICOO_ENABLE_BASIC_AUTH"] = "true"
+    ENV["AICOO_BASIC_AUTH_USERNAME"] = "aicoo-admin"
+    ENV["AICOO_BASIC_AUTH_PASSWORD"] = "secret-password"
+
+    assert_no_difference("BusinessPrototype.count") do
+      post existing_landing_pages_business_access_settings_url(@business), params: {
+        existing_lp: { name: "未認証LP", url: "https://example.com/unauthorized" }
+      }
+    end
+    assert_response :unauthorized
+  ensure
+    previous&.each { |key, value| value.nil? ? ENV.delete(key) : ENV[key] = value }
   end
 
   test "business stores only a selected cloudflare project and domain" do

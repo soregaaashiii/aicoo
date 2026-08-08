@@ -151,6 +151,9 @@
           <summary class="button">＋LP追加</summary>
           <%= render "landing_page_creation_form", business:, campaign: nil %>
         </details>
+        <%= link_to "既存LPを登録",
+                    new_existing_landing_page_business_access_settings_path(business),
+                    class: "button secondary" %>
       </div>
 
       <div class="business-access-item-list business-lp-list">

@@ -10,6 +10,39 @@ module Aicoo
         @business = business
       end
 
+      def register_existing!(attributes)
+        values = attributes.to_h.deep_stringify_keys
+        name = values["name"].to_s.strip
+        public_url = normalize_public_url(values["url"])
+        repository_url = normalize_github_repository_url(values["repository_url"])
+        error_record = registration_error_record(name:)
+
+        error_record.errors.add(:name, "を入力してください。") if name.blank?
+        if public_url.blank?
+          error_record.errors.add(:location, "はhttpまたはhttpsの正しいURLを入力してください。")
+        end
+        if values["repository_url"].present? && repository_url.blank?
+          error_record.errors.add(:repository_url, "はGitHubリポジトリURLを入力してください。")
+        end
+        raise ActiveRecord::RecordInvalid, error_record if error_record.errors.any?
+
+        business.with_lock do
+          add_registration_duplicate_errors!(error_record, public_url:, repository_url:)
+          raise ActiveRecord::RecordInvalid, error_record if error_record.errors.any?
+
+          save!(
+            name:,
+            source_type: "public_url",
+            url: public_url,
+            repository_url:,
+            branch: "main",
+            public_status: "published",
+            registration_source: "existing_external",
+            registered_at: Time.current.iso8601
+          )
+        end
+      end
+
       def save!(attributes)
         values = attributes.to_h.deep_stringify_keys
         landing_page = find_or_initialize(values["landing_page_id"])
@@ -37,6 +70,8 @@ module Aicoo
           "cloudflare_deploy_status" => values["cloudflare_deploy_status"].presence,
           "ab_test" => ab_test_metadata(values, landing_page),
           "sync_status" => landing_page.metadata.to_h["sync_status"].presence || "not_synced",
+          "registration_source" => values["registration_source"].presence || landing_page.metadata.to_h["registration_source"].presence,
+          "registered_at" => values["registered_at"].presence || landing_page.metadata.to_h["registered_at"].presence,
           "updated_by" => "owner",
           "updated_at" => Time.current.iso8601
         ).compact
@@ -100,6 +135,73 @@ module Aicoo
 
       def landing_pages
         business.business_prototypes.active.external_landing_pages
+      end
+
+      def all_landing_pages
+        business.business_prototypes.external_landing_pages
+          .select(:id, :name, :prototype_type, :location, :metadata, :status)
+      end
+
+      def registration_error_record(name:)
+        business.business_prototypes.new(
+          name:,
+          prototype_type: "url",
+          status: "active",
+          metadata: { "role" => BusinessPrototype::EXTERNAL_LANDING_PAGE_ROLE }
+        )
+      end
+
+      def add_registration_duplicate_errors!(error_record, public_url:, repository_url:)
+        pages = all_landing_pages.to_a
+        if pages.any? { |landing_page| normalize_public_url(landing_page.landing_page_url) == public_url }
+          error_record.errors.add(:location, "はこの事業に登録済みです。")
+        end
+        return if repository_url.blank?
+
+        repository_identity = Aicoo::Lovable::GithubRepositoryIdentity.normalize(repository_url)
+        duplicate_repository = pages.any? do |landing_page|
+          Aicoo::Lovable::GithubRepositoryIdentity.normalize(landing_page.landing_page_repository_url) == repository_identity
+        end
+        if duplicate_repository
+          error_record.errors.add(:repository_url, "はこの事業に登録済みです。")
+        end
+      end
+
+      def normalize_public_url(value)
+        uri = URI.parse(value.to_s.strip)
+        return unless uri.is_a?(URI::HTTP) && uri.scheme.in?(%w[http https]) && uri.host.present?
+
+        scheme = uri.scheme.downcase
+        host = uri.host.downcase
+        host = "[#{host}]" if host.include?(":") && !host.start_with?("[")
+        default_port = scheme == "https" ? 443 : 80
+        authority = uri.port == default_port ? host : "#{host}:#{uri.port}"
+        path = uri.path.presence || "/"
+        path = path.sub(%r{/+\z}, "") unless path == "/"
+        path = "/" if path.blank?
+        query = uri.query.present? ? "?#{uri.query}" : ""
+        "#{scheme}://#{authority}#{path}#{query}"
+      rescue URI::InvalidURIError
+        nil
+      end
+
+      def normalize_github_repository_url(value)
+        return if value.blank?
+
+        uri = URI.parse(value.to_s.strip)
+        return unless uri.is_a?(URI::HTTP) && uri.scheme.in?(%w[http https]) && uri.host&.casecmp?("github.com")
+
+        parts = uri.path.to_s.split("/").reject(&:blank?)
+        return unless parts.size == 2
+
+        owner = parts[0]
+        repository = parts[1].delete_suffix(".git")
+        valid_part = /\A[A-Za-z0-9_.-]+\z/
+        return unless owner.match?(valid_part) && repository.present? && repository.match?(valid_part)
+
+        "https://github.com/#{owner.downcase}/#{repository.downcase}"
+      rescue URI::InvalidURIError
+        nil
       end
 
       def find_or_initialize(landing_page_id)

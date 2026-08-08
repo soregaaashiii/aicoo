@@ -175,6 +175,8 @@ Rails.application.routes.draw do
       post :recommended_landing_page_plan, action: :create_recommended_landing_page_plan
       get "landing_page_plans/:plan_id", action: :show_landing_page_plan, as: :landing_page_plan_review
       post "landing_page_plans/:plan_id/execute", action: :execute_landing_page_plan, as: :execute_landing_page_plan
+      get "landing_pages/existing/new", action: :new_existing_landing_page, as: :new_existing_landing_page
+      post "landing_pages/existing", action: :create_existing_landing_page, as: :existing_landing_pages
       patch :landing_page, action: :update_landing_page
       post "landing_pages/:landing_page_id/sync", action: :create_landing_page_task, as: :landing_page_task
       post "landing_pages/:landing_page_id/publish", action: :publish_landing_page, as: :publish_landing_page

@@ -1,0 +1,49 @@
+<% content_for :title, "#{@business.name} 既存LPを登録" %>
+
+<div class="aicoo-page">
+  <%= render "shared/aicoo_header",
+             title: "既存LPを登録",
+             description: "すでに公開済みのLPを、この事業の管理対象に追加します。",
+             active_main: :revenue,
+             actions: link_to("キャンセル", business_path(@business, anchor: "business-lp-access-card"), class: "button secondary") %>
+
+  <%= render "businesses/navigation", business: @business, current_section: "LP" %>
+
+  <section class="dashboard-section">
+    <%= form_with url: existing_landing_pages_business_access_settings_path(@business), method: :post, scope: :existing_lp, class: "business-access-form" do |form| %>
+      <div class="field">
+        <%= form.label :name, "LP名" %>
+        <%= form.text_field :name, value: @existing_landing_page_attributes["name"], required: true %>
+        <% if @existing_landing_page_errors&.[](:name)&.any? %>
+          <div class="errors" role="alert"><%= @existing_landing_page_errors[:name].join(" ") %></div>
+        <% end %>
+      </div>
+
+      <div class="field">
+        <%= form.label :url, "公開URL" %>
+        <%= form.url_field :url,
+                           value: @existing_landing_page_attributes["url"],
+                           placeholder: "https://example.com",
+                           required: true %>
+        <% if @existing_landing_page_errors&.[](:location)&.any? %>
+          <div class="errors" role="alert"><%= @existing_landing_page_errors[:location].join(" ") %></div>
+        <% end %>
+      </div>
+
+      <div class="field">
+        <%= form.label :repository_url, "GitHubリポジトリURL（任意）" %>
+        <%= form.url_field :repository_url,
+                           value: @existing_landing_page_attributes["repository_url"],
+                           placeholder: "https://github.com/owner/repository" %>
+        <% if @existing_landing_page_errors&.[](:repository_url)&.any? %>
+          <div class="errors" role="alert"><%= @existing_landing_page_errors[:repository_url].join(" ") %></div>
+        <% end %>
+      </div>
+
+      <div class="actions compact-actions">
+        <%= form.submit "登録する", class: "button" %>
+        <%= link_to "キャンセル", business_path(@business, anchor: "business-lp-access-card"), class: "button secondary" %>
+      </div>
+    <% end %>
+  </section>
+</div>
