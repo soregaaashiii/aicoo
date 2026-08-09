@@ -3,7 +3,7 @@
 <div class="aicoo-page">
   <%= render "shared/aicoo_header",
              title: "既存LPを登録",
-             description: "すでに公開済みのLPを、この事業の管理対象に追加します。",
+             description: "GitHubのLPを登録すると、AICOOが公開処理を開始します。",
              active_main: :revenue,
              actions: link_to("キャンセル", business_path(@business, anchor: "business-lp-access-card"), class: "button secondary") %>
 
@@ -20,28 +20,28 @@
       </div>
 
       <div class="field">
-        <%= form.label :url, "公開URL" %>
-        <%= form.url_field :url,
-                           value: @existing_landing_page_attributes["url"],
-                           placeholder: "https://example.com",
-                           required: true %>
-        <% if @existing_landing_page_errors&.[](:location)&.any? %>
-          <div class="errors" role="alert"><%= @existing_landing_page_errors[:location].join(" ") %></div>
-        <% end %>
-      </div>
-
-      <div class="field">
-        <%= form.label :repository_url, "GitHubリポジトリURL（任意）" %>
+        <%= form.label :repository_url, "GitHubリポジトリURL *" %>
         <%= form.url_field :repository_url,
                            value: @existing_landing_page_attributes["repository_url"],
                            placeholder: "https://github.com/owner/repository" %>
+        <p class="muted">GitHubから取得し、公開URLは公開後に自動設定されます。</p>
         <% if @existing_landing_page_errors&.[](:repository_url)&.any? %>
           <div class="errors" role="alert"><%= @existing_landing_page_errors[:repository_url].join(" ") %></div>
         <% end %>
       </div>
 
+      <div class="field">
+        <%= form.label :url, "公開URL（すでに公開済みの場合のみ）" %>
+        <%= form.url_field :url,
+                           value: @existing_landing_page_attributes["url"],
+                           placeholder: "https://example.com" %>
+        <% if @existing_landing_page_errors&.[](:location)&.any? %>
+          <div class="errors" role="alert"><%= @existing_landing_page_errors[:location].join(" ") %></div>
+        <% end %>
+      </div>
+
       <div class="actions compact-actions">
-        <%= form.submit "登録する", class: "button" %>
+        <%= form.submit "登録して公開", class: "button" %>
         <%= link_to "キャンセル", business_path(@business, anchor: "business-lp-access-card"), class: "button secondary" %>
       </div>
     <% end %>

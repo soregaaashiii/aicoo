@@ -1,7 +1,12 @@
 require "test_helper"
 
 class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
+  include ActiveJob::TestHelper
+
   setup do
+    @previous_queue_adapter = ActiveJob::Base.queue_adapter
+    ActiveJob::Base.queue_adapter = :test
+    clear_enqueued_jobs
     @business = Business.create!(
       name: "外部LP管理テスト事業",
       description: "Service・LP・共通計測の分離テスト",
@@ -14,6 +19,11 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
       status: "launched",
       business_type: "saas"
     )
+  end
+
+  teardown do
+    clear_enqueued_jobs
+    ActiveJob::Base.queue_adapter = @previous_queue_adapter
   end
 
   test "business detail makes landing pages primary and keeps campaigns in developer details" do
@@ -66,11 +76,46 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
     assert_select "h1", text: "既存LPを登録"
     assert_select "form[action='#{existing_landing_pages_business_access_settings_path(@business)}']" do
       assert_select "input[name='existing_lp[name]'][required]"
-      assert_select "input[name='existing_lp[url]'][type='url'][required]"
       assert_select "input[name='existing_lp[repository_url]'][type='url']"
-      assert_select "input[type='submit'][value='登録する']"
+      assert_select "input[name='existing_lp[url]'][type='url']:not([required])"
+      assert_select "input[type='submit'][value='登録して公開']"
     end
-    assert_includes response.body, "すでに公開済みのLPを、この事業の管理対象に追加します。"
+    assert_includes response.body, "公開URLは公開後に自動設定されます。"
+  end
+
+  test "registers a github landing page without a public url and starts the existing publication pipeline" do
+    assert_difference [
+      -> { @business.business_prototypes.external_landing_pages.count },
+      -> { AicooLabGenerationRun.where(generation_type: "lp_generation").count }
+    ], 1 do
+      assert_enqueued_jobs 1, only: Aicoo::LovableResultImportJob do
+        post existing_landing_pages_business_access_settings_url(@business), params: {
+          existing_lp: {
+            name: "Vault",
+            repository_url: " https://github.com/Soregaaashiii/Bizcard-Simple-Share.git/ "
+          }
+        }
+      end
+    end
+
+    landing_page = @business.business_prototypes.external_landing_pages.find_by!(name: "Vault")
+    run = AicooLabGenerationRun.find(landing_page.metadata.fetch("lovable_generation_run_id"))
+    assert_redirected_to business_url(@business, anchor: "business-lp-access-card")
+    assert_equal "github", landing_page.prototype_type
+    assert_equal "https://github.com/soregaaashiii/bizcard-simple-share", landing_page.landing_page_repository_url
+    assert_nil landing_page.landing_page_url
+    assert_equal "testing", landing_page.landing_page_public_status
+    assert_equal "公開準備中", landing_page.landing_page_public_status_label
+    assert_equal "syncing", landing_page.landing_page_sync_status
+    assert_equal "existing_external", landing_page.metadata["registration_source"]
+    assert_equal "repository_import", run.metadata["request_type"]
+    assert_equal "artifact_fetching", run.metadata["pipeline_status"]
+    assert_enqueued_with(job: Aicoo::LovableResultImportJob, args: [ run.id ])
+
+    follow_redirect!
+    assert_response :success
+    assert_select "#external-lp-#{landing_page.id}", text: /公開準備中/
+    assert_select "body", text: /LPを登録しました。公開処理を開始しています。/
   end
 
   test "registers an existing landing page and returns to the business lp list" do
@@ -99,13 +144,16 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "registers an existing landing page without github" do
-    post existing_landing_pages_business_access_settings_url(@business), params: {
-      existing_lp: { name: "URLのみ", url: "https://example.com/url-only" }
-    }
+    assert_no_enqueued_jobs only: Aicoo::LovableResultImportJob do
+      post existing_landing_pages_business_access_settings_url(@business), params: {
+        existing_lp: { name: "URLのみ", url: "https://example.com/url-only" }
+      }
+    end
 
     assert_redirected_to business_url(@business, anchor: "business-lp-access-card")
     landing_page = @business.business_prototypes.external_landing_pages.find_by!(name: "URLのみ")
     assert_nil landing_page.landing_page_repository_url
+    assert_equal "published", landing_page.landing_page_public_status
   end
 
   test "shows japanese field errors and does not save invalid or duplicate input" do

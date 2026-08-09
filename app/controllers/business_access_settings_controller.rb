@@ -88,8 +88,23 @@ class BusinessAccessSettingsController < ApplicationController
 
   def create_existing_landing_page
     @existing_landing_page_attributes = existing_landing_page_params.to_h.deep_stringify_keys
-    landing_page_registry.register_existing!(@existing_landing_page_attributes)
-    redirect_to business_path(@business, anchor: "business-lp-access-card"), notice: "既存LPを登録しました。"
+    landing_page = landing_page_registry.register_existing!(@existing_landing_page_attributes)
+    if landing_page.landing_page_url.present?
+      redirect_to business_path(@business, anchor: "business-lp-access-card"), notice: "既存LPを登録しました。"
+      return
+    end
+
+    initial_sync = Aicoo::Lovable::RepositoryInitialSync.new.call(
+      business: @business,
+      landing_page:
+    )
+    if initial_sync.enqueued
+      redirect_to business_path(@business, anchor: "business-lp-access-card"),
+        notice: "LPを登録しました。公開処理を開始しています。"
+    else
+      redirect_to business_path(@business, anchor: "business-lp-access-card"),
+        alert: "LPを登録しましたが、公開処理を開始できませんでした。LP詳細で原因を確認してください。"
+    end
   rescue ActiveRecord::RecordInvalid => e
     @existing_landing_page_errors = e.record.errors
     render :new_existing_landing_page, status: :unprocessable_content

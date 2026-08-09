@@ -38,6 +38,30 @@ module Aicoo
         assert_equal "https://github.com/example/marketing-lp", landing_page.landing_page_repository_url
       end
 
+      test "registers a github repository without requiring a public url" do
+        landing_page = @registry.register_existing!(
+          name: "Repository LP",
+          repository_url: " https://github.com/Example/Repository-LP.git/ "
+        )
+
+        assert_equal "github", landing_page.prototype_type
+        assert_equal "https://github.com/example/repository-lp", landing_page.location
+        assert_equal "https://github.com/example/repository-lp", landing_page.landing_page_repository_url
+        assert_nil landing_page.landing_page_url
+        assert_equal "testing", landing_page.landing_page_public_status
+        assert_equal "公開準備中", landing_page.landing_page_public_status_label
+        assert_equal "existing_external", landing_page.metadata["registration_source"]
+      end
+
+      test "requires either a github repository or a public url" do
+        error = assert_raises(ActiveRecord::RecordInvalid) do
+          @registry.register_existing!(name: "取得元なし")
+        end
+
+        assert_includes error.record.errors[:repository_url], "または公開URLを入力してください。"
+        assert_empty @business.business_prototypes.external_landing_pages
+      end
+
       test "rejects an invalid public url" do
         error = assert_raises(ActiveRecord::RecordInvalid) do
           @registry.register_existing!(name: "不正URL", url: "javascript:alert(1)")
@@ -82,19 +106,28 @@ module Aicoo
       test "rejects a duplicate normalized github repository within the business" do
         @registry.register_existing!(
           name: "先のLP",
-          url: "https://example.com/first",
           repository_url: "https://github.com/example/repository"
         )
 
         error = assert_raises(ActiveRecord::RecordInvalid) do
           @registry.register_existing!(
             name: "後のLP",
-            url: "https://example.com/second",
             repository_url: "https://github.com/EXAMPLE/REPOSITORY.git"
           )
         end
 
         assert_includes error.record.errors[:repository_url], "はこの事業に登録済みです。"
+      end
+
+      test "shows a publication failure for a registered repository without changing its stored public status" do
+        landing_page = @registry.register_existing!(
+          name: "失敗LP",
+          repository_url: "https://github.com/example/failed-lp"
+        )
+        landing_page.update!(metadata: landing_page.metadata.to_h.merge("sync_status" => "failed"))
+
+        assert_equal "testing", landing_page.landing_page_public_status
+        assert_equal "公開失敗", landing_page.landing_page_public_status_label
       end
 
       test "allows the same public url in a different business" do

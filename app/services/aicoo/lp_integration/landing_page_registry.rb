@@ -18,11 +18,14 @@ module Aicoo
         error_record = registration_error_record(name:)
 
         error_record.errors.add(:name, "を入力してください。") if name.blank?
-        if public_url.blank?
+        if values["url"].present? && public_url.blank?
           error_record.errors.add(:location, "はhttpまたはhttpsの正しいURLを入力してください。")
         end
         if values["repository_url"].present? && repository_url.blank?
           error_record.errors.add(:repository_url, "はGitHubリポジトリURLを入力してください。")
+        end
+        if public_url.blank? && repository_url.blank? && values.values_at("url", "repository_url").all?(&:blank?)
+          error_record.errors.add(:repository_url, "または公開URLを入力してください。")
         end
         raise ActiveRecord::RecordInvalid, error_record if error_record.errors.any?
 
@@ -32,11 +35,11 @@ module Aicoo
 
           save!(
             name:,
-            source_type: "public_url",
+            source_type: public_url.present? ? "public_url" : "github",
             url: public_url,
             repository_url:,
             branch: "main",
-            public_status: "published",
+            public_status: public_url.present? ? "published" : "testing",
             registration_source: "existing_external",
             registered_at: Time.current.iso8601
           )
@@ -153,7 +156,7 @@ module Aicoo
 
       def add_registration_duplicate_errors!(error_record, public_url:, repository_url:)
         pages = all_landing_pages.to_a
-        if pages.any? { |landing_page| normalize_public_url(landing_page.landing_page_url) == public_url }
+        if public_url.present? && pages.any? { |landing_page| normalize_public_url(landing_page.landing_page_url) == public_url }
           error_record.errors.add(:location, "はこの事業に登録済みです。")
         end
         return if repository_url.blank?

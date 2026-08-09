@@ -85,10 +85,23 @@ class BusinessPrototype < ApplicationRecord
   end
 
   def landing_page_public_status_label
+    if metadata.to_h["registration_source"] == "existing_external" && landing_page_repository_url.present?
+      return "公開済み" if landing_page_public_status == "published"
+      return "公開失敗" if landing_page_publication_failed?
+      return "公開準備中" if landing_page_public_status == "testing"
+    end
+
     { "testing" => "テスト中", "published" => "公開中", "stopped" => "停止", "archived" => "アーカイブ" }.fetch(
       landing_page_public_status,
       landing_page_public_status
     )
+  end
+
+  def landing_page_publication_failed?
+    values = metadata.to_h
+    values["sync_status"] == "failed" ||
+      values["cloudflare_deploy_status"].to_s.in?(%w[failed verification_timeout]) ||
+      values.values_at("planning_status", "pipeline_stage").compact.any? { |value| value.to_s.include?("failed") }
   end
 
   def landing_page_ga4_path
