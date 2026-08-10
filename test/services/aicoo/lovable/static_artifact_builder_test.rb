@@ -75,6 +75,33 @@ module Aicoo
         assert_equal %w[run build], runner.commands[2][1, 2]
       end
 
+      test "retries npm ci for a generated lock platform metadata failure" do
+        runner = FakeBuildRunner.new(fail_command: :install_platform_once)
+
+        result = build(files: package_files, runner:)
+
+        install_commands = runner.commands.select { |argv| argv[1] == "ci" }
+        assert_equal 2, install_commands.size
+        assert_not_includes install_commands.first, "--force"
+        assert_includes install_commands.last, "--force"
+        assert install_commands.all? { |argv| argv.include?("--ignore-scripts") }
+        assert_includes result.temporary_config_adjustments,
+          "一時生成したpackage-lock.jsonのplatform metadataに合わせてnpm ciを再試行"
+      end
+
+      test "does not force retry a platform failure from a repository lock" do
+        runner = FakeBuildRunner.new(fail_command: :install_platform_once)
+
+        error = assert_raises(StaticArtifactBuilder::UnsafeBuild) do
+          build(files: package_files("package-lock.json" => "{}"), runner:)
+        end
+
+        assert_equal "static_build_npm_ci_failed", error.code
+        install_commands = runner.commands.select { |argv| argv[1] == "ci" }
+        assert_equal 1, install_commands.size
+        assert_not_includes install_commands.first, "--force"
+      end
+
       test "uses pnpm when pnpm lock exists" do
         runner = FakeBuildRunner.new
 
@@ -503,6 +530,9 @@ module Aicoo
             File.write(File.join(chdir, "package-lock.json"), JSON.generate(lockfileVersion: 3))
           elsif install_command?(argv)
             return failure("install failed") if @fail_command == :install
+            if @fail_command == :install_platform_once && !argv.include?("--force")
+              return failure("npm error code EBADPLATFORM\nnpm error notsup Unsupported platform")
+            end
 
             %w[vite next astro remix react-scripts].each do |executable|
               path = File.join(chdir, "node_modules", ".bin", executable)
