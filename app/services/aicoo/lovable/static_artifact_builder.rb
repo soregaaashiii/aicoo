@@ -403,11 +403,23 @@ module Aicoo
           [ binary, "ci", "--ignore-scripts", "--include=dev", "--no-audit", "--no-fund" ]
         end
         result = execute_command(argv, directory:, diagnostics:)
+        if retry_generated_lock_platform_failure?(package_manager, result, diagnostics)
+          diagnostics["temporary_config_adjustments"] <<
+            "一時生成したpackage-lock.jsonのplatform metadataに合わせてnpm ciを再試行"
+          result = execute_command(argv + [ "--force" ], directory:, diagnostics:)
+        end
         return if result.success
 
         code = package_manager == "npm" ? "static_build_npm_ci_failed" : "static_build_dependency_install_failed"
         label = package_manager == "npm" ? "npm ci" : "#{package_manager} install"
         raise_build!(code, "#{label}に失敗しました: #{command_error(result)}", diagnostics)
+      end
+
+      def retry_generated_lock_platform_failure?(package_manager, result, diagnostics)
+        package_manager == "npm" &&
+          diagnostics["lockfile_generated"] == true &&
+          !result.success &&
+          "#{result.stdout}\n#{result.stderr}".match?(/\bEBADPLATFORM\b|Unsupported platform/i)
       end
 
       def validate_framework_executable!(directory, framework, diagnostics)
