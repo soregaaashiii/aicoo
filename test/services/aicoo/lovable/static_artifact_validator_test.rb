@@ -158,6 +158,28 @@ module Aicoo
         assert_includes error.message, "Service本体URLへ遷移するCTAリンクがありません"
       end
 
+      test "allows a registered repository artifact without an external service CTA" do
+        result = StaticArtifactValidator.new(
+          files: {
+            "index.html" => <<~HTML
+              <!doctype html>
+              <html>
+                <head><title>Vault</title><meta name="description" content="名刺を共有"></head>
+                <body><button type="button">名刺を読み取る</button></body>
+              </html>
+            HTML
+          },
+          page_path: "/vault",
+          public_url: "https://aicoo-lp.pages.dev/vault/",
+          service_url: "https://service.example.com",
+          measurement_id: nil,
+          require_service_cta: false
+        ).call
+
+        assert_includes result.files.fetch("index.html"), '<button type="button">'
+        assert_includes result.warnings, StaticArtifactValidator::GA4_MISSING_WARNING
+      end
+
       test "allows localhost in comments error messages dev checks unused strings and source maps" do
         result = validate_javascript(<<~JAVASCRIPT)
           // Documentation: http://localhost:3000
