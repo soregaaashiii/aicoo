@@ -322,7 +322,7 @@ module Aicoo
         )
         publisher = FakePublisher.new
         importer = Aicoo::Lovable::ResultRepositoryImporter.new(
-          source_client_class: fake_source_client_class,
+          source_client_class: fake_registered_repository_source_client_class,
           publisher:,
           configuration: Aicoo::CloudflarePages::Configuration.new(
             env: {
@@ -398,6 +398,33 @@ module Aicoo
                   <html>
                     <head><title>AI受付</title><meta name="description" content="電話受付を自動化"></head>
                     <body><a class="cta" href="https://service.example.com">相談する</a></body>
+                  </html>
+                HTML
+                "styles.css" => "body { margin: 0; }"
+              }
+            )
+          end
+        end
+      end
+
+      def fake_registered_repository_source_client_class
+        Class.new do
+          def initialize(**)
+          end
+
+          def snapshot!(commit_sha: nil)
+            Aicoo::CloudflarePages::GithubRepositoryClient::RepositorySnapshot.new(
+              commit_sha: commit_sha || "lovable-source-sha",
+              commit_url: "https://github.com/example/lovable-result/commit/#{commit_sha || 'lovable-source-sha'}",
+              committed_at: "2026-07-29T01:02:03Z",
+              author: "lovable-bot",
+              changed_paths: %w[index.html styles.css],
+              files: {
+                "index.html" => <<~HTML,
+                  <!doctype html>
+                  <html>
+                    <head><title>既存GitHub LP</title><meta name="description" content="登録済みRepositoryのLP"></head>
+                    <body><button type="button">サービスを利用する</button></body>
                   </html>
                 HTML
                 "styles.css" => "body { margin: 0; }"
