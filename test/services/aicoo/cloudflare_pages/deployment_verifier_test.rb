@@ -29,6 +29,7 @@ module Aicoo
       end
 
       test "marks landing page published and registers the initial service url after real html is verified" do
+        @run.update!(error_message: "以前の公開失敗")
         configuration = Configuration.new(env: {
           "CLOUDFLARE_ACCOUNT_ID" => "account",
           "CLOUDFLARE_API_TOKEN" => "token",
@@ -74,6 +75,7 @@ module Aicoo
         assert metadata["last_published_at"].present?
 
         run_metadata = @run.reload.metadata
+        assert_nil @run.error_message
         assert_equal "Cloudflare公開URLを取得しました", run_metadata["cloudflare_public_url_acquired_message"]
         assert_equal "Service URLを自動登録しました", run_metadata["service_url_auto_registration_message"]
         overview = Aicoo::Lovable::PipelineOverview.new(
