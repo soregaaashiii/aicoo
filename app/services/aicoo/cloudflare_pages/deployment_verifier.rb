@@ -283,11 +283,14 @@ module Aicoo
             "publication_notice"
           )
         end
-        run.update!(metadata: run_metadata.merge(
-          "publication" => publication,
-          "lovable_status" => "completed",
-          "cloudflare_retry_count" => landing_page.metadata.to_h["cloudflare_retry_count"]
-        ).merge(initial_publication_metadata).merge(completion_metadata).compact)
+        run.update!(
+          error_message: nil,
+          metadata: run_metadata.merge(
+            "publication" => publication,
+            "lovable_status" => "completed",
+            "cloudflare_retry_count" => landing_page.metadata.to_h["cloudflare_retry_count"]
+          ).merge(initial_publication_metadata).merge(completion_metadata).compact
+        )
       end
 
       def generation_run_for(landing_page)
