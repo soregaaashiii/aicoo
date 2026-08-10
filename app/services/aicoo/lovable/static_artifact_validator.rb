@@ -60,7 +60,8 @@ module Aicoo
         service_url:,
         measurement_id:,
         artifact_root: nil,
-        artifact_root_label: nil
+        artifact_root_label: nil,
+        require_service_cta: true
       )
         @files = files.to_h.transform_keys(&:to_s).transform_values { |value| value.to_s.b }
         @page_path = normalize_page_path(page_path)
@@ -70,6 +71,7 @@ module Aicoo
         @measurement_id = measurement_id.to_s.strip
         @artifact_root = artifact_root.present? ? Pathname.new(artifact_root).expand_path : nil
         @artifact_root_label = artifact_root_label.presence || artifact_root&.to_s || "静的成果物"
+        @require_service_cta = require_service_cta
       end
 
       def call
@@ -79,7 +81,7 @@ module Aicoo
         normalized = rewrite_subpath_assets(files)
         document = Nokogiri::HTML5(normalized.fetch("index.html"))
         ensure_head_metadata!(document)
-        ensure_cta!(document)
+        ensure_cta!(document) if require_service_cta
         ga4_warning = ensure_ga4!(document)
         normalized["index.html"] = document.to_html
         validate_asset_references!(normalized)
@@ -95,7 +97,7 @@ module Aicoo
       private
 
       attr_reader :files, :page_path, :public_url, :service_url, :measurement_id, :service_url_fallback,
-        :artifact_root, :artifact_root_label
+        :artifact_root, :artifact_root_label, :require_service_cta
 
       def scan_for_secrets_and_runtime_dependencies!
         files.each do |path, content|
