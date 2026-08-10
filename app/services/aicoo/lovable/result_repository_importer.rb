@@ -93,7 +93,8 @@ module Aicoo
           public_url: public_url_for(page_path),
           service_url: configured_service_url,
           measurement_id: measurement_id_for(business),
-          artifact_root_label: build.output_directory
+          artifact_root_label: build.output_directory,
+          require_service_cta: !trusted_repository_import?(landing_page, metadata)
         ).call
         serialized_files = serialize_files(validation.files)
         digest = Digest::SHA256.hexdigest(serialized_files.to_json)
