@@ -121,6 +121,21 @@ module Aicoo
       assert_equal original, candidate.metadata
     end
 
+    test "reuses running daily run rows across latest status modes" do
+      sql = capture_sql do
+        RequestQueryContext.within do
+          DailyRunExecutionStatus.call(include_latest: false)
+          DailyRunExecutionStatus.call(include_latest: true)
+        end
+      end
+
+      running_queries = sql.count do |statement|
+        statement.include?('FROM "aicoo_daily_runs" WHERE (') &&
+          statement.include?('"aicoo_daily_runs"."status" =')
+      end
+      assert_equal 1, running_queries
+    end
+
     private
 
     def capture_sql
