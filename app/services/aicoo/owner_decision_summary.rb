@@ -30,15 +30,24 @@ module Aicoo
     private
 
     def counts_by_decision_type(scope)
-      OwnerDecisionLog::DECISION_TYPES.index_with { |type| scope.where(decision_type: type).count }
+      grouped_counts = scope.group(:decision_type).count
+      OwnerDecisionLog::DECISION_TYPES.index_with { |type| grouped_counts.fetch(type, 0) }
     end
 
     def action_type_adoption_rates(scope)
-      scope.where.not(action_type: [ nil, "" ])
-           .group(:action_type)
-           .count
-           .map do |action_type, total_count|
-        positive_count = scope.where(action_type:, decision_type: OwnerDecisionLog::POSITIVE_DECISIONS).count
+      grouped_counts = scope
+        .where.not(action_type: [ nil, "" ])
+        .group(:action_type, :decision_type)
+        .count
+      grouped_by_action_type = grouped_counts.group_by do |(action_type, _decision_type), _count|
+        action_type
+      end
+
+      grouped_by_action_type.map do |action_type, rows|
+        total_count = rows.sum { |_key, count| count }
+        positive_count = rows.sum do |(_grouped_action_type, decision_type), count|
+          decision_type.in?(OwnerDecisionLog::POSITIVE_DECISIONS) ? count : 0
+        end
         RateSummary.new(
           label: action_type,
           total_count:,
@@ -49,11 +58,19 @@ module Aicoo
     end
 
     def risk_level_execution_rates(scope)
-      scope.where.not(risk_level: [ nil, "" ])
-           .group(:risk_level)
-           .count
-           .map do |risk_level, total_count|
-        positive_count = scope.where(risk_level:, decision_type: OwnerDecisionLog::EXECUTION_DECISIONS).count
+      grouped_counts = scope
+        .where.not(risk_level: [ nil, "" ])
+        .group(:risk_level, :decision_type)
+        .count
+      grouped_by_risk_level = grouped_counts.group_by do |(risk_level, _decision_type), _count|
+        risk_level
+      end
+
+      grouped_by_risk_level.map do |risk_level, rows|
+        total_count = rows.sum { |_key, count| count }
+        positive_count = rows.sum do |(_grouped_risk_level, decision_type), count|
+          decision_type.in?(OwnerDecisionLog::EXECUTION_DECISIONS) ? count : 0
+        end
         RateSummary.new(
           label: risk_level,
           total_count:,
