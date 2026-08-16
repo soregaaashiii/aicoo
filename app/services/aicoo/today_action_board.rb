@@ -121,6 +121,20 @@ module Aicoo
     end
 
     def call
+      return build_board unless Aicoo::RequestQueryContext.active
+
+      Aicoo::RequestQueryContext.fetch(today_action_board_cache_key) { build_board }
+    end
+
+    def expected_value_yen_for(candidate)
+      action_candidate_valuation(candidate).fetch(:action_expected_value_delta_yen)
+    end
+
+    private
+
+    attr_reader :mode, :page, :page_param, :per_page
+
+    def build_board
       Aicoo::MemoryDiagnostics.measure("Aicoo::TodayActionBoard#call", context: memory_context) do
         items = candidate_items
         ranking = ActionExpectedValueRanking.new(
@@ -147,13 +161,9 @@ module Aicoo
       end
     end
 
-    def expected_value_yen_for(candidate)
-      action_candidate_valuation(candidate).fetch(:action_expected_value_delta_yen)
+    def today_action_board_cache_key
+      [ :today_action_board, mode, page.to_s, page_param, per_page ]
     end
-
-    private
-
-    attr_reader :mode, :page, :page_param, :per_page
 
     def memory_context(extra = {})
       {
@@ -789,7 +799,10 @@ module Aicoo
     end
 
     def latest_auto_revision_task(candidate)
-      candidate.auto_revision_tasks.max_by(&:updated_at)
+      @latest_auto_revision_tasks ||= {}
+      memoize_candidate_result(@latest_auto_revision_tasks, candidate) do
+        candidate.auto_revision_tasks.max_by(&:updated_at)
+      end
     end
 
     def auto_revision_exclusion_reason(candidate)
@@ -1211,7 +1224,10 @@ module Aicoo
     end
 
     def article_opportunity_business(candidate)
-      Aicoo::TodayRankingClassifier.business_for_candidate(candidate)
+      @article_opportunity_businesses ||= {}
+      memoize_candidate_result(@article_opportunity_businesses, candidate) do
+        Aicoo::TodayRankingClassifier.business_for_candidate(candidate)
+      end
     end
 
     def article_opportunity_learning_score(candidate)
@@ -1525,15 +1541,19 @@ module Aicoo
     end
 
     def external_target_url_for_existing_business?(candidate)
-      return false if data_source_policy_for(candidate.business).exploration_business?
-      metadata = candidate.metadata.to_h
-      return true if metadata["url_classification"].to_s == "external_reference"
-      return true if metadata["target_url_type"].to_s == "external_reference"
+      @external_target_url_results ||= {}
+      memoize_candidate_result(@external_target_url_results, candidate) do
+        next false if data_source_policy_for(candidate.business).exploration_business?
 
-      possible_target_urls(candidate).any? do |target|
-        next false unless target.to_s.match?(%r{\Ahttps?://}i)
+        metadata = candidate.metadata.to_h
+        next true if metadata["url_classification"].to_s == "external_reference"
+        next true if metadata["target_url_type"].to_s == "external_reference"
 
-        !BusinessOwnedUrlPolicy.call(business: candidate.business, url: target).owner_page?
+        possible_target_urls(candidate).any? do |target|
+          next false unless target.to_s.match?(%r{\Ahttps?://}i)
+
+          !BusinessOwnedUrlPolicy.call(business: candidate.business, url: target).owner_page?
+        end
       end
     end
 
@@ -1545,55 +1565,70 @@ module Aicoo
     end
 
     def possible_target_urls(candidate)
-      metadata = candidate.metadata.to_h
-      [
-        metadata["target_url"],
-        metadata["target_url_or_identifier"],
-        metadata["page_path"],
-        metadata.dig("article_candidate", "url"),
-        metadata.dig("article_candidate", "recommended_url"),
-        metadata.dig("new_article", "url"),
-        metadata.dig("new_article", "recommended_url"),
-        metadata.dig("action_plan", "target"),
-        metadata.dig("action_plan", "target_url_or_identifier"),
-        metadata.dig("action_plan", "page_path"),
-        metadata.dig("decision", "selected", "target_url_or_identifier"),
-        metadata.dig("action_expansion", "target_url"),
-        metadata.dig("evidence", "page_path")
-      ].flatten.compact_blank.map(&:to_s)
+      @possible_target_urls_by_candidate ||= {}
+      memoize_candidate_result(@possible_target_urls_by_candidate, candidate) do
+        metadata = candidate.metadata.to_h
+        [
+          metadata["target_url"],
+          metadata["target_url_or_identifier"],
+          metadata["page_path"],
+          metadata.dig("article_candidate", "url"),
+          metadata.dig("article_candidate", "recommended_url"),
+          metadata.dig("new_article", "url"),
+          metadata.dig("new_article", "recommended_url"),
+          metadata.dig("action_plan", "target"),
+          metadata.dig("action_plan", "target_url_or_identifier"),
+          metadata.dig("action_plan", "page_path"),
+          metadata.dig("decision", "selected", "target_url_or_identifier"),
+          metadata.dig("action_expansion", "target_url"),
+          metadata.dig("evidence", "page_path")
+        ].flatten.compact_blank.map(&:to_s)
+      end
     end
 
     def invalid_target_path_reason(candidate)
-      metadata = candidate.metadata.to_h
-      return "target_type_mismatch" if existing_page_improvement?(candidate) && metadata["page_exists"] == false
+      @invalid_target_path_reasons ||= {}
+      memoize_candidate_result(@invalid_target_path_reasons, candidate) do
+        metadata = candidate.metadata.to_h
+        next "target_type_mismatch" if existing_page_improvement?(candidate) && metadata["page_exists"] == false
 
-      path = possible_target_urls(candidate).find { |target| target.start_with?("/") }
-      return "invalid_target_path" if metadata["url_classification"].to_s == "invalid" || metadata["target_url_type"].to_s == "invalid"
-      return unless path
+        path = possible_target_urls(candidate).find { |target| target.start_with?("/") }
+        next "invalid_target_path" if metadata["url_classification"].to_s == "invalid" || metadata["target_url_type"].to_s == "invalid"
+        next unless path
+        next "invalid_target_path" if path.include?("/-")
 
-      return "invalid_target_path" if path.include?("/-")
+        article_match = path.match(ARTICLE_PATH_PATTERN)
+        next unless article_match
 
-      article_match = path.match(ARTICLE_PATH_PATTERN)
-      return unless article_match
+        slug = article_match[1].to_s
+        next "missing_slug" if slug.blank? || slug == "-" || slug.start_with?("-")
+        next "invalid_target_path" unless slug.match?(/\A[a-z0-9][a-z0-9\-]*\z/i)
+        next "target_type_mismatch" if existing_page_improvement?(candidate) && metadata["page_exists"] == false
 
-      slug = article_match[1].to_s
-      return "missing_slug" if slug.blank? || slug == "-" || slug.start_with?("-")
-      return "invalid_target_path" unless slug.match?(/\A[a-z0-9][a-z0-9\-]*\z/i)
-      return "target_type_mismatch" if existing_page_improvement?(candidate) && metadata["page_exists"] == false
-
-      nil
+        nil
+      end
     end
 
     def proposed_new_target?(candidate)
-      metadata = candidate.metadata.to_h
-      return true if metadata["url_classification"].to_s == "proposed_new"
-      return true if metadata["target_url_type"].to_s == "proposed_new"
+      @proposed_new_target_results ||= {}
+      memoize_candidate_result(@proposed_new_target_results, candidate) do
+        metadata = candidate.metadata.to_h
+        next true if metadata["url_classification"].to_s == "proposed_new"
+        next true if metadata["target_url_type"].to_s == "proposed_new"
 
-      possible_target_urls(candidate).any? do |target|
-        next false unless target.to_s.start_with?("/")
+        possible_target_urls(candidate).any? do |target|
+          next false unless target.to_s.start_with?("/")
 
-        Aicoo::BusinessOwnedUrlPolicy.call(business: candidate.business, url: target).proposed_new?
+          Aicoo::BusinessOwnedUrlPolicy.call(business: candidate.business, url: target).proposed_new?
+        end
       end
+    end
+
+    def memoize_candidate_result(store, candidate)
+      key = candidate.object_id
+      return store[key] if store.key?(key)
+
+      store[key] = yield
     end
 
     def new_business_today_actionable?(business)
