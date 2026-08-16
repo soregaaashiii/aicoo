@@ -64,6 +64,7 @@ class ApplicationController < ActionController::Base
     return if public_render_path?
     return if owner_focus_path?
     return if execution_runs_path?
+    return if operation_status_panel_hidden_for_request?
     return unless request.format.html?
 
     @long_running_operation_monitor = Aicoo::LongRunningOperationMonitor.new(
@@ -115,6 +116,10 @@ class ApplicationController < ActionController::Base
 
   def execution_runs_path?
     request.path.start_with?("/admin/execution_runs")
+  end
+
+  def operation_status_panel_hidden_for_request?
+    controller_path == "aicoo_daily_runs" && action_name == "show"
   end
 
   def memory_diagnostics_context(extra = {})

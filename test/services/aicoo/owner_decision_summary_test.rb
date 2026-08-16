@@ -32,5 +32,28 @@ module Aicoo
       assert summary.risk_level_execution_rates.any? { |rate| rate.label == "low" }
       assert_not_empty summary.recent_logs
     end
+
+    test "aggregates decision rates without one count per category" do
+      query_count = count_owner_decision_log_queries do
+        OwnerDecisionSummary.new.call
+      end
+
+      assert_operator query_count, :<=, 6
+    end
+
+    private
+
+    def count_owner_decision_log_queries
+      count = 0
+      subscriber = lambda do |_name, _started, _finished, _id, payload|
+        next if payload[:name].to_s.in?(%w[SCHEMA TRANSACTION]) || payload[:cached]
+        next unless payload[:sql].to_s.match?(/\ASELECT/i)
+
+        count += 1 if payload[:sql].include?('"owner_decision_logs"')
+      end
+
+      ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") { yield }
+      count
+    end
   end
 end

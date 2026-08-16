@@ -65,14 +65,18 @@ module Aicoo
     attr_reader :include_latest
 
     def running_rows
-      @running_rows ||= active_runs
-        .includes(:aicoo_daily_run_steps)
-        .recent
-        .then { |runs| build_rows(runs) }
+      @running_rows ||= Aicoo::RequestQueryContext.fetch(:daily_run_execution_status_running_rows) do
+        active_runs
+          .includes(:aicoo_daily_run_steps)
+          .recent
+          .then { |runs| build_rows(runs) }
+      end
     end
 
     def latest_run
-      @latest_run ||= AicooDailyRun.includes(:aicoo_daily_run_steps).recent.first
+      @latest_run ||= Aicoo::RequestQueryContext.fetch(:daily_run_execution_status_latest_run) do
+        AicooDailyRun.includes(:aicoo_daily_run_steps).recent.first
+      end
     end
 
     def active_runs

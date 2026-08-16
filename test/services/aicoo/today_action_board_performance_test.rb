@@ -34,6 +34,38 @@ module Aicoo
       assert_equal 0, write_count
     end
 
+    test "reuses the board for identical conditions within one read request" do
+      activate_candidates(10)
+
+      first, second = RequestQueryContext.within do
+        [
+          TodayActionBoard.new(mode: "revenue", page: "1", per_page: 20).call,
+          TodayActionBoard.new(mode: "revenue", page: "1", per_page: 20).call
+        ]
+      end
+
+      assert_same first, second
+    end
+
+    test "does not share boards with different conditions or requests" do
+      activate_candidates(10)
+
+      revenue, learning, limited = RequestQueryContext.within do
+        [
+          TodayActionBoard.new(mode: "revenue", page: "1", per_page: 20).call,
+          TodayActionBoard.new(mode: "learning", page: "1", per_page: 20).call,
+          TodayActionBoard.new(mode: "revenue", page: "1", per_page: 5).call
+        ]
+      end
+      next_request = RequestQueryContext.within do
+        TodayActionBoard.new(mode: "revenue", page: "1", per_page: 20).call
+      end
+
+      assert_not_same revenue, learning
+      assert_not_same revenue, limited
+      assert_not_same revenue, next_request
+    end
+
     private
 
     def insert_article_candidates(count)

@@ -15,13 +15,17 @@ module Aicoo
     end
 
     def call
+      pending_items = items.to_a
+      skipped_queue_items = skipped_items.to_a
+      counts_by_status = scope.group(:status).count
+
       Result.new(
-        items: items.to_a,
-        skipped_items: skipped_items.to_a,
-        pending_count: scope.pending.count,
-        completed_count: scope.completed.count,
-        skipped_count: scope.skipped.count,
-        top_item: items.first,
+        items: pending_items,
+        skipped_items: skipped_queue_items,
+        pending_count: counts_by_status.fetch("pending", 0),
+        completed_count: counts_by_status.fetch("completed", 0),
+        skipped_count: counts_by_status.fetch("skipped", 0),
+        top_item: pending_items.first,
         generated_at: Time.current
       )
     end

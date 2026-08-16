@@ -327,6 +327,27 @@ class AicooDailyRunsControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, response.body.scan("data-daily-run-progress=\"#{daily_run.id}\"").size
   end
 
+  test "does not build the hidden operation monitor on daily run detail" do
+    daily_run = AicooDailyRun.create!(
+      target_date: Date.yesterday,
+      status: "success",
+      source: "manual"
+    )
+
+    sql = []
+    subscriber = lambda do |_name, _started, _finished, _id, payload|
+      next if payload[:name].to_s.in?(%w[SCHEMA TRANSACTION]) || payload[:cached]
+
+      sql << payload[:sql].to_s
+    end
+    ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+      get aicoo_daily_run_url(daily_run)
+    end
+
+    assert_response :success
+    assert sql.none? { |statement| statement.include?('"google_api_import_runs"') }
+  end
+
   test "shows running banner on daily run detail" do
     daily_run = AicooDailyRun.create!(
       target_date: Date.yesterday,
