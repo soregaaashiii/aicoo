@@ -10,7 +10,7 @@ class ApplicationController < ActionController::Base
   before_action :load_daily_run_execution_status
   before_action :load_long_running_operation_monitor
 
-  helper_method :aicoo_settings_navigation_request?
+  helper_method :aicoo_settings_navigation_request?, :operation_status_panel_visible_for_request?
 
   # Changes to the importmap will invalidate the etag for HTML responses
   stale_when_importmap_changes
@@ -64,7 +64,7 @@ class ApplicationController < ActionController::Base
     return if public_render_path?
     return if owner_focus_path?
     return if execution_runs_path?
-    return if operation_status_panel_hidden_for_request?
+    return unless operation_status_panel_visible_for_request?
     return unless request.format.html?
 
     @long_running_operation_monitor = Aicoo::LongRunningOperationMonitor.new(
@@ -78,6 +78,7 @@ class ApplicationController < ActionController::Base
 
   def load_daily_run_execution_status
     return if public_render_path?
+    return unless operation_status_panel_visible_for_request?
     return unless request.format.html?
 
     @daily_run_execution_status = Aicoo::DailyRunExecutionStatus.call(
@@ -118,8 +119,8 @@ class ApplicationController < ActionController::Base
     request.path.start_with?("/admin/execution_runs")
   end
 
-  def operation_status_panel_hidden_for_request?
-    controller_path == "aicoo_daily_runs" && action_name == "show"
+  def operation_status_panel_visible_for_request?
+    controller_path == "aicoo_daily_runs" && action_name == "index"
   end
 
   def memory_diagnostics_context(extra = {})

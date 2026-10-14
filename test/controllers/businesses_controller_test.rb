@@ -760,7 +760,7 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     refute_includes response.body, "GA4未接続"
   end
 
-  test "show displays long running operation status and links google api history to system" do
+  test "show does not display the global running operation panel" do
     GoogleApiImportRun.create!(
       business: @business,
       status: "running",
@@ -791,10 +791,9 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     get business_url(@business)
 
     assert_response :success
-    assert_includes response.body, "実行中の処理があります"
-    assert_includes response.body, "Google API取得中"
-    assert_includes response.body, "data-aicoo-auto-refresh=\"5000\""
-    assert_includes response.body, "実行履歴"
+    assert_not_includes response.body, "実行中の処理があります"
+    assert_select "#aicoo-operation-status-panel", count: 0
+    assert_select "[data-aicoo-auto-refresh]", count: 0
     assert_not_includes response.body, "Refresh Tokenがありません"
     assert_not_includes response.body, "直近実行履歴"
   end

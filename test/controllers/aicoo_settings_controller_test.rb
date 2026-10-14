@@ -72,7 +72,7 @@ class AicooSettingsControllerTest < ActionDispatch::IntegrationTest
     assert_not statements.any? { |sql| sql.include?("aicoo_lab_landing_page_publication_events") }
   end
 
-  test "running operation refresh uses the lightweight status endpoint" do
+  test "does not show the running operation panel" do
     AicooDailyRun.create!(
       target_date: Date.current,
       status: "running",
@@ -83,7 +83,17 @@ class AicooSettingsControllerTest < ActionDispatch::IntegrationTest
     get aicoo_setting_url
 
     assert_response :success
-    assert_select "[data-aicoo-auto-refresh-url='#{aicoo_operation_status_path}']", count: 1
+    assert_select "#aicoo-operation-status-panel", count: 0
+    assert_select "[data-aicoo-auto-refresh]", count: 0
+  end
+
+  test "running operation refresh endpoint remains available for the daily run page" do
+    AicooDailyRun.create!(
+      target_date: Date.current,
+      status: "running",
+      source: "manual",
+      started_at: 1.minute.ago
+    )
 
     get aicoo_operation_status_url
 

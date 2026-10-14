@@ -69,7 +69,7 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
     assert_select ".aicoo-system-header .aicoo-tabs a[href='#{owner_dashboard_path}']", count: 0
   end
 
-  test "system mode status refresh uses the lightweight endpoint" do
+  test "operation status panel is limited to the daily run index" do
     AicooDailyRun.create!(
       target_date: Date.current,
       status: "running",
@@ -80,8 +80,13 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
     get admin_aicoo_judge_url
 
     assert_response :success
+    assert_select "#aicoo-operation-status-panel", count: 0
+    assert_select "[data-aicoo-auto-refresh]", count: 0
+
+    get aicoo_daily_runs_url
+
+    assert_response :success
     assert_select "[data-aicoo-auto-refresh-url='#{aicoo_operation_status_path}']", count: 1
-    assert_select "[data-aicoo-auto-refresh-url='#{admin_aicoo_judge_path}']", count: 0
   end
 
   test "system mode layout loads only running operation data" do
