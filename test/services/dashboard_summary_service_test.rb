@@ -98,6 +98,33 @@ class DashboardSummaryServiceTest < ActiveSupport::TestCase
     end
   end
 
+  test "owner home reuses readiness and repeated aggregate values" do
+    sql = []
+    subscriber = lambda do |_name, _started, _finished, _id, payload|
+      next if payload[:name].to_s.in?(%w[SCHEMA TRANSACTION])
+
+      sql << payload[:sql].to_s
+    end
+
+    Aicoo::RequestQueryContext.within do
+      ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+        service = DashboardSummaryService.new(owner_mode: "balanced", current_mode: "ceo")
+        service.define_singleton_method(:owner_business_rankings) { [] }
+        service.call_for_owner_home
+      end
+    end
+
+    waiting_approval_queries = sql.count do |statement|
+      statement.include?('FROM "auto_revision_tasks"') && statement.include?('"status" =') && statement.include?("COUNT")
+    end
+    today_revenue_queries = sql.count do |statement|
+      statement.include?('SUM("revenue_events"."amount")') && statement.include?('"event_type" =')
+    end
+
+    assert_equal 1, waiting_approval_queries
+    assert_equal 2, today_revenue_queries
+  end
+
   private
 
   def create_result(business:, generation_source:, action_type:, actual:)

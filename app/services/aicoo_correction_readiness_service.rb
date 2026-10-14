@@ -37,11 +37,11 @@ class AicooCorrectionReadinessService
 
   def overall_items
     [
-      item(:judge_data, "Judgeデータ不足", ActionResult.evaluated.count, EVALUATED_REQUIRED),
-      item(:action_results, "ActionResult不足", ActionResult.count, ACTION_RESULT_REQUIRED),
-      item(:evaluated, "evaluated不足", ActionResult.evaluated.count, EVALUATED_REQUIRED),
-      item(:revenue, "revenue不足", RevenueEvent.revenue.count, REVENUE_EVENT_REQUIRED),
-      item(:business_metric_daily, "BusinessMetricDaily不足", BusinessMetricDaily.count, Business.real_businesses.count * BUSINESS_METRIC_DAILY_REQUIRED)
+      item(:judge_data, "Judgeデータ不足", evaluated_count, EVALUATED_REQUIRED),
+      item(:action_results, "ActionResult不足", action_result_count, ACTION_RESULT_REQUIRED),
+      item(:evaluated, "evaluated不足", evaluated_count, EVALUATED_REQUIRED),
+      item(:revenue, "revenue不足", revenue_count, REVENUE_EVENT_REQUIRED),
+      item(:business_metric_daily, "BusinessMetricDaily不足", business_metric_daily_count, businesses.size * BUSINESS_METRIC_DAILY_REQUIRED)
     ]
   end
 
@@ -56,16 +56,52 @@ class AicooCorrectionReadinessService
   end
 
   def business_items
-    Business.real_businesses.includes(:action_results, :revenue_events, :business_metric_dailies).order(:name).map do |business|
+    businesses.map do |business|
       messages = []
       missing_keys = []
-      append_message(messages, missing_keys, :action_results, business.action_results.size, ACTION_RESULT_REQUIRED, "#{business.name}: ActionResult")
-      append_message(messages, missing_keys, :evaluated, business.action_results.count { |result| result.evaluation_status == "evaluated" }, EVALUATED_REQUIRED, "#{business.name}: evaluated")
-      append_message(messages, missing_keys, :revenue, business.revenue_events.count(&:revenue?), 1, "#{business.name}: RevenueEvent")
-      append_message(messages, missing_keys, :business_metric_daily, business.business_metric_dailies.size, BUSINESS_METRIC_DAILY_REQUIRED, "#{business.name}: BusinessMetricDaily")
+      append_message(messages, missing_keys, :action_results, action_result_counts.fetch(business.id, 0), ACTION_RESULT_REQUIRED, "#{business.name}: ActionResult")
+      append_message(messages, missing_keys, :evaluated, evaluated_counts.fetch(business.id, 0), EVALUATED_REQUIRED, "#{business.name}: evaluated")
+      append_message(messages, missing_keys, :revenue, revenue_counts.fetch(business.id, 0), 1, "#{business.name}: RevenueEvent")
+      append_message(messages, missing_keys, :business_metric_daily, business_metric_daily_counts.fetch(business.id, 0), BUSINESS_METRIC_DAILY_REQUIRED, "#{business.name}: BusinessMetricDaily")
 
       BusinessItem.new(business:, messages:, missing_keys:)
     end
+  end
+
+  def businesses
+    @businesses ||= Aicoo::RequestQueryContext.owner_real_businesses
+  end
+
+  def action_result_counts
+    @action_result_counts ||= ActionResult.group(:business_id).count
+  end
+
+  def evaluated_counts
+    @evaluated_counts ||= ActionResult.evaluated.group(:business_id).count
+  end
+
+  def revenue_counts
+    @revenue_counts ||= RevenueEvent.revenue.group(:business_id).count
+  end
+
+  def business_metric_daily_counts
+    @business_metric_daily_counts ||= BusinessMetricDaily.group(:business_id).count
+  end
+
+  def action_result_count
+    action_result_counts.values.sum
+  end
+
+  def evaluated_count
+    evaluated_counts.values.sum
+  end
+
+  def revenue_count
+    revenue_counts.values.sum
+  end
+
+  def business_metric_daily_count
+    business_metric_daily_counts.values.sum
   end
 
   def append_message(messages, missing_keys, key, current_count, required_count, label)

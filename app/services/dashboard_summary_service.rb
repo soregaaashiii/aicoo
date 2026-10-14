@@ -258,7 +258,7 @@ class DashboardSummaryService
   def owner_metrics
     today = Date.current
     OwnerMetrics.new(
-      revenue_yen: RevenueEvent.revenue.where(occurred_on: today).sum(:amount),
+      revenue_yen: revenue_total_for(today),
       profit_yen: profit_total_for(today),
       proxy_score: proxy_score_total(today),
       new_candidate_count: ActionCandidate.where(created_at: Time.current.all_day).count,
@@ -269,11 +269,12 @@ class DashboardSummaryService
   end
 
   def owner_alerts
-    correction_readiness = AicooCorrectionReadinessService.new.call
+    correction_readiness = correction_readiness_result
     alerts = correction_readiness.items.reject(&:ready).map do |item|
       "#{owner_readiness_label(item.key)}: #{item.current_count}/#{item.required_count}"
     end
-    alerts << "学習停止リスク: 評価済みの実行結果が不足しています" if ActionResult.evaluated.count < AicooCorrectionReadinessService::EVALUATED_REQUIRED
+    evaluated_count = correction_readiness.item(:evaluated).current_count
+    alerts << "学習停止リスク: 評価済みの実行結果が不足しています" if evaluated_count < AicooCorrectionReadinessService::EVALUATED_REQUIRED
     alerts
   end
 
@@ -312,11 +313,12 @@ class DashboardSummaryService
   def approval_queue_summary
     data_preparation_count = ActionCandidate.active_for_ranking.where(action_type: "data_preparation").count
     codex_queue_statuses = AutoRevisionTask::CODEX_QUEUE_STATUSES
+    waiting_approval_count = AutoRevisionTask.where(status: "waiting_approval").count
     ApprovalQueue.new(
       action_candidate_count: ActionCandidate.active_for_ranking.where(status: %w[idea pending]).count,
-      executor_task_count: AutoRevisionTask.where(status: "waiting_approval").count,
+      executor_task_count: waiting_approval_count,
       data_preparation_count:,
-      approved_remaining_count: AutoRevisionTask.where(status: "waiting_approval").count,
+      approved_remaining_count: waiting_approval_count,
       today_approved_count: ActionCandidate.where(approved_at: Time.current.all_day).count,
       today_executor_queued_count: AutoRevisionTask.where(status: codex_queue_statuses, updated_at: Time.current.all_day).count
     )
@@ -381,16 +383,17 @@ class DashboardSummaryService
   end
 
   def learning_progress_summary
-    evaluated_count = ActionResult.evaluated.count
+    readiness = correction_readiness_result
+    evaluated_count = readiness.item(:evaluated).current_count
     LearningProgress.new(
-      action_result_current: ActionResult.count,
+      action_result_current: readiness.item(:action_results).current_count,
       action_result_required: AicooCorrectionReadinessService::ACTION_RESULT_REQUIRED,
       evaluated_current: evaluated_count,
       evaluated_required: AicooCorrectionReadinessService::EVALUATED_REQUIRED,
       judge_status: evaluated_count >= AicooCorrectionReadinessService::EVALUATED_REQUIRED ? "稼働中" : "未開始",
       business_metric_current: BusinessMetricDaily.select(:recorded_on).distinct.count,
       business_metric_required: AicooCorrectionReadinessService::BUSINESS_METRIC_DAILY_REQUIRED,
-      revenue_event_current: RevenueEvent.revenue.count,
+      revenue_event_current: readiness.item(:revenue).current_count,
       revenue_event_required: 10
     )
   end
@@ -428,8 +431,17 @@ class DashboardSummaryService
   end
 
   def profit_total_for(date)
-    RevenueEvent.revenue.where(occurred_on: date).sum(:amount) -
+    revenue_total_for(date) -
       RevenueEvent.expense.where(occurred_on: date).sum(:amount)
+  end
+
+  def revenue_total_for(date)
+    @revenue_total_by_date ||= {}
+    @revenue_total_by_date[date] ||= RevenueEvent.revenue.where(occurred_on: date).sum(:amount)
+  end
+
+  def correction_readiness_result
+    @correction_readiness_result ||= AicooCorrectionReadinessService.new.call
   end
 
   def proxy_score_change_rate(target_date)
