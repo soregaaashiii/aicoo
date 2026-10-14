@@ -54,11 +54,9 @@ module Aicoo
     attr_reader :business, :invoked_by, :trigger_event_id
 
     def target_activity_logs
-      scope = BusinessActivityLog.includes(:activity_evaluations).order(:id)
+      scope = ActivityEvaluationBuilder.evaluation_scope.includes(:activity_evaluations).order(:id)
       scope = scope.where(business:) if business
-      scope.select do |activity_log|
-        activity_log.activity_evaluations.empty? || activity_log.activity_evaluations.any?(&:pending?)
-      end
+      scope
     end
 
     def mark_started(activity_logs)

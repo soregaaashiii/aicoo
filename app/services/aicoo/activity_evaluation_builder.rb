@@ -28,6 +28,27 @@ module Aicoo
       keyword_init: true
     )
 
+    def self.evaluation_scope(now: Time.current)
+      complete_log_ids = ActivityEvaluation
+        .where(evaluation_window_days: WINDOWS)
+        .group(:business_activity_log_id)
+        .having("COUNT(DISTINCT evaluation_window_days) = ?", WINDOWS.size)
+        .select(:business_activity_log_id)
+      incomplete_logs = BusinessActivityLog
+        .where(evaluation_status: %w[pending evaluating])
+        .where.not(id: complete_log_ids)
+
+      WINDOWS.reduce(incomplete_logs) do |scope, window|
+        due_log_ids = ActivityEvaluation
+          .pending
+          .where(evaluation_window_days: window)
+          .joins(:business_activity_log)
+          .where(business_activity_logs: { occurred_at: ..(now - window.days) })
+          .select(:business_activity_log_id)
+        scope.or(BusinessActivityLog.where(id: due_log_ids))
+      end.distinct
+    end
+
     def call(business: nil)
       result = Result.new(
         created_count: 0,
@@ -56,11 +77,7 @@ module Aicoo
     private
 
     def evaluation_scope
-      pending_log_ids = ActivityEvaluation.pending.select(:business_activity_log_id)
-      BusinessActivityLog
-        .where(evaluation_status: %w[pending evaluating])
-        .or(BusinessActivityLog.where(id: pending_log_ids))
-        .distinct
+      self.class.evaluation_scope
     end
 
     def evaluate_log(activity_log, result)

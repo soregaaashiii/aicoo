@@ -44,13 +44,13 @@
           <% @business_activity_logs.each do |activity_log| %>
             <tr>
               <td><%= l(activity_log.occurred_at, format: :short) %></td>
-              <td><%= activity_log.business.name %></td>
+              <td><%= activity_log.business_name %></td>
               <td><%= activity_log.activity_type %></td>
               <td><%= activity_log.resource_type %>#<%= activity_log.resource_id %></td>
               <td><%= activity_log.source_method %></td>
               <td><%= activity_log.evaluation_status %></td>
               <td><%= truncate(activity_log.diff_summary.presence || activity_log.title, length: 80) %></td>
-              <td><%= link_to "詳細", admin_business_activity_log_path(activity_log), class: "button button-small" %></td>
+              <td><%= link_to "詳細", admin_business_activity_log_path(activity_log.id), class: "button button-small" %></td>
             </tr>
           <% end %>
           <% if @business_activity_logs.empty? %>

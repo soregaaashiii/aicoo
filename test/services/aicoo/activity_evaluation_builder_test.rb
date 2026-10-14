@@ -249,6 +249,41 @@ module Aicoo
       assert_equal "pending", activity_log.reload.evaluation_status
     end
 
+    test "does not revisit pending evaluations before their windows are due" do
+      business = businesses(:suelog)
+      occurred_at = 1.hour.ago
+      BusinessActivityLog.insert_all!([
+        {
+          business_id: business.id,
+          source_app: "suelog",
+          activity_type: "shop_created",
+          resource_type: "Shop",
+          resource_id: "pending-window-scope",
+          title: "店舗追加",
+          occurred_at:,
+          detected_at: occurred_at,
+          source_method: "logger",
+          idempotency_key: "pending-window-scope",
+          evaluation_status: "pending",
+          created_at: Time.current,
+          updated_at: Time.current
+        }
+      ])
+      activity_log = BusinessActivityLog.find_by!(idempotency_key: "pending-window-scope")
+      builder = ActivityEvaluationBuilder.new
+      builder.call(business:)
+      initial_evaluations = activity_log.activity_evaluations.order(:evaluation_window_days).pluck(:id, :updated_at)
+
+      travel 1.hour do
+        builder.call(business:)
+      end
+
+      assert_equal initial_evaluations, activity_log.activity_evaluations.order(:evaluation_window_days).pluck(:id, :updated_at)
+      travel 8.days do
+        assert ActivityEvaluationBuilder.evaluation_scope.where(id: activity_log.id).exists?
+      end
+    end
+
     test "continues processing pending windows after an earlier window was evaluated" do
       business = businesses(:suelog)
       occurred_at = 20.days.ago
