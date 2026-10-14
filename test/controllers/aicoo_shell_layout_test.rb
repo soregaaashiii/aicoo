@@ -31,6 +31,11 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "現在位置"
     assert_select "a[href='#{admin_serp_settings_path}']", text: /新規事業探索/
     assert_select "a[href='#{owner_auto_revision_loop_path}']", text: /運用状況/
+    assert_select ".aicoo-mode-nav a", count: 2
+    assert_select ".aicoo-mode-nav a[href='#{businesses_path}']", count: 0
+    assert_select ".aicoo-ceo-header .aicoo-sub-tabs a[href='#{businesses_path}']", text: "事業一覧"
+    assert_select ".aicoo-ceo-header .aicoo-mode-switch", count: 0
+    assert_not_includes response.body, "システムモードへ"
   end
 
   test "system mode uses purpose sidebar and breadcrumb" do
@@ -58,6 +63,10 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Codexルール"
     assert_not_includes response.body, "今日どの事業を進めるか"
     assert_includes response.body, "現在位置"
+    assert_select ".aicoo-mode-nav a", count: 2
+    assert_select ".aicoo-system-header .aicoo-mode-switch", count: 0
+    assert_not_includes response.body, "CEOモードへ"
+    assert_select ".aicoo-system-header .aicoo-tabs a[href='#{owner_dashboard_path}']", count: 0
   end
 
   test "system mode status refresh uses the lightweight endpoint" do
@@ -138,6 +147,7 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select ".aicoo-sidebar-child.active strong", text: "全体設定"
+    assert_select ".aicoo-system-header .aicoo-tab.active strong", text: "全体設定"
     assert_select "body[data-aicoo-settings-navigation='true']"
   end
 
@@ -193,6 +203,9 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes response.body, "CEOモード"
+    assert_select ".aicoo-ceo-header"
+    assert_select ".aicoo-system-header", count: 0
+    assert_select ".aicoo-ceo-header .aicoo-sub-tab.active", text: "事業一覧"
     assert_includes response.body, "事業一覧"
     assert_includes response.body, "Google連携"
     assert_includes response.body, "現在位置"

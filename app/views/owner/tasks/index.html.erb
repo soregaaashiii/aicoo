@@ -1,16 +1,10 @@
 <% content_for :title, "システム障害・確認タスク" %>
 
-<% header_actions = capture do %>
-  <%= link_to "Todayへ戻る", owner_focus_path, class: "button secondary" %>
-  <%= link_to "SYSTEM MODE", aicoo_daily_runs_path, class: "button secondary" %>
-<% end %>
-
 <div class="aicoo-page">
   <%= render "shared/aicoo_header",
              title: "システム障害・確認タスク",
              description: "Todayと同じ優先順位を確認し、補助的なInboxや実行キューを確認します。",
-             active_main: :revenue,
-             actions: header_actions %>
+             active_main: :revenue %>
 
   <%= render "shared/today_action_board", today_board: @today_board %>
 

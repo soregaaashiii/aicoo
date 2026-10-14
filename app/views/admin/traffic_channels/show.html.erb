@@ -1,15 +1,10 @@
 <% content_for :title, "Traffic Channel Center" %>
 
-<% header_actions = capture do %>
-  <%= link_to "SYSTEM MODE", aicoo_daily_runs_path, class: "button secondary" %>
-<% end %>
-
 <div class="aicoo-page">
   <%= render "shared/aicoo_header",
              title: "Traffic Channel Center",
              description: "SERP、SNS、記事、広告、手動共有など、集客チャネル全体の運用状態を比較します。",
-             active_main: :system,
-             actions: header_actions %>
+             active_main: :system %>
 
   <nav class="aicoo-tab-nav" aria-label="Traffic Channel Center tabs">
     <%= link_to "Overview", "#traffic-overview", class: "button secondary" %>

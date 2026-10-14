@@ -1,4 +1,15 @@
 <% active_main = local_assigns.fetch(:active_main, nil).to_s %>
+<% active_main = if aicoo_settings_navigation_request?
+                   "settings"
+                 elsif request.path.start_with?("/aicoo_daily_runs", "/admin/aicoo_daily_run_health")
+                   "daily_run"
+                 elsif request.path.start_with?("/admin/aicoo_datahub", "/business_metric_dailies")
+                   "datahub"
+                 elsif request.path.start_with?("/judge", "/admin/aicoo_judge", "/department_rankings", "/admin/aicoo/calibration")
+                   "judge"
+                 else
+                   active_main
+                 end %>
 <% main_tabs = [
   { key: "daily_run", label: "日次実行", description: "実行履歴と停止原因", path: aicoo_daily_runs_path },
   { key: "datahub", label: "実績データ", description: "PV・CV・収益などの事実", path: admin_aicoo_datahub_path },
@@ -20,8 +31,6 @@
       <% end %>
     </div>
   </div>
-
-  <%= render "shared/aicoo_mode_switcher", current_mode: :system %>
 
   <nav class="aicoo-tabs" aria-label="AICOOシステムナビゲーション">
     <% main_tabs.each do |tab| %>

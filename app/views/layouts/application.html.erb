@@ -39,9 +39,6 @@
         <%= link_to aicoo_daily_runs_path, class: ["aicoo-mode-pill", ("active" unless aicoo_ceo_mode?)] do %>
           システムモード<br><small>監視室</small>
         <% end %>
-        <%= link_to businesses_path, class: "aicoo-header-link" do %>
-          事業一覧<br><small>事業を見る</small>
-        <% end %>
       </nav>
 
       <% unless aicoo_ceo_mode? %>
