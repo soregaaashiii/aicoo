@@ -107,10 +107,24 @@ module Aicoo
           completion_source: "shop_data_growth_progress",
           result_summary: "吸えログの店舗登録Activityが#{plan.completed_count}件に到達したため、自動完了しました。"
         )
+        cancel_open_revision_tasks!(candidate)
         completed_now = true
       end
 
       completed_now
+    end
+
+    def cancel_open_revision_tasks!(candidate)
+      candidate.auto_revision_tasks.active.find_each do |task|
+        task.update_columns(
+          status: "canceled",
+          metadata: task.metadata.to_h.merge(
+            "canceled_reason" => "shop_data_growth_target_completed",
+            "canceled_at" => Time.current.iso8601
+          ),
+          updated_at: Time.current
+        )
+      end
     end
 
     def progress_started_at(progress, candidate)

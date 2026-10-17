@@ -65,6 +65,16 @@ module Aicoo
     end
 
     test "completes candidate through the existing execution and result path at target" do
+      task = AutoRevisionTask.create!(
+        action_candidate: @candidate,
+        business: @business,
+        title: @candidate.title,
+        execution_prompt: "店舗データを追加する",
+        priority_score: 100,
+        generated_by: "test",
+        risk_level: "medium",
+        status: "waiting_approval"
+      )
       3.times { |index| insert_shop_activity(resource_id: "shop-#{index + 1}") }
 
       result = ShopDataGrowthProgressUpdater.sync_business!(@business)
@@ -76,6 +86,8 @@ module Aicoo
       assert_equal 3, @candidate.action_result.metadata.dig("action_candidate_completion", "registered_count")
       assert_equal "shop_data_growth_progress", @candidate.metadata.fetch("execution_record_source")
       assert @candidate.metadata.dig("shop_data_growth_progress", "completed_at").present?
+      assert_equal "canceled", task.reload.status
+      assert_equal "shop_data_growth_target_completed", task.metadata.fetch("canceled_reason")
     end
 
     test "shop created callback synchronizes and completes without manual operation" do
