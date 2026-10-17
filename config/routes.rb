@@ -4,6 +4,10 @@ Rails.application.routes.draw do
   match "rails/conductor/action_mailbox", to: "blocked_internal_routes#not_found", via: :all
   match "rails/conductor/action_mailbox/*path", to: "blocked_internal_routes#not_found", via: :all
 
+  get "login", to: "aicoo_sessions#new", as: :aicoo_login
+  post "login", to: "aicoo_sessions#create"
+  delete "logout", to: "aicoo_sessions#destroy", as: :aicoo_logout
+
   get "robots.txt", to: "robots#show", as: :robots
   get "sitemap.xml", to: "public_sitemaps#show", as: :sitemap, defaults: { format: :xml }
   namespace :api do

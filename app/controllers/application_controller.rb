@@ -29,17 +29,18 @@ class ApplicationController < ActionController::Base
     return unless aicoo_management_protection_enabled?
     return if public_render_path?
 
-    username = ENV["AICOO_BASIC_AUTH_USERNAME"].to_s
-    password = ENV["AICOO_BASIC_AUTH_PASSWORD"].to_s
-
-    if username.blank? || password.blank?
+    unless aicoo_management_credentials_configured?
       render plain: "AICOO management access is not configured.", status: :forbidden
       return
     end
 
-    authenticate_or_request_with_http_basic("AICOO") do |provided_username, provided_password|
-      secure_basic_auth_match?(provided_username, username) &&
-        secure_basic_auth_match?(provided_password, password)
+    return if aicoo_management_session_authenticated?
+    return if aicoo_basic_authentication_valid?
+
+    if request.get? && request.format.html?
+      redirect_to aicoo_login_path(return_to: request.fullpath)
+    else
+      request_http_basic_authentication("AICOO")
     end
   end
 
@@ -51,9 +52,43 @@ class ApplicationController < ActionController::Base
     request.path == "/" ||
       request.path == "/lp" ||
       request.path.start_with?("/lp/", "/aicoo_lab/lp/", "/assets/") ||
-      request.path.in?([ "/robots.txt", "/sitemap.xml" ]) ||
+      request.path.in?([ "/login", "/robots.txt", "/sitemap.xml" ]) ||
       request.path == "/up" ||
       request.path == "/favicon.ico"
+  end
+
+  def aicoo_management_credentials_configured?
+    aicoo_management_username.present? && aicoo_management_password.present?
+  end
+
+  def aicoo_management_credentials_match?(provided_username, provided_password)
+    secure_basic_auth_match?(provided_username, aicoo_management_username) &&
+      secure_basic_auth_match?(provided_password, aicoo_management_password)
+  end
+
+  def aicoo_management_credential_digest
+    Digest::SHA256.hexdigest("#{aicoo_management_username}\0#{aicoo_management_password}")
+  end
+
+  def aicoo_management_session_authenticated?
+    stored_digest = session[:aicoo_management_credential_digest].to_s
+    return false if stored_digest.blank?
+
+    secure_basic_auth_match?(stored_digest, aicoo_management_credential_digest)
+  end
+
+  def aicoo_basic_authentication_valid?
+    authenticate_with_http_basic do |provided_username, provided_password|
+      aicoo_management_credentials_match?(provided_username, provided_password)
+    end
+  end
+
+  def aicoo_management_username
+    ENV["AICOO_BASIC_AUTH_USERNAME"].to_s
+  end
+
+  def aicoo_management_password
+    ENV["AICOO_BASIC_AUTH_PASSWORD"].to_s
   end
 
   def set_robots_header

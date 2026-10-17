@@ -2,10 +2,10 @@ require "test_helper"
 require "base64"
 
 class AicooManagementAccessTest < ActionDispatch::IntegrationTest
-  test "management screens require basic auth when protection is enabled" do
+  test "management screens offer browser login and keep basic auth compatibility" do
     with_basic_auth_env do
       [
-        dashboard_url,
+        owner_focus_url,
         businesses_url,
         action_candidates_url,
         action_results_url,
@@ -17,11 +17,67 @@ class AicooManagementAccessTest < ActionDispatch::IntegrationTest
         aicoo_setting_url
       ].each do |protected_url|
         get protected_url
-        assert_response :unauthorized, "#{protected_url} should require Basic auth"
+        assert_redirected_to aicoo_login_url(return_to: URI(protected_url).request_uri),
+          "#{protected_url} should redirect browsers to login"
 
         get protected_url, headers: basic_auth_headers("aicoo-admin", "secret-password")
         assert_response :success, "#{protected_url} should be available with Basic auth"
       end
+    end
+  end
+
+  test "browser login authenticates the management session" do
+    with_basic_auth_env do
+      get aicoo_login_url(return_to: aicoo_setting_path)
+      assert_response :success
+      assert_select "form[action='#{aicoo_login_path}']"
+
+      post aicoo_login_url, params: {
+        username: "aicoo-admin",
+        password: "secret-password",
+        return_to: aicoo_setting_path
+      }
+
+      assert_redirected_to aicoo_setting_path
+      get aicoo_setting_url
+      assert_response :success
+    end
+  end
+
+  test "browser login rejects invalid credentials without authenticating the session" do
+    with_basic_auth_env do
+      post aicoo_login_url, params: {
+        username: "aicoo-admin",
+        password: "wrong-password",
+        return_to: aicoo_setting_path
+      }
+
+      assert_response :unprocessable_entity
+      assert_select "[role='alert']", text: /正しくありません/
+
+      get aicoo_setting_url
+      assert_redirected_to aicoo_login_url(return_to: aicoo_setting_path)
+    end
+  end
+
+  test "browser login does not redirect to an external host" do
+    with_basic_auth_env do
+      post aicoo_login_url, params: {
+        username: "aicoo-admin",
+        password: "secret-password",
+        return_to: "//example.com"
+      }
+
+      assert_redirected_to aicoo_setting_path
+    end
+  end
+
+  test "non html management requests keep the basic authentication challenge" do
+    with_basic_auth_env do
+      get aicoo_setting_url(format: :json)
+
+      assert_response :unauthorized
+      assert_equal 'Basic realm="AICOO"', response.headers["WWW-Authenticate"]
     end
   end
 
@@ -31,7 +87,7 @@ class AicooManagementAccessTest < ActionDispatch::IntegrationTest
       "AICOO_BASIC_AUTH_USERNAME" => nil,
       "AICOO_BASIC_AUTH_PASSWORD" => nil
     ) do
-      get dashboard_url
+      get owner_focus_url
 
       assert_response :forbidden
       assert_includes response.body, "AICOO management access is not configured."
@@ -87,7 +143,7 @@ class AicooManagementAccessTest < ActionDispatch::IntegrationTest
     with_basic_auth_env do
       get aicoo_lab_preview_url(landing_page.preview_slug)
 
-      assert_response :unauthorized
+      assert_redirected_to aicoo_login_url(return_to: aicoo_lab_preview_path(landing_page.preview_slug))
     end
   end
 

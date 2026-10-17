@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <title>AICOO ログイン</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="robots" content="noindex,nofollow">
+    <%= csrf_meta_tags %>
+    <%= csp_meta_tag %>
+    <style>
+      :root { color-scheme: light; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      body { min-height: 100vh; margin: 0; display: grid; place-items: center; background: #f4f6f8; color: #18202a; }
+      main { width: min(360px, calc(100% - 32px)); padding: 28px; background: #fff; border: 1px solid #dce2e8; border-radius: 8px; box-shadow: 0 12px 30px rgba(20, 33, 50, .08); }
+      h1 { margin: 0 0 8px; font-size: 24px; }
+      p { margin: 0 0 24px; color: #5b6673; line-height: 1.6; }
+      label { display: block; margin: 16px 0 6px; font-weight: 600; }
+      input { width: 100%; box-sizing: border-box; padding: 11px 12px; border: 1px solid #aeb8c2; border-radius: 6px; font: inherit; }
+      input:focus { outline: 3px solid rgba(25, 103, 210, .18); border-color: #1967d2; }
+      button { width: 100%; margin-top: 22px; padding: 11px 14px; border: 0; border-radius: 6px; background: #1967d2; color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+      .alert { margin: 0 0 16px; padding: 10px 12px; border-radius: 6px; background: #fce8e6; color: #9b1c1c; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>AICOO</h1>
+      <p>管理画面へログインしてください。</p>
+      <% if flash[:alert].present? %>
+        <div class="alert" role="alert"><%= flash[:alert] %></div>
+      <% end %>
+      <%= form_with url: aicoo_login_path, method: :post, data: { turbo: false } do |form| %>
+        <%= hidden_field_tag :return_to, @return_to %>
+        <%= form.label :username, "ユーザー名" %>
+        <%= form.text_field :username, required: true, autofocus: true, autocomplete: "username" %>
+        <%= form.label :password, "パスワード" %>
+        <%= form.password_field :password, required: true, autocomplete: "current-password" %>
+        <%= form.submit "ログイン" %>
+      <% end %>
+    </main>
+  </body>
+</html>
