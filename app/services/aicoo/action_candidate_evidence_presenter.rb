@@ -69,6 +69,7 @@ module Aicoo
 
     def execution_units
       source = Array(action_plan["execution_units"]).presence || Array(metadata["execution_units"])
+      source = shop_data_growth_plan.execution_units if source.blank? && shop_data_growth_plan
       source.map do |unit|
         unit.to_h.deep_stringify_keys
       end
@@ -89,7 +90,10 @@ module Aicoo
     end
 
     def execution_mode
-      action_plan["execution_mode"].presence || action_candidate.execution_mode
+      action_plan["execution_mode"].presence ||
+        metadata["execution_mode"].presence ||
+        ("data_operation" if shop_data_growth_plan) ||
+        action_candidate.execution_mode
     end
 
     def execution_mode_label
@@ -112,7 +116,8 @@ module Aicoo
         evidence["query"].presence && "「#{evidence['query']}」",
         evidence["page_path"],
         evidence["area"].presence && "#{evidence['area']}エリア",
-        evidence["genre"]
+        evidence["genre"],
+        evidence["target_identifier"]
       ].compact_blank.join(" / ").presence || "未特定"
     end
 
@@ -149,7 +154,8 @@ module Aicoo
     def summary
       action_plan["summary"].presence ||
         metadata["concrete_task"].presence ||
-        metadata.dig("decision", "selected", "concrete_task").presence
+        metadata.dig("decision", "selected", "concrete_task").presence ||
+        shop_data_growth_plan&.title
     end
 
     def owner_output
@@ -210,7 +216,14 @@ module Aicoo
     end
 
     def evidence
-      @evidence ||= metadata.fetch("evidence", {}).to_h
+      @evidence ||= begin
+        stored = metadata.fetch("evidence", {}).to_h
+        shop_data_growth_plan ? shop_data_growth_plan.evidence.merge(stored) : stored
+      end
+    end
+
+    def shop_data_growth_plan
+      @shop_data_growth_plan ||= Aicoo::ShopDataGrowthPlan.for_candidate(action_candidate)
     end
 
     def article_candidate?

@@ -29,6 +29,24 @@ class MetricActionCandidateGeneratorTest < ActiveSupport::TestCase
     assert_equal 40, payload.fetch(:total_candidate_count)
   end
 
+  test "shop shortage fallback includes the concrete quantity and target evidence" do
+    generator = MetricActionCandidateGenerator.new(business: @business, today: @today)
+    generator.define_singleton_method(:recent_shop_activity_count) { 0 }
+
+    spec = generator.send(:shop_activity_spec)
+    metadata = generator.send(:candidate_metadata, spec)
+
+    assert_equal "吸えログの優先エリアに店舗データを80件追加する", spec.title
+    assert_includes spec.execution_prompt, "80件追加"
+    assert_equal 80, metadata.fetch("target_amount")
+    assert_equal 0, metadata.fetch("current_value")
+    assert_equal 80, metadata.fetch("benchmark_value")
+    assert_equal "data_operation", metadata.fetch("execution_mode")
+    assert_equal "shop_data", metadata.fetch("target_type")
+    assert_equal 80, metadata.dig("evidence", "target_amount")
+    assert_equal 80, metadata.dig("execution_units", 0, "target_amount")
+  end
+
   test "generic opportunity analyzer creates concrete low ctr opportunity" do
     create_metric_series(default_impressions: 10, recent_impressions: 1_000, default_clicks: 0, recent_clicks: 5)
 

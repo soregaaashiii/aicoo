@@ -305,7 +305,7 @@ module Aicoo
       raw_concrete_task = concrete_task_for(candidate, presenter, action_plan)
       raw_target = target_for(candidate, presenter, action_plan)
       planned_url = planned_url_for(candidate)
-      raw_owner_next_step = owner_next_step_for(presenter, action_plan, owner_action_task)
+      raw_owner_next_step = owner_next_step_for(candidate, presenter, action_plan, owner_action_task)
       concrete_task = raw_concrete_task.presence || candidate.title.presence || "施策内容を確認する"
       target = if article_opportunity
         article_target_for(candidate)
@@ -583,6 +583,8 @@ module Aicoo
     end
 
     def execution_readiness_display_applicable?(candidate, execution_mode)
+      return false if Aicoo::ShopDataGrowthPlan.for_candidate(candidate)
+
       metadata = candidate.metadata.to_h
       candidate.action_type.to_s == "data_preparation" ||
         execution_mode.to_s == "code_revision" ||
@@ -688,6 +690,7 @@ module Aicoo
       text = action_plan["summary"].presence ||
         candidate.metadata.to_h["concrete_task"].presence ||
         candidate.metadata.to_h.dig("decision", "selected", "concrete_task").presence ||
+        presenter.summary.presence ||
         candidate.title.presence
 
       return nil if text.blank?
@@ -742,7 +745,10 @@ module Aicoo
         metadata["work_type"].to_s.in?(%w[new_article new_lp new_category article_create])
     end
 
-    def owner_next_step_for(presenter, action_plan, owner_action_task)
+    def owner_next_step_for(candidate, presenter, action_plan, owner_action_task)
+      shop_data_growth_plan = Aicoo::ShopDataGrowthPlan.for_candidate(candidate)
+      return shop_data_growth_plan.owner_next_step if shop_data_growth_plan
+
       if owner_action_task
         return "実行前レビューを確認して承認する" if lp_generation_plan_task?(owner_action_task)
         return "失敗内容を確認して再実行を判断する" if owner_action_task.status == "failed"

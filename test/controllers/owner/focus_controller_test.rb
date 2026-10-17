@@ -337,6 +337,63 @@ module Owner
       assert_includes candidate.metadata.fetch("today_quality_warnings"), "次の行動要具体化"
     end
 
+    test "legacy shop growth candidate shows a concrete quantity without changing ranking values" do
+      candidate = action_candidates(:nagazakicho_article)
+      candidate.update_columns(
+        title: "吸えログの店舗データを増やす",
+        status: "idea",
+        action_type: "data_preparation",
+        generation_source: "ai_business",
+        immediate_value_yen: 8_000,
+        success_probability: 0.4,
+        evaluation_reason: "metric_rule:early_shop_data_shortage\n店舗数不足: 直近30日のShop Activityがありません。",
+        metadata: { "metric_rule" => Aicoo::ShopDataGrowthPlan::METRIC_RULE },
+        updated_at: Time.current
+      )
+      candidate.reload
+      ranking_values = candidate.attributes.slice(
+        "expected_profit_yen",
+        "final_score",
+        "expected_hours",
+        "success_probability"
+      )
+      expected_value_context = Aicoo::BusinessExpectedValue::BatchContext.new(Business.real_businesses)
+      expected_value_context.define_singleton_method(:suelog_shop_click_inputs) do |start_at:, end_at:|
+        { "source" => "test", "total_clicks" => 0, "start_at" => start_at, "end_at" => end_at }
+      end
+      context_class = Aicoo::BusinessExpectedValue::BatchContext
+      original_new = context_class.method(:new)
+      context_class.define_singleton_method(:new) { |*| expected_value_context }
+
+      begin
+        item = Aicoo::RequestQueryContext.within do
+          Aicoo::TodayActionBoard.new(per_page: 100).call.items.find do |row|
+            row.stable_id == "action_candidate:#{candidate.id}"
+          end
+        end
+
+        assert item
+        assert_equal "吸えログの優先エリアに店舗データを80件追加する", item.concrete_task
+        assert_equal "優先エリアの店舗追加（直近30日 0件 → 目標80件）", item.target
+        assert_equal "優先エリアを1つ決め、そのエリアの店舗データを80件追加する", item.owner_next_step
+        assert_includes item.reason, "80件追加"
+        assert_not_includes item.stopped_reason.to_s, "対象ページ未特定"
+        assert_equal ranking_values, candidate.reload.attributes.slice(*ranking_values.keys)
+
+        get owner_focus_url
+
+        assert_response :success
+        assert_select "tr[data-today-item-id='action_candidate:#{candidate.id}']" do |rows|
+          text = rows.first.text
+          assert_includes text, "店舗データを80件追加する"
+          assert_includes text, "直近30日 0件 → 目標80件"
+          assert_not_includes text, "対象未特定"
+        end
+      ensure
+        context_class.define_singleton_method(:new) { |*args, **kwargs, &block| original_new.call(*args, **kwargs, &block) }
+      end
+    end
+
     test "excludes tabelog target url and broken article path from today ranking" do
       tabelog = create_today_candidate!(
         title: "食べログを改善する",

@@ -297,18 +297,20 @@ class MetricActionCandidateGenerator
     return if recent_shop_activity_count.positive?
     return unless shop_like_business?
 
+    plan = shop_data_growth_plan
+
     CandidateSpec.new(
       key: "early_shop_data_shortage",
-      title: "#{business.name}の店舗データを増やす",
-      description: "店舗追加/更新Activityが少なく、店舗DB型の改善余地があります。",
+      title: plan.title,
+      description: "店舗追加/更新Activityが少ないため、優先エリアの店舗データを#{plan.add_count}件増やします。",
       action_type: "data_preparation",
       immediate_value_yen: estimate_value(8_000),
       success_probability: 0.4,
       strategic_value_score: 45,
       risk_reduction_score: 30,
       expected_hours: 1,
-      evaluation_reason: "店舗数不足: 直近30日のShop Activityがありません。",
-      execution_prompt: "#{business.name}で優先エリアを1つ決め、店舗データの追加・確認済み化・電話/地図導線の整備を行ってください。"
+      evaluation_reason: plan.reason,
+      execution_prompt: "#{plan.owner_next_step}。追加時は重複確認、喫煙情報の確認済み化、電話/地図導線の整備を行い、追加件数と除外件数を記録してください。"
     )
   end
 
@@ -752,6 +754,7 @@ class MetricActionCandidateGenerator
       "confidence_note" => confidence_note,
       "business_type_playbook" => business_type_playbook.call(spec_attributes(spec)).metadata
     }
+    metadata.merge!(shop_data_growth_plan.metadata) if spec.key == Aicoo::ShopDataGrowthPlan::METRIC_RULE
     return metadata unless Aicoo::Serp::OptionalMode.call.missing_key? &&
       Aicoo::DataSourcePolicy.for(business).enabled?(:serp, context: :existing_business_improvement)
 
@@ -759,6 +762,13 @@ class MetricActionCandidateGenerator
       "data_mode" => "internal_only",
       "missing_sources" => [ "serp" ],
       "confidence_penalty" => true
+    )
+  end
+
+  def shop_data_growth_plan
+    @shop_data_growth_plan ||= Aicoo::ShopDataGrowthPlan.new(
+      business_name: business.name,
+      current_count: recent_shop_activity_count
     )
   end
 
