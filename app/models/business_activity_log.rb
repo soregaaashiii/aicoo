@@ -28,6 +28,7 @@ class BusinessActivityLog < ApplicationRecord
   scope :evaluation_due, -> { where(evaluation_status: %w[pending evaluating]) }
 
   after_create :register_activity_evaluation_trigger
+  after_create_commit :sync_shop_data_growth_progress
   after_create_commit :invoke_activity_evaluation_trigger
 
   def self.record!(business:, attributes:)
@@ -121,6 +122,15 @@ class BusinessActivityLog < ApplicationRecord
   private_class_method :creation_provenance, :relative_source_path
 
   private
+
+  def sync_shop_data_growth_progress
+    Aicoo::ShopDataGrowthProgressUpdater.call(activity_log: self)
+  rescue StandardError => e
+    Rails.logger.warn(
+      "[ShopDataGrowthProgress] callback failed activity_log_id=#{id} " \
+      "error=#{e.class}: #{e.message}"
+    )
+  end
 
   def register_activity_evaluation_trigger
     write_activity_evaluation_trigger_chain(

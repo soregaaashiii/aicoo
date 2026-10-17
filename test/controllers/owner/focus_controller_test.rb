@@ -374,9 +374,9 @@ module Owner
 
         assert item
         assert_equal "吸えログの優先エリアに店舗データを80件追加する", item.concrete_task
-        assert_equal "優先エリアの店舗追加（直近30日 0件 → 目標80件）", item.target
-        assert_equal "優先エリアを1つ決め、そのエリアの店舗データを80件追加する", item.owner_next_step
-        assert_includes item.reason, "80件追加"
+        assert_equal "優先エリアの店舗追加（進捗 0/80件・現在0件 → 目標80件）", item.target
+        assert_equal "優先エリアの店舗データを残り80件追加する", item.owner_next_step
+        assert_includes item.reason, "残り80件"
         assert_not_includes item.stopped_reason.to_s, "対象ページ未特定"
         assert_equal ranking_values, candidate.reload.attributes.slice(*ranking_values.keys)
 
@@ -386,7 +386,7 @@ module Owner
         assert_select "tr[data-today-item-id='action_candidate:#{candidate.id}']" do |rows|
           text = rows.first.text
           assert_includes text, "店舗データを80件追加する"
-          assert_includes text, "直近30日 0件 → 目標80件"
+          assert_includes text, "進捗 0/80件"
           assert_not_includes text, "対象未特定"
         end
       ensure

@@ -111,6 +111,8 @@ class MetricActionCandidateGenerator
     return skipped_result("system/internal BusinessのためActionCandidate生成対象外です") if business.system_business?
     return skipped_result("deleted/rejected BusinessのためActionCandidate生成対象外です") if business.action_candidate_generation_blocked?
 
+    Aicoo::ShopDataGrowthProgressUpdater.sync_business!(business)
+
     suelog_result = suelog_site_insights_result
     return suelog_result if suelog_result&.created_count.to_i.positive?
     skipped_reasons.concat(Array(suelog_result.skipped)) if suelog_result

@@ -137,11 +137,17 @@ class ActionCandidate < ApplicationRecord
     status == "done" || action_result.present? || action_execution&.status == "completed"
   end
 
-  def mark_executed!(executed_by: "owner", executed_at: Time.current, registered_count: nil)
+  def mark_executed!(
+    executed_by: "owner",
+    executed_at: Time.current,
+    registered_count: nil,
+    completion_source: "action_candidate_detail",
+    result_summary: "施策詳細から実行済みにしました。"
+  )
     transaction do
       execution = ensure_action_execution!
       execution.complete!(
-        result_summary: "施策詳細から実行済みにしました。"
+        result_summary:
       ) unless execution.status == "completed"
 
       completion_context = Aicoo::ActionCandidateCompletionContext.call(self)
@@ -152,9 +158,9 @@ class ActionCandidate < ApplicationRecord
         executed_on: executed_at.to_date,
         evaluated_on: executed_at.to_date,
         evaluation_status: "pending",
-        note: "施策詳細から実行済みにしました。詳細評価は未入力です。",
+        note: "#{result_summary} 詳細評価は未入力です。",
         metadata: {
-          "marked_executed_from" => "action_candidate_detail",
+          "marked_executed_from" => completion_source,
           "executed_by" => executed_by,
           "executed_at" => executed_at.iso8601,
           "learning_track" => "action_candidate",
@@ -168,7 +174,7 @@ class ActionCandidate < ApplicationRecord
           "executed" => true,
           "executed_at" => executed_at.iso8601,
           "executed_by" => executed_by,
-          "execution_record_source" => "action_candidate_detail"
+          "execution_record_source" => completion_source
         )
       )
       Aicoo::OpportunityProgressUpdater.call(self)

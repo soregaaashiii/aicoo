@@ -31,11 +31,12 @@ module Aicoo
     attr_reader :candidate, :metadata
 
     def article_records
-      return [] unless defined?(::Suelog::Article)
-
       keys = %w[article_id target_article_id source_article_id article_ids target_article_ids]
       keys << "target_record_id" if candidate.action_type.to_s.match?(/article|seo/)
       ids = resource_ids(keys)
+      return [] if ids.empty?
+      return [] unless suelog_model_available?(::Suelog::Article)
+
       ::Suelog::Article.where(id: ids).to_a
     rescue StandardError => e
       Rails.logger.warn("[ActionCandidateLearning] article context unavailable candidate_id=#{candidate.id} error=#{e.class}: #{e.message}")
@@ -43,11 +44,12 @@ module Aicoo
     end
 
     def shop_records
-      return [] unless defined?(::Suelog::Shop)
-
       keys = %w[shop_id target_shop_id source_shop_id shop_ids target_shop_ids]
       keys << "target_record_id" if candidate.action_type.to_s.match?(/shop|smoking/)
       ids = resource_ids(keys)
+      return [] if ids.empty?
+      return [] unless suelog_model_available?(::Suelog::Shop)
+
       ::Suelog::Shop.where(id: ids).to_a
     rescue StandardError => e
       Rails.logger.warn("[ActionCandidateLearning] shop context unavailable candidate_id=#{candidate.id} error=#{e.class}: #{e.message}")
@@ -62,6 +64,16 @@ module Aicoo
         values.concat(Array(value))
       end
       values.filter_map { |value| value.to_s if value.to_s.match?(/\A\d+\z/) }.uniq
+    end
+
+    def suelog_model_available?(model)
+      SuelogRecord.configured? && model.table_exists?
+    rescue StandardError => e
+      Rails.logger.warn(
+        "[ActionCandidateLearning] external model unavailable model=#{model.name} " \
+        "error=#{e.class}: #{e.message}"
+      )
+      false
     end
 
     def metadata_value(keys)

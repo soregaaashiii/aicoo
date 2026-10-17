@@ -218,7 +218,7 @@ module Aicoo
     def evidence
       @evidence ||= begin
         stored = metadata.fetch("evidence", {}).to_h
-        shop_data_growth_plan ? shop_data_growth_plan.evidence.merge(stored) : stored
+        shop_data_growth_plan ? stored.merge(shop_data_growth_plan.evidence) : stored
       end
     end
 
