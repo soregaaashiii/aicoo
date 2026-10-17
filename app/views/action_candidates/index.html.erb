@@ -15,7 +15,6 @@
              description: "事業フォルダをまたいで比較する、行動単位の候補一覧です。",
              active_main: :revenue,
              actions: header_actions %>
-  <%= render "shared/aicoo_execution_tabs", active: :today %>
 
 <%= form_with url: action_candidates_path, method: :get, class: "filters" do |form| %>
   <div class="field compact-field">

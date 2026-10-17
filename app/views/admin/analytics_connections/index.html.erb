@@ -26,10 +26,6 @@
       最終OAuth接続:
       <%= @google_oauth_status[:latest_connected_at] ? l(@google_oauth_status[:latest_connected_at], format: :short) : "-" %>
     </p>
-    <div class="actions compact-actions">
-      <%= link_to "Google認証を管理", admin_google_credentials_path, class: "button" %>
-      <%= link_to "Googleと接続", admin_analytics_oauth_connect_path, class: "button secondary" %>
-    </div>
   </div>
 </section>
 </div>

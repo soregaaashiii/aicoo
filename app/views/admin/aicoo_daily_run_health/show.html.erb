@@ -11,7 +11,6 @@
              description: "Render Cronで実行されたDaily Runが本当に動いたか、AICOO内のDB記録だけで確認します。",
              active_main: :dashboard,
              actions: header_actions %>
-  <%= render "shared/aicoo_execution_tabs", active: :dashboard %>
 
   <% if @cron_health.warnings.any? %>
     <section class="dashboard-section danger">

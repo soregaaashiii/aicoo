@@ -4,10 +4,7 @@
              title: "Lovable Pipeline",
              description: "公式Build with URL、Prompt、Preview、Version、Codex公開、Learningを確認します。",
              active_main: :lab,
-             actions: safe_join([
-               link_to("Build URL確認", admin_lovable_path(probe: 1), class: "button"),
-               link_to("LP Learning", admin_aicoo_lab_lp_learning_path, class: "button secondary")
-             ]) %>
+             actions: link_to("Build URL確認", admin_lovable_path(probe: 1), class: "button") %>
 
   <section class="dashboard-section">
     <div class="metric-grid">

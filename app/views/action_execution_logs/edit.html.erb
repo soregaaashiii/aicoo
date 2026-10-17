@@ -10,7 +10,6 @@
              description: "提案と実行の差分記録を更新します。",
              active_main: :revenue,
              actions: header_actions %>
-  <%= render "shared/aicoo_execution_tabs", active: :today %>
 
   <section class="dashboard-section">
     <%= render "form", action_execution_log: @action_execution_log %>

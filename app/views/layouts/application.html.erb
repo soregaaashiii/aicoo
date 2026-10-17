@@ -28,16 +28,21 @@
   <body class="<%= content_for(:body_class) %>" <%= 'data-aicoo-settings-navigation="true"'.html_safe if aicoo_settings_navigation_request? %>>
     <header class="app-header aicoo-global-header">
       <div class="aicoo-brand-block">
-        <%= link_to "AICOO", aicoo_mode_home_path, class: "brand" %>
+        <span class="brand">AICOO</span>
         <p><%= aicoo_mode_label %> / <%= aicoo_mode_description %></p>
       </div>
 
       <nav class="aicoo-mode-nav" aria-label="Mode navigation">
-        <%= link_to owner_dashboard_path, class: ["aicoo-mode-pill", ("active" if aicoo_ceo_mode?)] do %>
-          CEOモード<br><small>今日動く</small>
-        <% end %>
-        <%= link_to aicoo_daily_runs_path, class: ["aicoo-mode-pill", ("active" unless aicoo_ceo_mode?)] do %>
-          システムモード<br><small>監視室</small>
+        <% if aicoo_ceo_mode? %>
+          <span class="aicoo-mode-pill active" aria-current="page">CEOモード<br><small>今日動く</small></span>
+          <%= link_to aicoo_daily_runs_path, class: "aicoo-mode-pill" do %>
+            システムモード<br><small>監視室</small>
+          <% end %>
+        <% else %>
+          <%= link_to owner_dashboard_path, class: "aicoo-mode-pill" do %>
+            CEOモード<br><small>今日動く</small>
+          <% end %>
+          <span class="aicoo-mode-pill active" aria-current="page">システムモード<br><small>監視室</small></span>
         <% end %>
       </nav>
 
@@ -89,12 +94,12 @@
             <% if index == aicoo_breadcrumb_items.size - 1 %>
               <strong><%= item[:label] %></strong>
             <% else %>
-              <%= link_to item[:label], item[:path] %>
+              <span><%= item[:label] %></span>
             <% end %>
           <% end %>
         </nav>
 
-        <%= render "shared/aicoo_settings_navigation" if aicoo_settings_navigation_request? %>
+        <%= render "shared/aicoo_settings_navigation" if aicoo_settings_detail_navigation_request? %>
 
         <div class="aicoo-flash-stack" aria-live="polite">
           <% if content_for?(:aicoo_primary_status) %>

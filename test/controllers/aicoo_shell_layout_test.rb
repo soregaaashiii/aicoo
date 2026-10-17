@@ -31,10 +31,13 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "現在位置"
     assert_select "a[href='#{admin_serp_settings_path}']", text: /新規事業探索/
     assert_select "a[href='#{owner_auto_revision_loop_path}']", text: /運用状況/
-    assert_select ".aicoo-mode-nav a", count: 2
+    assert_select ".aicoo-mode-nav a", count: 1
+    assert_select ".aicoo-mode-nav [aria-current='page']", text: /CEOモード/
     assert_select ".aicoo-mode-nav a[href='#{businesses_path}']", count: 0
-    assert_select ".aicoo-ceo-header .aicoo-sub-tabs a[href='#{businesses_path}']", text: "事業一覧"
+    assert_select ".aicoo-ceo-header nav", count: 0
+    assert_select ".aicoo-sidebar a[href='#{businesses_path}']", count: 1
     assert_select ".aicoo-ceo-header .aicoo-mode-switch", count: 0
+    assert_select ".aicoo-breadcrumb a", count: 0
     assert_not_includes response.body, "システムモードへ"
   end
 
@@ -56,17 +59,19 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "データ基盤"
     assert_includes response.body, "期待値補正"
     assert_includes response.body, "判断精度"
-    assert_includes response.body, "AI予算"
+    assert_not_select ".aicoo-sidebar", text: /AI予算/
     assert_includes response.body, "外部DB連携"
     assert_includes response.body, "全体設定"
-    assert_includes response.body, "実行先設定"
-    assert_includes response.body, "Codexルール"
+    assert_not_select ".aicoo-sidebar", text: /実行先設定/
+    assert_not_select ".aicoo-sidebar", text: /Codexルール/
     assert_not_includes response.body, "今日どの事業を進めるか"
     assert_includes response.body, "現在位置"
-    assert_select ".aicoo-mode-nav a", count: 2
+    assert_select ".aicoo-mode-nav a", count: 1
+    assert_select ".aicoo-mode-nav [aria-current='page']", text: /システムモード/
     assert_select ".aicoo-system-header .aicoo-mode-switch", count: 0
+    assert_select ".aicoo-system-header nav", count: 0
+    assert_select ".aicoo-breadcrumb a", count: 0
     assert_not_includes response.body, "CEOモードへ"
-    assert_select ".aicoo-system-header .aicoo-tabs a[href='#{owner_dashboard_path}']", count: 0
   end
 
   test "operation status panel is limited to the daily run index" do
@@ -152,7 +157,8 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select ".aicoo-sidebar-child.active strong", text: "全体設定"
-    assert_select ".aicoo-system-header .aicoo-tab.active strong", text: "全体設定"
+    assert_select ".aicoo-system-header nav", count: 0
+    assert_select ".aicoo-settings-navigation .aicoo-sub-tab.active", text: "Cloudflare"
     assert_select "body[data-aicoo-settings-navigation='true']"
   end
 
@@ -173,7 +179,10 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
       admin_lovable_url,
       admin_aicoo_lab_lp_learning_url,
       admin_aicoo_daily_run_settings_url,
-      admin_aicoo_auto_revision_settings_url
+      admin_aicoo_auto_revision_settings_url,
+      admin_aicoo_resource_budget_url,
+      admin_business_execution_profiles_url,
+      admin_codex_prompt_rules_url
     ].each do |url|
       get url
 
@@ -193,14 +202,70 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select ".aicoo-settings-navigation" do
-      assert_select "a[href='#{aicoo_setting_path}']", text: "全体設定"
+      assert_select "a[href='#{aicoo_setting_path}']", count: 0
       assert_select "a[href='#{admin_cloudflare_connection_path}']", text: "Cloudflare"
       assert_select "a[href='#{admin_analytics_connections_path}']", text: "GA4 / GSC"
       assert_select "a[href='#{admin_analytics_sites_path}']", text: "サイト別GA4/GSC"
       assert_select "a[href='#{admin_google_credentials_path}']", text: "Google連携"
       assert_select "a[href='#{admin_lovable_path}']", text: "GitHub / Webhook / Lovable"
       assert_select "a[href='#{admin_aicoo_lab_lp_learning_path}']", text: "Learning"
+      assert_select "a[href='#{admin_aicoo_daily_run_settings_path}']", text: "Daily Run設定"
+      assert_select "a[href='#{admin_aicoo_auto_revision_settings_path}']", text: "自動改修設定"
+      assert_select "a[href='#{admin_aicoo_resource_budget_path}']", text: "AI予算"
+      assert_select "a[href='#{admin_business_execution_profiles_path}']", text: "実行先"
+      assert_select "a[href='#{admin_codex_prompt_rules_path}']", text: "Codexルール"
     end
+  end
+
+  test "global settings overview uses cards instead of duplicate local tabs" do
+    get aicoo_setting_url
+
+    assert_response :success
+    assert_select ".aicoo-settings-navigation", count: 0
+    assert_select ".aicoo-sidebar a[href='#{aicoo_setting_path}']", count: 1
+  end
+
+  test "each navigation destination has one owner and breadcrumbs are location only" do
+    [
+      owner_focus_url,
+      aicoo_daily_runs_url,
+      admin_business_activity_logs_url,
+      aicoo_setting_url,
+      admin_cloudflare_connection_url,
+      admin_aicoo_revenue_url
+    ].each do |url|
+      get url
+
+      assert_response :success
+      hrefs = css_select(
+        ".aicoo-mode-nav a, #aicoo-sidebar a, .aicoo-settings-navigation a, .aicoo-revenue-tabs a"
+      ).filter_map { |node| node["href"] }
+      assert_equal hrefs.uniq, hrefs, "#{url} has duplicate navigation destinations"
+      assert_select ".aicoo-breadcrumb a", count: 0
+    end
+  end
+
+  test "activity logs do not expose shortcuts to other system features" do
+    get admin_business_activity_logs_url
+
+    assert_response :success
+    assert_select ".aicoo-system-header nav", count: 0
+    assert_select ".aicoo-revenue-tabs", count: 0
+    assert_select "a[href='#{aicoo_daily_runs_path}']", count: 1
+    assert_select "a[href='#{admin_aicoo_datahub_path}']", count: 1
+    assert_select "a[href='#{admin_aicoo_judge_path}']", count: 0
+    assert_select "a[href='#{judge_action_predictions_path}']", count: 1
+    assert_select "a[href='#{aicoo_setting_path}']", count: 1
+  end
+
+  test "revenue tabs stay inside the revenue feature" do
+    get aicoo_daily_runs_url
+    assert_response :success
+    assert_select ".aicoo-revenue-tabs", count: 0
+
+    get admin_aicoo_revenue_url
+    assert_response :success
+    assert_select ".aicoo-revenue-tabs[aria-label='Revenue内ナビゲーション'] a", count: 4
   end
 
   test "business pages use the ceo shell" do
@@ -210,7 +275,8 @@ class AicooShellLayoutTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "CEOモード"
     assert_select ".aicoo-ceo-header"
     assert_select ".aicoo-system-header", count: 0
-    assert_select ".aicoo-ceo-header .aicoo-sub-tab.active", text: "事業一覧"
+    assert_select ".aicoo-ceo-header nav", count: 0
+    assert_select ".aicoo-sidebar-child.active", text: /事業一覧/
     assert_includes response.body, "事業一覧"
     assert_includes response.body, "Google連携"
     assert_includes response.body, "現在位置"

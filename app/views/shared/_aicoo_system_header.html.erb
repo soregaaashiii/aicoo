@@ -1,22 +1,3 @@
-<% active_main = local_assigns.fetch(:active_main, nil).to_s %>
-<% active_main = if aicoo_settings_navigation_request?
-                   "settings"
-                 elsif request.path.start_with?("/aicoo_daily_runs", "/admin/aicoo_daily_run_health")
-                   "daily_run"
-                 elsif request.path.start_with?("/admin/aicoo_datahub", "/business_metric_dailies")
-                   "datahub"
-                 elsif request.path.start_with?("/judge", "/admin/aicoo_judge", "/department_rankings", "/admin/aicoo/calibration")
-                   "judge"
-                 else
-                   active_main
-                 end %>
-<% main_tabs = [
-  { key: "daily_run", label: "日次実行", description: "実行履歴と停止原因", path: aicoo_daily_runs_path },
-  { key: "datahub", label: "実績データ", description: "PV・CV・収益などの事実", path: admin_aicoo_datahub_path },
-  { key: "judge", label: "判断精度", description: "予測精度を確認する", path: admin_aicoo_judge_path },
-  { key: "settings", label: "全体設定", description: "連携・予算・実行設定", path: aicoo_setting_path }
-] %>
-
 <header class="aicoo-header aicoo-system-header">
   <div class="aicoo-header-main">
     <div>
@@ -32,13 +13,4 @@
     </div>
   </div>
 
-  <nav class="aicoo-tabs" aria-label="AICOOシステムナビゲーション">
-    <% main_tabs.each do |tab| %>
-      <% active = active_main == tab[:key] %>
-      <%= link_to tab[:path], class: "aicoo-tab#{' active' if active}", aria: (active ? { current: "page" } : nil) do %>
-        <strong><%= tab[:label] %></strong>
-        <span><%= tab[:description] %></span>
-      <% end %>
-    <% end %>
-  </nav>
 </header>

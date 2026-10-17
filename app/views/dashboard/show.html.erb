@@ -11,7 +11,6 @@
              description: "AICOO自身の監視室です。Snapshotを読むだけの軽量表示で、Health・連携・Pipeline・Queue・Learningを確認します。",
              active_main: :dashboard,
              actions: header_actions %>
-  <%= render "shared/aicoo_execution_tabs", active: :dashboard %>
 
   <section class="dashboard-section">
     <% if @daily_run_system_status %>

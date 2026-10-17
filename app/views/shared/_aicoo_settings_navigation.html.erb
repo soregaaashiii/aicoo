@@ -1,11 +1,15 @@
 <% settings_navigation_items = [
-  { label: "全体設定", path: aicoo_setting_path, active_paths: [ "/aicoo_setting", "/admin/aicoo_daily_run_settings", "/admin/aicoo_auto_revision_settings" ] },
   { label: "Cloudflare", path: admin_cloudflare_connection_path, active_paths: [ "/admin/cloudflare_connection" ] },
   { label: "GA4 / GSC", path: admin_analytics_connections_path, active_paths: [ "/admin/analytics_connections" ] },
   { label: "サイト別GA4/GSC", path: admin_analytics_sites_path, active_paths: [ "/admin/analytics_sites" ] },
   { label: "Google連携", path: admin_google_credentials_path, active_paths: [ "/admin/google_credentials", "/admin/google_api_imports", "/admin/analytics_sources", "/admin/analytics_imports" ] },
   { label: "GitHub / Webhook / Lovable", path: admin_lovable_path, active_paths: [ "/admin/lovable" ] },
-  { label: "Learning", path: admin_aicoo_lab_lp_learning_path, active_paths: [ "/admin/aicoo_lab/lp_learning" ] }
+  { label: "Learning", path: admin_aicoo_lab_lp_learning_path, active_paths: [ "/admin/aicoo_lab/lp_learning" ] },
+  { label: "Daily Run設定", path: admin_aicoo_daily_run_settings_path, active_paths: [ "/admin/aicoo_daily_run_settings" ] },
+  { label: "自動改修設定", path: admin_aicoo_auto_revision_settings_path, active_paths: [ "/admin/aicoo_auto_revision_settings" ] },
+  { label: "AI予算", path: admin_aicoo_resource_budget_path, active_paths: [ "/admin/aicoo_resource_budget" ] },
+  { label: "実行先", path: admin_business_execution_profiles_path, active_paths: [ "/admin/business_execution_profiles" ] },
+  { label: "Codexルール", path: admin_codex_prompt_rules_path, active_paths: [ "/admin/codex_prompt_rules" ] }
 ] %>
 
 <nav class="aicoo-sub-tabs aicoo-settings-navigation" aria-label="全体設定内ナビゲーション">

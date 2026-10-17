@@ -10,7 +10,7 @@ class ApplicationController < ActionController::Base
   before_action :load_daily_run_execution_status
   before_action :load_long_running_operation_monitor
 
-  helper_method :aicoo_settings_navigation_request?, :operation_status_panel_visible_for_request?
+  helper_method :aicoo_settings_navigation_request?, :aicoo_settings_detail_navigation_request?, :operation_status_panel_visible_for_request?
 
   # Changes to the importmap will invalidate the etag for HTML responses
   stale_when_importmap_changes
@@ -134,7 +134,10 @@ class ApplicationController < ActionController::Base
       "aicoo_settings",
       "admin/aicoo_auto_revision_settings",
       "admin/aicoo_daily_run_settings",
+      "admin/aicoo_resource_budgets",
+      "admin/business_execution_profiles",
       "admin/cloudflare_connections",
+      "admin/codex_prompt_rules",
       "admin/analytics_connections",
       "admin/analytics_imports",
       "admin/analytics_sites",
@@ -144,6 +147,10 @@ class ApplicationController < ActionController::Base
       "admin/lovable",
       "admin/aicoo_lab/lp_learning"
     ])
+  end
+
+  def aicoo_settings_detail_navigation_request?
+    aicoo_settings_navigation_request? && controller_path != "aicoo_settings"
   end
 
   def owner_focus_path?

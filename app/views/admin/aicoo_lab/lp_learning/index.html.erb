@@ -3,8 +3,7 @@
   <%= render "shared/aicoo_header",
              title: "LP Learning",
              description: "Lovable VersionごとのCVR、ROI、Prompt、変更内容と実績を比較します。",
-             active_main: :lab,
-             actions: link_to("Lovable接続", admin_lovable_path, class: "button secondary") %>
+             active_main: :lab %>
   <% @business_summaries.each do |business_id, comparison| %>
     <% business = comparison.current&.business %>
     <% next unless business %>

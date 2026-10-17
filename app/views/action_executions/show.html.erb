@@ -20,7 +20,6 @@
              mode: :ceo,
              active_main: :revenue,
              actions: header_actions %>
-  <%= render "shared/aicoo_execution_tabs", active: :today %>
 
   <% stop_reason =
        case @action_execution.status

@@ -131,13 +131,10 @@ module AicooNavigationHelper
     return :system_datahub if path.start_with?("/admin/aicoo_datahub", "/business_metric_dailies")
     return :system_calibration if path.start_with?("/admin/aicoo/calibration")
     return :system_judge if path.start_with?("/judge", "/admin/aicoo_judge", "/department_rankings")
-    return :system_resource_budget if path.start_with?("/admin/aicoo_resource_budget")
     return :system_source_app if path.start_with?("/admin/source_app_connections", "/admin/source_app_diff_rules")
     return :system_codex_connection if path.start_with?("/admin/codex_connection")
     return :system_approval_logs if path.start_with?("/admin/approval_logs")
-    return :system_execution_profiles if path.start_with?("/admin/business_execution_profiles")
-    return :system_codex_rules if path.start_with?("/admin/codex_prompt_rules")
-    return :system_settings if path.start_with?("/aicoo_setting", "/admin/aicoo_daily_run_settings", "/admin/aicoo_auto_revision_settings", "/admin/cloudflare_connection")
+    return :system_settings if path.start_with?("/aicoo_setting", "/admin/aicoo_daily_run_settings", "/admin/aicoo_auto_revision_settings", "/admin/aicoo_resource_budget", "/admin/business_execution_profiles", "/admin/cloudflare_connection", "/admin/codex_prompt_rules")
 
     :system_daily_runs
   end
@@ -293,13 +290,10 @@ module AicooNavigationHelper
           { key: :system_datahub, label: "データ基盤", description: "収集データ確認", path: admin_aicoo_datahub_path, matchers: [ %r{\A/admin/aicoo_datahub}, %r{\A/business_metric_dailies} ] },
           { key: :system_calibration, label: "期待値補正", description: "判断の補正", path: admin_aicoo_calibration_path, matchers: [ %r{\A/admin/aicoo/calibration} ] },
           { key: :system_judge, label: "判断精度", description: "AI判断の成績", path: judge_action_predictions_path, matchers: [ %r{\A/judge}, %r{\A/admin/aicoo_judge}, %r{\A/department_rankings} ] },
-          { key: :system_resource_budget, label: "AI予算", description: "AI予算とBuild制御", path: admin_aicoo_resource_budget_path, matchers: [ %r{\A/admin/aicoo_resource_budget} ] },
           { key: :system_source_app, label: "外部DB連携", description: "外部DB差分検知", path: admin_source_app_connections_path, matchers: [ %r{\A/admin/source_app_(connections|diff_rules)} ] },
           { key: :system_codex_connection, label: "Codex連携", description: "GitHub/PR連携", path: admin_codex_connection_path, matchers: [ %r{\A/admin/codex_connection} ] },
           { key: :system_approval_logs, label: "操作履歴", description: "承認・操作ログ", path: admin_approval_logs_path, matchers: [ %r{\A/admin/approval_logs} ] },
-          { key: :system_settings, label: "全体設定", description: "AICOO設定", path: aicoo_setting_path, matchers: [ %r{\A/aicoo_setting}, %r{\A/admin/(aicoo_daily_run_settings|aicoo_auto_revision_settings|cloudflare_connection)} ] },
-          { key: :system_execution_profiles, label: "実行先設定", description: "実行環境の設定", path: admin_business_execution_profiles_path, matchers: [ %r{\A/admin/business_execution_profiles} ] },
-          { key: :system_codex_rules, label: "Codexルール", description: "Prompt共通ルール", path: admin_codex_prompt_rules_path, matchers: [ %r{\A/admin/codex_prompt_rules} ] }
+          { key: :system_settings, label: "全体設定", description: "連携・予算・実行設定", path: aicoo_setting_path, matchers: [ %r{\A/aicoo_setting}, %r{\A/admin/(aicoo_daily_run_settings|aicoo_auto_revision_settings|aicoo_resource_budget|business_execution_profiles|cloudflare_connection|codex_prompt_rules)} ] }
         ]
       }
     ]

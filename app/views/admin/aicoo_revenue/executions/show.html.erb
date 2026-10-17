@@ -13,7 +13,7 @@
              description: "今日やるべきことの推薦、実行判断、実績、元データ状態を確認します。",
              active_main: :revenue,
              actions: header_actions %>
-  <%= render "shared/aicoo_execution_tabs", active: active_execution_tab %>
+  <%= render "shared/aicoo_revenue_tabs", active: active_execution_tab %>
 
 <% if @execution.status == "done" && @execution.action_candidate_source? && @execution.source_status != "done" %>
   <section class="dashboard-section">
