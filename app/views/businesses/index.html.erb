@@ -269,35 +269,17 @@
               <%= link_to "編集", edit_business_path(business), class: "button secondary" %>
               <%= link_to "Data Source紐付け", edit_business_path(business, anchor: "data-source-link-settings"), class: "button secondary" %>
               <% if business.resource_status == "paused" %>
-                <%= link_to "再開",
-                            update_resource_status_business_path(
-                              business,
-                              resource_status: "active",
-                              reason: "事業一覧からOwner操作で再開",
-                              return_to: businesses_path(tab: "businesses", filter: params[:filter])
-                            ),
-                            class: "button secondary",
-                            data: {
-                              turbo_method: :patch,
-                              turbo_confirm: "「#{business.name}」を再開しますか？",
-                              business_operation: "resume",
-                              business_id: business.id
-                            } %>
+                <%= button_tag "再開",
+                               type: "submit",
+                               form: dom_id(business, :resource_status),
+                               class: "button secondary",
+                               data: { business_operation: "resume", business_id: business.id } %>
               <% elsif business.resource_status != "archived" %>
-                <%= link_to "停止",
-                            update_resource_status_business_path(
-                              business,
-                              resource_status: "paused",
-                              reason: "事業一覧からOwner操作で停止",
-                              return_to: businesses_path(tab: "businesses", filter: params[:filter])
-                            ),
-                            class: "button secondary",
-                            data: {
-                              turbo_method: :patch,
-                              turbo_confirm: "「#{business.name}」を停止しますか？\n事業と関連データは削除されません。",
-                              business_operation: "pause",
-                              business_id: business.id
-                            } %>
+                <%= button_tag "停止",
+                               type: "submit",
+                               form: dom_id(business, :resource_status),
+                               class: "button secondary",
+                               data: { business_operation: "pause", business_id: business.id } %>
               <% end %>
               <%= link_to "削除",
                           business_path(business, deletion_reason: "その他"),
@@ -320,6 +302,23 @@
     </tbody>
   </table>
 </div>
+<% end %>
+<% @businesses.each do |business| %>
+  <% next if business.resource_status == "archived" %>
+  <% resuming = business.resource_status == "paused" %>
+  <%= form_with url: update_resource_status_business_path(business),
+                method: :patch,
+                local: true,
+                html: { id: dom_id(business, :resource_status) },
+                data: {
+                  turbo_confirm: resuming ? "「#{business.name}」を再開しますか？" : "「#{business.name}」を停止しますか？\n事業と関連データは削除されません。",
+                  business_operation: resuming ? "resume" : "pause",
+                  business_id: business.id
+                } do %>
+    <%= hidden_field_tag :resource_status, resuming ? "active" : "paused" %>
+    <%= hidden_field_tag :reason, resuming ? "事業一覧からOwner操作で再開" : "事業一覧からOwner操作で停止" %>
+    <%= hidden_field_tag :return_to, businesses_path(tab: "businesses", filter: params[:filter]) %>
+  <% end %>
 <% end %>
 </div>
 <% end %>

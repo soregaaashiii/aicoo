@@ -582,8 +582,17 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Resource"
     assert_includes response.body, "Watch"
     assert_includes response.body, "次回"
-    assert_select "a[data-business-operation=pause][data-business-id=?][data-turbo-method=patch]", @business.id.to_s,
-                  text: "停止", count: 1
+    form_id = ActionView::RecordIdentifier.dom_id(@business, :resource_status)
+    assert_includes response.body, %(form="#{form_id}")
+    button_html = response.body[/<button[^>]*data-business-operation="pause"[^>]*data-business-id="#{@business.id}"[^>]*>停止<\/button>/]
+    assert button_html, "停止ボタンが見つかりません"
+    assert_includes button_html, %(form="#{form_id}")
+    form_html = response.body[/<form[^>]*id="#{form_id}"[^>]*>.*?<\/form>/m]
+    assert form_html, "停止フォームが見つかりません"
+    assert_includes form_html, 'method="post"'
+    assert_includes form_html, %(action="#{update_resource_status_business_path(@business)}")
+    assert_match(/<input[^>]*name="_method"[^>]*value="patch"/, form_html)
+    assert_match(/<input[^>]*name="resource_status"[^>]*value="paused"/, form_html)
   end
 
   test "stops a business from the index without deleting the business or related data" do
@@ -617,8 +626,17 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     get businesses_url
 
     assert_response :success
-    assert_select "a[data-business-operation=resume][data-business-id=?][data-turbo-method=patch]", @business.id.to_s,
-                  text: "再開", count: 1
+    form_id = ActionView::RecordIdentifier.dom_id(@business, :resource_status)
+    assert_includes response.body, %(form="#{form_id}")
+    button_html = response.body[/<button[^>]*data-business-operation="resume"[^>]*data-business-id="#{@business.id}"[^>]*>再開<\/button>/]
+    assert button_html, "再開ボタンが見つかりません"
+    assert_includes button_html, %(form="#{form_id}")
+    form_html = response.body[/<form[^>]*id="#{form_id}"[^>]*>.*?<\/form>/m]
+    assert form_html, "再開フォームが見つかりません"
+    assert_includes form_html, 'method="post"'
+    assert_includes form_html, %(action="#{update_resource_status_business_path(@business)}")
+    assert_match(/<input[^>]*name="_method"[^>]*value="patch"/, form_html)
+    assert_match(/<input[^>]*name="resource_status"[^>]*value="active"/, form_html)
 
     patch update_resource_status_business_url(@business), params: {
       resource_status: "active",
