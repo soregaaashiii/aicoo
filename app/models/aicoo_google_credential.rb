@@ -7,14 +7,26 @@ class AicooGoogleCredential < ApplicationRecord
   validates :name, presence: true
 
   scope :enabled, -> { where(enabled: true) }
+  scope :with_oauth_client, -> { where.not(client_id: [ nil, "" ]).where.not(client_secret: [ nil, "" ]) }
   scope :recent, -> { order(created_at: :desc) }
 
   def self.default
-    Aicoo::RequestQueryContext.default_google_credential { enabled.recent.first }
+    Aicoo::RequestQueryContext.default_google_credential do
+      enabled.with_oauth_client.recent.first || enabled.recent.first
+    end
+  end
+
+  def self.preferred(records)
+    enabled_records = Array(records).select(&:enabled?)
+    enabled_records.select(&:oauth_client_configured?).max_by(&:created_at) || enabled_records.max_by(&:created_at)
   end
 
   def connected?
     client_id.present? && client_secret.present? && refresh_token.present?
+  end
+
+  def oauth_client_configured?
+    client_id.present? && client_secret.present?
   end
 
   def reauthentication_required?

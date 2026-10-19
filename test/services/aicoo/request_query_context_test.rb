@@ -25,6 +25,26 @@ module Aicoo
       assert_operator matching_query_count(sql, "aicoo_google_credentials"), :<=, 1
     end
 
+    test "prefers a saved oauth client over a newer blank credential" do
+      AicooGoogleCredential.update_all(enabled: false)
+      configured = AicooGoogleCredential.create!(
+        name: "保存済みGoogle認証",
+        client_id: "saved-client",
+        client_secret: "saved-secret",
+        enabled: true,
+        created_at: 2.days.ago
+      )
+      AicooGoogleCredential.create!(
+        name: "空のGoogle認証",
+        enabled: true,
+        created_at: 1.day.ago
+      )
+
+      selected = RequestQueryContext.within { AicooGoogleCredential.default }
+
+      assert_equal configured, selected
+    end
+
     test "reuses a generated fallback for a missing cost profile" do
       sql = capture_sql do
         RequestQueryContext.within do

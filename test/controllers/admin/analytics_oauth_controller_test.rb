@@ -32,6 +32,33 @@ module Admin
       assert_includes flash[:notice], "Google Credential ID:"
     end
 
+    test "connect keeps using a saved oauth client when a newer blank credential exists" do
+      AicooGoogleCredential.update_all(enabled: false)
+      configured = AicooGoogleCredential.create!(
+        name: "保存済みGoogle認証",
+        client_id: "saved-client",
+        client_secret: "saved-secret",
+        enabled: true,
+        created_at: 2.days.ago
+      )
+      AicooGoogleCredential.create!(
+        name: "空のGoogle認証",
+        enabled: true,
+        created_at: 1.day.ago
+      )
+
+      with_google_env("GOOGLE_CLIENT_ID" => nil, "GOOGLE_CLIENT_SECRET" => nil) do
+        get admin_analytics_oauth_connect_url
+      end
+
+      assert_response :redirect
+      uri = URI.parse(response.location)
+      oauth_params = Rack::Utils.parse_nested_query(uri.query)
+      assert_equal "accounts.google.com", uri.host
+      assert_equal "saved-client", oauth_params["client_id"]
+      assert_equal configured.id, session[:analytics_oauth_google_credential_id]
+    end
+
     test "connect from business google settings records business context and exact oauth url" do
       business = businesses(:suelog)
       credential = AicooGoogleCredential.create!(

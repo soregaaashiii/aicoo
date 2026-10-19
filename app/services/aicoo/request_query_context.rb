@@ -61,9 +61,7 @@ module Aicoo
       def default_google_credential
         return yield unless active?
 
-        records[:default_google_credential] ||= google_credentials
-          .select(&:enabled?)
-          .max_by(&:created_at)
+        records[:default_google_credential] ||= AicooGoogleCredential.preferred(google_credentials)
       end
 
       def analytics_fetch_runs
