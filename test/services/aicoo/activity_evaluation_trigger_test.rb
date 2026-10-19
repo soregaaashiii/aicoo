@@ -4,19 +4,17 @@ module Aicoo
   class ActivityEvaluationTriggerTest < ActiveSupport::TestCase
     test "invokes builder for existing activity logs and records trigger metadata" do
       business = businesses(:suelog)
-      activity_log = without_automatic_trigger do
-        BusinessActivityLog.create!(
-          business:,
-          source_app: "suelog",
-          activity_type: "article_updated",
-          resource_type: "Article",
-          resource_id: "trigger-article",
-          title: "Trigger article",
-          occurred_at: 1.hour.ago,
-          detected_at: 1.hour.ago,
-          idempotency_key: "trigger-article-updated"
-        )
-      end
+      activity_log = BusinessActivityLog.create!(
+        business:,
+        source_app: "suelog",
+        activity_type: "article_updated",
+        resource_type: "Article",
+        resource_id: "trigger-article",
+        title: "Trigger article",
+        occurred_at: 1.hour.ago,
+        detected_at: 1.hour.ago,
+        idempotency_key: "trigger-article-updated"
+      )
 
       result = ActivityEvaluationTrigger.call(
         business:,
@@ -40,21 +38,19 @@ module Aicoo
       assert_equal true, chain["builder_completed"]
     end
 
-    test "one new recorded activity triggers backfill for existing activity logs" do
+    test "daily run trigger backfills recorded activity logs" do
       business = businesses(:suelog)
-      old_log = without_automatic_trigger do
-        BusinessActivityLog.create!(
-          business:,
-          source_app: "suelog",
-          activity_type: "article_updated",
-          resource_type: "Article",
-          resource_id: "old-trigger-article",
-          title: "Old trigger article",
-          occurred_at: 1.hour.ago,
-          detected_at: 1.hour.ago,
-          idempotency_key: "old-trigger-article-updated"
-        )
-      end
+      old_log = BusinessActivityLog.create!(
+        business:,
+        source_app: "suelog",
+        activity_type: "article_updated",
+        resource_type: "Article",
+        resource_id: "old-trigger-article",
+        title: "Old trigger article",
+        occurred_at: 1.hour.ago,
+        detected_at: 1.hour.ago,
+        idempotency_key: "old-trigger-article-updated"
+      )
 
       BusinessActivityLog.record!(
         business:,
@@ -68,14 +64,13 @@ module Aicoo
         }
       )
 
+      assert_equal 0, old_log.activity_evaluations.count
+      assert_equal "daily_run_deferred", old_log.reload.metadata.dig("activity_evaluation_trigger_chain", "skip_reason")
+
+      ActivityEvaluationTrigger.call(business:, invoked_by: "DailyRun")
+
       assert_equal 3, old_log.activity_evaluations.count
-      assert_equal "after_create_commit", old_log.reload.metadata.dig("activity_evaluation_trigger", "invoked_by")
-    end
-
-    private
-
-    def without_automatic_trigger(&block)
-      ActivityEvaluationTrigger.stub(:call, nil, &block)
+      assert_equal "DailyRun", old_log.reload.metadata.dig("activity_evaluation_trigger", "invoked_by")
     end
   end
 end

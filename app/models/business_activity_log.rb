@@ -154,60 +154,19 @@ class BusinessActivityLog < ApplicationRecord
   end
 
   def invoke_activity_evaluation_trigger
-    if defer_activity_evaluation_trigger?
-      write_activity_evaluation_trigger_chain(
-        "after_commit_called" => true,
-        "after_commit_skipped" => true,
-        "trigger_registered" => true,
-        "trigger_called" => false,
-        "trigger_completed" => false,
-        "completed_at" => Time.current.iso8601,
-        "return_point" => "daily_run_deferred",
-        "skip_reason" => "daily_run_deferred"
-      )
-      Rails.logger.info(
-        "[ActivityEvaluationTrigger] after_create_commit deferred " \
-        "activity_log_id=#{id} business_id=#{business_id} activity_type=#{activity_type}"
-      )
-      return
-    end
-
     write_activity_evaluation_trigger_chain(
       "after_commit_called" => true,
+      "after_commit_skipped" => true,
       "trigger_registered" => true,
-      "trigger_called" => true,
-      "invoked_by" => "after_create_commit",
-      "called_at" => Time.current.iso8601,
-      "return_point" => "trigger_called",
-      "exception" => nil,
-      "skip_reason" => nil
-    )
-    Rails.logger.info(
-      "[ActivityEvaluationTrigger] after_create_commit start " \
-      "activity_log_id=#{id} business_id=#{business_id} activity_type=#{activity_type}"
-    )
-
-    result = Aicoo::ActivityEvaluationTrigger.call(
-      business:,
-      invoked_by: "after_create_commit",
-      trigger_event_id: id
-    )
-    reload
-    completed = result.present? && result.exception.blank? && result.builder_failed_count.to_i.zero?
-    write_activity_evaluation_trigger_chain(
-      "trigger_completed" => result.present?,
-      "builder_called" => result&.builder_invoked_count.to_i.positive?,
-      "builder_completed" => completed,
+      "trigger_called" => false,
+      "trigger_completed" => false,
       "completed_at" => Time.current.iso8601,
-      "return_point" => completed ? "completed" : "builder_incomplete",
-      "exception" => result&.exception,
-      "skip_reason" => completed ? nil : result&.exception.presence || "builder_incomplete"
+      "return_point" => "daily_run_deferred",
+      "skip_reason" => "daily_run_deferred"
     )
     Rails.logger.info(
-      "[ActivityEvaluationTrigger] after_create_commit finish " \
-      "activity_log_id=#{id} builder_invoked=#{result&.builder_invoked_count.to_i} " \
-      "builder_completed=#{result&.builder_completed_count.to_i} " \
-      "builder_failed=#{result&.builder_failed_count.to_i}"
+      "[ActivityEvaluationTrigger] after_create_commit deferred " \
+      "activity_log_id=#{id} business_id=#{business_id} activity_type=#{activity_type}"
     )
   rescue StandardError => e
     reload
@@ -239,7 +198,4 @@ class BusinessActivityLog < ApplicationRecord
     )
   end
 
-  def defer_activity_evaluation_trigger?
-    activity_type == "resource_status_changed"
-  end
 end
