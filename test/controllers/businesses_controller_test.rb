@@ -582,6 +582,54 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Resource"
     assert_includes response.body, "Watch"
     assert_includes response.body, "次回"
+    assert_select "a[data-business-operation=pause][data-business-id=?][data-turbo-method=patch]", @business.id.to_s,
+                  text: "停止", count: 1
+  end
+
+  test "stops a business from the index without deleting the business or related data" do
+    candidate = @business.action_candidates.create!(
+      title: "停止後も保持する候補",
+      status: "idea",
+      action_type: "seo_improvement"
+    )
+
+    assert_no_difference([ "Business.count", "ActionCandidate.count" ]) do
+      assert_difference -> { BusinessActivityLog.where(activity_type: "resource_status_changed").count }, 1 do
+        patch update_resource_status_business_url(@business), params: {
+          resource_status: "paused",
+          reason: "事業一覧からOwner操作で停止",
+          return_to: businesses_path(tab: "businesses")
+        }
+      end
+    end
+
+    assert_redirected_to businesses_url(tab: "businesses")
+    assert_equal "paused", @business.reload.resource_status
+    assert_nil @business.deleted_at
+    assert_equal "事業一覧からOwner操作で停止", @business.resource_status_reason
+    assert ActionCandidate.exists?(candidate.id)
+    assert_equal "事業を停止しました。関連データは削除されません。", flash[:notice]
+  end
+
+  test "resumes a stopped business from the index" do
+    @business.update!(resource_status: "paused")
+
+    get businesses_url
+
+    assert_response :success
+    assert_select "a[data-business-operation=resume][data-business-id=?][data-turbo-method=patch]", @business.id.to_s,
+                  text: "再開", count: 1
+
+    patch update_resource_status_business_url(@business), params: {
+      resource_status: "active",
+      reason: "事業一覧からOwner操作で再開",
+      return_to: businesses_path(tab: "businesses")
+    }
+
+    assert_redirected_to businesses_url(tab: "businesses")
+    assert_equal "active", @business.reload.resource_status
+    assert_nil @business.deleted_at
+    assert_equal "事業を再開しました。", flash[:notice]
   end
 
   test "updates resource status with owner approval log" do

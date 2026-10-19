@@ -572,14 +572,16 @@ class BusinessesController < ApplicationController
     new_status = params.expect(:resource_status).to_s
     reason = params[:reason].presence || "Owner承認による運用状態変更"
     unless new_status.in?(Business::RESOURCE_STATUSES)
-      redirect_to business_path(@business, anchor: "business-resource"), alert: "運用状態を変更できませんでした: 不正な状態です。"
+      redirect_to safe_return_to || business_path(@business, anchor: "business-resource"),
+                  alert: "運用状態を変更できませんでした: 不正な状態です。"
       return
     end
 
     @business.change_resource_status!(new_status, reason:, operator: "owner")
-    redirect_to business_path(@business, anchor: "business-resource"), notice: "運用状態を#{new_status}へ変更しました。"
+    redirect_to safe_return_to || business_path(@business, anchor: "business-resource"),
+                notice: resource_status_notice(new_status)
   rescue ActiveRecord::RecordInvalid => e
-    redirect_to business_path(@business, anchor: "business-resource"),
+    redirect_to safe_return_to || business_path(@business, anchor: "business-resource"),
                 alert: "運用状態を変更できませんでした: #{e.record.errors.full_messages.to_sentence}"
   end
 
@@ -1028,5 +1030,16 @@ class BusinessesController < ApplicationController
       uri.to_s
     rescue URI::InvalidURIError
       nil
+    end
+
+    def resource_status_notice(status)
+      case status
+      when "paused"
+        "事業を停止しました。関連データは削除されません。"
+      when "active"
+        "事業を再開しました。"
+      else
+        "運用状態を#{status}へ変更しました。"
+      end
     end
 end

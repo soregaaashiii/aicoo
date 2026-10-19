@@ -268,6 +268,37 @@
               <%= link_to "詳細", business, class: "button secondary" %>
               <%= link_to "編集", edit_business_path(business), class: "button secondary" %>
               <%= link_to "Data Source紐付け", edit_business_path(business, anchor: "data-source-link-settings"), class: "button secondary" %>
+              <% if business.resource_status == "paused" %>
+                <%= link_to "再開",
+                            update_resource_status_business_path(
+                              business,
+                              resource_status: "active",
+                              reason: "事業一覧からOwner操作で再開",
+                              return_to: businesses_path(tab: "businesses", filter: params[:filter])
+                            ),
+                            class: "button secondary",
+                            data: {
+                              turbo_method: :patch,
+                              turbo_confirm: "「#{business.name}」を再開しますか？",
+                              business_operation: "resume",
+                              business_id: business.id
+                            } %>
+              <% elsif business.resource_status != "archived" %>
+                <%= link_to "停止",
+                            update_resource_status_business_path(
+                              business,
+                              resource_status: "paused",
+                              reason: "事業一覧からOwner操作で停止",
+                              return_to: businesses_path(tab: "businesses", filter: params[:filter])
+                            ),
+                            class: "button secondary",
+                            data: {
+                              turbo_method: :patch,
+                              turbo_confirm: "「#{business.name}」を停止しますか？\n事業と関連データは削除されません。",
+                              business_operation: "pause",
+                              business_id: business.id
+                            } %>
+              <% end %>
               <%= link_to "削除",
                           business_path(business, deletion_reason: "その他"),
                           class: "button danger",
