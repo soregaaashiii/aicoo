@@ -129,7 +129,11 @@
               <td class="number"><%= credential.analytics_source_settings.size %></td>
               <td>
                 <div class="actions compact-actions">
-                  <%= link_to "Googleと接続", connect_admin_google_credential_path(credential), class: "button" %>
+                  <% if credential.oauth_client_configured? %>
+                    <%= link_to "Googleと接続", connect_admin_google_credential_path(credential), class: "button" %>
+                  <% else %>
+                    <%= link_to "Client ID / Secretを設定", edit_admin_google_credential_path(credential), class: "button" %>
+                  <% end %>
                   <%= link_to "編集", edit_admin_google_credential_path(credential), class: "button secondary" %>
                   <%= link_to "Business別設定を見る", businesses_path, class: "button secondary" %>
                 </div>

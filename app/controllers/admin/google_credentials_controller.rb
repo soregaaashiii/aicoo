@@ -3,10 +3,7 @@ module Admin
     before_action :set_credential, only: %i[edit update connect]
 
     def index
-      @credentials = AicooGoogleCredential.recent.includes(:analytics_source_settings).to_a
-      @current_credential = AicooGoogleCredential.default
-      @google_oauth_recovery_statuses = Aicoo::GoogleOauthRecoveryStatus.new(credential: @current_credential).call
-      log_google_credential_display_event!
+      load_index_context
       @credential = AicooGoogleCredential.new(name: "AICOO共通Google認証", enabled: true)
     end
 
@@ -17,6 +14,25 @@ module Admin
     def create
       @credential = AicooGoogleCredential.new(credential_params)
       log_google_credential_save_event!("create_params_received", @credential, credential_params)
+
+      if reuse_current_credential_for_connect?
+        log_google_credential_save_event!(
+          "create_reused_current_credential",
+          @current_credential,
+          target_path: connect_admin_google_credential_path(@current_credential)
+        )
+        redirect_to connect_admin_google_credential_path(@current_credential),
+                    notice: "保存済みのGoogle認証を使用して再接続します。"
+        return
+      end
+
+      unless submitted_oauth_client_complete?
+        @credential.errors.add(:base, "Client ID / Secretを両方入力してください。保存済み認証の再接続は上部の再認証ボタンを使用してください。")
+        load_index_context
+        render :index, status: :unprocessable_content
+        return
+      end
+
       if @credential.save
         @credential.reload
         log_google_credential_save_event!("create_saved", @credential)
@@ -27,7 +43,7 @@ module Admin
           redirect_to admin_google_credentials_path, notice: "Google認証を保存しました"
         end
       else
-        @credentials = AicooGoogleCredential.recent
+        load_index_context
         render :index, status: :unprocessable_content
       end
     end
@@ -58,6 +74,32 @@ module Admin
     end
 
     private
+
+    def load_index_context
+      @credentials = AicooGoogleCredential.recent.includes(:analytics_source_settings).to_a
+      @current_credential = AicooGoogleCredential.default
+      if @current_credential
+        @credentials = @credentials.sort_by { |credential| credential.id == @current_credential.id ? 0 : 1 }
+      end
+      @google_oauth_recovery_statuses = Aicoo::GoogleOauthRecoveryStatus.new(credential: @current_credential).call
+      log_google_credential_display_event!
+    end
+
+    def reuse_current_credential_for_connect?
+      return false if params[:connect_after_save].blank?
+      return false unless submitted_oauth_client_blank?
+
+      @current_credential = AicooGoogleCredential.default
+      @current_credential&.oauth_client_configured?
+    end
+
+    def submitted_oauth_client_blank?
+      credential_params[:client_id].blank? && credential_params[:client_secret].blank?
+    end
+
+    def submitted_oauth_client_complete?
+      credential_params[:client_id].present? && credential_params[:client_secret].present?
+    end
 
     def set_credential
       @credential = AicooGoogleCredential.find(params.expect(:id))

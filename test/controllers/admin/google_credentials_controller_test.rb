@@ -291,6 +291,65 @@ module Admin
       assert_redirected_to connect_admin_google_credential_url(credential)
     end
 
+    test "blank save and connect reuses configured credential without creating an empty record" do
+      credential = AicooGoogleCredential.create!(
+        name: "AICOO共通Google認証",
+        client_id: "saved-client",
+        client_secret: "saved-secret",
+        enabled: true
+      )
+
+      assert_no_difference("AicooGoogleCredential.count") do
+        post admin_google_credentials_url, params: {
+          connect_after_save: "保存してGoogleと接続",
+          aicoo_google_credential: {
+            name: "AICOO共通Google認証",
+            client_id: "",
+            client_secret: "",
+            enabled: "1"
+          }
+        }
+      end
+
+      assert_redirected_to connect_admin_google_credential_url(credential)
+    end
+
+    test "blank google credential is not created" do
+      assert_no_difference("AicooGoogleCredential.count") do
+        post admin_google_credentials_url, params: {
+          aicoo_google_credential: {
+            name: "AICOO共通Google認証",
+            client_id: "",
+            client_secret: "",
+            enabled: "1"
+          }
+        }
+      end
+
+      assert_response :unprocessable_content
+      assert_includes response.body, "Client ID / Secretを両方入力してください"
+    end
+
+    test "configured credential is listed first and empty credentials cannot be connected" do
+      empty_credential = AicooGoogleCredential.create!(name: "空の認証", enabled: true)
+      configured_credential = AicooGoogleCredential.create!(
+        name: "設定済み認証",
+        client_id: "saved-client",
+        client_secret: "saved-secret",
+        enabled: true
+      )
+
+      get admin_google_credentials_url
+
+      assert_response :success
+      rows = css_select("table tbody tr")
+      assert_includes rows.first.text, "##{configured_credential.id}"
+      empty_row = rows.find { |row| row.text.include?("##{empty_credential.id}") }
+      assert empty_row
+      assert_select empty_row, "a[href='#{edit_admin_google_credential_path(empty_credential)}']", text: "Client ID / Secretを設定"
+      assert_select empty_row, "a[href='#{connect_admin_google_credential_path(empty_credential)}']", count: 0
+    end
+
     private
 
     def with_env(values)
