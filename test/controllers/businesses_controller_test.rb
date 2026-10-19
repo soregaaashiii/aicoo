@@ -593,6 +593,29 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes form_html, %(action="#{update_resource_status_business_path(@business)}")
     assert_match(/<input[^>]*name="_method"[^>]*value="patch"/, form_html)
     assert_match(/<input[^>]*name="resource_status"[^>]*value="paused"/, form_html)
+    assert_includes form_html, CGI.escapeHTML(businesses_path(tab: "businesses", filter: "paused"))
+  end
+
+  test "business index filters stopped businesses and keeps the resume action available" do
+    stopped_business = Business.create!(
+      name: "停止中フィルタ確認事業",
+      status: "exploring",
+      resource_status: "paused"
+    )
+    active_business = Business.create!(
+      name: "稼働中フィルタ確認事業",
+      status: "exploring",
+      resource_status: "active"
+    )
+
+    get businesses_url(tab: "businesses", filter: "paused")
+
+    assert_response :success
+    assert_includes response.body, "停止中 #{Business.real_businesses.resource_paused.count}件"
+    assert_includes response.body, stopped_business.name
+    assert_not_includes response.body, active_business.name
+    assert_includes response.body, %(data-business-operation="resume")
+    assert_includes response.body, %(value="active")
   end
 
   test "stops a business from the index without deleting the business or related data" do
@@ -607,12 +630,12 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
         patch update_resource_status_business_url(@business), params: {
           resource_status: "paused",
           reason: "事業一覧からOwner操作で停止",
-          return_to: businesses_path(tab: "businesses")
+          return_to: businesses_path(tab: "businesses", filter: "paused")
         }
       end
     end
 
-    assert_redirected_to businesses_url(tab: "businesses")
+    assert_redirected_to businesses_url(tab: "businesses", filter: "paused")
     assert_equal "paused", @business.reload.resource_status
     assert_nil @business.deleted_at
     assert_equal "事業一覧からOwner操作で停止", @business.resource_status_reason
@@ -626,6 +649,11 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_equal true, activity_log.metadata.dig("activity_evaluation_trigger_chain", "after_commit_skipped")
     assert_equal "daily_run_deferred", activity_log.metadata.dig("activity_evaluation_trigger_chain", "skip_reason")
     assert Aicoo::ActivityEvaluationBuilder.evaluation_scope.where(id: activity_log.id).exists?
+
+    follow_redirect!
+    assert_response :success
+    assert_includes response.body, @business.name
+    assert_includes response.body, "再開"
   end
 
   test "resumes a stopped business from the index" do
@@ -645,6 +673,7 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes form_html, %(action="#{update_resource_status_business_path(@business)}")
     assert_match(/<input[^>]*name="_method"[^>]*value="patch"/, form_html)
     assert_match(/<input[^>]*name="resource_status"[^>]*value="active"/, form_html)
+    assert_includes form_html, CGI.escapeHTML(businesses_path(tab: "businesses"))
 
     patch update_resource_status_business_url(@business), params: {
       resource_status: "active",

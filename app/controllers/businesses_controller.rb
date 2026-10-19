@@ -16,11 +16,13 @@ class BusinessesController < ApplicationController
   ].freeze
   BUSINESS_SHOW_COST_SOURCE_KEYS = %w[gsc ga4 serp explore x youtube openai].freeze
   BUSINESS_SHOW_STATUS_KEYS = %w[ga4 gsc serp daily_run traffic codex].freeze
+  BUSINESS_INDEX_FILTERS = %w[serp exploring paused].freeze
 
   # GET /businesses or /businesses.json
   def index
     Aicoo::MemoryDiagnostics.measure("BusinessesController#index", context: memory_diagnostics_context) do
       @active_tab = params[:tab].presence_in(%w[businesses serp_candidates]) || "businesses"
+      @business_filter = params[:filter].presence_in(BUSINESS_INDEX_FILTERS)
       @deletion_reasons = DELETION_REASONS
 
       if @active_tab == "serp_candidates" && request.format.html?
@@ -34,8 +36,15 @@ class BusinessesController < ApplicationController
           :business_execution_profile,
           :business_playbook
         ).order(:name)
-        businesses = businesses.where(status: "exploring") if params[:filter] == "exploring"
+        businesses = businesses.where(status: "exploring") if @business_filter == "exploring"
+        businesses = businesses.resource_paused if @business_filter == "paused"
         businesses.to_a
+      end
+
+      @paused_business_count = if @business_filter.nil? || @business_filter == "paused"
+        @businesses.count { |business| business.resource_status == "paused" }
+      else
+        Business.real_businesses.resource_paused.count
       end
 
       candidate_overview = Aicoo::BusinessIndexCandidateOverview.call(@businesses)
@@ -43,7 +52,7 @@ class BusinessesController < ApplicationController
       @business_serp_generated_by_id = @businesses.index_with do |business|
         business.serp_generated?(candidate_business_ids: serp_candidate_business_ids)
       end
-      @businesses.select! { |business| @business_serp_generated_by_id.fetch(business) } if params[:filter] == "serp"
+      @businesses.select! { |business| @business_serp_generated_by_id.fetch(business) } if @business_filter == "serp"
 
       @serp_new_business_pending_count = candidate_overview.new_business_pending_count
       @business_integration_health = Aicoo::MemoryDiagnostics.measure("Aicoo::BusinessIntegrationHealth#call", context: memory_diagnostics_context) do

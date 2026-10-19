@@ -104,9 +104,10 @@
 </div>
 <% else %>
 <div class="actions compact-actions">
-  <%= link_to "すべて", businesses_path(tab: "businesses"), class: "button secondary" %>
-  <%= link_to "SERP由来のみ", businesses_path(tab: "businesses", filter: "serp"), class: "button secondary" %>
-  <%= link_to "exploringのみ", businesses_path(tab: "businesses", filter: "exploring"), class: "button secondary" %>
+  <%= link_to "すべて", businesses_path(tab: "businesses"), class: @business_filter.nil? ? "button" : "button secondary" %>
+  <%= link_to "停止中 #{@paused_business_count}件", businesses_path(tab: "businesses", filter: "paused"), class: @business_filter == "paused" ? "button" : "button secondary" %>
+  <%= link_to "SERP由来のみ", businesses_path(tab: "businesses", filter: "serp"), class: @business_filter == "serp" ? "button" : "button secondary" %>
+  <%= link_to "exploringのみ", businesses_path(tab: "businesses", filter: "exploring"), class: @business_filter == "exploring" ? "button" : "button secondary" %>
 </div>
 
 <%= form_with url: bulk_delete_businesses_path,
@@ -317,7 +318,7 @@
                 } do %>
     <%= hidden_field_tag :resource_status, resuming ? "active" : "paused" %>
     <%= hidden_field_tag :reason, resuming ? "事業一覧からOwner操作で再開" : "事業一覧からOwner操作で停止" %>
-    <%= hidden_field_tag :return_to, businesses_path(tab: "businesses", filter: params[:filter]) %>
+    <%= hidden_field_tag :return_to, businesses_path(tab: "businesses", filter: resuming ? nil : "paused") %>
   <% end %>
 <% end %>
 </div>
