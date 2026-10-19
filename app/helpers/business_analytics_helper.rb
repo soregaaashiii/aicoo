@@ -23,6 +23,22 @@ module BusinessAnalyticsHelper
     [ (value / business_chart_decimal(max_value) * 100).round, 8 ].max
   end
 
+  def business_chart_value_label(value)
+    return "データ不足" if value.nil?
+
+    number = value.to_d
+    formatted = if number.frac.zero?
+      number.to_i.to_s
+    elsif number.abs >= 1
+      number.round(2).to_s("F")
+    else
+      number.round(4).to_s("F")
+    end
+
+    formatted = formatted.sub(/0+\z/, "").sub(/\.\z/, "") if formatted.include?(".")
+    number_with_delimiter(formatted)
+  end
+
   private
 
   def business_chart_decimal(value)

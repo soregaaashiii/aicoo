@@ -9,15 +9,28 @@
   </div>
 
   <% metrics.each do |metric| %>
+    <% max_value = values[metric[:key]] %>
     <div class="business-analytics-bars" aria-label="<%= metric[:label] %>">
       <div class="business-analytics-metric-label"><%= metric[:label] %></div>
-      <div class="business-analytics-bar-row">
-        <% series.each do |point| %>
-          <% value = point.values[metric[:key]] %>
-          <span class="business-analytics-bar"
-                title="<%= point.date %> / <%= metric[:label] %>: <%= value.nil? ? "データ不足" : value %>"
-                style="height: <%= business_chart_height(point, metric[:key], values[metric[:key]]) %>%"></span>
-        <% end %>
+      <div class="business-analytics-plot">
+        <div class="business-analytics-y-axis" aria-hidden="true">
+          <span><%= business_chart_value_label(max_value) %></span>
+          <span><%= business_chart_value_label(max_value / 2) %></span>
+          <span>0</span>
+        </div>
+        <div class="business-analytics-bar-row">
+          <% series.each do |point| %>
+            <% value = point.values[metric[:key]] %>
+            <% value_label = business_chart_value_label(value) %>
+            <% tooltip = "#{point.date} / #{metric[:label]}: #{value_label}" %>
+            <span class="business-analytics-bar"
+                  role="img"
+                  tabindex="0"
+                  aria-label="<%= tooltip %>"
+                  data-tooltip="<%= tooltip %>"
+                  style="height: <%= business_chart_height(point, metric[:key], max_value) %>%"></span>
+          <% end %>
+        </div>
       </div>
     </div>
   <% end %>
