@@ -34,7 +34,7 @@ module Aicoo
           label:,
           status: status_for(source_key),
           last_success_at: last_success_run_for(source_key)&.finished_at,
-          last_error: latest_failed_run_for(source_key)&.error_message,
+          last_error: current_failure_for(source_key)&.error_message,
           latest_run: latest_run_for(source_key),
           credential:
         )
@@ -48,7 +48,7 @@ module Aicoo
     def status_for(source_key)
       return "missing" unless credential&.client_id.present? && credential&.client_secret.present?
       return "missing" if credential.refresh_token.blank?
-      return "invalid_grant" if latest_failed_run_for(source_key)&.error_message.to_s.match?(/invalid_grant|expired or revoked/i)
+      return "invalid_grant" if current_failure_for(source_key)&.error_message.to_s.match?(/invalid_grant|expired or revoked/i)
       return "expired" if credential.token_expired?
 
       "connected"
@@ -60,6 +60,11 @@ module Aicoo
 
     def latest_failed_run_for(source_key)
       runs_for(source_key).find { |run| run.status == "failed" }
+    end
+
+    def current_failure_for(source_key)
+      run = latest_run_for(source_key)
+      run if run&.status == "failed"
     end
 
     def last_success_run_for(source_key)

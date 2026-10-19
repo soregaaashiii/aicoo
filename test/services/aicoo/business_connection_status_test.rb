@@ -60,6 +60,46 @@ module Aicoo
       assert_equal credential, status.credential
     end
 
+    test "newer successful fetch clears an older invalid grant status" do
+      credential = AicooGoogleCredential.create!(
+        name: "吸えログGoogle認証",
+        client_id: "client",
+        client_secret: "secret",
+        refresh_token: "refresh",
+        connected_at: Time.current
+      )
+      setting = AnalyticsSourceSetting.create!(
+        source_type: "ga4",
+        name: "#{@business.name} GA4",
+        property_id: "536889590",
+        enabled: true,
+        authentication_mode: "shared",
+        google_credential: credential
+      )
+      setting.analytics_fetch_runs.create!(
+        source_type: "ga4",
+        status: "failed",
+        error_message: "Google OAuth error: invalid_grant",
+        started_at: 2.minutes.ago,
+        finished_at: 2.minutes.ago
+      )
+      setting.analytics_fetch_runs.create!(
+        source_type: "ga4",
+        status: "success",
+        snapshot_count: 28,
+        started_at: 1.minute.ago,
+        finished_at: 1.minute.ago
+      )
+
+      status = BusinessConnectionStatus.new(@business, source_key: "ga4").call
+
+      assert status.configured?
+      assert_equal "global", status.status_key
+      refute status.reauthentication_required
+      assert_nil status.last_error
+      assert_equal 28, status.last_count
+    end
+
     test "ga4 is missing when neither business nor global setting is usable" do
       status = BusinessConnectionStatus.new(@business, source_key: "ga4").call
 

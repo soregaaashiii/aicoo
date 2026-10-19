@@ -107,7 +107,7 @@ module Aicoo
       reauthentication_required = google_reauthentication_required?(selected_credential)
       auth_available = google_auth_available?(selected_credential)
       latest = latest_run(selected_setting)
-      last_error = latest_failed_run(selected_setting)&.error_message
+      last_error = latest&.error_message if latest&.status == "failed"
 
       if business_data_source_identifier.present?
         return base_result(
@@ -430,7 +430,9 @@ module Aicoo
     end
 
     def google_reauthentication_required?(credential)
-      latest_failed_run(analytics_source_setting)&.error_message.to_s.match?(/invalid_grant|expired or revoked/i).present? ||
+      latest_run(analytics_source_setting)&.then do |run|
+        run.status == "failed" && run.error_message.to_s.match?(/invalid_grant|expired or revoked/i)
+      end.present? ||
         credential&.reauthentication_required? ||
         credential&.token_expired? ||
         false
