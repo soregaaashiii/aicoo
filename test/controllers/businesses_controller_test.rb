@@ -618,6 +618,14 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "事業一覧からOwner操作で停止", @business.resource_status_reason
     assert ActionCandidate.exists?(candidate.id)
     assert_equal "事業を停止しました。関連データは削除されません。", flash[:notice]
+    activity_log = BusinessActivityLog.where(
+      business: @business,
+      activity_type: "resource_status_changed"
+    ).order(:id).last
+    assert_equal "pending", activity_log.evaluation_status
+    assert_equal true, activity_log.metadata.dig("activity_evaluation_trigger_chain", "after_commit_skipped")
+    assert_equal "daily_run_deferred", activity_log.metadata.dig("activity_evaluation_trigger_chain", "skip_reason")
+    assert Aicoo::ActivityEvaluationBuilder.evaluation_scope.where(id: activity_log.id).exists?
   end
 
   test "resumes a stopped business from the index" do

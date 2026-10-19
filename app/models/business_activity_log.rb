@@ -154,6 +154,24 @@ class BusinessActivityLog < ApplicationRecord
   end
 
   def invoke_activity_evaluation_trigger
+    if defer_activity_evaluation_trigger?
+      write_activity_evaluation_trigger_chain(
+        "after_commit_called" => true,
+        "after_commit_skipped" => true,
+        "trigger_registered" => true,
+        "trigger_called" => false,
+        "trigger_completed" => false,
+        "completed_at" => Time.current.iso8601,
+        "return_point" => "daily_run_deferred",
+        "skip_reason" => "daily_run_deferred"
+      )
+      Rails.logger.info(
+        "[ActivityEvaluationTrigger] after_create_commit deferred " \
+        "activity_log_id=#{id} business_id=#{business_id} activity_type=#{activity_type}"
+      )
+      return
+    end
+
     write_activity_evaluation_trigger_chain(
       "after_commit_called" => true,
       "trigger_registered" => true,
@@ -219,5 +237,9 @@ class BusinessActivityLog < ApplicationRecord
       metadata: current_metadata.merge("activity_evaluation_trigger_chain" => chain),
       updated_at: Time.current
     )
+  end
+
+  def defer_activity_evaluation_trigger?
+    activity_type == "resource_status_changed"
   end
 end
