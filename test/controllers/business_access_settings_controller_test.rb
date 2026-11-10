@@ -578,6 +578,8 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
         assert_select "input[name='service_access[user_page_analysis_enabled]']"
         assert_select "input[name='service_page[name]'][value='管理者ページ']"
         assert_select "input[name='service_page[name]'][value='その他ページ']"
+        assert_select "a[href='https://console.example.com/admin']", text: "https://console.example.com/admin"
+        assert_select "a[href='https://docs.example.com/console']", text: "https://docs.example.com/console"
         assert_select "form[action='#{remove_service_page_business_access_settings_path(@business, business_service_id: service.id, page_id: "user")}']", count: 0
         assert_select "form[action='#{remove_service_page_business_access_settings_path(@business, business_service_id: service.id, page_id: "admin")}']"
         assert_select "form[action='#{remove_service_page_business_access_settings_path(@business, business_service_id: service.id, page_id: "other")}']"
