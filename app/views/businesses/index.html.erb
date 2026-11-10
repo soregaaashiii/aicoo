@@ -284,7 +284,6 @@
           <td>
             <div class="actions compact-actions">
               <%= link_to "Analytics", business_path(business, anchor: "analytics"), class: "button secondary" %>
-              <%= link_to "詳細", business, class: "button secondary" %>
               <%= link_to "編集", edit_business_path(business), class: "button secondary" %>
               <%= link_to "Data Source紐付け", edit_business_path(business, anchor: "data-source-link-settings"), class: "button secondary" %>
               <% if business.resource_status == "paused" %>

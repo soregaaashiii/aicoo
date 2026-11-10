@@ -45,6 +45,8 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Profile作成"
     assert_includes response.body, "CODEX"
     assert_not_includes response.body, "AICOO Analytics Import"
+    assert_select "a[href='#{business_path(@business)}']", text: @business.name
+    assert_select "a.button[href='#{business_path(@business)}']", text: "詳細", count: 0
   end
 
   test "index shows execution profile coverage status" do
