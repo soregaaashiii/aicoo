@@ -3,7 +3,7 @@ class BusinessesController < ApplicationController
     show edit update destroy generate_ai_candidates import_google_api import_gsc import_ga4
     google_settings update_google_settings
     update_data_source_settings promote_to_mvp promote_to_production promote_to_scaling update_resource_status
-    restore permanently_destroy
+    restore permanently_destroy move
   ]
 
   DELETION_REASONS = %w[
@@ -38,7 +38,7 @@ class BusinessesController < ApplicationController
         ).order(:name)
         businesses = businesses.where(status: "exploring") if @business_filter == "exploring"
         businesses = businesses.resource_paused if @business_filter == "paused"
-        businesses.to_a
+        Aicoo::BusinessListOrder.sort(businesses.to_a)
       end
 
       @paused_business_count = if @business_filter.nil? || @business_filter == "paused"
@@ -107,6 +107,13 @@ class BusinessesController < ApplicationController
   def deleted
     @businesses = Business.deleted.order(deleted_at: :desc, updated_at: :desc)
     @deletion_reasons = DELETION_REASONS
+  end
+
+  def move
+    moved = Aicoo::BusinessListOrder.move(@business, direction: params[:direction])
+    redirect_to safe_return_to || businesses_path(tab: "businesses"),
+                notice: moved ? "事業の並び順を変更しました。" : "これ以上移動できません。",
+                status: :see_other
   end
 
   # GET /businesses/1 or /businesses/1.json

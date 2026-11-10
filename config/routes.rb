@@ -164,6 +164,7 @@ Rails.application.routes.draw do
     patch :bulk_delete, on: :collection
     patch :bulk_restore, on: :collection
     patch :restore, on: :member
+    patch :move, on: :member
     delete :permanently_destroy, on: :member
     post :promote_to_mvp, on: :member
     post :promote_to_production, on: :member

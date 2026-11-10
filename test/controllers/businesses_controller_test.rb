@@ -596,6 +596,35 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes form_html, CGI.escapeHTML(businesses_path(tab: "businesses", filter: "paused"))
   end
 
+  test "moves a business in the persisted business index order" do
+    ordered_before = Aicoo::BusinessListOrder.sort(Business.real_businesses.to_a)
+    moving_business = ordered_before.first
+    next_business = ordered_before.second
+
+    patch move_business_url(moving_business), params: {
+      direction: "down",
+      return_to: businesses_path(tab: "businesses")
+    }
+
+    assert_redirected_to businesses_url(tab: "businesses")
+    assert_equal "事業の並び順を変更しました。", flash[:notice]
+
+    get businesses_url
+
+    assert_response :success
+    next_link_position = response.body.index(%(href="#{business_path(next_business)}"))
+    moving_link_position = response.body.index(%(href="#{business_path(moving_business)}"))
+    assert next_link_position < moving_link_position
+    assert_select "button[aria-label='#{moving_business.name}を上へ移動'][name='direction'][value='up']", count: 1
+  end
+
+  test "does not show reorder controls in a filtered business list" do
+    get businesses_url(tab: "businesses", filter: "paused")
+
+    assert_response :success
+    assert_select ".business-order-controls", count: 0
+  end
+
   test "business index filters stopped businesses and keeps the resume action available" do
     stopped_business = Business.create!(
       name: "停止中フィルタ確認事業",

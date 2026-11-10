@@ -2427,6 +2427,23 @@ textarea {
   margin: 0;
 }
 
+.business-order-controls {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.button.business-order-button {
+  align-items: center;
+  display: inline-flex;
+  height: 28px;
+  justify-content: center;
+  line-height: 1;
+  padding: 0;
+  width: 28px;
+}
+
 .inline-form,
 .filters {
   align-items: end;
