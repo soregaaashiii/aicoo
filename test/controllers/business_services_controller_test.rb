@@ -37,6 +37,10 @@ class BusinessServicesControllerTest < ActionDispatch::IntegrationTest
       assert_select "th", text: "その他ページ"
       assert_select "input[name='business_service[admin_url]']", minimum: 2
       assert_select "input[name='business_service[other_url]']", minimum: 2
+      assert_select "a.business-service-url-link[href='https://suelog.jp']", text: "https://suelog.jp"
+      assert_select "a.business-service-url-link[href='https://suelog.jp/admin']", text: "https://suelog.jp/admin"
+      assert_select "a.business-service-url-link[href='https://status.suelog.jp']", text: "https://status.suelog.jp"
+      assert_select "a.business-service-url-link[target='_blank'][rel='noopener']", count: 3
     end
   end
 

@@ -1284,9 +1284,30 @@
           <tr>
             <%= form_with model: [@business, service], method: :patch, local: true do |form| %>
               <td><%= form.text_field :name, aria: { label: "名前" } %></td>
-              <td><%= form.url_field :url, aria: { label: "ユーザーページ" } %></td>
-              <td><%= form.url_field :admin_url, aria: { label: "管理者ページ" } %></td>
-              <td><%= form.url_field :other_url, aria: { label: "その他ページ" } %></td>
+              <td>
+                <div class="business-service-url-field">
+                  <%= form.url_field :url, aria: { label: "ユーザーページ" } %>
+                  <% if service.url.present? %>
+                    <%= link_to service.url, service.url, class: "business-service-url-link", target: "_blank", rel: "noopener" %>
+                  <% end %>
+                </div>
+              </td>
+              <td>
+                <div class="business-service-url-field">
+                  <%= form.url_field :admin_url, aria: { label: "管理者ページ" } %>
+                  <% if service.admin_url.present? %>
+                    <%= link_to service.admin_url, service.admin_url, class: "business-service-url-link", target: "_blank", rel: "noopener" %>
+                  <% end %>
+                </div>
+              </td>
+              <td>
+                <div class="business-service-url-field">
+                  <%= form.url_field :other_url, aria: { label: "その他ページ" } %>
+                  <% if service.other_url.present? %>
+                    <%= link_to service.other_url, service.other_url, class: "business-service-url-link", target: "_blank", rel: "noopener" %>
+                  <% end %>
+                </div>
+              </td>
               <td><%= form.text_field :repository, aria: { label: "Repository" } %></td>
               <td><%= form.text_field :deploy_target, aria: { label: "デプロイ先" } %></td>
               <td><%= form.text_field :render_service, aria: { label: "Render" } %></td>

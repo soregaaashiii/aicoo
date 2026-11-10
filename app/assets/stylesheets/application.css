@@ -1058,6 +1058,18 @@ tbody tr:last-child td {
   border-bottom: 0;
 }
 
+.business-service-url-field {
+  display: grid;
+  gap: 6px;
+  min-width: 220px;
+}
+
+.business-service-url-link {
+  display: block;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
 .number,
 .rank {
   text-align: right;
