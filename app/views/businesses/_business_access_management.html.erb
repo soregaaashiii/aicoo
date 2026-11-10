@@ -55,16 +55,13 @@
                 <%= user_page_url.present? ? link_to(user_page_url, user_page_url, target: "_blank", rel: "noopener") : "未設定" %>
                 <% if service.url.present? %><span class="pill"><%= service.page_analysis_enabled?("user") ? "分析対象" : "分析対象外" %></span><% end %>
               </dd>
-              <dt>管理者ページ</dt>
-              <dd>
-                <%= metadata["admin_url"].present? ? link_to(metadata["admin_url"], metadata["admin_url"], target: "_blank", rel: "noopener") : "未設定" %>
-                <% if metadata["admin_url"].present? %><span class="pill"><%= service.page_analysis_enabled?("admin") ? "分析対象" : "分析対象外" %></span><% end %>
-              </dd>
-              <dt>その他ページ</dt>
-              <dd>
-                <%= metadata["other_url"].present? ? link_to(metadata["other_url"], metadata["other_url"], target: "_blank", rel: "noopener") : "未設定" %>
-                <% if metadata["other_url"].present? %><span class="pill"><%= service.page_analysis_enabled?("other") ? "分析対象" : "分析対象外" %></span><% end %>
-              </dd>
+              <% service.additional_page_configurations.each do |page| %>
+                <dt><%= page[:name] %></dt>
+                <dd>
+                  <%= link_to page[:url], page[:url], target: "_blank", rel: "noopener" %>
+                  <span class="pill"><%= page[:analysis_enabled] ? "分析対象" : "分析対象外" %></span>
+                </dd>
+              <% end %>
               <dt>Health Check</dt>
               <dd><%= metadata["health_check_url"].presence || "未設定" %></dd>
             </dl>

@@ -41,26 +41,37 @@
                     options_for_select(BusinessService::STATUSES.map { |status| [business_service_status_label(status), status] }, service&.status || "planning") %>
   </div>
   <fieldset class="service-page-settings">
-    <legend>ページ設定</legend>
-    <p class="aicoo-help-text">登録したページごとに分析対象を選べます。登録済みページの削除は、このフォーム下部の削除ボタンから行えます。</p>
-    <% page_fields = [
-      { kind: "user", label: "ユーザーページ", url_key: :service_url, analysis_key: :user_page_analysis_enabled, url: service&.url, placeholder: "https://service.example.com" },
-      { kind: "admin", label: "管理者ページ", url_key: :admin_url, analysis_key: :admin_page_analysis_enabled, url: metadata["admin_url"], placeholder: "https://service.example.com/admin" },
-      { kind: "other", label: "その他ページ", url_key: :other_url, analysis_key: :other_page_analysis_enabled, url: metadata["other_url"], placeholder: "https://service.example.com/other" }
-    ] %>
-    <% page_fields.each do |page| %>
-      <% analysis_checked = service ? service.page_analysis_enabled?(page[:kind]) : page[:kind] == "user" %>
+    <legend>ユーザーページ</legend>
+    <% if service %>
+      <p class="aicoo-help-text">Service登録時のURLです。ここで追加登録する必要はありません。</p>
       <div class="service-page-setting-row">
-        <div class="field service-page-url-field">
-          <%= form.label page[:url_key], page[:label] %>
-          <%= form.url_field page[:url_key], value: page[:url], placeholder: page[:placeholder] %>
-          <% if page[:url].present? %>
-            <%= link_to "登録済みページを開く", page[:url], target: "_blank", rel: "noopener", class: "business-service-url-link" %>
+        <div class="service-page-readonly-value">
+          <% if service.url.present? %>
+            <%= link_to service.url, service.url, target: "_blank", rel: "noopener", class: "business-service-url-link" %>
+          <% else %>
+            <span class="aicoo-empty-state">Service URLは未登録です。</span>
           <% end %>
         </div>
         <div class="service-page-setting-options">
           <label class="checkbox-field">
-            <%= form.check_box page[:analysis_key], { checked: analysis_checked }, "1", "0" %>
+            <%= form.check_box :user_page_analysis_enabled,
+                               { checked: service.page_analysis_enabled?("user"), disabled: service.url.blank? },
+                               "1",
+                               "0" %>
+            分析対象にする
+          </label>
+        </div>
+      </div>
+    <% else %>
+      <p class="aicoo-help-text">Serviceを最初に登録するURLが、そのままユーザーページになります。</p>
+      <div class="service-page-setting-row">
+        <div class="field service-page-url-field">
+          <%= form.label :service_url, "ユーザーページURL" %>
+          <%= form.url_field :service_url, placeholder: "https://service.example.com" %>
+        </div>
+        <div class="service-page-setting-options">
+          <label class="checkbox-field">
+            <%= form.check_box :user_page_analysis_enabled, { checked: true }, "1", "0" %>
             分析対象にする
           </label>
         </div>
@@ -83,4 +94,77 @@
     <%= form.submit service ? "Service設定を保存" : "Serviceを追加", class: "button" %>
     <%= link_to "Business詳細で確認", business_path(business, anchor: "business-service-access-card"), class: "button secondary" %>
   </div>
+<% end %>
+
+<% if service %>
+  <section class="service-additional-pages" aria-labelledby="service-<%= service.id %>-additional-pages">
+    <div class="section-heading compact">
+      <div>
+        <h4 id="service-<%= service.id %>-additional-pages">その他のページ</h4>
+        <p>必要なページだけ、分かる名前を付けて追加できます。</p>
+      </div>
+    </div>
+
+    <% service.additional_page_configurations.each do |page| %>
+      <div class="service-additional-page-row">
+        <%= form_with url: update_service_page_business_access_settings_path(
+                            business,
+                            business_service_id: service.id,
+                            page_id: page[:id]
+                          ),
+                      method: :patch,
+                      scope: :service_page,
+                      class: "business-access-form service-additional-page-form" do |page_form| %>
+          <div class="field">
+            <%= page_form.label :name, "ページ名" %>
+            <%= page_form.text_field :name, value: page[:name], placeholder: "管理画面、ヘルプ、採用情報など" %>
+          </div>
+          <div class="field service-page-url-field">
+            <%= page_form.label :url, "URL" %>
+            <%= page_form.url_field :url, value: page[:url], placeholder: "https://service.example.com/page" %>
+            <%= link_to "ページを開く", page[:url], target: "_blank", rel: "noopener", class: "business-service-url-link" %>
+          </div>
+          <label class="checkbox-field">
+            <%= page_form.check_box :analysis_enabled, { checked: page[:analysis_enabled] }, "1", "0" %>
+            分析対象にする
+          </label>
+          <%= page_form.submit "保存", class: "button secondary" %>
+        <% end %>
+        <%= button_to "削除",
+                      remove_service_page_business_access_settings_path(
+                        business,
+                        business_service_id: service.id,
+                        page_id: page[:id]
+                      ),
+                      method: :delete,
+                      class: "button secondary",
+                      form: { data: { turbo_confirm: "#{page[:name]}を削除します。Service自体は削除されません。よろしいですか？" } } %>
+      </div>
+    <% end %>
+
+    <details class="service-additional-page-add">
+      <summary><strong>+ その他のページを追加</strong></summary>
+      <%= form_with url: add_service_page_business_access_settings_path(
+                          business,
+                          business_service_id: service.id
+                        ),
+                    method: :post,
+                    scope: :service_page,
+                    class: "business-access-form service-additional-page-form" do |page_form| %>
+        <div class="field">
+          <%= page_form.label :name, "ページ名" %>
+          <%= page_form.text_field :name, placeholder: "管理画面、ヘルプ、採用情報など", required: true %>
+        </div>
+        <div class="field">
+          <%= page_form.label :url, "URL" %>
+          <%= page_form.url_field :url, placeholder: "https://service.example.com/page", required: true %>
+        </div>
+        <label class="checkbox-field">
+          <%= page_form.check_box :analysis_enabled, {}, "1", "0" %>
+          分析対象にする
+        </label>
+        <%= page_form.submit "追加", class: "button" %>
+      <% end %>
+    </details>
+  </section>
 <% end %>

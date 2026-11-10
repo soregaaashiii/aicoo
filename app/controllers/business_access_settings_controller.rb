@@ -11,11 +11,32 @@ class BusinessAccessSettingsController < ApplicationController
   def destroy_service_page
     Aicoo::BusinessAccessSettingsUpdater.new(@business).destroy_service_page!(
       service_id: params.expect(:business_service_id),
-      page_kind: params.expect(:page_kind)
+      page_id: params.expect(:page_id)
     )
     redirect_to_service_settings("Serviceページを削除しました。")
   rescue ActiveRecord::RecordInvalid, ArgumentError => e
     redirect_to_service_settings("Serviceページを削除できませんでした: #{error_message(e)}", alert: true)
+  end
+
+  def create_service_page
+    Aicoo::BusinessAccessSettingsUpdater.new(@business).create_service_page!(
+      service_id: params.expect(:business_service_id),
+      attributes: service_page_params
+    )
+    redirect_to_service_settings("その他のページを追加しました。")
+  rescue ActiveRecord::RecordInvalid, ArgumentError => e
+    redirect_to_service_settings("その他のページを追加できませんでした: #{error_message(e)}", alert: true)
+  end
+
+  def update_service_page
+    Aicoo::BusinessAccessSettingsUpdater.new(@business).update_service_page!(
+      service_id: params.expect(:business_service_id),
+      page_id: params.expect(:page_id),
+      attributes: service_page_params
+    )
+    redirect_to_service_settings("その他のページを保存しました。")
+  rescue ActiveRecord::RecordInvalid, ArgumentError => e
+    redirect_to_service_settings("その他のページを保存できませんでした: #{error_message(e)}", alert: true)
   end
 
   def update_landing_page
@@ -237,6 +258,10 @@ class BusinessAccessSettingsController < ApplicationController
       health_check_url deploy_target activity_api_endpoint auto_deploy_enabled status
       user_page_analysis_enabled admin_page_analysis_enabled other_page_analysis_enabled
     ])
+  end
+
+  def service_page_params
+    params.expect(service_page: %i[name url analysis_enabled])
   end
 
   def landing_page_params

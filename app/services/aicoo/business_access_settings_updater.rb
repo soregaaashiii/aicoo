@@ -1,4 +1,5 @@
 require "uri"
+require "securerandom"
 
 module Aicoo
   class BusinessAccessSettingsUpdater
@@ -14,9 +15,9 @@ module Aicoo
         else
           business.business_services.new
         end
-        service_url = values["service_url"].presence
-        admin_url = values["admin_url"].presence
-        other_url = values["other_url"].presence
+        service_url = values.key?("service_url") ? values["service_url"].presence : service.url
+        admin_url = values.key?("admin_url") ? values["admin_url"].presence : service.admin_url
+        other_url = values.key?("other_url") ? values["other_url"].presence : service.other_url
         metadata = service.metadata.to_h.merge(
           "branch" => values["branch"].presence || "main",
           "framework" => values["framework"].presence_in(BusinessExecutionProfile::REPOSITORY_TYPES) || "other",
@@ -49,25 +50,76 @@ module Aicoo
       end
     end
 
-    def destroy_service_page!(service_id:, page_kind:)
-      kind = page_kind.to_s
-      raise ArgumentError, "不明なページ種別です。" unless kind.in?(BusinessService::PAGE_KINDS)
+    def create_service_page!(service_id:, attributes:)
+      values = attributes.to_h.deep_stringify_keys
+      Business.transaction do
+        service = business.business_services.find(service_id)
+        name, url = normalized_additional_page_values(values)
+        ensure_unique_additional_page_url!(service, url)
+        pages = service.stored_additional_pages
+        pages << {
+          "id" => SecureRandom.uuid,
+          "name" => name,
+          "url" => url,
+          "analysis_enabled" => boolean(values["analysis_enabled"])
+        }
+        save_additional_pages!(service, pages)
+      end
+    end
+
+    def update_service_page!(service_id:, page_id:, attributes:)
+      values = attributes.to_h.deep_stringify_keys
+      Business.transaction do
+        service = business.business_services.find(service_id)
+        name, url = normalized_additional_page_values(values)
+        ensure_unique_additional_page_url!(service, url, except_page_id: page_id)
+
+        if page_id.to_s.in?(%w[admin other])
+          metadata = service.metadata.to_h.merge(
+            "#{page_id}_page_name" => name,
+            "#{page_id}_url" => url,
+            "#{page_id}_page_analysis_enabled" => boolean(values["analysis_enabled"]),
+            "updated_by" => "owner",
+            "updated_at" => Time.current.iso8601
+          )
+          service.update!(metadata:)
+        else
+          pages = service.stored_additional_pages
+          page = pages.find { |entry| entry["id"].to_s == page_id.to_s }
+          raise ArgumentError, "追加ページが見つかりません。" unless page
+
+          page.merge!(
+            "name" => name,
+            "url" => url,
+            "analysis_enabled" => boolean(values["analysis_enabled"])
+          )
+          save_additional_pages!(service, pages)
+        end
+      end
+    end
+
+    def destroy_service_page!(service_id:, page_id:)
+      id = page_id.to_s
+      raise ArgumentError, "ユーザーページはServiceの登録URLとして管理されるため削除できません。" if id == "user"
 
       Business.transaction do
         service = business.business_services.find(service_id)
-        metadata = service.metadata.to_h.merge(
-          "#{kind}_page_analysis_enabled" => false,
-          "updated_by" => "owner",
-          "updated_at" => Time.current.iso8601
-        )
-        if kind == "user"
-          service.url = nil
+        if id.in?(%w[admin other])
+          metadata = service.metadata.to_h.merge(
+            "#{id}_page_analysis_enabled" => false,
+            "#{id}_url" => nil,
+            "#{id}_page_name" => nil,
+            "updated_by" => "owner",
+            "updated_at" => Time.current.iso8601
+          )
+          service.update!(metadata: metadata.compact)
         else
-          metadata["#{kind}_url"] = nil
+          pages = service.stored_additional_pages
+          filtered_pages = pages.reject { |entry| entry["id"].to_s == id }
+          raise ArgumentError, "追加ページが見つかりません。" if filtered_pages.size == pages.size
+
+          save_additional_pages!(service, filtered_pages)
         end
-        service.metadata = metadata.compact
-        service.save!
-        sync_primary_service_profile!(service) if kind == "user" && primary_service?(service)
         service
       end
     end
@@ -227,6 +279,38 @@ module Aicoo
 
       metadata = service.metadata.to_h
       metadata.key?(key) ? boolean(metadata[key]) : default
+    end
+
+    def normalized_additional_page_values(values)
+      name = values["name"].to_s.strip
+      url = values["url"].to_s.strip
+      raise ArgumentError, "ページ名を入力してください。" if name.blank?
+      raise ArgumentError, "URLを入力してください。" if url.blank?
+
+      uri = URI.parse(url)
+      raise ArgumentError, "URLはhttp://またはhttps://で入力してください。" unless uri.is_a?(URI::HTTP) && uri.host.present?
+
+      [ name, url ]
+    rescue URI::InvalidURIError
+      raise ArgumentError, "URLの形式が正しくありません。"
+    end
+
+    def ensure_unique_additional_page_url!(service, url, except_page_id: nil)
+      duplicate = service.page_configurations.any? do |page|
+        page[:id].to_s != except_page_id.to_s && page[:url].to_s == url
+      end
+      raise ArgumentError, "同じURLのページがすでに登録されています。" if duplicate
+    end
+
+    def save_additional_pages!(service, pages)
+      service.update!(
+        metadata: service.metadata.to_h.merge(
+          "additional_pages" => pages,
+          "updated_by" => "owner",
+          "updated_at" => Time.current.iso8601
+        )
+      )
+      service
     end
 
     def update_analytics_site!(values)

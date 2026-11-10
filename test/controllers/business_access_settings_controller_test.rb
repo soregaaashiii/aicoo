@@ -557,7 +557,7 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "service page settings are edited and deleted only from business settings" do
+  test "service page settings reuse the registered user page and manage named additional pages" do
     service = @business.business_services.create!(
       name: "Console",
       status: "live",
@@ -570,60 +570,96 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select "#business-service-settings" do
-      assert_select "input[name='service_access[service_url]'][value='https://console.example.com']"
-      assert_select "input[name='service_access[admin_url]'][value='https://console.example.com/admin']"
-      assert_select "input[name='service_access[other_url]'][value='https://docs.example.com/console']"
-      assert_select "input[name='service_access[user_page_analysis_enabled]']"
-      assert_select "input[name='service_access[admin_page_analysis_enabled]']"
-      assert_select "input[name='service_access[other_page_analysis_enabled]']"
-      assert_select "form[action='#{remove_service_page_business_access_settings_path(@business, business_service_id: service.id, page_kind: "user")}']"
-      assert_select "form[action='#{remove_service_page_business_access_settings_path(@business, business_service_id: service.id, page_kind: "admin")}']"
-      assert_select "form[action='#{remove_service_page_business_access_settings_path(@business, business_service_id: service.id, page_kind: "other")}']"
+      assert_select "#service-settings-card-#{service.id}" do
+        assert_select "a[href='https://console.example.com']", text: "https://console.example.com"
+        assert_select "input[name='service_access[service_url]']", count: 0
+        assert_select "input[name='service_access[admin_url]']", count: 0
+        assert_select "input[name='service_access[other_url]']", count: 0
+        assert_select "input[name='service_access[user_page_analysis_enabled]']"
+        assert_select "input[name='service_page[name]'][value='管理者ページ']"
+        assert_select "input[name='service_page[name]'][value='その他ページ']"
+        assert_select "form[action='#{remove_service_page_business_access_settings_path(@business, business_service_id: service.id, page_id: "user")}']", count: 0
+        assert_select "form[action='#{remove_service_page_business_access_settings_path(@business, business_service_id: service.id, page_id: "admin")}']"
+        assert_select "form[action='#{remove_service_page_business_access_settings_path(@business, business_service_id: service.id, page_id: "other")}']"
+        assert_select "form[action='#{add_service_page_business_access_settings_path(@business, business_service_id: service.id)}']"
+      end
     end
 
     patch service_business_access_settings_url(@business), params: {
       service_access: {
         business_service_id: service.id,
         name: service.name,
-        service_url: service.url,
-        admin_url: service.admin_url,
-        other_url: service.other_url,
         user_page_analysis_enabled: "0",
-        admin_page_analysis_enabled: "1",
-        other_page_analysis_enabled: "1",
         branch: "main",
         framework: "rails"
       }
     }
 
     assert_redirected_to edit_business_url(@business, anchor: "business-service-settings")
-    assert_equal [
-      "https://console.example.com/admin",
-      "https://docs.example.com/console"
-    ], service.reload.analysis_target_urls
+    assert_equal "https://console.example.com", service.reload.url
+    assert_not service.page_analysis_enabled?("user")
+
+    assert_difference -> { service.reload.additional_page_configurations.size }, 1 do
+      post add_service_page_business_access_settings_url(@business, business_service_id: service.id), params: {
+        service_page: {
+          name: "ヘルプ",
+          url: "https://console.example.com/help",
+          analysis_enabled: "1"
+        }
+      }
+    end
+    assert_redirected_to edit_business_url(@business, anchor: "business-service-settings")
+
+    added_page = service.reload.additional_page_configurations.find { |page| page[:name] == "ヘルプ" }
+    assert added_page
+    assert added_page[:analysis_enabled]
+
+    patch update_service_page_business_access_settings_url(
+      @business,
+      business_service_id: service.id,
+      page_id: added_page[:id]
+    ), params: {
+      service_page: {
+        name: "使い方",
+        url: "https://console.example.com/guide",
+        analysis_enabled: "0"
+      }
+    }
+
+    updated_page = service.reload.additional_page_configurations.find { |page| page[:id] == added_page[:id] }
+    assert_equal "使い方", updated_page[:name]
+    assert_equal "https://console.example.com/guide", updated_page[:url]
+    assert_not updated_page[:analysis_enabled]
 
     delete remove_service_page_business_access_settings_url(
       @business,
       business_service_id: service.id,
-      page_kind: "admin"
+      page_id: "admin"
     )
 
     assert_redirected_to edit_business_url(@business, anchor: "business-service-settings")
     assert_nil service.reload.admin_url
     assert_equal "https://console.example.com", service.url
     assert_equal "https://docs.example.com/console", service.other_url
-    assert_equal [ "https://docs.example.com/console" ], service.analysis_target_urls
+
+    assert_difference -> { service.reload.additional_page_configurations.size }, -1 do
+      delete remove_service_page_business_access_settings_url(
+        @business,
+        business_service_id: service.id,
+        page_id: added_page[:id]
+      )
+    end
+    assert_equal "https://console.example.com", service.reload.url
 
     delete remove_service_page_business_access_settings_url(
       @business,
       business_service_id: service.id,
-      page_kind: "user"
+      page_id: "user"
     )
 
     assert_redirected_to edit_business_url(@business, anchor: "business-service-settings")
-    assert_nil service.reload.url
-    assert_nil @business.reload.business_execution_profile.production_url
-    assert_equal "https://docs.example.com/console", service.other_url
+    assert_equal "https://console.example.com", service.reload.url
+    assert_includes flash[:alert], "ユーザーページはServiceの登録URLとして管理されるため削除できません"
   end
 
   test "landing pages are independent records and sync task targets only the landing page repository" do

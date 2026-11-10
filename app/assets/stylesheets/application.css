@@ -1508,6 +1508,53 @@ details.revenue-card > summary {
   gap: 8px;
 }
 
+.service-page-readonly-value {
+  align-self: center;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.service-additional-pages {
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 12px;
+  padding-top: 16px;
+}
+
+.service-additional-page-row {
+  align-items: end;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 12px;
+}
+
+.service-additional-page-row form {
+  margin: 0;
+}
+
+.service-additional-page-form {
+  align-items: end;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(150px, 0.7fr) minmax(240px, 1.4fr) auto auto;
+}
+
+.service-additional-page-add {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.service-additional-page-add > summary {
+  cursor: pointer;
+}
+
+.service-additional-page-add[open] > summary {
+  margin-bottom: 12px;
+}
+
 .service-page-delete-actions {
   border-top: 1px solid var(--border);
   padding-top: 12px;
@@ -1757,6 +1804,12 @@ details.revenue-card > summary {
   }
 
   .service-page-setting-row {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  .service-additional-page-row,
+  .service-additional-page-form {
     align-items: stretch;
     grid-template-columns: 1fr;
   }

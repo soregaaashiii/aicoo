@@ -174,7 +174,9 @@ Rails.application.routes.draw do
     resources :business_prototypes, path: "prototypes", only: %i[create edit update destroy]
     resource :access_settings, only: [], controller: "business_access_settings" do
       patch :service, action: :update_service
-      delete "services/:business_service_id/pages/:page_kind", action: :destroy_service_page, as: :remove_service_page
+      post "services/:business_service_id/pages", action: :create_service_page, as: :add_service_page
+      patch "services/:business_service_id/pages/:page_id", action: :update_service_page, as: :update_service_page
+      delete "services/:business_service_id/pages/:page_id", action: :destroy_service_page, as: :remove_service_page
       patch :campaign, action: :update_campaign
       delete "campaigns/:campaign_id", action: :destroy_campaign, as: :remove_campaign
       post :landing_page_plan, action: :create_landing_page_plan
