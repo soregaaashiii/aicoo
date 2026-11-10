@@ -3,9 +3,19 @@ class BusinessAccessSettingsController < ApplicationController
 
   def update_service
     Aicoo::BusinessAccessSettingsUpdater.new(@business).update_service!(service_params)
-    redirect_to_access_section("Service設定を保存しました。")
+    redirect_to_service_settings("Service設定を保存しました。")
   rescue ActiveRecord::RecordInvalid, ArgumentError => e
-    redirect_to_access_section("Service設定を保存できませんでした: #{error_message(e)}", alert: true)
+    redirect_to_service_settings("Service設定を保存できませんでした: #{error_message(e)}", alert: true)
+  end
+
+  def destroy_service_page
+    Aicoo::BusinessAccessSettingsUpdater.new(@business).destroy_service_page!(
+      service_id: params.expect(:business_service_id),
+      page_kind: params.expect(:page_kind)
+    )
+    redirect_to_service_settings("Serviceページを削除しました。")
+  rescue ActiveRecord::RecordInvalid, ArgumentError => e
+    redirect_to_service_settings("Serviceページを削除できませんでした: #{error_message(e)}", alert: true)
   end
 
   def update_landing_page
@@ -223,8 +233,9 @@ class BusinessAccessSettingsController < ApplicationController
 
   def service_params
     params.expect(service_access: %i[
-      business_service_id name service_url admin_url other_url domain github_repository branch framework render_service_name
+      business_service_id name service_url admin_url other_url domain stripe_account github_repository branch framework render_service_name
       health_check_url deploy_target activity_api_endpoint auto_deploy_enabled status
+      user_page_analysis_enabled admin_page_analysis_enabled other_page_analysis_enabled
     ])
   end
 
@@ -287,6 +298,11 @@ class BusinessAccessSettingsController < ApplicationController
   def redirect_to_access_section(message, alert: false)
     options = alert ? { alert: message } : { notice: message }
     redirect_to business_path(@business, anchor: "business-access-urls"), options
+  end
+
+  def redirect_to_service_settings(message, alert: false)
+    options = alert ? { alert: message } : { notice: message }
+    redirect_to edit_business_path(@business, anchor: "business-service-settings"), options
   end
 
   def redirect_to_landing_page(landing_page, message)

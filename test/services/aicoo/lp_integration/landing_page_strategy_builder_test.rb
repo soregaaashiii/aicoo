@@ -43,4 +43,30 @@ class Aicoo::LpIntegration::LandingPageStrategyBuilderTest < ActiveSupport::Test
     assert strategy.fetch("meta_description").present?
     assert strategy.fetch("reason").present?
   end
+
+  test "passes only selected service pages to strategy analysis" do
+    @business.business_services.create!(
+      name: "Customer Console",
+      url: "https://service.example.com",
+      admin_url: "https://service.example.com/admin",
+      other_url: "https://docs.example.com",
+      user_page_analysis_enabled: false,
+      admin_page_analysis_enabled: true,
+      other_page_analysis_enabled: true
+    )
+    builder = Aicoo::LpIntegration::LandingPageStrategyBuilder.new(
+      business: @business,
+      campaign: @campaign,
+      purpose: "google_ads",
+      client: MissingKeyClient.new
+    )
+
+    pages = builder.send(:evidence).fetch("service").first.fetch("analysis_target_pages")
+
+    assert_equal %w[admin other], pages.pluck("page_type")
+    assert_equal [
+      "https://service.example.com/admin",
+      "https://docs.example.com"
+    ], pages.pluck("url")
+  end
 end

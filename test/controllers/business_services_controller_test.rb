@@ -31,16 +31,15 @@ class BusinessServicesControllerTest < ActionDispatch::IntegrationTest
 
     get business_url(business)
     assert_response :success
+    assert_select "#business-service-access-card" do
+      assert_select "a[href='https://suelog.jp']", text: "https://suelog.jp"
+      assert_select "a[href='https://suelog.jp/admin']", text: "https://suelog.jp/admin"
+      assert_select "a[href='https://status.suelog.jp']", text: "https://status.suelog.jp"
+      assert_select "input[name^='business_service']", count: 0
+    end
     assert_select "#business-services" do
-      assert_select "th", text: "ユーザーページ"
-      assert_select "th", text: "管理者ページ"
-      assert_select "th", text: "その他ページ"
-      assert_select "input[name='business_service[admin_url]']", minimum: 2
-      assert_select "input[name='business_service[other_url]']", minimum: 2
-      assert_select "a.business-service-url-link[href='https://suelog.jp']", text: "https://suelog.jp"
-      assert_select "a.business-service-url-link[href='https://suelog.jp/admin']", text: "https://suelog.jp/admin"
-      assert_select "a.business-service-url-link[href='https://status.suelog.jp']", text: "https://status.suelog.jp"
-      assert_select "a.business-service-url-link[target='_blank'][rel='noopener']", count: 3
+      assert_select "input[name^='business_service']", count: 0
+      assert_select "a[href='#{edit_business_path(business, anchor: "business-service-settings")}']", text: "設定"
     end
   end
 

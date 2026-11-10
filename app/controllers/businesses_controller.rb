@@ -329,6 +329,7 @@ class BusinessesController < ApplicationController
 
   # GET /businesses/1/edit
   def edit
+    @business_services = @business.business_services.recent.to_a
     load_data_source_settings_context
     load_google_source_options
     @data_source_policy = Aicoo::DataSourcePolicy.for(@business)
@@ -364,6 +365,7 @@ class BusinessesController < ApplicationController
         format.json { render :show, status: :ok, location: @business }
       else
         format.html do
+          @business_services = @business.business_services.recent.to_a
           load_data_source_settings_context
           render :edit, status: :unprocessable_content
         end

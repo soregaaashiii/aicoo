@@ -1,5 +1,6 @@
 <% metadata = service&.metadata.to_h || {} %>
-<%= form_with url: service_business_access_settings_path(business), method: :patch, scope: :service_access, class: "business-access-form" do |form| %>
+<% form_namespace = "service_#{service&.id || 'new'}" %>
+<%= form_with url: service_business_access_settings_path(business), method: :patch, scope: :service_access, namespace: form_namespace, class: "business-access-form service-settings-form" do |form| %>
   <%= form.hidden_field :business_service_id, value: service&.id %>
   <div class="field">
     <%= form.label :name, "Service名" %>
@@ -23,18 +24,49 @@
     <%= form.text_field :render_service_name, value: service&.render_service, placeholder: "service-web" %>
   </div>
   <div class="field">
-    <%= form.label :service_url, "ユーザーページ" %>
-    <%= form.url_field :service_url, value: service&.url, placeholder: "https://service.example.com" %>
+    <%= form.label :deploy_target, "デプロイ先" %>
+    <%= form.text_field :deploy_target, value: service&.deploy_target.presence || "render", placeholder: "render" %>
   </div>
   <div class="field">
-    <%= form.label :admin_url, "管理者ページ" %>
-    <%= form.url_field :admin_url, value: metadata["admin_url"], placeholder: "https://service.example.com/admin" %>
+    <%= form.label :domain, "ドメイン" %>
+    <%= form.text_field :domain, value: service&.domain, placeholder: "service.example.com" %>
   </div>
   <div class="field">
-    <%= form.label :other_url, "その他ページ" %>
-    <%= form.url_field :other_url, value: metadata["other_url"], placeholder: "https://service.example.com/other" %>
+    <%= form.label :stripe_account, "Stripe Account" %>
+    <%= form.text_field :stripe_account, value: service&.stripe_account, placeholder: "acct_..." %>
   </div>
-  <p class="aicoo-help-text">分析対象はユーザーページのみです。管理者ページとその他ページは参照用として保存します。</p>
+  <div class="field">
+    <%= form.label :status, "ステータス" %>
+    <%= form.select :status,
+                    options_for_select(BusinessService::STATUSES.map { |status| [business_service_status_label(status), status] }, service&.status || "planning") %>
+  </div>
+  <fieldset class="service-page-settings">
+    <legend>ページ設定</legend>
+    <p class="aicoo-help-text">登録したページごとに分析対象を選べます。登録済みページの削除は、このフォーム下部の削除ボタンから行えます。</p>
+    <% page_fields = [
+      { kind: "user", label: "ユーザーページ", url_key: :service_url, analysis_key: :user_page_analysis_enabled, url: service&.url, placeholder: "https://service.example.com" },
+      { kind: "admin", label: "管理者ページ", url_key: :admin_url, analysis_key: :admin_page_analysis_enabled, url: metadata["admin_url"], placeholder: "https://service.example.com/admin" },
+      { kind: "other", label: "その他ページ", url_key: :other_url, analysis_key: :other_page_analysis_enabled, url: metadata["other_url"], placeholder: "https://service.example.com/other" }
+    ] %>
+    <% page_fields.each do |page| %>
+      <% analysis_checked = service ? service.page_analysis_enabled?(page[:kind]) : page[:kind] == "user" %>
+      <div class="service-page-setting-row">
+        <div class="field service-page-url-field">
+          <%= form.label page[:url_key], page[:label] %>
+          <%= form.url_field page[:url_key], value: page[:url], placeholder: page[:placeholder] %>
+          <% if page[:url].present? %>
+            <%= link_to "登録済みページを開く", page[:url], target: "_blank", rel: "noopener", class: "business-service-url-link" %>
+          <% end %>
+        </div>
+        <div class="service-page-setting-options">
+          <label class="checkbox-field">
+            <%= form.check_box page[:analysis_key], { checked: analysis_checked }, "1", "0" %>
+            分析対象にする
+          </label>
+        </div>
+      </div>
+    <% end %>
+  </fieldset>
   <div class="field">
     <%= form.label :health_check_url, "Health Check URL" %>
     <%= form.url_field :health_check_url, value: metadata["health_check_url"], placeholder: "https://service.example.com/up" %>
@@ -43,13 +75,12 @@
     <%= form.label :activity_api_endpoint, "Activity API" %>
     <%= form.url_field :activity_api_endpoint, value: service&.api_endpoint, placeholder: "https://service.example.com/activity" %>
   </div>
-  <%= form.hidden_field :deploy_target, value: "render" %>
   <div class="field checkbox-field">
     <%= form.check_box :auto_deploy_enabled, { checked: ActiveModel::Type::Boolean.new.cast(metadata["auto_deploy_enabled"]) }, "1", "0" %>
     <%= form.label :auto_deploy_enabled, "自動デプロイを有効にする" %>
   </div>
   <div class="actions compact-actions">
-    <%= form.submit "保存", class: "button" %>
-    <%= link_to "キャンセル", business_path(business, anchor: "business-access-urls"), class: "button secondary" %>
+    <%= form.submit service ? "Service設定を保存" : "Serviceを追加", class: "button" %>
+    <%= link_to "Business詳細で確認", business_path(business, anchor: "business-service-access-card"), class: "button secondary" %>
   </div>
 <% end %>

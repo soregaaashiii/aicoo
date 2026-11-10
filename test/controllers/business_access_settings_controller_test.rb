@@ -36,7 +36,7 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
     assert_select "#business-measurement-access-card", text: /計測/
     assert_select "#business-lp-planner-card", text: /改善Planner/
     assert_select "#business-lp-analyzer-dashboard", text: /利益実績/
-    assert_select "summary", text: "+ Service追加"
+    assert_select "a[href='#{edit_business_path(@business, anchor: "business-service-settings")}']", text: "+ Service追加"
     assert_select "#business-lp-access-card summary", text: "＋LP追加", count: 1
     assert_select "summary", text: "＋LP追加", count: 1
     assert_select "#business-lp-access-card a[href='#{new_existing_landing_page_business_access_settings_path(@business)}']",
@@ -533,6 +533,9 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "rails", services.first.metadata.to_h["framework"]
     assert_equal "https://api.example.com/admin", services.first.metadata.to_h["admin_url"]
     assert_equal "https://status.example.com/api", services.first.metadata.to_h["other_url"]
+    assert services.first.page_analysis_enabled?("user")
+    assert_not services.first.page_analysis_enabled?("admin")
+    assert_not services.first.page_analysis_enabled?("other")
     assert_equal "main", services.second.metadata.to_h["branch"]
     profile = @business.reload.business_execution_profile
     assert_equal "https://github.com/example/api", profile.github_repository
@@ -545,12 +548,82 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
     get business_url(@business)
     assert_response :success
     assert_select "#business-service-access-card" do
-      assert_select "label", text: "ユーザーページ"
-      assert_select "label", text: "管理者ページ"
-      assert_select "label", text: "その他ページ"
+      assert_select "dt", text: "ユーザーページ"
+      assert_select "dt", text: "管理者ページ"
+      assert_select "dt", text: "その他ページ"
       assert_select "a[href='https://api.example.com/admin']", text: "https://api.example.com/admin"
       assert_select "a[href='https://status.example.com/api']", text: "https://status.example.com/api"
+      assert_select "input[name^='service_access']", count: 0
     end
+  end
+
+  test "service page settings are edited and deleted only from business settings" do
+    service = @business.business_services.create!(
+      name: "Console",
+      status: "live",
+      url: "https://console.example.com",
+      admin_url: "https://console.example.com/admin",
+      other_url: "https://docs.example.com/console"
+    )
+
+    get edit_business_url(@business, anchor: "business-service-settings")
+
+    assert_response :success
+    assert_select "#business-service-settings" do
+      assert_select "input[name='service_access[service_url]'][value='https://console.example.com']"
+      assert_select "input[name='service_access[admin_url]'][value='https://console.example.com/admin']"
+      assert_select "input[name='service_access[other_url]'][value='https://docs.example.com/console']"
+      assert_select "input[name='service_access[user_page_analysis_enabled]']"
+      assert_select "input[name='service_access[admin_page_analysis_enabled]']"
+      assert_select "input[name='service_access[other_page_analysis_enabled]']"
+      assert_select "form[action='#{remove_service_page_business_access_settings_path(@business, business_service_id: service.id, page_kind: "user")}']"
+      assert_select "form[action='#{remove_service_page_business_access_settings_path(@business, business_service_id: service.id, page_kind: "admin")}']"
+      assert_select "form[action='#{remove_service_page_business_access_settings_path(@business, business_service_id: service.id, page_kind: "other")}']"
+    end
+
+    patch service_business_access_settings_url(@business), params: {
+      service_access: {
+        business_service_id: service.id,
+        name: service.name,
+        service_url: service.url,
+        admin_url: service.admin_url,
+        other_url: service.other_url,
+        user_page_analysis_enabled: "0",
+        admin_page_analysis_enabled: "1",
+        other_page_analysis_enabled: "1",
+        branch: "main",
+        framework: "rails"
+      }
+    }
+
+    assert_redirected_to edit_business_url(@business, anchor: "business-service-settings")
+    assert_equal [
+      "https://console.example.com/admin",
+      "https://docs.example.com/console"
+    ], service.reload.analysis_target_urls
+
+    delete remove_service_page_business_access_settings_url(
+      @business,
+      business_service_id: service.id,
+      page_kind: "admin"
+    )
+
+    assert_redirected_to edit_business_url(@business, anchor: "business-service-settings")
+    assert_nil service.reload.admin_url
+    assert_equal "https://console.example.com", service.url
+    assert_equal "https://docs.example.com/console", service.other_url
+    assert_equal [ "https://docs.example.com/console" ], service.analysis_target_urls
+
+    delete remove_service_page_business_access_settings_url(
+      @business,
+      business_service_id: service.id,
+      page_kind: "user"
+    )
+
+    assert_redirected_to edit_business_url(@business, anchor: "business-service-settings")
+    assert_nil service.reload.url
+    assert_nil @business.reload.business_execution_profile.production_url
+    assert_equal "https://docs.example.com/console", service.other_url
   end
 
   test "landing pages are independent records and sync task targets only the landing page repository" do
@@ -705,7 +778,7 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
         auto_deploy_enabled: "0"
       }
     }
-    assert_redirected_to business_url(@business, anchor: "business-access-urls")
+    assert_redirected_to edit_business_url(@business, anchor: "business-service-settings")
   end
 
   def save_campaign(name:, campaign_type:)

@@ -64,7 +64,13 @@ module Aicoo
             "profile" => business.metadata.to_h["business_profile"]
           },
           "service" => business.business_services.recent.limit(5).map { |service|
-            { "name" => service.name, "framework" => service.metadata.to_h["framework"], "url" => service.url }
+            {
+              "name" => service.name,
+              "framework" => service.metadata.to_h["framework"],
+              "analysis_target_pages" => service.analysis_target_pages.map do |page|
+                { "page_type" => page[:kind], "label" => page[:label], "url" => page[:url] }
+              end
+            }
           },
           "campaign" => {
             "name" => campaign.name,

@@ -8,12 +8,60 @@
 <div class="aicoo-page">
   <%= render "shared/aicoo_header",
              title: "#{@business.name} のBusiness設定",
-             description: "このBusinessが使うGoogle / SERP / Codexなどの紐付けをここで管理します。保存後は元の画面へ戻ります。",
+             description: "ServiceページとGoogle / SERP / Codexなどの紐付けをここで一元管理します。",
              active_main: :revenue,
              actions: header_actions %>
   <%= render "navigation", business: @business, current_section: "設定" %>
 
   <%= render "form", business: @business, return_to: @return_to %>
+
+  <section class="dashboard-section" id="business-service-settings">
+    <div class="section-heading">
+      <div>
+        <h2>Serviceページ設定</h2>
+        <p>各Serviceのユーザー・管理者・その他ページをここで一元管理します。ページごとに分析対象を選択できます。</p>
+      </div>
+      <%= link_to "Business詳細で確認", business_path(@business, anchor: "business-service-access-card"), class: "button secondary" %>
+    </div>
+
+    <div class="business-service-settings-list">
+      <% @business_services.each do |service| %>
+        <article class="aicoo-card service-settings-card">
+          <div class="section-heading compact">
+            <div>
+              <h3><%= service.name %></h3>
+              <p><%= service.analysis_target_urls.size %>ページを分析対象に設定中</p>
+            </div>
+          </div>
+          <%= render "business_service_access_form", business: @business, service: %>
+          <% if service.page_configurations.any? { |page| page[:url].present? } %>
+            <div class="service-page-delete-actions">
+              <strong>登録ページを削除</strong>
+              <div class="compact-actions">
+                <% service.page_configurations.each do |page| %>
+                  <% next if page[:url].blank? %>
+                  <%= button_to "#{page[:label]}を削除",
+                                remove_service_page_business_access_settings_path(
+                                  @business,
+                                  business_service_id: service.id,
+                                  page_kind: page[:kind]
+                                ),
+                                method: :delete,
+                                class: "button secondary",
+                                data: { turbo_confirm: "#{page[:label]}のURLを削除します。Service自体は削除されません。よろしいですか？" } %>
+                <% end %>
+              </div>
+            </div>
+          <% end %>
+        </article>
+      <% end %>
+
+      <details class="aicoo-card service-settings-card service-settings-add-card" <%= "open" if @business_services.empty? %>>
+        <summary><strong>+ Serviceを追加</strong></summary>
+        <%= render "business_service_access_form", business: @business, service: nil %>
+      </details>
+    </div>
+  </section>
 
   <section class="dashboard-section" id="data-source-link-settings">
     <div class="section-heading">

@@ -1261,60 +1261,20 @@
       <thead>
         <tr>
           <th>名前</th>
-          <th>ユーザーページ</th>
-          <th>管理者ページ</th>
-          <th>その他ページ</th>
-          <th>Repository</th>
-          <th>デプロイ先</th>
-          <th>Render</th>
-          <th>Stripe</th>
-          <th>ドメイン</th>
-          <th>API</th>
           <th>ステータス</th>
           <th>MVP評価</th>
           <th>登録/有料/売上</th>
           <th>継続率</th>
           <th>推奨</th>
-          <th>保存</th>
+          <th>設定</th>
         </tr>
       </thead>
       <tbody>
         <% @business_services.each do |service| %>
           <% mvp_evaluation = @mvp_evaluations_by_service_id.fetch(service.id) %>
           <tr>
-            <%= form_with model: [@business, service], method: :patch, local: true do |form| %>
-              <td><%= form.text_field :name, aria: { label: "名前" } %></td>
-              <td>
-                <div class="business-service-url-field">
-                  <%= form.url_field :url, aria: { label: "ユーザーページ" } %>
-                  <% if service.url.present? %>
-                    <%= link_to service.url, service.url, class: "business-service-url-link", target: "_blank", rel: "noopener" %>
-                  <% end %>
-                </div>
-              </td>
-              <td>
-                <div class="business-service-url-field">
-                  <%= form.url_field :admin_url, aria: { label: "管理者ページ" } %>
-                  <% if service.admin_url.present? %>
-                    <%= link_to service.admin_url, service.admin_url, class: "business-service-url-link", target: "_blank", rel: "noopener" %>
-                  <% end %>
-                </div>
-              </td>
-              <td>
-                <div class="business-service-url-field">
-                  <%= form.url_field :other_url, aria: { label: "その他ページ" } %>
-                  <% if service.other_url.present? %>
-                    <%= link_to service.other_url, service.other_url, class: "business-service-url-link", target: "_blank", rel: "noopener" %>
-                  <% end %>
-                </div>
-              </td>
-              <td><%= form.text_field :repository, aria: { label: "Repository" } %></td>
-              <td><%= form.text_field :deploy_target, aria: { label: "デプロイ先" } %></td>
-              <td><%= form.text_field :render_service, aria: { label: "Render" } %></td>
-              <td><%= form.text_field :stripe_account, aria: { label: "Stripe" } %></td>
-              <td><%= form.text_field :domain, aria: { label: "ドメイン" } %></td>
-              <td><%= form.text_field :api_endpoint, aria: { label: "API" } %></td>
-              <td><%= form.select :status, BusinessService::STATUSES.map { |status| [business_service_status_label(status), status] } %></td>
+              <td><strong><%= service.name %></strong></td>
+              <td><span class="pill"><%= business_service_status_label(service.status) %></span></td>
               <td>
                 <span class="pill status-<%= mvp_evaluation.verdict == "poor" ? "warning" : "healthy" %>"><%= mvp_evaluation.verdict %></span>
                 <small><%= mvp_evaluation.trend_label %></small>
@@ -1339,30 +1299,9 @@
                                 data: { turbo_confirm: "このBusinessを本番運用フェーズへ昇格します。よろしいですか？", disable_with: "本番昇格中..." } %>
                 <% end %>
               </td>
-              <td><%= form.submit "保存", class: "button button-small" %></td>
-            <% end %>
+              <td><%= link_to "設定", edit_business_path(@business, anchor: "business-service-settings"), class: "button button-small secondary" %></td>
           </tr>
         <% end %>
-        <tr>
-          <%= form_with model: [@business, BusinessService.new], local: true do |form| %>
-            <td><%= form.text_field :name, placeholder: "サービス名" %></td>
-            <td><%= form.url_field :url, placeholder: "https://service.example.com", aria: { label: "ユーザーページ" } %></td>
-            <td><%= form.url_field :admin_url, placeholder: "https://service.example.com/admin", aria: { label: "管理者ページ" } %></td>
-            <td><%= form.url_field :other_url, placeholder: "https://service.example.com/other", aria: { label: "その他ページ" } %></td>
-            <td><%= form.text_field :repository, placeholder: "GitHub repo" %></td>
-            <td><%= form.text_field :deploy_target, placeholder: "Render / Vercel" %></td>
-            <td><%= form.text_field :render_service, placeholder: "Render service" %></td>
-            <td><%= form.text_field :stripe_account, placeholder: "Stripe" %></td>
-            <td><%= form.text_field :domain, placeholder: "example.com" %></td>
-            <td><%= form.text_field :api_endpoint, placeholder: "API endpoint" %></td>
-            <td><%= form.select :status, BusinessService::STATUSES.map { |status| [business_service_status_label(status), status] } %></td>
-            <td>-</td>
-            <td>-</td>
-            <td>-</td>
-            <td>-</td>
-            <td><%= form.submit "登録", class: "button" %></td>
-          <% end %>
-        </tr>
       </tbody>
     </table>
   </div>

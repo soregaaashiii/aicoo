@@ -14,11 +14,17 @@ module Aicoo
         else
           business.business_services.new
         end
+        service_url = values["service_url"].presence
+        admin_url = values["admin_url"].presence
+        other_url = values["other_url"].presence
         metadata = service.metadata.to_h.merge(
           "branch" => values["branch"].presence || "main",
           "framework" => values["framework"].presence_in(BusinessExecutionProfile::REPOSITORY_TYPES) || "other",
-          "admin_url" => values["admin_url"].presence,
-          "other_url" => values["other_url"].presence,
+          "admin_url" => admin_url,
+          "other_url" => other_url,
+          "user_page_analysis_enabled" => page_analysis_enabled(values, service, "user", service_url, default: true),
+          "admin_page_analysis_enabled" => page_analysis_enabled(values, service, "admin", admin_url, default: false),
+          "other_page_analysis_enabled" => page_analysis_enabled(values, service, "other", other_url, default: false),
           "health_check_url" => values["health_check_url"].presence,
           "auto_deploy_enabled" => boolean(values["auto_deploy_enabled"]) || false,
           "updated_by" => "owner",
@@ -26,8 +32,9 @@ module Aicoo
         ).compact
         service.assign_attributes(
           name: values["name"].presence || service.name.presence || business.name,
-          url: values["service_url"].presence,
+          url: service_url,
           domain: values["domain"].presence,
+          stripe_account: values["stripe_account"].presence,
           repository: values["github_repository"].presence,
           render_service: values["render_service_name"].presence,
           deploy_target: values["deploy_target"].presence || "render",
@@ -38,6 +45,30 @@ module Aicoo
         service.save!
 
         sync_primary_service_profile!(service) if primary_service?(service)
+        service
+      end
+    end
+
+    def destroy_service_page!(service_id:, page_kind:)
+      kind = page_kind.to_s
+      raise ArgumentError, "不明なページ種別です。" unless kind.in?(BusinessService::PAGE_KINDS)
+
+      Business.transaction do
+        service = business.business_services.find(service_id)
+        metadata = service.metadata.to_h.merge(
+          "#{kind}_page_analysis_enabled" => false,
+          "updated_by" => "owner",
+          "updated_at" => Time.current.iso8601
+        )
+        if kind == "user"
+          service.url = nil
+        else
+          metadata["#{kind}_url"] = nil
+        end
+        service.metadata = metadata.compact
+        service.save!
+        sync_primary_service_profile!(service) if kind == "user" && primary_service?(service)
+        service
       end
     end
 
@@ -165,7 +196,7 @@ module Aicoo
         codex_repository_url: repository.presence || profile.codex_repository_url,
         default_branch: base_branch,
         codex_base_branch: base_branch,
-        production_url: service&.url.presence || profile.production_url,
+        production_url: service ? service.url.presence : profile.production_url,
         health_check_url: service&.metadata.to_h&.dig("health_check_url").presence || profile.health_check_url,
         render_service_name: service&.render_service.presence || profile.render_service_name,
         deploy_target: service&.deploy_target.presence_in(BusinessExecutionProfile::DEPLOY_TARGETS) || profile.deploy_target,
@@ -186,6 +217,16 @@ module Aicoo
         branch: service.metadata.to_h["branch"],
         service:
       )
+    end
+
+    def page_analysis_enabled(values, service, kind, page_url, default:)
+      return false if page_url.blank?
+
+      key = "#{kind}_page_analysis_enabled"
+      return boolean(values[key]) if values.key?(key)
+
+      metadata = service.metadata.to_h
+      metadata.key?(key) ? boolean(metadata[key]) : default
     end
 
     def update_analytics_site!(values)

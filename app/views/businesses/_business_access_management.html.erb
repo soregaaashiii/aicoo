@@ -41,6 +41,7 @@
       <div class="business-access-item-list">
         <% business_services.each do |service| %>
           <% metadata = service.metadata.to_h %>
+          <% user_page_url = business_service_access_url(service) %>
           <article class="business-access-list-item">
             <div>
               <strong><%= service.name %></strong>
@@ -50,21 +51,26 @@
               <dt>GitHub</dt>
               <dd><%= service.repository.presence || "未設定" %></dd>
               <dt>ユーザーページ</dt>
-              <dd><%= service.url.present? ? link_to(service.url, service.url, target: "_blank", rel: "noopener") : "未設定" %></dd>
+              <dd>
+                <%= user_page_url.present? ? link_to(user_page_url, user_page_url, target: "_blank", rel: "noopener") : "未設定" %>
+                <% if service.url.present? %><span class="pill"><%= service.page_analysis_enabled?("user") ? "分析対象" : "分析対象外" %></span><% end %>
+              </dd>
               <dt>管理者ページ</dt>
-              <dd><%= metadata["admin_url"].present? ? link_to(metadata["admin_url"], metadata["admin_url"], target: "_blank", rel: "noopener") : "未設定" %></dd>
+              <dd>
+                <%= metadata["admin_url"].present? ? link_to(metadata["admin_url"], metadata["admin_url"], target: "_blank", rel: "noopener") : "未設定" %>
+                <% if metadata["admin_url"].present? %><span class="pill"><%= service.page_analysis_enabled?("admin") ? "分析対象" : "分析対象外" %></span><% end %>
+              </dd>
               <dt>その他ページ</dt>
-              <dd><%= metadata["other_url"].present? ? link_to(metadata["other_url"], metadata["other_url"], target: "_blank", rel: "noopener") : "未設定" %></dd>
+              <dd>
+                <%= metadata["other_url"].present? ? link_to(metadata["other_url"], metadata["other_url"], target: "_blank", rel: "noopener") : "未設定" %>
+                <% if metadata["other_url"].present? %><span class="pill"><%= service.page_analysis_enabled?("other") ? "分析対象" : "分析対象外" %></span><% end %>
+              </dd>
               <dt>Health Check</dt>
               <dd><%= metadata["health_check_url"].presence || "未設定" %></dd>
             </dl>
             <div class="business-access-card-actions">
-              <details class="business-access-editor">
-                <summary class="button secondary">編集</summary>
-                <%= render "business_service_access_form", business:, service: %>
-              </details>
-              <% if service.url.present? %>
-                <%= link_to "開く", service.url, class: "button secondary", target: "_blank", rel: "noopener" %>
+              <% if user_page_url.present? %>
+                <%= link_to "開く", user_page_url, class: "button secondary", target: "_blank", rel: "noopener" %>
               <% end %>
             </div>
           </article>
@@ -75,10 +81,9 @@
         <p class="aicoo-empty-state">Serviceは未登録です。サービス本体のGitHub・Render・ユーザーページを登録してください。</p>
       <% end %>
 
-      <details class="business-access-editor business-access-add-editor">
-        <summary class="button">+ Service追加</summary>
-        <%= render "business_service_access_form", business:, service: nil %>
-      </details>
+      <%= link_to business_services.empty? ? "+ Service追加" : "Serviceページ設定",
+                  edit_business_path(business, anchor: "business-service-settings"),
+                  class: "button" %>
     </div>
 
     <details class="business-campaign-developer-settings">
