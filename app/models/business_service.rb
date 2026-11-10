@@ -3,6 +3,8 @@ class BusinessService < ApplicationRecord
 
   belongs_to :business
 
+  store_accessor :metadata, :admin_url, :other_url
+
   validates :name, presence: true, uniqueness: { scope: :business_id }
   validates :status, inclusion: { in: STATUSES }
 

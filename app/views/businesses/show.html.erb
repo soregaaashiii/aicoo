@@ -1261,7 +1261,9 @@
       <thead>
         <tr>
           <th>名前</th>
-          <th>URL</th>
+          <th>ユーザーページ</th>
+          <th>管理者ページ</th>
+          <th>その他ページ</th>
           <th>Repository</th>
           <th>デプロイ先</th>
           <th>Render</th>
@@ -1282,7 +1284,9 @@
           <tr>
             <%= form_with model: [@business, service], method: :patch, local: true do |form| %>
               <td><%= form.text_field :name, aria: { label: "名前" } %></td>
-              <td><%= form.text_field :url, aria: { label: "URL" } %></td>
+              <td><%= form.url_field :url, aria: { label: "ユーザーページ" } %></td>
+              <td><%= form.url_field :admin_url, aria: { label: "管理者ページ" } %></td>
+              <td><%= form.url_field :other_url, aria: { label: "その他ページ" } %></td>
               <td><%= form.text_field :repository, aria: { label: "Repository" } %></td>
               <td><%= form.text_field :deploy_target, aria: { label: "デプロイ先" } %></td>
               <td><%= form.text_field :render_service, aria: { label: "Render" } %></td>
@@ -1321,7 +1325,9 @@
         <tr>
           <%= form_with model: [@business, BusinessService.new], local: true do |form| %>
             <td><%= form.text_field :name, placeholder: "サービス名" %></td>
-            <td><%= form.text_field :url, placeholder: "https://..." %></td>
+            <td><%= form.url_field :url, placeholder: "https://service.example.com", aria: { label: "ユーザーページ" } %></td>
+            <td><%= form.url_field :admin_url, placeholder: "https://service.example.com/admin", aria: { label: "管理者ページ" } %></td>
+            <td><%= form.url_field :other_url, placeholder: "https://service.example.com/other", aria: { label: "その他ページ" } %></td>
             <td><%= form.text_field :repository, placeholder: "GitHub repo" %></td>
             <td><%= form.text_field :deploy_target, placeholder: "Render / Vercel" %></td>
             <td><%= form.text_field :render_service, placeholder: "Render service" %></td>

@@ -518,19 +518,39 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
 
   test "business can store multiple services and primary service configures execution profile" do
     assert_difference -> { @business.business_services.count }, 2 do
-      save_service(name: "API", repository: "https://github.com/example/api", url: "https://api.example.com")
+      save_service(
+        name: "API",
+        repository: "https://github.com/example/api",
+        url: "https://api.example.com",
+        admin_url: "https://api.example.com/admin",
+        other_url: "https://status.example.com/api"
+      )
       save_service(name: "Worker", repository: "https://github.com/example/worker", url: "https://worker.example.com")
     end
 
     services = @business.business_services.order(:created_at)
     assert_equal %w[API Worker], services.pluck(:name)
     assert_equal "rails", services.first.metadata.to_h["framework"]
+    assert_equal "https://api.example.com/admin", services.first.metadata.to_h["admin_url"]
+    assert_equal "https://status.example.com/api", services.first.metadata.to_h["other_url"]
     assert_equal "main", services.second.metadata.to_h["branch"]
     profile = @business.reload.business_execution_profile
     assert_equal "https://github.com/example/api", profile.github_repository
     assert_equal "https://api.example.com", profile.production_url
+    assert_not_equal services.first.admin_url, profile.production_url
+    assert_not_equal services.first.other_url, profile.production_url
     assert_equal "api-web", profile.render_service_name
     assert_nil @other_business.reload.business_execution_profile
+
+    get business_url(@business)
+    assert_response :success
+    assert_select "#business-service-access-card" do
+      assert_select "label", text: "ユーザーページ"
+      assert_select "label", text: "管理者ページ"
+      assert_select "label", text: "その他ページ"
+      assert_select "a[href='https://api.example.com/admin']", text: "https://api.example.com/admin"
+      assert_select "a[href='https://status.example.com/api']", text: "https://status.example.com/api"
+    end
   end
 
   test "landing pages are independent records and sync task targets only the landing page repository" do
@@ -668,7 +688,7 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
 
   private
 
-  def save_service(name:, repository:, url:)
+  def save_service(name:, repository:, url:, admin_url: nil, other_url: nil)
     patch service_business_access_settings_url(@business), params: {
       service_access: {
         name:,
@@ -677,6 +697,8 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
         framework: "rails",
         render_service_name: "#{name.downcase}-web",
         service_url: url,
+        admin_url:,
+        other_url:,
         health_check_url: "#{url}/up",
         deploy_target: "render",
         activity_api_endpoint: "#{url}/activity",

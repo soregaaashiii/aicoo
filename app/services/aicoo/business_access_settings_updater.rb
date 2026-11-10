@@ -17,6 +17,8 @@ module Aicoo
         metadata = service.metadata.to_h.merge(
           "branch" => values["branch"].presence || "main",
           "framework" => values["framework"].presence_in(BusinessExecutionProfile::REPOSITORY_TYPES) || "other",
+          "admin_url" => values["admin_url"].presence,
+          "other_url" => values["other_url"].presence,
           "health_check_url" => values["health_check_url"].presence,
           "auto_deploy_enabled" => boolean(values["auto_deploy_enabled"]) || false,
           "updated_by" => "owner",

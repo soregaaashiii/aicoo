@@ -49,8 +49,12 @@
             <dl class="business-access-values">
               <dt>GitHub</dt>
               <dd><%= service.repository.presence || "未設定" %></dd>
-              <dt>Production</dt>
-              <dd><%= service.url.presence || "未設定" %></dd>
+              <dt>ユーザーページ</dt>
+              <dd><%= service.url.present? ? link_to(service.url, service.url, target: "_blank", rel: "noopener") : "未設定" %></dd>
+              <dt>管理者ページ</dt>
+              <dd><%= metadata["admin_url"].present? ? link_to(metadata["admin_url"], metadata["admin_url"], target: "_blank", rel: "noopener") : "未設定" %></dd>
+              <dt>その他ページ</dt>
+              <dd><%= metadata["other_url"].present? ? link_to(metadata["other_url"], metadata["other_url"], target: "_blank", rel: "noopener") : "未設定" %></dd>
               <dt>Health Check</dt>
               <dd><%= metadata["health_check_url"].presence || "未設定" %></dd>
             </dl>
@@ -68,7 +72,7 @@
       </div>
 
       <% if business_services.empty? %>
-        <p class="aicoo-empty-state">Serviceは未登録です。サービス本体のGitHub・Render・Productionを登録してください。</p>
+        <p class="aicoo-empty-state">Serviceは未登録です。サービス本体のGitHub・Render・ユーザーページを登録してください。</p>
       <% end %>
 
       <details class="business-access-editor business-access-add-editor">

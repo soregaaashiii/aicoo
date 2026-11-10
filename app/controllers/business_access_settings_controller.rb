@@ -223,7 +223,7 @@ class BusinessAccessSettingsController < ApplicationController
 
   def service_params
     params.expect(service_access: %i[
-      business_service_id name service_url domain github_repository branch framework render_service_name
+      business_service_id name service_url admin_url other_url domain github_repository branch framework render_service_name
       health_check_url deploy_target activity_api_endpoint auto_deploy_enabled status
     ])
   end

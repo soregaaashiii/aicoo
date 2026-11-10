@@ -35,6 +35,8 @@ class BusinessServicesController < ApplicationController
     params.require(:business_service).permit(
       :name,
       :url,
+      :admin_url,
+      :other_url,
       :repository,
       :deploy_target,
       :render_service,

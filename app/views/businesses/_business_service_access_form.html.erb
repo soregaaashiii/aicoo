@@ -23,9 +23,18 @@
     <%= form.text_field :render_service_name, value: service&.render_service, placeholder: "service-web" %>
   </div>
   <div class="field">
-    <%= form.label :service_url, "Production URL" %>
+    <%= form.label :service_url, "ユーザーページ" %>
     <%= form.url_field :service_url, value: service&.url, placeholder: "https://service.example.com" %>
   </div>
+  <div class="field">
+    <%= form.label :admin_url, "管理者ページ" %>
+    <%= form.url_field :admin_url, value: metadata["admin_url"], placeholder: "https://service.example.com/admin" %>
+  </div>
+  <div class="field">
+    <%= form.label :other_url, "その他ページ" %>
+    <%= form.url_field :other_url, value: metadata["other_url"], placeholder: "https://service.example.com/other" %>
+  </div>
+  <p class="aicoo-help-text">分析対象はユーザーページのみです。管理者ページとその他ページは参照用として保存します。</p>
   <div class="field">
     <%= form.label :health_check_url, "Health Check URL" %>
     <%= form.url_field :health_check_url, value: metadata["health_check_url"], placeholder: "https://service.example.com/up" %>
