@@ -2481,20 +2481,33 @@ textarea {
 }
 
 .business-order-controls {
+  align-items: center;
   display: inline-flex;
-  gap: 4px;
+  gap: 6px;
   margin-left: 6px;
   vertical-align: middle;
+}
+
+.business-order-current {
+  color: var(--muted);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.business-order-position-input {
+  min-width: 0;
+  padding: 4px 6px;
+  text-align: center;
+  width: 58px;
 }
 
 .button.business-order-button {
   align-items: center;
   display: inline-flex;
-  height: 28px;
+  height: 32px;
   justify-content: center;
   line-height: 1;
-  padding: 0;
-  width: 28px;
+  padding: 0 10px;
 }
 
 .inline-form,

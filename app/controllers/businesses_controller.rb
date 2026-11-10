@@ -110,7 +110,11 @@ class BusinessesController < ApplicationController
   end
 
   def move
-    moved = Aicoo::BusinessListOrder.move(@business, direction: params[:direction])
+    moved = Aicoo::BusinessListOrder.move(
+      @business,
+      direction: params[:direction],
+      target_position: params[:target_position]
+    )
     redirect_to safe_return_to || businesses_path(tab: "businesses"),
                 notice: moved ? "事業の並び順を変更しました。" : "これ以上移動できません。",
                 status: :see_other

@@ -596,13 +596,13 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     assert_includes form_html, CGI.escapeHTML(businesses_path(tab: "businesses", filter: "paused"))
   end
 
-  test "moves a business in the persisted business index order" do
+  test "moves a business directly to a requested position in the persisted business index order" do
     ordered_before = Aicoo::BusinessListOrder.sort(Business.real_businesses.to_a)
-    moving_business = ordered_before.first
-    next_business = ordered_before.second
+    moving_business = ordered_before.last
+    first_business = ordered_before.first
 
     patch move_business_url(moving_business), params: {
-      direction: "down",
+      target_position: 1,
       return_to: businesses_path(tab: "businesses")
     }
 
@@ -612,10 +612,12 @@ class BusinessesControllerTest < ActionDispatch::IntegrationTest
     get businesses_url
 
     assert_response :success
-    next_link_position = response.body.index(%(href="#{business_path(next_business)}"))
+    first_link_position = response.body.index(%(href="#{business_path(first_business)}"))
     moving_link_position = response.body.index(%(href="#{business_path(moving_business)}"))
-    assert next_link_position < moving_link_position
-    assert_select "button[aria-label='#{moving_business.name}を上へ移動'][name='direction'][value='up']", count: 1
+    assert moving_link_position < first_link_position
+    assert_select "input[aria-label='#{moving_business.name}の移動先順位'][name='target_position'][value='1']", count: 1
+    assert_select "button[aria-label='#{moving_business.name}を指定順位へ移動']", count: 1
+    assert_select "button[name='direction']", count: 0
   end
 
   test "does not show reorder controls in a filtered business list" do

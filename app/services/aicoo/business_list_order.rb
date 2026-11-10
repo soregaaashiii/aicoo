@@ -14,18 +14,21 @@ module Aicoo
         end
       end
 
-      def move(business, direction:)
-        offset = DIRECTIONS[direction.to_s]
-        return false unless offset
-
+      def move(business, direction: nil, target_position: nil)
         moved = false
         Business.transaction do
           businesses = sort(Business.real_businesses.lock.order(:name).to_a)
           current_index = businesses.index { |row| row.id == business.id }
-          target_index = current_index && current_index + offset
+          target_index = target_index_for(
+            current_index:,
+            business_count: businesses.length,
+            direction:,
+            target_position:
+          )
           next unless current_index && target_index&.between?(0, businesses.length - 1)
+          next if current_index == target_index
 
-          businesses[current_index], businesses[target_index] = businesses[target_index], businesses[current_index]
+          businesses.insert(target_index, businesses.delete_at(current_index))
           persist_positions(businesses)
           moved = true
         end
@@ -39,6 +42,20 @@ module Aicoo
       end
 
       private
+
+      def target_index_for(current_index:, business_count:, direction:, target_position:)
+        return unless current_index
+
+        if target_position.present?
+          requested_position = Integer(target_position, exception: false)
+          return unless requested_position&.between?(1, business_count)
+
+          requested_position - 1
+        else
+          offset = DIRECTIONS[direction.to_s]
+          current_index + offset if offset
+        end
+      end
 
       def persist_positions(businesses)
         businesses.each_with_index do |business, position|

@@ -167,26 +167,20 @@
             <%= link_to business.name, business %>
             <% if @business_filter.nil? %>
               <div class="business-order-controls" aria-label="<%= business.name %>の並び順">
-                <% if business_index.positive? %>
-                  <%= button_tag "↑",
-                                 type: "submit",
-                                 name: "direction",
-                                 value: "up",
-                                 form: dom_id(business, :list_order),
-                                 class: "button secondary business-order-button",
-                                 title: "上へ移動",
-                                 aria: { label: "#{business.name}を上へ移動" } %>
-                <% end %>
-                <% if business_index < @businesses.length - 1 %>
-                  <%= button_tag "↓",
-                                 type: "submit",
-                                 name: "direction",
-                                 value: "down",
-                                 form: dom_id(business, :list_order),
-                                 class: "button secondary business-order-button",
-                                 title: "下へ移動",
-                                 aria: { label: "#{business.name}を下へ移動" } %>
-                <% end %>
+                <span class="business-order-current"><%= business_index + 1 %> / <%= @businesses.length %></span>
+                <%= number_field_tag :target_position,
+                                     business_index + 1,
+                                     id: dom_id(business, :target_position),
+                                     min: 1,
+                                     max: @businesses.length,
+                                     form: dom_id(business, :list_order),
+                                     class: "business-order-position-input",
+                                     aria: { label: "#{business.name}の移動先順位" } %>
+                <%= button_tag "移動",
+                               type: "submit",
+                               form: dom_id(business, :list_order),
+                               class: "button secondary business-order-button",
+                               aria: { label: "#{business.name}を指定順位へ移動" } %>
               </div>
             <% end %>
             <% if @business_serp_generated_by_id.fetch(business) %>

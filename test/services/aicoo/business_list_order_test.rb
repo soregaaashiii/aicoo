@@ -15,6 +15,23 @@ class Aicoo::BusinessListOrderTest < ActiveSupport::TestCase
     assert_equal moving_updated_at, moving_business.reload.updated_at
   end
 
+  test "moves a business directly to any requested position" do
+    businesses = Aicoo::BusinessListOrder.sort(Business.real_businesses.to_a)
+    moving_business = businesses.last
+
+    assert Aicoo::BusinessListOrder.move(moving_business, target_position: 1)
+
+    reordered = Aicoo::BusinessListOrder.sort(Business.real_businesses.reload.to_a)
+    assert_equal moving_business.id, reordered.first.id
+  end
+
+  test "rejects an out of range requested position" do
+    business = Aicoo::BusinessListOrder.sort(Business.real_businesses.to_a).first
+
+    assert_not Aicoo::BusinessListOrder.move(business, target_position: 0)
+    assert_not Aicoo::BusinessListOrder.move(business, target_position: Business.real_businesses.count + 1)
+  end
+
   test "does not move past the list boundary or accept an unknown direction" do
     first_business = Aicoo::BusinessListOrder.sort(Business.real_businesses.to_a).first
 
