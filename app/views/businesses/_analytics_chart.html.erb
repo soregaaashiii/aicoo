@@ -14,14 +14,14 @@
       <div class="business-analytics-metric-label"><%= metric[:label] %></div>
       <div class="business-analytics-plot">
         <div class="business-analytics-y-axis" aria-hidden="true">
-          <span><%= business_chart_value_label(max_value) %></span>
-          <span><%= business_chart_value_label(max_value / 2) %></span>
-          <span>0</span>
+          <span><%= business_chart_value_label(max_value, metric: metric[:key]) %></span>
+          <span><%= business_chart_value_label(max_value / 2, metric: metric[:key]) %></span>
+          <span><%= business_chart_value_label(0, metric: metric[:key]) %></span>
         </div>
         <div class="business-analytics-bar-row">
           <% series.each do |point| %>
             <% value = point.values[metric[:key]] %>
-            <% value_label = business_chart_value_label(value) %>
+            <% value_label = business_chart_value_label(value, metric: metric[:key]) %>
             <% tooltip = "#{point.date} / #{metric[:label]}: #{value_label}" %>
             <span class="business-analytics-bar"
                   role="img"

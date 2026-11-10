@@ -13,7 +13,11 @@ module BusinessAnalyticsHelper
 
   def business_chart_max(series, metric)
     values = series.map { |point| business_chart_decimal(point.values[metric]) }
-    [ values.max || 0.to_d, 1.to_d ].max
+    max_value = values.max || 0.to_d
+
+    return business_chart_ratio_max(max_value) if metric.to_s == "ctr"
+
+    [ max_value, 1.to_d ].max
   end
 
   def business_chart_height(point, metric, max_value)
@@ -23,10 +27,12 @@ module BusinessAnalyticsHelper
     [ (value / business_chart_decimal(max_value) * 100).round, 8 ].max
   end
 
-  def business_chart_value_label(value)
+  def business_chart_value_label(value, metric: nil)
     return "データ不足" if value.nil?
 
     number = value.to_d
+    return business_chart_percentage_label(number) if metric.to_s == "ctr"
+
     formatted = if number.frac.zero?
       number.to_i.to_s
     elsif number.abs >= 1
@@ -40,6 +46,27 @@ module BusinessAnalyticsHelper
   end
 
   private
+
+  def business_chart_ratio_max(max_value)
+    return 0.01.to_d if max_value.zero?
+
+    max_value * 1.1.to_d
+  end
+
+  def business_chart_percentage_label(number)
+    percentage = number * 100
+    precision = if percentage.zero?
+      0
+    elsif percentage.abs >= 10
+      1
+    elsif percentage.abs >= 1
+      2
+    else
+      3
+    end
+
+    number_to_percentage(percentage, precision:, strip_insignificant_zeros: true)
+  end
 
   def business_chart_decimal(value)
     value.nil? ? 0.to_d : value.to_d
