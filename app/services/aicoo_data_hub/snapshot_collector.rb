@@ -212,7 +212,7 @@ module AicooDataHub
       {
         data_import_id: data_import.id,
         data_source_id: data_import.data_source_id,
-        business_id: data_import.business&.id,
+        business_id: data_import.aicoo_analytics_site&.business_id || data_import.business&.id,
         analytics_site_id: data_import.aicoo_analytics_site_id,
         site_name: data_import.aicoo_analytics_site&.name,
         domain: data_import.aicoo_analytics_site&.domain,

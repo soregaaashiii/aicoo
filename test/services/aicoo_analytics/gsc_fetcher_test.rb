@@ -3,11 +3,14 @@ require "test_helper"
 module AicooAnalytics
   class GscFetcherTest < ActiveSupport::TestCase
     test "creates data import from gsc api response and runs pipeline" do
+      business = Business.create!(name: "Suelog GSC owner")
+      analytics_site = AicooAnalyticsSite.create!(name: "Suelog", domain: "suelog.jp", business:)
       setting = AnalyticsSourceSetting.create!(
         source_type: "gsc",
         name: "Suelog GSC",
         site_url: "sc-domain:suelog.jp",
-        fetch_days: 28
+        fetch_days: 28,
+        aicoo_analytics_site: analytics_site
       )
 
       assert_difference("DataImport.count", 1) do
@@ -21,6 +24,9 @@ module AicooAnalytics
       end
 
       assert setting.reload.last_fetched_at.present?
+      snapshot = AicooDataSnapshot.find_by!(source_type: "gsc", source_id: DataImport.last.id)
+      assert_equal business.id, snapshot.payload["business_id"]
+      assert_equal analytics_site.id, snapshot.payload["analytics_site_id"]
     end
 
     class FakeGscClient

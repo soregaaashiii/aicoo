@@ -3,8 +3,9 @@ module AicooAnalytics
     SOURCE_TYPES = %w[ga4 gsc].freeze
     Result = Data.define(:data_import_id, :snapshot_count, :updated_neglect_loss_count, :skipped_count)
 
-    def create!(source_type:, filename:, raw_text:, run_after_import: true)
+    def create!(source_type:, filename:, raw_text:, run_after_import: true, analytics_site: nil)
       data_import = analytics_data_source(source_type).data_imports.create!(
+        aicoo_analytics_site: analytics_site,
         filename: filename.presence || default_filename(source_type),
         raw_text:,
         processed_text: raw_text,

@@ -19,10 +19,10 @@ module AicooAnalytics
         source_type: "ga4",
         filename: filename,
         raw_text: csv,
-        run_after_import: true
+        run_after_import: true,
+        analytics_site: setting.aicoo_analytics_site
       )
       data_import = DataImport.find(pipeline_result.data_import_id)
-      data_import.update!(aicoo_analytics_site: setting.aicoo_analytics_site) if setting.aicoo_analytics_site
       setting.update!(last_fetched_at: Time.current)
       setting.aicoo_analytics_site&.update!(last_ga4_fetch_at: setting.last_fetched_at)
 
