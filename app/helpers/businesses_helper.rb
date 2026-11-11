@@ -106,14 +106,28 @@ module BusinessesHelper
     }.fetch(status.to_s, status.to_s)
   end
 
-  def business_service_access_url(service)
+  def business_service_access_url(service, initial_registered_url: nil)
     normalize_public_access_url(
-      service.url.presence ||
+      initial_registered_url.presence ||
+        service.url.presence ||
         service.domain.presence ||
         service.metadata.to_h["public_url"].presence ||
         service.metadata.to_h["service_url"].presence ||
         service.metadata.to_h["production_url"].presence
     )
+  end
+
+  def business_initial_registered_service_url(prototypes)
+    prototype = Array(prototypes)
+      .select do |candidate|
+        metadata = candidate.metadata.to_h
+        candidate.prototype_type == "url" &&
+          metadata["registration_mode"] == "published_service" &&
+          ActiveModel::Type::Boolean.new.cast(metadata["primary"])
+      end
+      .min_by { |candidate| [ candidate.created_at, candidate.id ] }
+
+    normalize_public_access_url(prototype&.location)
   end
 
   def business_landing_page_access_path(landing_page)

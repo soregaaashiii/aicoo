@@ -46,8 +46,8 @@
       <p class="aicoo-help-text">Service登録時のURLです。ここで追加登録する必要はありません。</p>
       <div class="service-page-setting-row">
         <div class="service-page-readonly-value">
-          <% if service.url.present? %>
-            <%= link_to service.url, service.url, target: "_blank", rel: "noopener", class: "business-service-url-link" %>
+          <% if user_page_url.present? %>
+            <%= link_to user_page_url, user_page_url, target: "_blank", rel: "noopener", class: "business-service-url-link" %>
           <% else %>
             <span class="aicoo-empty-state">Service URLは未登録です。</span>
           <% end %>
@@ -63,12 +63,19 @@
         </div>
       </div>
     <% else %>
-      <p class="aicoo-help-text">Serviceを最初に登録するURLが、そのままユーザーページになります。</p>
+      <p class="aicoo-help-text">初期登録したURLが、そのままユーザーページになります。</p>
       <div class="service-page-setting-row">
-        <div class="field service-page-url-field">
-          <%= form.label :service_url, "ユーザーページURL" %>
-          <%= form.url_field :service_url, placeholder: "https://service.example.com" %>
-        </div>
+        <% if user_page_url.present? %>
+          <div class="service-page-readonly-value">
+            <%= link_to user_page_url, user_page_url, target: "_blank", rel: "noopener", class: "business-service-url-link" %>
+            <%= form.hidden_field :service_url, value: user_page_url %>
+          </div>
+        <% else %>
+          <div class="field service-page-url-field">
+            <%= form.label :service_url, "ユーザーページURL" %>
+            <%= form.url_field :service_url, placeholder: "https://service.example.com" %>
+          </div>
+        <% end %>
         <div class="service-page-setting-options">
           <label class="checkbox-field">
             <%= form.check_box :user_page_analysis_enabled, { checked: true }, "1", "0" %>

@@ -25,7 +25,13 @@
     </div>
 
     <div class="business-service-settings-list">
+      <% primary_service_id = @business_services.min_by { |service| [service.created_at, service.id] }&.id %>
+      <% initial_registered_url = business_initial_registered_service_url(@business_prototypes) %>
       <% @business_services.each do |service| %>
+        <% user_page_url = business_service_access_url(
+             service,
+             initial_registered_url: (initial_registered_url if service.id == primary_service_id)
+           ) %>
         <article class="aicoo-card service-settings-card" id="service-settings-card-<%= service.id %>">
           <div class="section-heading compact">
             <div>
@@ -33,13 +39,16 @@
               <p><%= service.analysis_target_urls.size %>ページを分析対象に設定中</p>
             </div>
           </div>
-          <%= render "business_service_access_form", business: @business, service: %>
+          <%= render "business_service_access_form", business: @business, service:, user_page_url: %>
         </article>
       <% end %>
 
       <details class="aicoo-card service-settings-card service-settings-add-card" <%= "open" if @business_services.empty? %>>
         <summary><strong>+ Serviceを追加</strong></summary>
-        <%= render "business_service_access_form", business: @business, service: nil %>
+        <%= render "business_service_access_form",
+                   business: @business,
+                   service: nil,
+                   user_page_url: initial_registered_url %>
       </details>
     </div>
   </section>

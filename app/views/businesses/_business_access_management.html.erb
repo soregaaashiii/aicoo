@@ -1,6 +1,7 @@
 <% access_overview = business_access_overview %>
 <% analytics_site = access_overview.analytics_site %>
 <% cloudflare_configuration = cloudflare_pages_configuration %>
+<% primary_service_id = business_services.min_by { |service| [service.created_at, service.id] }&.id %>
 <% landing_page_rows = campaign_dashboard
   .flat_map { |row| row.fetch(:landing_pages) }
   .sort_by { |row| [ -row.fetch(:expected_profit_yen), row.fetch(:landing_page).id ] } %>
@@ -41,7 +42,10 @@
       <div class="business-access-item-list">
         <% business_services.each do |service| %>
           <% metadata = service.metadata.to_h %>
-          <% user_page_url = business_service_access_url(service) %>
+          <% user_page_url = business_service_access_url(
+               service,
+               initial_registered_url: (initial_registered_service_url if service.id == primary_service_id)
+             ) %>
           <article class="business-access-list-item">
             <div>
               <strong><%= service.name %></strong>

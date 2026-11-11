@@ -334,6 +334,9 @@ class BusinessesController < ApplicationController
   # GET /businesses/1/edit
   def edit
     @business_services = @business.business_services.recent.to_a
+    @business_prototypes = @business.business_prototypes
+      .select(:id, :prototype_type, :location, :metadata, :created_at)
+      .to_a
     load_data_source_settings_context
     load_google_source_options
     @data_source_policy = Aicoo::DataSourcePolicy.for(@business)

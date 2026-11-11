@@ -664,6 +664,53 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
     assert_includes flash[:alert], "ユーザーページはServiceの登録URLとして管理されるため削除できません"
   end
 
+  test "service pages show the initial published service url for the first registered service" do
+    @business.business_prototypes.create!(
+      prototype_type: "url",
+      location: "https://initial.example.com",
+      metadata: {
+        "registration_mode" => "published_service",
+        "primary" => true
+      }
+    )
+
+    get edit_business_url(@business, anchor: "business-service-settings")
+
+    assert_response :success
+    assert_select ".service-settings-add-card" do
+      assert_select "a[href='https://initial.example.com']", text: "https://initial.example.com", count: 1
+      assert_select "input[type='hidden'][name='service_access[service_url]'][value='https://initial.example.com']", count: 1
+      assert_select "input[type='url'][name='service_access[service_url]']", count: 0
+    end
+
+    primary_service = @business.business_services.create!(name: "Primary", status: "live")
+    secondary_service = @business.business_services.create!(
+      name: "Secondary",
+      status: "live",
+      url: "https://secondary.example.com"
+    )
+
+    get edit_business_url(@business, anchor: "business-service-settings")
+
+    assert_response :success
+    assert_select "#service-settings-card-#{primary_service.id}" do
+      assert_select "a[href='https://initial.example.com']", text: "https://initial.example.com", count: 1
+      assert_select "input[name='service_access[service_url]']", count: 0
+    end
+    assert_select "#service-settings-card-#{secondary_service.id}" do
+      assert_select "a[href='https://secondary.example.com']", text: "https://secondary.example.com", count: 1
+      assert_select "a[href='https://initial.example.com']", count: 0
+    end
+
+    get business_url(@business)
+
+    assert_response :success
+    assert_select "#business-service-access-card" do
+      assert_select "a[href='https://initial.example.com']", count: 2
+      assert_select "a[href='https://secondary.example.com']", count: 2
+    end
+  end
+
   test "landing pages are independent records and sync task targets only the landing page repository" do
     save_service(name: "Service", repository: "https://github.com/example/service", url: "https://service.example.com")
 
