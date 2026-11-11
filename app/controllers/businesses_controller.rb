@@ -337,6 +337,7 @@ class BusinessesController < ApplicationController
     @business_prototypes = @business.business_prototypes
       .select(:id, :prototype_type, :location, :metadata, :created_at)
       .to_a
+    @business_execution_profile = @business.business_execution_profile
     load_data_source_settings_context
     load_google_source_options
     @data_source_policy = Aicoo::DataSourcePolicy.for(@business)

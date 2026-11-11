@@ -26,7 +26,12 @@
            landing_page_planner: @landing_page_planner,
            external_landing_pages: @external_landing_pages,
            business_access_overview: @business_access_overview,
-           initial_registered_service_url: business_initial_registered_service_url(@business_prototypes),
+           initial_registered_service_url: business_initial_registered_service_url(
+             @business_prototypes,
+             fallback: @business_access_overview.production_url.presence ||
+               @business.metadata.to_h["production_url"].presence ||
+               @business.metadata.to_h["public_url"].presence
+           ),
            cloudflare_pages_configuration: @cloudflare_pages_configuration %>
 
 <section class="dashboard-section" id="business-lifecycle">

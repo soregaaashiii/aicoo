@@ -711,6 +711,23 @@ class BusinessAccessSettingsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "service pages reuse the legacy execution profile production url" do
+    @business.create_business_execution_profile!(production_url: "https://legacy.example.com")
+    service = @business.business_services.create!(name: "Legacy", status: "live")
+
+    get edit_business_url(@business, anchor: "business-service-settings")
+
+    assert_response :success
+    assert_select "#service-settings-card-#{service.id}" do
+      assert_select "a[href='https://legacy.example.com']", text: "https://legacy.example.com", count: 1
+    end
+
+    get business_url(@business)
+
+    assert_response :success
+    assert_select "#business-service-access-card a[href='https://legacy.example.com']", count: 2
+  end
+
   test "landing pages are independent records and sync task targets only the landing page repository" do
     save_service(name: "Service", repository: "https://github.com/example/service", url: "https://service.example.com")
 

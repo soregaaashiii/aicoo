@@ -117,7 +117,7 @@ module BusinessesHelper
     )
   end
 
-  def business_initial_registered_service_url(prototypes)
+  def business_initial_registered_service_url(prototypes, fallback: nil)
     prototype = Array(prototypes)
       .select do |candidate|
         metadata = candidate.metadata.to_h
@@ -127,7 +127,7 @@ module BusinessesHelper
       end
       .min_by { |candidate| [ candidate.created_at, candidate.id ] }
 
-    normalize_public_access_url(prototype&.location)
+    normalize_public_access_url(prototype&.location.presence || fallback)
   end
 
   def business_landing_page_access_path(landing_page)
